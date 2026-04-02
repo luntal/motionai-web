@@ -5,20 +5,43 @@ export const uiState = {
   activeLevel: null
 };
 
+let isLevelActive = false;
+const chapterChangeHandlers = [];
+const levelChangeHandlers = [];
+
+export function onChapterChange(handler) {
+  if (typeof handler === 'function') chapterChangeHandlers.push(handler);
+}
+
+export function onLevelChange(handler) {
+  if (typeof handler === 'function') levelChangeHandlers.push(handler);
+}
+
+export function setLevelActive(active) {
+  isLevelActive = active;
+}
+
+function emitChapterChange(chapter) {
+  chapterChangeHandlers.forEach((fn) => fn(chapter));
+}
+
+function emitLevelChange(level) {
+  levelChangeHandlers.forEach((fn) => fn(level));
+}
+
 let hoverDescriptionEl = null;
 
 function setHoverDescription(text) {
-  if (!hoverDescriptionEl) return;
+  if (!hoverDescriptionEl || isLevelActive) return;
   hoverDescriptionEl.textContent = text;
   hoverDescriptionEl.classList.add('visible');
 }
 
-function clearHoverDescription() {
+export function clearHoverDescription() {
   if (!hoverDescriptionEl) return;
   hoverDescriptionEl.textContent = '';
   hoverDescriptionEl.classList.remove('visible');
 }
-
 function createButton(label, isActive, onClick, description) {
   const button = document.createElement('button');
   button.type = 'button';
@@ -46,6 +69,8 @@ function renderChapterButtons(chapterRow, levelRow) {
         uiState.activeLevel = null;
         renderChapterButtons(chapterRow, levelRow);
         renderLevelButtons(levelRow);
+        emitChapterChange(index);
+        emitLevelChange(uiState.activeLevel);
       },
       chapterDescriptions[index]
     );
@@ -63,6 +88,7 @@ function renderLevelButtons(levelRow) {
       () => {
         uiState.activeLevel = isActive ? null : index;
         renderLevelButtons(levelRow);
+        emitLevelChange(uiState.activeLevel);
       },
       levelDescriptions[uiState.activeChapter][index]
     );

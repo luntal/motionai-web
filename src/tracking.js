@@ -1,7 +1,21 @@
 let stabilizationEnabled = true;
+const landmarksListeners = [];
+let resizeCallback = null;
 
 export function setStabilizationEnabled(enabled) {
   stabilizationEnabled = enabled;
+}
+
+export function onLandmarksUpdate(callback) {
+  if (typeof callback === 'function') {
+    landmarksListeners.push(callback);
+  }
+}
+
+export function onCanvasResize(callback) {
+  if (typeof callback === 'function') {
+    resizeCallback = callback;
+  }
 }
 
 export function startTracking(videoElement, canvasElement) {
@@ -37,6 +51,10 @@ export function startTracking(videoElement, canvasElement) {
     if (canvasElement.width !== width || canvasElement.height !== height) {
       canvasElement.width = width;
       canvasElement.height = height;
+      console.log(`Canvas resized to ${width}x${height}`);
+      if (resizeCallback) {
+        resizeCallback(width, height);
+      }
     }
   }
 
@@ -85,7 +103,7 @@ export function startTracking(videoElement, canvasElement) {
     const now = performance.now();
     const fps = 1000 / (now - lastFrameTime);
     lastFrameTime = now;
-    console.log(`FPS: ${fps.toFixed(1)}`);
+    // console.log(`FPS: ${fps.toFixed(1)}`);
 
     resizeCanvasIfNeeded();
 
@@ -107,6 +125,14 @@ export function startTracking(videoElement, canvasElement) {
         drawHandSkeleton(landmarks);
         drawHandLandmarks(landmarks);
       }
+
+      const canvasLandmarks = stableHands.map((hand) => hand.map((landmark) => ({
+        x: (1 - landmark.x) * canvasElement.width,
+        y: landmark.y * canvasElement.height,
+        z: landmark.z
+      })));
+
+      landmarksListeners.forEach((listener) => listener(canvasLandmarks));
     }
 
     ctx.restore();
