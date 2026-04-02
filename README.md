@@ -11,15 +11,13 @@ Ziel ist es, Musiker:innen und Dirigent:innen beim Lernen, Üben und Verbessern 
 - 🎯 **Analyse von Dirigiergesten** (z. B. Taktmuster, Bewegungsfluss)  
 - 📊 **Direktes Feedback** zur Ausführung und Präzision  
 - 🧠 Unterstützung beim **Erlernen von Schlagfiguren**  
-- 💻 Cross-Platform: macOS & Windows (Tauri-basiert)
+- 💻 browserbasiert
 
 ---
 
 ## 🧩 Technologie-Stack
 
-- **Frontend:** JavaScript, HTML  
-- **Desktop Framework:** Tauri  
-- **Backend/Core:** Rust (Tauri Core)  
+- **Frontend:** JavaScript, HTML   
 - **Motion-Tracking:** Google Media-Pipe Solutions  
 
 ---
@@ -36,11 +34,3 @@ Durch visuelles Feedback und Analysefunktionen wird das eigenständige Üben eff
 Anleitung folgt – aktuell befindet sich das Projekt in Entwicklung.
 
 ---
-
-## 🛠️ Development
-Clone this repo.
-Install Tauri-Framework, Node.js, npm and then:
-
-```bash
-npm install
-npm run tauri dev
