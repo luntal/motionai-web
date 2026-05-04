@@ -1,13 +1,22 @@
-import { CHAPTER_COUNT, LEVEL_COUNT, chapterDescriptions, levelDescriptions } from './constants.js';
+import {
+  CHAPTER_COUNT,
+  chapterTitles,
+  chapterDescriptions,
+  levelTitles,
+  levelDescriptions,
+  getLevelCountForChapter
+} from './constants.js';
 
 export const uiState = {
-  activeChapter: 0,
+  activeChapter: null,
   activeLevel: null
 };
 
 let isLevelActive = false;
 const chapterChangeHandlers = [];
 const levelChangeHandlers = [];
+let chapterRowElement = null;
+let levelRowElement = null;
 
 export function onChapterChange(handler) {
   if (typeof handler === 'function') chapterChangeHandlers.push(handler);
@@ -62,7 +71,7 @@ function renderChapterButtons(chapterRow, levelRow) {
   chapterRow.innerHTML = '';
   for (let index = 0; index < CHAPTER_COUNT; index += 1) {
     const button = createButton(
-      `Chapter ${index + 1}`,
+      chapterTitles[index] || `Chapter ${index + 1}`,
       uiState.activeChapter === index,
       () => {
         uiState.activeChapter = index;
@@ -80,20 +89,52 @@ function renderChapterButtons(chapterRow, levelRow) {
 
 function renderLevelButtons(levelRow) {
   levelRow.innerHTML = '';
-  for (let index = 0; index < LEVEL_COUNT; index += 1) {
+  const hasActiveChapter = Number.isInteger(uiState.activeChapter);
+  const levelCount = hasActiveChapter ? getLevelCountForChapter(uiState.activeChapter) : 0;
+  for (let index = 0; index < levelCount; index += 1) {
     const isActive = uiState.activeLevel === index;
+    const label = hasActiveChapter && levelTitles[uiState.activeChapter]
+      ? levelTitles[uiState.activeChapter][index] || `Level ${index + 1}`
+      : `Level ${index + 1}`;
     const button = createButton(
-      `Level ${index + 1}`,
+      label,
       isActive,
       () => {
+        if (!hasActiveChapter) {
+          return;
+        }
         uiState.activeLevel = isActive ? null : index;
         renderLevelButtons(levelRow);
         emitLevelChange(uiState.activeLevel);
       },
-      levelDescriptions[uiState.activeChapter][index]
+      hasActiveChapter && levelDescriptions[uiState.activeChapter]
+        ? levelDescriptions[uiState.activeChapter][index]
+        : 'Select a chapter first.'
     );
+    button.disabled = !hasActiveChapter;
     levelRow.appendChild(button);
   }
+}
+
+export function setActiveLevel(level) {
+  uiState.activeLevel = level;
+  if (levelRowElement) {
+    renderLevelButtons(levelRowElement);
+  }
+  emitLevelChange(uiState.activeLevel);
+}
+
+export function setActiveChapter(chapter) {
+  uiState.activeChapter = chapter;
+  uiState.activeLevel = null;
+
+  if (chapterRowElement && levelRowElement) {
+    renderChapterButtons(chapterRowElement, levelRowElement);
+    renderLevelButtons(levelRowElement);
+  }
+
+  emitChapterChange(chapter);
+  emitLevelChange(uiState.activeLevel);
 }
 
 export function createNavigationUI() {
@@ -109,6 +150,9 @@ export function createNavigationUI() {
   topBar.appendChild(chapterRow);
   topBar.appendChild(levelRow);
   document.body.prepend(topBar);
+
+  chapterRowElement = chapterRow;
+  levelRowElement = levelRow;
 
   hoverDescriptionEl = document.createElement('div');
   hoverDescriptionEl.className = 'hover-description';
