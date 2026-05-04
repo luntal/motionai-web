@@ -23,9 +23,20 @@ export class LevelManager {
     this.calibrationMetrics = null;
     this.calibrationAnimationStart = performance.now();
     this.calibrationInfoEl = null;
+    this.consistencyActive = false;
+    this.consistencyInfoEl = null;
+    this.consistencyScoreHistory = [];
+    this.consistencyAccuracy = 0;
+    this.consistencyAnimationStart = performance.now();
+    this.consistencyPhase = 0;
+    this.consistencyLastTickMs = performance.now();
+    this.consistencySpeedPercent = 100;
+    this.consistencyStrictnessPercent = 100;
+    this.consistencyMotionBlendPercent = 0;
     this.gridRows = 12;
     this.gridCols = 16;
     this.createCalibrationInfoPanel();
+    this.createConsistencyInfoPanel();
     this.buildGrid();
   }
 
@@ -106,6 +117,127 @@ export class LevelManager {
     `;
   }
 
+  createConsistencyInfoPanel() {
+    const panel = document.createElement('div');
+    panel.className = 'consistency-info-panel';
+    panel.innerHTML = '<h3>Gleichmäßigkeit</h3><p>Warte auf Start...</p>';
+    panel.style.display = 'none';
+    document.body.appendChild(panel);
+    this.consistencyInfoEl = panel;
+  }
+
+  setConsistencyPanelVisible(visible) {
+    if (!this.consistencyInfoEl) {
+      return;
+    }
+    this.consistencyInfoEl.style.display = visible ? 'block' : 'none';
+  }
+
+  updateConsistencyPanelPosition() {
+    if (!this.consistencyInfoEl) {
+      return;
+    }
+
+    const rect = this.canvas.getBoundingClientRect();
+    const panelMargin = 12;
+    const panelMarginTop = 24;
+    const topOffset = Math.max(panelMarginTop, rect.top + panelMarginTop);
+
+    this.consistencyInfoEl.style.left = 'auto';
+    this.consistencyInfoEl.style.right = `${panelMargin}px`;
+    this.consistencyInfoEl.style.top = `${topOffset}px`;
+  }
+
+  updateConsistencyPanelContent() {
+    if (!this.consistencyInfoEl) {
+      return;
+    }
+
+    const levelNames = [
+      'Rechte Linie',
+      'Linke Linie',
+      'Synchron',
+      'Versetzt',
+      '2:1 Tempo',
+      'Ellipsen'
+    ];
+    const levelName = levelNames[this.level] || `Level ${this.level + 1}`;
+    const scorePercent = Math.round(this.consistencyAccuracy * 100);
+
+    if (!this.consistencyInfoEl.querySelector('.consistency-score-value')) {
+      this.consistencyInfoEl.innerHTML = `
+        <h3 class="consistency-title"></h3>
+        <p>Folge den bewegten Punkten so präzise und gleichmäßig wie möglich.</p>
+        <div class="consistency-score-row">
+          <span>Genauigkeit (letzte 3s)</span>
+          <strong class="consistency-score-value">0%</strong>
+        </div>
+        <div class="consistency-slider-row">
+          <label for="consistency-speed-slider">Tempo</label>
+          <input id="consistency-speed-slider" type="range" min="30" max="170" step="5" value="100" />
+          <span class="consistency-slider-value consistency-speed-value">100%</span>
+        </div>
+        <div class="consistency-slider-row">
+          <label for="consistency-strictness-slider">Strenge</label>
+          <input id="consistency-strictness-slider" type="range" min="70" max="160" step="5" value="100" />
+          <span class="consistency-slider-value consistency-strictness-value">100%</span>
+        </div>
+        <div class="consistency-slider-row">
+          <label for="consistency-motion-slider">Kurve</label>
+          <input id="consistency-motion-slider" type="range" min="0" max="100" step="5" value="0" />
+          <span class="consistency-slider-value consistency-motion-value">0%</span>
+        </div>
+        <p class="consistency-status">Die Bewertung aktualisiert sich fortlaufend.</p>
+      `;
+
+      const speedSlider = this.consistencyInfoEl.querySelector('#consistency-speed-slider');
+      const strictnessSlider = this.consistencyInfoEl.querySelector('#consistency-strictness-slider');
+      const motionSlider = this.consistencyInfoEl.querySelector('#consistency-motion-slider');
+      if (speedSlider) {
+        speedSlider.value = String(this.consistencySpeedPercent);
+        speedSlider.addEventListener('input', (event) => {
+          const next = Number(event.target.value);
+          this.consistencySpeedPercent = Number.isFinite(next) ? next : 100;
+        });
+      }
+      if (strictnessSlider) {
+        strictnessSlider.value = String(this.consistencyStrictnessPercent);
+        strictnessSlider.addEventListener('input', (event) => {
+          const next = Number(event.target.value);
+          this.consistencyStrictnessPercent = Number.isFinite(next) ? next : 100;
+        });
+      }
+      if (motionSlider) {
+        motionSlider.value = String(this.consistencyMotionBlendPercent);
+        motionSlider.addEventListener('input', (event) => {
+          const next = Number(event.target.value);
+          this.consistencyMotionBlendPercent = Number.isFinite(next) ? next : 0;
+        });
+      }
+    }
+
+    const titleEl = this.consistencyInfoEl.querySelector('.consistency-title');
+    const scoreEl = this.consistencyInfoEl.querySelector('.consistency-score-value');
+    const speedValueEl = this.consistencyInfoEl.querySelector('.consistency-speed-value');
+    const strictnessValueEl = this.consistencyInfoEl.querySelector('.consistency-strictness-value');
+    const motionValueEl = this.consistencyInfoEl.querySelector('.consistency-motion-value');
+    if (titleEl) {
+      titleEl.textContent = `Gleichmäßigkeit - ${levelName}`;
+    }
+    if (scoreEl) {
+      scoreEl.textContent = `${scorePercent}%`;
+    }
+    if (speedValueEl) {
+      speedValueEl.textContent = `${Math.round(this.consistencySpeedPercent)}%`;
+    }
+    if (strictnessValueEl) {
+      strictnessValueEl.textContent = `${Math.round(this.consistencyStrictnessPercent)}%`;
+    }
+    if (motionValueEl) {
+      motionValueEl.textContent = `${Math.round(this.consistencyMotionBlendPercent)}%`;
+    }
+  }
+
   setCompletionCallback(cb) {
     this.completionCallback = cb;
   }
@@ -115,6 +247,7 @@ export class LevelManager {
     this.canvas.height = height;
     this.buildGrid();
     this.updateCalibrationPanelPosition();
+    this.updateConsistencyPanelPosition();
     this.render();
   }
 
@@ -192,6 +325,8 @@ export class LevelManager {
     console.log(`setupLevel called: chapter=${this.chapter}, level=${this.level}`);
 
     if (this.chapter === 0) {
+      this.consistencyActive = false;
+      this.setConsistencyPanelVisible(false);
       this.active = false;
       this.calibrationActive = this.level !== null && this.level >= 0 && this.level <= 2;
       this.calibrationAligned = false;
@@ -203,8 +338,25 @@ export class LevelManager {
       return;
     }
 
+    if (this.chapter === 2) {
+      this.active = false;
+      this.calibrationActive = false;
+      this.setCalibrationPanelVisible(false);
+      this.consistencyActive = this.level !== null && this.level >= 0 && this.level <= 5;
+      this.consistencyScoreHistory = [];
+      this.consistencyAccuracy = 0;
+      this.consistencyAnimationStart = performance.now();
+      this.consistencyPhase = 0;
+      this.consistencyLastTickMs = performance.now();
+      this.setConsistencyPanelVisible(this.consistencyActive);
+      this.render();
+      return;
+    }
+
     this.calibrationActive = false;
     this.setCalibrationPanelVisible(false);
+    this.consistencyActive = false;
+    this.setConsistencyPanelVisible(false);
 
     if (this.chapter !== 1 || this.level === null) {
       this.active = false;
@@ -378,11 +530,20 @@ export class LevelManager {
 
     if (this.calibrationActive) {
       this.setCalibrationPanelVisible(true);
+      this.setConsistencyPanelVisible(false);
       this.renderCalibration();
       return;
     }
 
     this.setCalibrationPanelVisible(false);
+
+    if (this.consistencyActive) {
+      this.setConsistencyPanelVisible(true);
+      this.renderConsistency();
+      return;
+    }
+
+    this.setConsistencyPanelVisible(false);
 
     if (!this.active) {
       console.log(`Render skipped: level not active`);
@@ -828,6 +989,249 @@ export class LevelManager {
     this.updateCalibrationPanelContent();
   }
 
+  advanceConsistencyPhase(nowMs) {
+    const dtMs = Math.max(0, nowMs - this.consistencyLastTickMs);
+    this.consistencyLastTickMs = nowMs;
+    const speedFactor = Math.max(30, this.consistencySpeedPercent) / 100;
+    const baseDurationMs = 3200;
+    const deltaPhase = dtMs / baseDurationMs * speedFactor;
+    this.consistencyPhase = (this.consistencyPhase + deltaPhase) % 1;
+  }
+
+  getConsistencyThreshold() {
+    const baseThreshold = Math.max(44, Math.min(this.canvas.width, this.canvas.height) * 0.075);
+    return baseThreshold * (100 / Math.max(1, this.consistencyStrictnessPercent));
+  }
+
+  getConsistencyPointRadius(threshold = this.getConsistencyThreshold()) {
+    const radius = threshold * 0.22;
+    return Math.max(7, Math.min(22, radius));
+  }
+
+  getConsistencyScene() {
+    const w = this.canvas.width;
+    const h = this.canvas.height;
+    const centerX = w * 0.5;
+    const wristOffset = w * 0.25;
+    const leftX = centerX - wristOffset;
+    const rightX = centerX + wristOffset;
+    const topY = h * 0.2;
+    const bottomY = h * 0.86;
+    const baseT = this.consistencyPhase;
+    const motionBlend = Math.max(0, Math.min(1, this.consistencyMotionBlendPercent / 100));
+    const yAt = (phase = 0, speedMultiplier = 1) => {
+      const t = (baseT * speedMultiplier + phase) % 1;
+      const triangle = t < 0.5 ? t * 2 : (1 - t) * 2;
+      const sine = 0.5 - 0.5 * Math.cos(t * Math.PI * 2);
+      const blended = triangle + (sine - triangle) * motionBlend;
+      return topY + blended * (bottomY - topY);
+    };
+
+    if (this.level === 0) {
+      return {
+        guides: [{ type: 'line', x: rightX, topY, bottomY }],
+        movingTargets: [{ hand: 'right', x: rightX, y: yAt(0), color: 'rgba(255, 148, 84, 0.98)' }]
+      };
+    }
+
+    if (this.level === 1) {
+      return {
+        guides: [{ type: 'line', x: leftX, topY, bottomY }],
+        movingTargets: [{ hand: 'left', x: leftX, y: yAt(0), color: 'rgba(96, 160, 255, 0.98)' }]
+      };
+    }
+
+    if (this.level === 2) {
+      const y = yAt(0);
+      return {
+        guides: [
+          { type: 'line', x: leftX, topY, bottomY },
+          { type: 'line', x: rightX, topY, bottomY }
+        ],
+        movingTargets: [
+          { hand: 'left', x: leftX, y, color: 'rgba(96, 160, 255, 0.98)' },
+          { hand: 'right', x: rightX, y, color: 'rgba(255, 148, 84, 0.98)' }
+        ]
+      };
+    }
+
+    if (this.level === 3) {
+      return {
+        guides: [
+          { type: 'line', x: leftX, topY, bottomY },
+          { type: 'line', x: rightX, topY, bottomY }
+        ],
+        movingTargets: [
+          { hand: 'left', x: leftX, y: yAt(0), color: 'rgba(96, 160, 255, 0.98)' },
+          { hand: 'right', x: rightX, y: yAt(0.5), color: 'rgba(255, 148, 84, 0.98)' }
+        ]
+      };
+    }
+
+    if (this.level === 4) {
+      return {
+        guides: [
+          { type: 'line', x: leftX, topY, bottomY },
+          { type: 'line', x: rightX, topY, bottomY }
+        ],
+        movingTargets: [
+          { hand: 'left', x: leftX, y: yAt(0, 2), color: 'rgba(96, 160, 255, 0.98)' },
+          { hand: 'right', x: rightX, y: yAt(0, 1), color: 'rgba(255, 148, 84, 0.98)' }
+        ]
+      };
+    }
+
+    const ellipseRx = w * 0.11;
+    const ellipseRy = h * 0.22;
+    const theta = baseT * Math.PI * 2 - Math.PI / 2;
+    const rightTheta = -theta - Math.PI;
+    const leftCenter = { x: leftX, y: h * 0.53 };
+    const rightCenter = { x: rightX, y: h * 0.53 };
+    return {
+      guides: [
+        { type: 'ellipse', centerX: leftCenter.x, centerY: leftCenter.y, radiusX: ellipseRx, radiusY: ellipseRy },
+        { type: 'ellipse', centerX: rightCenter.x, centerY: rightCenter.y, radiusX: ellipseRx, radiusY: ellipseRy }
+      ],
+      movingTargets: [
+        {
+          hand: 'left',
+          x: leftCenter.x + Math.cos(theta) * ellipseRx,
+          y: leftCenter.y + Math.sin(theta) * ellipseRy,
+          color: 'rgba(96, 160, 255, 0.98)'
+        },
+        {
+          hand: 'right',
+          x: rightCenter.x + Math.cos(rightTheta) * ellipseRx,
+          y: rightCenter.y + Math.sin(rightTheta) * ellipseRy,
+          color: 'rgba(255, 148, 84, 0.98)'
+        }
+      ]
+    };
+  }
+
+  calculateConsistencyScore(scene, threshold) {
+    let sum = 0;
+
+    for (const movingTarget of scene.movingTargets) {
+      const tip = movingTarget.hand === 'left' ? this.leftTip : this.rightTip;
+      if (!tip) {
+        continue;
+      }
+
+      const distance = this.distance(tip, movingTarget);
+      // Inside the dotted ring = full score; only outside the ring starts to decay.
+      const score = distance <= threshold
+        ? 1
+        : Math.max(0, 1 - (distance - threshold) / threshold);
+      sum += score;
+    }
+
+    return scene.movingTargets.length > 0 ? sum / scene.movingTargets.length : 0;
+  }
+
+  recordConsistencyScore(nowMs, scene, threshold) {
+    const score = this.calculateConsistencyScore(scene, threshold);
+    this.consistencyScoreHistory.push({ ts: nowMs, score });
+
+    const cutoff = nowMs - 3000;
+    while (this.consistencyScoreHistory.length > 0 && this.consistencyScoreHistory[0].ts < cutoff) {
+      this.consistencyScoreHistory.shift();
+    }
+
+    if (this.consistencyScoreHistory.length === 0) {
+      this.consistencyAccuracy = 0;
+      return;
+    }
+
+    if (this.consistencyScoreHistory.length === 1) {
+      this.consistencyAccuracy = Math.max(0, Math.min(1, this.consistencyScoreHistory[0].score));
+      return;
+    }
+
+    let weightedSum = 0;
+    let totalDuration = 0;
+
+    for (let i = 0; i < this.consistencyScoreHistory.length - 1; i += 1) {
+      const current = this.consistencyScoreHistory[i];
+      const next = this.consistencyScoreHistory[i + 1];
+      const segmentStart = Math.max(current.ts, cutoff);
+      const segmentEnd = Math.min(next.ts, nowMs);
+      const dt = Math.max(0, segmentEnd - segmentStart);
+      if (dt <= 0) {
+        continue;
+      }
+
+      // Piecewise-constant integration: score stays valid until next sample.
+      weightedSum += current.score * dt;
+      totalDuration += dt;
+    }
+
+    if (totalDuration <= 0) {
+      const lastScore = this.consistencyScoreHistory[this.consistencyScoreHistory.length - 1].score;
+      this.consistencyAccuracy = Math.max(0, Math.min(1, lastScore));
+      return;
+    }
+
+    const avg = weightedSum / totalDuration;
+    this.consistencyAccuracy = Math.max(0, Math.min(1, avg));
+  }
+
+  renderConsistency() {
+    const nowMs = performance.now();
+    this.advanceConsistencyPhase(nowMs);
+    const scene = this.getConsistencyScene();
+    const threshold = this.getConsistencyThreshold();
+    const pointRadius = this.getConsistencyPointRadius(threshold);
+    this.recordConsistencyScore(nowMs, scene, threshold);
+
+    const bgGradient = this.ctx.createLinearGradient(0, 0, 0, this.canvas.height);
+    bgGradient.addColorStop(0, 'rgba(25, 18, 8, 0.18)');
+    bgGradient.addColorStop(1, 'rgba(10, 9, 5, 0.26)');
+    this.ctx.fillStyle = bgGradient;
+    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+    this.ctx.save();
+    this.ctx.lineWidth = 6;
+    this.ctx.shadowBlur = 10;
+    this.ctx.shadowColor = 'rgba(255, 221, 145, 0.5)';
+
+    scene.guides.forEach((guide) => {
+      this.ctx.beginPath();
+      this.ctx.strokeStyle = 'rgba(255, 206, 112, 0.92)';
+      if (guide.type === 'line') {
+        this.ctx.moveTo(guide.x, guide.topY);
+        this.ctx.lineTo(guide.x, guide.bottomY);
+      } else {
+        this.ctx.ellipse(guide.centerX, guide.centerY, guide.radiusX, guide.radiusY, 0, 0, Math.PI * 2);
+      }
+      this.ctx.stroke();
+    });
+    this.ctx.restore();
+
+    scene.movingTargets.forEach((movingTarget) => {
+      this.ctx.save();
+      this.ctx.beginPath();
+      this.ctx.strokeStyle = 'rgba(255, 239, 190, 0.34)';
+      this.ctx.lineWidth = 2;
+      this.ctx.setLineDash([8, 6]);
+      this.ctx.arc(movingTarget.x, movingTarget.y, threshold, 0, Math.PI * 2);
+      this.ctx.stroke();
+      this.ctx.restore();
+
+      this.ctx.save();
+      this.ctx.beginPath();
+      this.ctx.fillStyle = movingTarget.color;
+      this.ctx.shadowBlur = 14;
+      this.ctx.shadowColor = movingTarget.color;
+      this.ctx.arc(movingTarget.x, movingTarget.y, pointRadius, 0, Math.PI * 2);
+      this.ctx.fill();
+      this.ctx.restore();
+    });
+
+    this.updateConsistencyPanelPosition();
+    this.updateConsistencyPanelContent();
+  }
+
   updateHands(hands) {
     this.leftTip = null;
     this.rightTip = null;
@@ -846,6 +1250,11 @@ export class LevelManager {
     }
 
     if (this.calibrationActive && (this.level === 1 || this.level === 2)) {
+      this.render();
+      return;
+    }
+
+    if (this.consistencyActive) {
       this.render();
       return;
     }
