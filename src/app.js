@@ -35,6 +35,30 @@ function createTrackingControls(trackingController) {
   const cameraSelect = document.createElement('select');
   cameraSelect.className = 'tracking-controls-select';
 
+  const calibrationSetLabel = document.createElement('label');
+  calibrationSetLabel.textContent = 'Calibration Sets';
+  calibrationSetLabel.className = 'tracking-controls-label';
+
+  const calibrationSetSelect = document.createElement('select');
+  calibrationSetSelect.className = 'tracking-controls-select';
+  calibrationSetSelect.disabled = true;
+
+  const calibrationStrictnessLabel = document.createElement('label');
+  calibrationStrictnessLabel.textContent = 'Calibration Strictness';
+  calibrationStrictnessLabel.className = 'tracking-controls-label';
+
+  const calibrationStrictnessSlider = document.createElement('input');
+  calibrationStrictnessSlider.type = 'range';
+  calibrationStrictnessSlider.min = '20';
+  calibrationStrictnessSlider.max = '100';
+  calibrationStrictnessSlider.step = '5';
+  calibrationStrictnessSlider.value = '60';
+  calibrationStrictnessSlider.className = 'tracking-controls-range';
+
+  const calibrationStrictnessValue = document.createElement('div');
+  calibrationStrictnessValue.className = 'tracking-controls-inline-value';
+  calibrationStrictnessValue.textContent = '60%';
+
   const stabilizationButton = document.createElement('button');
   stabilizationButton.type = 'button';
   stabilizationButton.className = 'tracking-controls-button';
@@ -54,6 +78,9 @@ function createTrackingControls(trackingController) {
 
   const playbackModes = ['one', 'repeat', 'autoplay'];
   let selectedPlaybackMode = 'one';
+  let selectedCalibrationSetIndex = null;
+  let calibrationSetChangeHandler = null;
+  let calibrationStrictnessChangeHandler = null;
 
   function createModeOption(mode) {
     const label = document.createElement('label');
@@ -80,6 +107,71 @@ function createTrackingControls(trackingController) {
   }
 
   playbackModes.forEach((mode) => createModeOption(mode));
+
+  function formatCalibrationSetOption(entry, index) {
+    if (!entry || !entry.timestamp) {
+      return `Set ${index + 1}`;
+    }
+
+    const formattedDate = new Date(entry.timestamp).toLocaleString();
+    const baseName = entry.name || 'callibration_date';
+    return `${baseName} - ${formattedDate}`;
+  }
+
+  function setCalibrationPoseSets(poseSets = []) {
+    const currentValue = calibrationSetSelect.value;
+    calibrationSetSelect.innerHTML = '';
+
+    if (!Array.isArray(poseSets) || poseSets.length === 0) {
+      const option = document.createElement('option');
+      option.value = '';
+      option.textContent = 'No saved calibration yet';
+      calibrationSetSelect.appendChild(option);
+      calibrationSetSelect.disabled = true;
+      selectedCalibrationSetIndex = null;
+      if (calibrationSetChangeHandler) {
+        calibrationSetChangeHandler(null);
+      }
+      return;
+    }
+
+    calibrationSetSelect.disabled = false;
+    poseSets.forEach((entry, index) => {
+      const option = document.createElement('option');
+      option.value = String(index);
+      option.textContent = formatCalibrationSetOption(entry, index);
+      calibrationSetSelect.appendChild(option);
+    });
+
+    const parsedCurrent = Number(currentValue);
+    const hasCurrent = Number.isInteger(parsedCurrent) && parsedCurrent >= 0 && parsedCurrent < poseSets.length;
+    selectedCalibrationSetIndex = hasCurrent ? parsedCurrent : poseSets.length - 1;
+    calibrationSetSelect.value = String(selectedCalibrationSetIndex);
+    if (calibrationSetChangeHandler) {
+      calibrationSetChangeHandler(selectedCalibrationSetIndex);
+    }
+  }
+
+  function setCalibrationSetChangeHandler(handler) {
+    calibrationSetChangeHandler = typeof handler === 'function' ? handler : null;
+    if (calibrationSetChangeHandler) {
+      calibrationSetChangeHandler(selectedCalibrationSetIndex);
+    }
+  }
+
+  function setCalibrationStrictness(value) {
+    const next = Number(value);
+    const safe = Number.isFinite(next) ? Math.max(20, Math.min(100, next)) : 60;
+    calibrationStrictnessSlider.value = String(safe);
+    calibrationStrictnessValue.textContent = `${Math.round(safe)}%`;
+  }
+
+  function setCalibrationStrictnessChangeHandler(handler) {
+    calibrationStrictnessChangeHandler = typeof handler === 'function' ? handler : null;
+    if (calibrationStrictnessChangeHandler) {
+      calibrationStrictnessChangeHandler(Number(calibrationStrictnessSlider.value));
+    }
+  }
 
   function updateStabilizationLabel() {
     stabilizationButton.textContent = stabilizationEnabled ? 'Stabilization: ON' : 'Stabilization: OFF';
@@ -142,6 +234,22 @@ function createTrackingControls(trackingController) {
     cameraSelect.disabled = false;
   });
 
+  calibrationSetSelect.addEventListener('change', () => {
+    const value = Number(calibrationSetSelect.value);
+    selectedCalibrationSetIndex = Number.isInteger(value) ? value : null;
+    if (calibrationSetChangeHandler) {
+      calibrationSetChangeHandler(selectedCalibrationSetIndex);
+    }
+  });
+
+  calibrationStrictnessSlider.addEventListener('input', () => {
+    const value = Number(calibrationStrictnessSlider.value);
+    setCalibrationStrictness(value);
+    if (calibrationStrictnessChangeHandler) {
+      calibrationStrictnessChangeHandler(value);
+    }
+  });
+
   stabilizationButton.addEventListener('click', () => {
     stabilizationEnabled = !stabilizationEnabled;
     setStabilizationEnabled(stabilizationEnabled);
@@ -180,6 +288,11 @@ function createTrackingControls(trackingController) {
   container.appendChild(modelSelect);
   container.appendChild(cameraLabel);
   container.appendChild(cameraSelect);
+  container.appendChild(calibrationSetLabel);
+  container.appendChild(calibrationSetSelect);
+  container.appendChild(calibrationStrictnessLabel);
+  container.appendChild(calibrationStrictnessSlider);
+  container.appendChild(calibrationStrictnessValue);
   container.appendChild(modeLabel);
   container.appendChild(modeGroup);
   container.appendChild(stabilizationButton);
@@ -192,7 +305,11 @@ function createTrackingControls(trackingController) {
   refreshCameraList();
 
   return {
-    getPlaybackMode: () => selectedPlaybackMode
+    getPlaybackMode: () => selectedPlaybackMode,
+    setCalibrationPoseSets,
+    setCalibrationSetChangeHandler,
+    setCalibrationStrictness,
+    setCalibrationStrictnessChangeHandler
   };
 }
 
@@ -215,6 +332,17 @@ export function initApp() {
   document.body.appendChild(levelCanvas);
 
   const levelManager = new LevelManager(levelCanvas);
+  controls.setCalibrationPoseSets(levelManager.getCalibrationPoseSets());
+  controls.setCalibrationSetChangeHandler((index) => {
+    levelManager.setSelectedCalibrationPoseSet(index);
+  });
+  controls.setCalibrationStrictness(levelManager.getCalibrationComparisonStrictness());
+  controls.setCalibrationStrictnessChangeHandler((value) => {
+    levelManager.setCalibrationComparisonStrictness(value);
+  });
+  levelManager.onCalibrationPoseSetsChange((poseSets) => {
+    controls.setCalibrationPoseSets(poseSets);
+  });
 
   function resizeOverlays() {
     const rect = canvasElement.getBoundingClientRect();

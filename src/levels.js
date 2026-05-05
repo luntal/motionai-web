@@ -21,8 +21,31 @@ export class LevelManager {
     this.calibrationSuccess = false;
     this.calibrationAlignedSince = 0;
     this.calibrationMetrics = null;
+    this.calibrationPoseSetsStorageKey = 'callibration_date';
+    this.calibrationPoseSets = this.loadCalibrationPoseSets();
+    this.selectedCalibrationPoseSetIndex = this.calibrationPoseSets.length > 0
+      ? this.calibrationPoseSets.length - 1
+      : null;
+    this.calibrationPoseSetListeners = [];
+    this.calibrationSnapshotBuffer = [];
+    this.calibrationCaptureActive = false;
+    this.calibrationSavedInCurrentHighWindow = false;
+    this.calibrationLastSnapshotAt = 0;
+    this.calibrationSnapshotIntervalMs = 120;
+    this.calibrationCaptureThreshold = 0.9;
+    this.calibrationMinSnapshots = 8;
+    this.calibrationSaveFeedbackText = '';
+    this.calibrationSaveFeedbackUntilMs = 0;
+    this.calibrationComparisonStrictnessPercent = 60;
+    this.poseAlignmentStatus = {
+      available: false,
+      aligned: false,
+      score: 0,
+      setName: ''
+    };
     this.calibrationAnimationStart = performance.now();
     this.calibrationInfoEl = null;
+    this.poseAlignmentInfoEl = null;
     this.consistencyActive = false;
     this.consistencyInfoEl = null;
     this.consistencyScoreHistory = [];
@@ -30,14 +53,329 @@ export class LevelManager {
     this.consistencyAnimationStart = performance.now();
     this.consistencyPhase = 0;
     this.consistencyLastTickMs = performance.now();
-    this.consistencySpeedPercent = 100;
+    this.consistencyTempoBpm = 100;
     this.consistencyStrictnessPercent = 100;
     this.consistencyMotionBlendPercent = 0;
     this.gridRows = 12;
     this.gridCols = 16;
     this.createCalibrationInfoPanel();
+    this.createPoseAlignmentInfoPanel();
     this.createConsistencyInfoPanel();
     this.buildGrid();
+  }
+
+  setSelectedCalibrationPoseSet(index) {
+    if (!Number.isInteger(index)) {
+      this.selectedCalibrationPoseSetIndex = null;
+      return;
+    }
+
+    if (index < 0 || index >= this.calibrationPoseSets.length) {
+      this.selectedCalibrationPoseSetIndex = null;
+      return;
+    }
+
+    this.selectedCalibrationPoseSetIndex = index;
+  }
+
+  getSelectedCalibrationPoseSetIndex() {
+    return this.selectedCalibrationPoseSetIndex;
+  }
+
+  setCalibrationComparisonStrictness(percent) {
+    const next = Number(percent);
+    if (!Number.isFinite(next)) {
+      return;
+    }
+
+    this.calibrationComparisonStrictnessPercent = Math.max(20, Math.min(100, next));
+  }
+
+  getCalibrationComparisonStrictness() {
+    return this.calibrationComparisonStrictnessPercent;
+  }
+
+  getSelectedCalibrationPoseSet() {
+    if (!Number.isInteger(this.selectedCalibrationPoseSetIndex)) {
+      return null;
+    }
+
+    return this.calibrationPoseSets[this.selectedCalibrationPoseSetIndex] || null;
+  }
+
+  onCalibrationPoseSetsChange(handler) {
+    if (typeof handler !== 'function') {
+      return;
+    }
+
+    this.calibrationPoseSetListeners.push(handler);
+    handler(this.getCalibrationPoseSets());
+  }
+
+  emitCalibrationPoseSetsChange() {
+    const snapshot = this.getCalibrationPoseSets();
+    this.calibrationPoseSetListeners.forEach((listener) => listener(snapshot));
+  }
+
+  getCalibrationPoseSets() {
+    return this.calibrationPoseSets.map((entry) => ({
+      ...entry,
+      landmarks: Array.isArray(entry.landmarks)
+        ? entry.landmarks.map((landmark) => ({ ...landmark }))
+        : []
+    }));
+  }
+
+  loadCalibrationPoseSets() {
+    try {
+      const raw = localStorage.getItem(this.calibrationPoseSetsStorageKey);
+      if (!raw) {
+        return [];
+      }
+
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) {
+        return [];
+      }
+
+      return parsed
+        .filter((entry) => entry && Array.isArray(entry.landmarks))
+        .slice(-10);
+    } catch (error) {
+      console.warn('Failed to load calibration pose sets:', error);
+      return [];
+    }
+  }
+
+  persistCalibrationPoseSets() {
+    try {
+      localStorage.setItem(this.calibrationPoseSetsStorageKey, JSON.stringify(this.calibrationPoseSets));
+    } catch (error) {
+      console.warn('Failed to persist calibration pose sets:', error);
+    }
+  }
+
+  averageLandmarkSnapshots(snapshots) {
+    if (!Array.isArray(snapshots) || snapshots.length === 0) {
+      return [];
+    }
+
+    const maxLength = snapshots.reduce((max, sample) => Math.max(max, sample.length), 0);
+    const means = [];
+
+    for (let index = 0; index < maxLength; index += 1) {
+      let xSum = 0;
+      let ySum = 0;
+      let zSum = 0;
+      let vSum = 0;
+      let count = 0;
+      let visibilityCount = 0;
+
+      snapshots.forEach((sample) => {
+        const landmark = sample[index];
+        if (!landmark) {
+          return;
+        }
+
+        xSum += landmark.x;
+        ySum += landmark.y;
+        zSum += landmark.z || 0;
+        count += 1;
+
+        if (typeof landmark.visibility === 'number') {
+          vSum += landmark.visibility;
+          visibilityCount += 1;
+        }
+      });
+
+      if (count === 0) {
+        continue;
+      }
+
+      means.push({
+        x: xSum / count,
+        y: ySum / count,
+        z: zSum / count,
+        visibility: visibilityCount > 0 ? vSum / visibilityCount : 1
+      });
+    }
+
+    return means;
+  }
+
+  finalizeCalibrationSnapshotCapture() {
+    if (!this.calibrationCaptureActive) {
+      return;
+    }
+
+    const snapshots = this.calibrationSnapshotBuffer;
+    this.calibrationCaptureActive = false;
+    this.calibrationSnapshotBuffer = [];
+    this.calibrationLastSnapshotAt = 0;
+
+    if (!Array.isArray(snapshots) || snapshots.length < this.calibrationMinSnapshots) {
+      return;
+    }
+
+    const averagedLandmarks = this.averageLandmarkSnapshots(snapshots);
+    if (averagedLandmarks.length === 0) {
+      return;
+    }
+
+    const entry = {
+      name: 'callibration_date',
+      timestamp: Date.now(),
+      landmarks: averagedLandmarks
+    };
+
+    this.calibrationPoseSets.push(entry);
+    if (this.calibrationPoseSets.length > 10) {
+      this.calibrationPoseSets = this.calibrationPoseSets.slice(-10);
+    }
+
+    if (!Number.isInteger(this.selectedCalibrationPoseSetIndex)
+      || this.selectedCalibrationPoseSetIndex >= this.calibrationPoseSets.length) {
+      this.selectedCalibrationPoseSetIndex = this.calibrationPoseSets.length - 1;
+    }
+
+    const savedAt = new Date(entry.timestamp).toLocaleString();
+    this.calibrationSaveFeedbackText = `Kallibrierung abgeschlossen: ${entry.name} (${savedAt})`;
+    this.calibrationSaveFeedbackUntilMs = performance.now() + 5000;
+
+    this.persistCalibrationPoseSets();
+    this.emitCalibrationPoseSetsChange();
+  }
+
+  updateCalibrationSnapshotCapture(nowMs = performance.now()) {
+    const canCapture = this.calibrationActive
+      && this.chapter === 0
+      && this.level === 0
+      && this.calibrationScore >= this.calibrationCaptureThreshold
+      && Array.isArray(this.poseLandmarks)
+      && this.poseLandmarks.length > 0;
+
+    if (!canCapture) {
+      this.finalizeCalibrationSnapshotCapture();
+      this.calibrationSavedInCurrentHighWindow = false;
+      return;
+    }
+
+    if (this.calibrationSavedInCurrentHighWindow) {
+      return;
+    }
+
+    if (!this.calibrationCaptureActive) {
+      this.calibrationCaptureActive = true;
+      this.calibrationSnapshotBuffer = [];
+      this.calibrationLastSnapshotAt = 0;
+    }
+
+    if (nowMs - this.calibrationLastSnapshotAt < this.calibrationSnapshotIntervalMs) {
+      return;
+    }
+
+    const snapshot = this.poseLandmarks.map((landmark) => ({ ...landmark }));
+    this.calibrationSnapshotBuffer.push(snapshot);
+    this.calibrationLastSnapshotAt = nowMs;
+
+    if (this.calibrationSnapshotBuffer.length >= this.calibrationMinSnapshots) {
+      this.finalizeCalibrationSnapshotCapture();
+      this.calibrationSavedInCurrentHighWindow = true;
+    }
+  }
+
+  createRectFromPair(a, b, padX, padY) {
+    if (!a || !b) {
+      return null;
+    }
+
+    const minX = Math.min(a.x, b.x) - padX;
+    const maxX = Math.max(a.x, b.x) + padX;
+    const minY = Math.min(a.y, b.y) - padY;
+    const maxY = Math.max(a.y, b.y) + padY;
+
+    return {
+      x: minX,
+      y: minY,
+      width: Math.max(1, maxX - minX),
+      height: Math.max(1, maxY - minY)
+    };
+  }
+
+  evaluatePoseAlignmentAgainstCalibration() {
+    const calibrationSet = this.getSelectedCalibrationPoseSet();
+    if (!calibrationSet || !Array.isArray(calibrationSet.landmarks) || calibrationSet.landmarks.length === 0) {
+      return { available: false, aligned: false, score: 0, setName: '' };
+    }
+
+    if (!Array.isArray(this.poseLandmarks) || this.poseLandmarks.length === 0) {
+      return { available: false, aligned: false, score: 0, setName: calibrationSet.name || '' };
+    }
+
+    const coreIndices = [11, 12, 23, 24];
+    const headIndices = [9, 10, 2, 5];
+    const requiredIndices = [...coreIndices, ...headIndices];
+    const strictnessFactor = 100 / Math.max(1, this.calibrationComparisonStrictnessPercent);
+
+    if (requiredIndices.some((index) => !calibrationSet.landmarks[index] || !this.poseLandmarks[index])) {
+      return { available: false, aligned: false, score: 0, setName: calibrationSet.name || '' };
+    }
+
+    const refLeftShoulder = calibrationSet.landmarks[11];
+    const refRightShoulder = calibrationSet.landmarks[12];
+    const refLeftHip = calibrationSet.landmarks[23];
+    const refRightHip = calibrationSet.landmarks[24];
+    const shoulderSpan = this.distance(refLeftShoulder, refRightShoulder);
+    const hipSpan = this.distance(refLeftHip, refRightHip);
+    const bodyScale = Math.max(36, (shoulderSpan + hipSpan) / 2);
+    const baseTolerance = Math.max(16, bodyScale * 0.18 * strictnessFactor);
+    const headTolerance = baseTolerance * 1.6;
+
+    let weightedSum = 0;
+    let weightTotal = 0;
+    const computeWeightedScore = (index, tolerance, weight) => {
+      const live = this.poseLandmarks[index];
+      const ref = calibrationSet.landmarks[index];
+      const distance = this.distance(live, ref);
+      const score = Math.max(0, 1 - distance / tolerance);
+      weightedSum += score * weight;
+      weightTotal += weight;
+    };
+
+    coreIndices.forEach((index) => computeWeightedScore(index, baseTolerance, 1.15));
+    headIndices.forEach((index) => computeWeightedScore(index, headTolerance, 0.75));
+
+    const score = weightTotal > 0 ? weightedSum / weightTotal : 0;
+
+    const shoulderRect = this.createRectFromPair(
+      refLeftShoulder,
+      refRightShoulder,
+      Math.max(14, shoulderSpan * 0.2 * strictnessFactor),
+      Math.max(18, bodyScale * 0.11 * strictnessFactor)
+    );
+    const hipRect = this.createRectFromPair(
+      refLeftHip,
+      refRightHip,
+      Math.max(14, hipSpan * 0.2 * strictnessFactor),
+      Math.max(18, bodyScale * 0.11 * strictnessFactor)
+    );
+
+    const shoulderInside = Boolean(shoulderRect)
+      && this.isPointInRect(this.poseLandmarks[11], shoulderRect)
+      && this.isPointInRect(this.poseLandmarks[12], shoulderRect);
+    const hipInside = Boolean(hipRect)
+      && this.isPointInRect(this.poseLandmarks[23], hipRect)
+      && this.isPointInRect(this.poseLandmarks[24], hipRect);
+    const aligned = shoulderInside && hipInside;
+
+    return {
+      available: true,
+      aligned,
+      score,
+      setName: calibrationSet.name || 'callibration_date',
+      shoulderRect,
+      hipRect
+    };
   }
 
   createCalibrationInfoPanel() {
@@ -47,6 +385,51 @@ export class LevelManager {
     panel.style.display = 'none';
     document.body.appendChild(panel);
     this.calibrationInfoEl = panel;
+  }
+
+  createPoseAlignmentInfoPanel() {
+    const panel = document.createElement('div');
+    panel.className = 'pose-alignment-info-panel';
+    panel.innerHTML = '<h3>Pose Warnung</h3><p>Außerhalb der Kallibrierung.</p>';
+    panel.style.display = 'none';
+    document.body.appendChild(panel);
+    this.poseAlignmentInfoEl = panel;
+  }
+
+  setPoseAlignmentPanelVisible(visible) {
+    if (!this.poseAlignmentInfoEl) {
+      return;
+    }
+    this.poseAlignmentInfoEl.style.display = visible ? 'block' : 'none';
+  }
+
+  updatePoseAlignmentPanelPosition() {
+    if (!this.poseAlignmentInfoEl) {
+      return;
+    }
+
+    const rect = this.canvas.getBoundingClientRect();
+    const leftOffset = Math.max(12, rect.left + 12);
+    const topOffset = Math.max(24, rect.top + 72);
+
+    this.poseAlignmentInfoEl.style.left = `${leftOffset}px`;
+    this.poseAlignmentInfoEl.style.right = 'auto';
+    this.poseAlignmentInfoEl.style.top = `${topOffset}px`;
+  }
+
+  updatePoseAlignmentPanelContent(status) {
+    if (!this.poseAlignmentInfoEl || !status || !status.available || status.aligned) {
+      return;
+    }
+
+    const scorePercent = Math.round(status.score * 100);
+    this.poseAlignmentInfoEl.innerHTML = `
+      <h3>Pose Warnung</h3>
+      <p>Körper außerhalb der Kallibrierungsgrenzen.</p>
+      <p class="pose-alignment-info-row">Set: ${status.setName || 'callibration_date'}</p>
+      <p class="pose-alignment-info-row">Übereinstimmung: ${scorePercent}%</p>
+      <p class="pose-alignment-info-row">Strenge: ${Math.round(this.calibrationComparisonStrictnessPercent)}%</p>
+    `;
   }
 
   setCalibrationPanelVisible(visible) {
@@ -103,6 +486,9 @@ export class LevelManager {
     const hintText = this.calibrationSuccess
       ? 'Sehr gut. Du bist zentriert und passend positioniert.'
       : 'Augen zur oberen Linie, Hüfte zur unteren Linie, Arme als symmetrisches Dreieck.';
+    const feedbackText = performance.now() < this.calibrationSaveFeedbackUntilMs
+      ? this.calibrationSaveFeedbackText
+      : '';
 
     this.calibrationInfoEl.classList.toggle('success', this.calibrationSuccess);
     this.calibrationInfoEl.innerHTML = `
@@ -114,6 +500,7 @@ export class LevelManager {
       </div>
       <p class="calibration-status">${stateText}</p>
       <p class="calibration-hint">${hintText}</p>
+      ${feedbackText ? `<p class="calibration-feedback">${feedbackText}</p>` : ''}
     `;
   }
 
@@ -175,7 +562,7 @@ export class LevelManager {
         <div class="consistency-slider-row">
           <label for="consistency-speed-slider">Tempo</label>
           <input id="consistency-speed-slider" type="range" min="30" max="170" step="5" value="100" />
-          <span class="consistency-slider-value consistency-speed-value">100%</span>
+          <span class="consistency-slider-value consistency-speed-value">100 bpm</span>
         </div>
         <div class="consistency-slider-row">
           <label for="consistency-strictness-slider">Strenge</label>
@@ -194,10 +581,10 @@ export class LevelManager {
       const strictnessSlider = this.consistencyInfoEl.querySelector('#consistency-strictness-slider');
       const motionSlider = this.consistencyInfoEl.querySelector('#consistency-motion-slider');
       if (speedSlider) {
-        speedSlider.value = String(this.consistencySpeedPercent);
+        speedSlider.value = String(this.consistencyTempoBpm);
         speedSlider.addEventListener('input', (event) => {
           const next = Number(event.target.value);
-          this.consistencySpeedPercent = Number.isFinite(next) ? next : 100;
+          this.consistencyTempoBpm = Number.isFinite(next) ? next : 100;
         });
       }
       if (strictnessSlider) {
@@ -228,7 +615,7 @@ export class LevelManager {
       scoreEl.textContent = `${scorePercent}%`;
     }
     if (speedValueEl) {
-      speedValueEl.textContent = `${Math.round(this.consistencySpeedPercent)}%`;
+      speedValueEl.textContent = `${Math.round(this.consistencyTempoBpm)} bpm`;
     }
     if (strictnessValueEl) {
       strictnessValueEl.textContent = `${Math.round(this.consistencyStrictnessPercent)}%`;
@@ -247,6 +634,7 @@ export class LevelManager {
     this.canvas.height = height;
     this.buildGrid();
     this.updateCalibrationPanelPosition();
+    this.updatePoseAlignmentPanelPosition();
     this.updateConsistencyPanelPosition();
     this.render();
   }
@@ -323,6 +711,11 @@ export class LevelManager {
     this.nextTarget = 0;
     this.completed = false;
     console.log(`setupLevel called: chapter=${this.chapter}, level=${this.level}`);
+
+    if (!(this.chapter === 0 && this.level === 0)) {
+      this.finalizeCalibrationSnapshotCapture();
+      this.calibrationSavedInCurrentHighWindow = false;
+    }
 
     if (this.chapter === 0) {
       this.consistencyActive = false;
@@ -521,6 +914,102 @@ export class LevelManager {
     };
   }
 
+  drawPoseAlignmentLed(status) {
+    const now = performance.now();
+    const pulse = 0.5 + 0.5 * Math.sin(now * 0.01);
+    const radius = 10 + pulse * 2;
+    const ledX = 28;
+    const ledY = 28;
+    const score = status && status.available ? Math.max(0, Math.min(1, status.score || 0)) : 0;
+    const scorePercent = Math.round(score * 100);
+    const legend = !status || !status.available
+      ? 'Pose N/A'
+      : status.aligned
+        ? 'Pose OK'
+        : 'Pose Warnung';
+    let color = 'rgba(146, 165, 180, 0.8)';
+
+    if (status && status.available) {
+      color = status.aligned
+        ? `rgba(94, 255, 141, ${0.78 + pulse * 0.22})`
+        : `rgba(255, 106, 106, ${0.78 + pulse * 0.22})`;
+    }
+
+    this.ctx.save();
+    this.ctx.beginPath();
+    this.ctx.fillStyle = color;
+    this.ctx.shadowBlur = 18;
+    this.ctx.shadowColor = color;
+    this.ctx.arc(ledX, ledY, radius, 0, Math.PI * 2);
+    this.ctx.fill();
+
+    this.ctx.beginPath();
+    this.ctx.lineWidth = 2.4;
+    this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.92)';
+    this.ctx.arc(ledX, ledY, radius + 4, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * score);
+    this.ctx.stroke();
+
+    this.ctx.beginPath();
+    this.ctx.lineWidth = 1.2;
+    this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.28)';
+    this.ctx.arc(ledX, ledY, radius + 4, 0, Math.PI * 2);
+    this.ctx.stroke();
+
+    this.ctx.shadowBlur = 0;
+    this.ctx.font = '700 11px Arial';
+    this.ctx.textAlign = 'left';
+    this.ctx.textBaseline = 'middle';
+    this.ctx.fillStyle = 'rgba(243, 250, 255, 0.96)';
+    const scoreLabel = status && status.available ? `${scorePercent}%` : '--';
+    this.ctx.fillText(`${legend}  ${scoreLabel}`, ledX + radius + 14, ledY);
+    this.ctx.restore();
+  }
+
+  drawPoseAlignmentWarning(status) {
+    if (!status || !status.available || status.aligned) {
+      this.setPoseAlignmentPanelVisible(false);
+      return;
+    }
+
+    this.ctx.save();
+    this.ctx.strokeStyle = 'rgba(255, 128, 128, 0.95)';
+    this.ctx.lineWidth = 2.4;
+    this.ctx.setLineDash([9, 6]);
+
+    [status.shoulderRect, status.hipRect].forEach((rect) => {
+      if (!rect) return;
+      this.ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
+    });
+
+    this.ctx.strokeStyle = 'rgba(255, 186, 112, 0.94)';
+    this.ctx.beginPath();
+    this.ctx.moveTo(this.canvas.width * 0.5, 0);
+    this.ctx.lineTo(this.canvas.width * 0.5, this.canvas.height);
+    this.ctx.stroke();
+    this.ctx.restore();
+
+    this.updatePoseAlignmentPanelPosition();
+    this.updatePoseAlignmentPanelContent(status);
+    this.setPoseAlignmentPanelVisible(true);
+  }
+
+  renderPoseAlignmentFeedback() {
+    const inPlayableLevel = (
+      this.calibrationActive && (this.level === 1 || this.level === 2)
+    ) || (
+      !this.calibrationActive && (this.active || this.consistencyActive)
+    );
+
+    if (!inPlayableLevel) {
+      this.setPoseAlignmentPanelVisible(false);
+      return;
+    }
+
+    const status = this.poseAlignmentStatus;
+    this.drawPoseAlignmentLed(status);
+    this.drawPoseAlignmentWarning(status);
+  }
+
   render() {
     if (!this.canvas.width || !this.canvas.height) {
       console.log(`Render skipped: canvas dimensions are 0`);
@@ -532,6 +1021,7 @@ export class LevelManager {
       this.setCalibrationPanelVisible(true);
       this.setConsistencyPanelVisible(false);
       this.renderCalibration();
+      this.renderPoseAlignmentFeedback();
       return;
     }
 
@@ -540,12 +1030,14 @@ export class LevelManager {
     if (this.consistencyActive) {
       this.setConsistencyPanelVisible(true);
       this.renderConsistency();
+      this.renderPoseAlignmentFeedback();
       return;
     }
 
     this.setConsistencyPanelVisible(false);
 
     if (!this.active) {
+      this.setPoseAlignmentPanelVisible(false);
       console.log(`Render skipped: level not active`);
       return;
     }
@@ -589,12 +1081,20 @@ export class LevelManager {
       this.ctx.textAlign = 'center';
       this.ctx.fillText('Level completed!', this.canvas.width / 2, this.canvas.height * 0.1);
     }
+
+    this.renderPoseAlignmentFeedback();
   }
 
   updatePose(poseLandmarks) {
     this.poseLandmarks = poseLandmarks || [];
 
+    this.poseAlignmentStatus = this.evaluatePoseAlignmentAgainstCalibration();
+
     if (!this.calibrationActive) {
+      this.finalizeCalibrationSnapshotCapture();
+      if (this.active || this.consistencyActive) {
+        this.render();
+      }
       return;
     }
 
@@ -632,6 +1132,51 @@ export class LevelManager {
     return Math.max(0, 1 - Math.abs(value - target) / tolerance);
   }
 
+  isPointInRect(point, rect) {
+    if (!point || !rect) {
+      return false;
+    }
+
+    return point.x >= rect.x
+      && point.x <= rect.x + rect.width
+      && point.y >= rect.y
+      && point.y <= rect.y + rect.height;
+  }
+
+  isSegmentInRect(a, b, rect) {
+    return this.isPointInRect(a, rect) && this.isPointInRect(b, rect);
+  }
+
+  scoreSegmentInRect(a, b, rect) {
+    if (!a || !b || !rect) {
+      return 0;
+    }
+
+    const insideCount = Number(this.isPointInRect(a, rect)) + Number(this.isPointInRect(b, rect));
+    return insideCount / 2;
+  }
+
+  isPointInCircle(point, center, radius) {
+    if (!point || !center || !Number.isFinite(radius) || radius <= 0) {
+      return false;
+    }
+
+    return this.distance(point, center) <= radius;
+  }
+
+  scorePointInCircle(point, center, radius) {
+    if (!point || !center || !Number.isFinite(radius) || radius <= 0) {
+      return 0;
+    }
+
+    const d = this.distance(point, center);
+    if (d <= radius) {
+      return 1;
+    }
+
+    return Math.max(0, 1 - (d - radius) / radius);
+  }
+
   evaluateCalibration() {
     const leftEye = this.getVisiblePoint(2) || this.getVisiblePoint(1);
     const rightEye = this.getVisiblePoint(5) || this.getVisiblePoint(4);
@@ -639,6 +1184,12 @@ export class LevelManager {
     const rightHip = this.getVisiblePoint(24);
     const leftWrist = this.getVisiblePoint(15);
     const rightWrist = this.getVisiblePoint(16);
+    const leftHandRefA = this.getVisiblePoint(17);
+    const leftHandRefB = this.getVisiblePoint(19);
+    const rightHandRefA = this.getVisiblePoint(18);
+    const rightHandRefB = this.getVisiblePoint(20);
+    const leftHandCenter = this.averagePoints(leftHandRefA, leftHandRefB) || leftWrist;
+    const rightHandCenter = this.averagePoints(rightHandRefA, rightHandRefB) || rightWrist;
 
     const eyeCenter = this.averagePoints(leftEye, rightEye);
     const hipCenter = this.averagePoints(leftHip, rightHip);
@@ -650,11 +1201,17 @@ export class LevelManager {
       rightHip,
       leftWrist,
       rightWrist,
+      leftHandRefA,
+      leftHandRefB,
+      rightHandRefA,
+      rightHandRefB,
+      leftHandCenter,
+      rightHandCenter,
       eyeCenter,
       hipCenter
     };
 
-    if (!eyeCenter || !hipCenter || !leftWrist || !rightWrist) {
+    if (!eyeCenter || !hipCenter || !leftHandCenter || !rightHandCenter) {
       this.calibrationScore = 0;
       this.calibrationAligned = false;
       this.calibrationSuccess = false;
@@ -668,30 +1225,41 @@ export class LevelManager {
     const bodyCenterX = (eyeCenter.x + hipCenter.x) * 0.5;
     const eyeTargetY = h * 0.11;
     const hipTargetY = h * 0.9;
-    const wristTargetY = h * 0.66;
-    const wristTargetOffset = w * 0.19;
-    const leftWristOffset = centerX - leftWrist.x;
-    const rightWristOffset = rightWrist.x - centerX;
-    const wristSpan = rightWrist.x - leftWrist.x;
-    const wristTargetSpan = wristTargetOffset * 2;
+    const eyeZone = {
+      x: centerX - w * 0.18,
+      y: 0,
+      width: w * 0.36,
+      height: h * 0.155
+    };
+    const hipZone = {
+      x: centerX - w * 0.2,
+      y: hipTargetY - h * 0.04,
+      width: w * 0.4,
+      height: h * 0.14
+    };
+    const wristY = h * 0.88;
+    const wristOffset = w * 0.4;
+    const leftTargetWrist = { x: centerX - wristOffset, y: wristY };
+    const rightTargetWrist = { x: centerX + wristOffset, y: wristY };
+    const wristTargetRadius = Math.max(26, Math.min(56, Math.min(w, h) * 0.06));
+    const leftWristOffset = centerX - leftHandCenter.x;
+    const rightWristOffset = rightHandCenter.x - centerX;
 
     const centerScore = this.scoreByDistance(bodyCenterX, centerX, w * 0.12);
-    const eyeScore = this.scoreByDistance(eyeCenter.y, eyeTargetY, h * 0.08);
-    const hipScore = this.scoreByDistance(hipCenter.y, hipTargetY, h * 0.1);
-    const wristHeightScore = (
-      this.scoreByDistance(leftWrist.y, wristTargetY, h * 0.16)
-      + this.scoreByDistance(rightWrist.y, wristTargetY, h * 0.16)
+    const eyeScore = this.scoreSegmentInRect(leftEye, rightEye, eyeZone);
+    const hipScore = this.scoreSegmentInRect(leftHip, rightHip, hipZone);
+    const handCircleScore = (
+      this.scorePointInCircle(leftHandCenter, leftTargetWrist, wristTargetRadius)
+      + this.scorePointInCircle(rightHandCenter, rightTargetWrist, wristTargetRadius)
     ) / 2;
     const symmetryScore = this.scoreByDistance(leftWristOffset, rightWristOffset, w * 0.14);
-    const spanScore = this.scoreByDistance(wristSpan, wristTargetSpan, w * 0.2);
 
     const score = (
       centerScore * 0.25
       + eyeScore * 0.2
       + hipScore * 0.2
       + symmetryScore * 0.15
-      + wristHeightScore * 0.1
-      + spanScore * 0.1
+      + handCircleScore * 0.2
     );
 
     this.calibrationScore = score;
@@ -706,14 +1274,16 @@ export class LevelManager {
       this.calibrationAlignedSince = 0;
       this.calibrationSuccess = false;
     }
+
+    this.updateCalibrationSnapshotCapture();
   }
 
   renderCalibration() {
     if (this.level === 1 || this.level === 2) {
       if (this.level === 1) {
-        this.renderCalibrationMotion(1, 1, false, 0.0001);
+        this.renderCalibrationMotion(1, 1, false, 0.0001, 'wrist');
       } else {
-        this.renderCalibrationMotion(0.6, 0.6, true, 0.0002);
+        this.renderCalibrationMotion(0.6, 0.6, true, 0.0002, 'shoulder');
       }
       return;
     }
@@ -723,11 +1293,24 @@ export class LevelManager {
     const centerX = w * 0.5;
     const eyeTargetY = h * 0.11;
     const hipTargetY = h * 0.9;
-    const wristY = h * 0.8;
-    const wristOffset = w * 0.25;
+    const eyeZone = {
+      x: centerX - w * 0.18,
+      y: 0,
+      width: w * 0.36,
+      height: h * 0.155
+    };
+    const hipZone = {
+      x: centerX - w * 0.2,
+      y: hipTargetY - h * 0.04,
+      width: w * 0.4,
+      height: h * 0.14
+    };
+    const wristY = h * 0.88;
+    const wristOffset = w * 0.35;
     const leftTargetWrist = { x: centerX - wristOffset, y: wristY };
     const rightTargetWrist = { x: centerX + wristOffset, y: wristY };
     const triangleApex = { x: centerX, y: h * 0.38 };
+    const wristTargetRadius = Math.max(26, Math.min(56, Math.min(w, h) * 0.08));
 
     const bgGradient = this.ctx.createLinearGradient(0, 0, 0, h);
     bgGradient.addColorStop(0, 'rgba(6, 14, 27, 0.16)');
@@ -748,18 +1331,16 @@ export class LevelManager {
     this.ctx.setLineDash([]);
 
     this.ctx.strokeStyle = 'rgba(255, 111, 145, 0.95)';
-    this.ctx.lineWidth = 5;
-    this.ctx.beginPath();
-    this.ctx.moveTo(centerX - w * 0.12, eyeTargetY);
-    this.ctx.lineTo(centerX + w * 0.12, eyeTargetY);
-    this.ctx.stroke();
+    this.ctx.lineWidth = 2;
+    this.ctx.fillStyle = 'rgba(255, 111, 145, 0.2)';
+    this.ctx.fillRect(eyeZone.x, eyeZone.y, eyeZone.width, eyeZone.height);
+    this.ctx.strokeRect(eyeZone.x, eyeZone.y, eyeZone.width, eyeZone.height);
 
     this.ctx.strokeStyle = 'rgba(95, 255, 188, 0.95)';
-    this.ctx.lineWidth = 5;
-    this.ctx.beginPath();
-    this.ctx.moveTo(centerX - w * 0.14, hipTargetY);
-    this.ctx.lineTo(centerX + w * 0.14, hipTargetY);
-    this.ctx.stroke();
+    this.ctx.lineWidth = 2;
+    this.ctx.fillStyle = 'rgba(95, 255, 188, 0.2)';
+    this.ctx.fillRect(hipZone.x, hipZone.y, hipZone.width, hipZone.height);
+    this.ctx.strokeRect(hipZone.x, hipZone.y, hipZone.width, hipZone.height);
 
     this.ctx.strokeStyle = 'rgba(255, 188, 89, 0.96)';
     this.ctx.lineWidth = 6;
@@ -769,6 +1350,17 @@ export class LevelManager {
     this.ctx.lineTo(rightTargetWrist.x, rightTargetWrist.y);
     this.ctx.closePath();
     this.ctx.stroke();
+
+    // Wrist base targets: circular zones at the lower corners of the triangle.
+    this.ctx.fillStyle = 'rgba(255, 188, 89, 0.2)';
+    this.ctx.strokeStyle = 'rgba(255, 213, 143, 0.96)';
+    this.ctx.lineWidth = 3;
+    [leftTargetWrist, rightTargetWrist].forEach((target) => {
+      this.ctx.beginPath();
+      this.ctx.arc(target.x, target.y, wristTargetRadius, 0, Math.PI * 2);
+      this.ctx.fill();
+      this.ctx.stroke();
+    });
     this.ctx.restore();
 
     if (this.calibrationMetrics) {
@@ -779,12 +1371,40 @@ export class LevelManager {
         rightHip,
         leftWrist,
         rightWrist,
+        leftHandRefA,
+        leftHandRefB,
+        rightHandRefA,
+        rightHandRefB,
+        leftHandCenter,
+        rightHandCenter,
         eyeCenter,
         hipCenter
       } = this.calibrationMetrics;
 
       this.ctx.strokeStyle = 'rgba(95, 196, 255, 0.86)';
       this.ctx.lineWidth = 2.5;
+
+      if (leftEye && rightEye) {
+        this.ctx.beginPath();
+        this.ctx.strokeStyle = this.isSegmentInRect(leftEye, rightEye, eyeZone)
+          ? 'rgba(99, 224, 149, 0.95)'
+          : 'rgba(255, 106, 137, 0.95)';
+        this.ctx.moveTo(leftEye.x, leftEye.y);
+        this.ctx.lineTo(rightEye.x, rightEye.y);
+        this.ctx.stroke();
+      }
+
+      if (leftHip && rightHip) {
+        this.ctx.beginPath();
+        this.ctx.strokeStyle = this.isSegmentInRect(leftHip, rightHip, hipZone)
+          ? 'rgba(99, 224, 149, 0.95)'
+          : 'rgba(255, 106, 137, 0.95)';
+        this.ctx.moveTo(leftHip.x, leftHip.y);
+        this.ctx.lineTo(rightHip.x, rightHip.y);
+        this.ctx.stroke();
+      }
+
+      this.ctx.strokeStyle = 'rgba(95, 196, 255, 0.86)';
 
       if (eyeCenter && hipCenter) {
         this.ctx.beginPath();
@@ -809,12 +1429,48 @@ export class LevelManager {
         this.ctx.stroke();
       }
 
-      const points = [leftEye, rightEye, leftHip, rightHip, leftWrist, rightWrist];
+      if (leftHandCenter && rightHandCenter) {
+        this.ctx.beginPath();
+        this.ctx.strokeStyle = 'rgba(180, 225, 255, 0.7)';
+        this.ctx.setLineDash([7, 5]);
+        this.ctx.moveTo(leftHandCenter.x, leftHandCenter.y);
+        this.ctx.lineTo(rightHandCenter.x, rightHandCenter.y);
+        this.ctx.stroke();
+        this.ctx.setLineDash([]);
+      }
+
+      const points = [
+        leftEye,
+        rightEye,
+        leftHip,
+        rightHip,
+        leftWrist,
+        rightWrist,
+        leftHandRefA,
+        leftHandRefB,
+        rightHandRefA,
+        rightHandRefB
+      ];
       this.ctx.fillStyle = 'rgba(95, 196, 255, 0.9)';
       points.forEach((point) => {
         if (!point) return;
         this.ctx.beginPath();
         this.ctx.arc(point.x, point.y, 5, 0, Math.PI * 2);
+        this.ctx.fill();
+      });
+
+      [
+        { point: leftHandCenter, target: leftTargetWrist },
+        { point: rightHandCenter, target: rightTargetWrist }
+      ].forEach(({ point, target }) => {
+        if (!point) {
+          return;
+        }
+
+        const inCircle = this.isPointInCircle(point, target, wristTargetRadius);
+        this.ctx.beginPath();
+        this.ctx.fillStyle = inCircle ? 'rgba(104, 255, 167, 0.95)' : 'rgba(255, 117, 117, 0.95)';
+        this.ctx.arc(point.x, point.y, 7, 0, Math.PI * 2);
         this.ctx.fill();
       });
     }
@@ -905,7 +1561,7 @@ export class LevelManager {
     this.ctx.restore();
   }
 
-  renderCalibrationMotion(scale, verticalScale = 1, matchSegmentLengths = false, speedFactor = 0.0002) {
+  renderCalibrationMotion(scale, verticalScale = 1, matchSegmentLengths = false, speedFactor = 0.0002, anchorMode = 'none') {
     const w = this.canvas.width;
     const h = this.canvas.height;
     const centerX = w * 0.5;
@@ -918,18 +1574,64 @@ export class LevelManager {
     const halfSpanY = targetVerticalLength
       ? targetVerticalLength / 2
       : baseHalfSpanY * verticalScale;
-    const topY = centerY - halfSpanY;
-    const bottomY = centerY + halfSpanY;
+
+    let leftEdgeX = centerX - wristOffset;
+    let rightEdgeX = centerX + wristOffset;
+    let bottomY = centerY + halfSpanY;
+
+    if (anchorMode === 'wrist' || anchorMode === 'shoulder') {
+      const selectedSet = this.getSelectedCalibrationPoseSet();
+      let leftAnchor = null;
+      let rightAnchor = null;
+
+      if (selectedSet && selectedSet.landmarks) {
+        if (anchorMode === 'wrist') {
+          // Forte edge anchoring should follow calibrated hand-center points.
+          leftAnchor = this.averagePoints(selectedSet.landmarks[17], selectedSet.landmarks[19]);
+          rightAnchor = this.averagePoints(selectedSet.landmarks[18], selectedSet.landmarks[20]);
+        } else {
+          leftAnchor = selectedSet.landmarks[11];
+          rightAnchor = selectedSet.landmarks[12];
+        }
+      }
+
+      if (leftAnchor && rightAnchor) {
+        const paddingX = Math.max(16, w * 0.03);
+        leftEdgeX = Math.max(paddingX, Math.min(centerX - 20, leftAnchor.x));
+        rightEdgeX = Math.min(w - paddingX, Math.max(centerX + 20, rightAnchor.x));
+
+        const minSpan = Math.max(54, w * 0.12 * scale);
+        if (rightEdgeX - leftEdgeX < minSpan) {
+          leftEdgeX = centerX - minSpan / 2;
+          rightEdgeX = centerX + minSpan / 2;
+        }
+
+        if (anchorMode === 'wrist') {
+          const avgAnchorY = (leftAnchor.y + rightAnchor.y) / 2;
+          bottomY = Math.max(h * 0.26, Math.min(h * 0.94, avgAnchorY));
+        } else {
+          // For piano, keep the compact shape but align edge x-positions to calibrated shoulders.
+          const avgAnchorY = (leftAnchor.y + rightAnchor.y) / 2;
+          bottomY = Math.max(h * 0.2, Math.min(h * 0.86, avgAnchorY + halfSpanY * 0.9));
+        }
+      }
+    }
+
+    const topY = Math.max(h * 0.04, bottomY - halfSpanY * 2);
+    bottomY = Math.min(h * 0.96, Math.max(topY + 8, bottomY));
+    const horizontalReach = Math.max(22, wristOffset - innerOffset);
+    const leftInnerX = Math.min(centerX - 8, leftEdgeX + horizontalReach);
+    const rightInnerX = Math.max(centerX + 8, rightEdgeX - horizontalReach);
 
     const leftPath = {
-      a: { x: centerX - wristOffset, y: topY },
-      b: { x: centerX - wristOffset, y: bottomY },
-      c: { x: centerX - innerOffset, y: bottomY }
+      a: { x: leftEdgeX, y: topY },
+      b: { x: leftEdgeX, y: bottomY },
+      c: { x: leftInnerX, y: bottomY }
     };
     const rightPath = {
-      a: { x: centerX + wristOffset, y: topY },
-      b: { x: centerX + wristOffset, y: bottomY },
-      c: { x: centerX + innerOffset, y: bottomY }
+      a: { x: rightEdgeX, y: topY },
+      b: { x: rightEdgeX, y: bottomY },
+      c: { x: rightInnerX, y: bottomY }
     };
 
     const bgGradient = this.ctx.createLinearGradient(0, 0, 0, h);
@@ -992,9 +1694,9 @@ export class LevelManager {
   advanceConsistencyPhase(nowMs) {
     const dtMs = Math.max(0, nowMs - this.consistencyLastTickMs);
     this.consistencyLastTickMs = nowMs;
-    const speedFactor = Math.max(30, this.consistencySpeedPercent) / 100;
-    const baseDurationMs = 3200;
-    const deltaPhase = dtMs / baseDurationMs * speedFactor;
+    const bpm = Math.max(30, this.consistencyTempoBpm);
+    // Turning point every beat: full top->bottom->top cycle spans two beats.
+    const deltaPhase = dtMs * bpm / 120000;
     this.consistencyPhase = (this.consistencyPhase + deltaPhase) % 1;
   }
 
@@ -1242,10 +1944,10 @@ export class LevelManager {
       if (!tip) continue;
       if (tip.x < this.canvas.width * 0.5) {
         this.leftTip = tip;
-        console.log(`Left tip: (${tip.x.toFixed(1)}, ${tip.y.toFixed(1)})`);
+        // console.log(`Left tip: (${tip.x.toFixed(1)}, ${tip.y.toFixed(1)})`);
       } else {
         this.rightTip = tip;
-        console.log(`Right tip: (${tip.x.toFixed(1)}, ${tip.y.toFixed(1)})`);
+        // console.log(`Right tip: (${tip.x.toFixed(1)}, ${tip.y.toFixed(1)})`);
       }
     }
 
@@ -1319,7 +2021,7 @@ export class LevelManager {
       const ellipseDistance = normalizedX * normalizedX + normalizedY * normalizedY;
       if (ellipseDistance <= 1) {
         const d = this.distance(point, { x: circle.x, y: circle.y });
-        console.log(`Finger tip at (${point.x.toFixed(1)}, ${point.y.toFixed(1)}) - Circle ${i} at (${circle.x.toFixed(1)}, ${circle.y.toFixed(1)}) - Distance: ${d.toFixed(1)}`);
+        // console.log(`Finger tip at (${point.x.toFixed(1)}, ${point.y.toFixed(1)}) - Circle ${i} at (${circle.x.toFixed(1)}, ${circle.y.toFixed(1)}) - Distance: ${d.toFixed(1)}`);
         return i;
       }
     }

@@ -91,6 +91,14 @@ function renderLevelButtons(levelRow) {
   levelRow.innerHTML = '';
   const hasActiveChapter = Number.isInteger(uiState.activeChapter);
   const levelCount = hasActiveChapter ? getLevelCountForChapter(uiState.activeChapter) : 0;
+
+  // Toggle active state based on chapter selection
+  if (hasActiveChapter) {
+    levelRow.classList.add('active');
+  } else {
+    levelRow.classList.remove('active');
+  }
+
   for (let index = 0; index < levelCount; index += 1) {
     const isActive = uiState.activeLevel === index;
     const label = hasActiveChapter && levelTitles[uiState.activeChapter]
