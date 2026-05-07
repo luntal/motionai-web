@@ -33,7 +33,7 @@ export const levelTitles = [
 export const levelDescriptions = [
   [
     'Dynamikbereich: Grundausrichtung vor der Kamera kalibrieren.',
-    'forte: Grosse, geführte Handbewegung entlang der Referenzpfade.',
+    'forte: Große, geführte Handbewegung entlang der Referenzpfade.',
     'piano: Kleinere, zentrierte Handbewegung entlang der Referenzpfade.'
   ],
   [
