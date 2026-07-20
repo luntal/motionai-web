@@ -1,5 +1,7 @@
 # 🎼 MotionAI
 
+Schnellzugriff: [Webapp öffnen](https://luntal.github.io/motionai-web/)
+
 MotionAI ist eine browserbasierte, plattformübergreifende Web-App, die Dirigiergesten mithilfe der Kamera erkennt und analysiert.  
 Ziel ist es, Musiker:innen und Dirigent:innen beim Lernen, Üben und Verbessern ihrer Schlagtechnik durch direktes visuelles Feedback zu unterstützen.
 
