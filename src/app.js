@@ -4,18 +4,53 @@ import { LevelManager } from './levels.js';
 import { getLevelCountForChapter } from './constants.js';
 
 function createTrackingControls(trackingController) {
-  const container = document.createElement('div');
-  container.className = 'tracking-controls-overlay';
+  const settingsSection = document.createElement('div');
+  settingsSection.className = 'settings-navigation';
 
   const visibilityToggle = document.createElement('button');
   visibilityToggle.type = 'button';
   visibilityToggle.className = 'setup-menu-toggle';
+
+  const gearIcon = document.createElement('span');
+  gearIcon.className = 'setup-menu-toggle-icon';
+  gearIcon.textContent = '⚙';
+  visibilityToggle.appendChild(gearIcon);
+
+  visibilityToggle.setAttribute('aria-label', 'Einstellungen');
+  visibilityToggle.title = 'Einstellungen';
   let setupMenuVisible = false;
 
   function updateToggleLabel() {
-    visibilityToggle.textContent = setupMenuVisible ? 'Hide Setup' : 'Show Setup';
     visibilityToggle.setAttribute('aria-pressed', String(setupMenuVisible));
+    visibilityToggle.classList.toggle('active', setupMenuVisible);
   }
+
+  function setSettingsVisible(nextVisible) {
+    setupMenuVisible = nextVisible;
+    container.classList.toggle('collapsed', !setupMenuVisible);
+    updateToggleLabel();
+  }
+
+  const container = document.createElement('div');
+  container.className = 'tracking-controls-overlay settings-panel collapsed';
+
+  const settingsHeader = document.createElement('div');
+  settingsHeader.className = 'settings-panel-header';
+
+  const settingsTitle = document.createElement('div');
+  settingsTitle.className = 'settings-section-title';
+  settingsTitle.textContent = 'Einstellungen';
+
+  const settingsCloseButton = document.createElement('button');
+  settingsCloseButton.type = 'button';
+  settingsCloseButton.className = 'settings-close-button';
+
+  const closeIcon = document.createElement('span');
+  closeIcon.className = 'settings-close-icon';
+  closeIcon.textContent = '×';
+  settingsCloseButton.appendChild(closeIcon);
+
+  settingsCloseButton.setAttribute('aria-label', 'Einstellungen schließen');
 
   const modelLabel = document.createElement('label');
   modelLabel.textContent = 'Model';
@@ -34,6 +69,16 @@ function createTrackingControls(trackingController) {
 
   const cameraSelect = document.createElement('select');
   cameraSelect.className = 'tracking-controls-select';
+
+  const cameraToggleButton = document.createElement('button');
+  cameraToggleButton.type = 'button';
+  cameraToggleButton.className = 'tracking-controls-button';
+  let cameraEnabled = true;
+
+  function updateCameraToggleLabel() {
+    cameraToggleButton.textContent = cameraEnabled ? 'Camera: ON' : 'Camera: OFF';
+    cameraToggleButton.setAttribute('aria-pressed', String(cameraEnabled));
+  }
 
   const calibrationSetLabel = document.createElement('label');
   calibrationSetLabel.textContent = 'Calibration Sets';
@@ -230,8 +275,24 @@ function createTrackingControls(trackingController) {
     }
 
     cameraSelect.disabled = true;
+    cameraEnabled = true;
     await trackingController.setCamera(cameraSelect.value);
     cameraSelect.disabled = false;
+    updateCameraToggleLabel();
+  });
+
+  cameraToggleButton.addEventListener('click', async () => {
+    cameraEnabled = !cameraEnabled;
+
+    if (cameraEnabled) {
+      cameraSelect.disabled = true;
+      await trackingController.setCamera(cameraSelect.value || null);
+      cameraSelect.disabled = false;
+    } else {
+      trackingController.setCameraEnabled(false);
+    }
+
+    updateCameraToggleLabel();
   });
 
   calibrationSetSelect.addEventListener('change', () => {
@@ -267,27 +328,36 @@ function createTrackingControls(trackingController) {
   });
 
   trackingController.onCameraChange((deviceId) => {
+    cameraEnabled = Boolean(deviceId);
     if (deviceId) {
       cameraSelect.value = deviceId;
     }
+    updateCameraToggleLabel();
   });
 
   setStabilizationEnabled(stabilizationEnabled);
   setLandmarkDrawingEnabled(landmarkDrawingVisible);
   updateStabilizationLabel();
   updateLandmarkDrawingLabel();
+  updateCameraToggleLabel();
   updateToggleLabel();
 
   visibilityToggle.addEventListener('click', () => {
-    setupMenuVisible = !setupMenuVisible;
-    container.classList.toggle('collapsed', !setupMenuVisible);
-    updateToggleLabel();
+    setSettingsVisible(!setupMenuVisible);
   });
 
+  settingsCloseButton.addEventListener('click', () => {
+    setSettingsVisible(false);
+  });
+
+  settingsHeader.appendChild(settingsTitle);
+  settingsHeader.appendChild(settingsCloseButton);
+  container.appendChild(settingsHeader);
   container.appendChild(modelLabel);
   container.appendChild(modelSelect);
   container.appendChild(cameraLabel);
   container.appendChild(cameraSelect);
+  container.appendChild(cameraToggleButton);
   container.appendChild(calibrationSetLabel);
   container.appendChild(calibrationSetSelect);
   container.appendChild(calibrationStrictnessLabel);
@@ -297,8 +367,24 @@ function createTrackingControls(trackingController) {
   container.appendChild(modeGroup);
   container.appendChild(stabilizationButton);
   container.appendChild(landmarkDrawingButton);
-  container.appendChild(visibilityToggle);
-  document.body.appendChild(container);
+
+  settingsSection.appendChild(container);
+
+  const sidebar = document.querySelector('.left-navigation');
+  const headerActions = document.querySelector('.nav-header-actions');
+
+  if (headerActions) {
+    headerActions.appendChild(visibilityToggle);
+  } else if (sidebar) {
+    sidebar.appendChild(visibilityToggle);
+  }
+
+  if (sidebar) {
+    sidebar.appendChild(settingsSection);
+  } else {
+    document.body.appendChild(settingsSection);
+  }
+
   container.classList.add('collapsed');
   updateToggleLabel();
 
@@ -318,6 +404,47 @@ export function initApp() {
   const canvasElement = document.getElementById('canvas');
 
   createNavigationUI();
+
+  const stageShell = document.createElement('div');
+  stageShell.className = 'video-stage-shell';
+  canvasElement.parentNode.insertBefore(stageShell, canvasElement);
+  stageShell.appendChild(canvasElement);
+
+  const loadingOverlay = document.createElement('div');
+  loadingOverlay.className = 'video-loading-overlay';
+  loadingOverlay.innerHTML = `
+    <div class="video-loading-title">Video lädt...</div>
+    <div class="video-loading-subtitle">Bitte kurz warten...</div>
+  `;
+  stageShell.appendChild(loadingOverlay);
+
+  let hasReceivedInitialLandmarks = false;
+
+  function updateLoadingOverlay() {
+    const streamReady = Boolean(videoElement.srcObject) && videoElement.readyState >= 2;
+    const shouldShow = !streamReady || !hasReceivedInitialLandmarks;
+    loadingOverlay.style.display = shouldShow ? 'flex' : 'none';
+  }
+
+  onPoseUpdate((poseLandmarks) => {
+    if (Array.isArray(poseLandmarks) && poseLandmarks.length > 0) {
+      hasReceivedInitialLandmarks = true;
+      updateLoadingOverlay();
+    }
+  });
+
+  onLandmarksUpdate((hands) => {
+    if (Array.isArray(hands) && hands.length > 0) {
+      hasReceivedInitialLandmarks = true;
+      updateLoadingOverlay();
+    }
+  });
+
+  videoElement.addEventListener('loadeddata', updateLoadingOverlay);
+  videoElement.addEventListener('canplay', updateLoadingOverlay);
+  videoElement.addEventListener('playing', updateLoadingOverlay);
+  updateLoadingOverlay();
+
   const trackingController = startTracking(videoElement, canvasElement, { initialModel: 'pose' });
   const controls = createTrackingControls(trackingController);
 
@@ -329,7 +456,7 @@ export function initApp() {
   levelCanvas.style.top = '0';
   levelCanvas.style.width = '100%';
   levelCanvas.style.height = '100%';
-  document.body.appendChild(levelCanvas);
+  stageShell.appendChild(levelCanvas);
 
   const levelManager = new LevelManager(levelCanvas);
   controls.setCalibrationPoseSets(levelManager.getCalibrationPoseSets());

@@ -241,21 +241,28 @@ export class LevelManager {
     const savedAt = new Date(entry.timestamp).toLocaleString();
     this.calibrationSaveFeedbackText = `Kallibrierung abgeschlossen: ${entry.name} (${savedAt})`;
     this.calibrationSaveFeedbackUntilMs = performance.now() + 5000;
+    this.calibrationSuccess = true;
 
     this.persistCalibrationPoseSets();
     this.emitCalibrationPoseSetsChange();
   }
 
   updateCalibrationSnapshotCapture(nowMs = performance.now()) {
+    const holdElapsed = this.calibrationAlignedSince ? nowMs - this.calibrationAlignedSince : 0;
+    const stableHoldReached = this.calibrationAlignedSince > 0 && holdElapsed >= 3000;
     const canCapture = this.calibrationActive
       && this.chapter === 0
       && this.level === 0
+      && this.calibrationAligned
+      && stableHoldReached
       && this.calibrationScore >= this.calibrationCaptureThreshold
       && Array.isArray(this.poseLandmarks)
       && this.poseLandmarks.length > 0;
 
     if (!canCapture) {
-      this.finalizeCalibrationSnapshotCapture();
+      if (this.calibrationCaptureActive && !stableHoldReached) {
+        this.finalizeCalibrationSnapshotCapture();
+      }
       this.calibrationSavedInCurrentHighWindow = false;
       return;
     }
@@ -313,7 +320,7 @@ export class LevelManager {
     }
 
     const coreIndices = [11, 12, 23, 24];
-    const headIndices = [9, 10, 2, 5];
+    const headIndices = [2, 5];
     const requiredIndices = [...coreIndices, ...headIndices];
     const strictnessFactor = 100 / Math.max(1, this.calibrationComparisonStrictnessPercent);
 
@@ -321,12 +328,15 @@ export class LevelManager {
       return { available: false, aligned: false, score: 0, setName: calibrationSet.name || '' };
     }
 
+    const refLeftEye = calibrationSet.landmarks[2];
+    const refRightEye = calibrationSet.landmarks[5];
     const refLeftShoulder = calibrationSet.landmarks[11];
     const refRightShoulder = calibrationSet.landmarks[12];
     const refLeftHip = calibrationSet.landmarks[23];
     const refRightHip = calibrationSet.landmarks[24];
     const shoulderSpan = this.distance(refLeftShoulder, refRightShoulder);
     const hipSpan = this.distance(refLeftHip, refRightHip);
+    const headSpan = this.distance(refLeftEye, refRightEye);
     const bodyScale = Math.max(36, (shoulderSpan + hipSpan) / 2);
     const baseTolerance = Math.max(16, bodyScale * 0.18 * strictnessFactor);
     const headTolerance = baseTolerance * 1.6;
@@ -347,6 +357,12 @@ export class LevelManager {
 
     const score = weightTotal > 0 ? weightedSum / weightTotal : 0;
 
+    const headRect = this.createRectFromPair(
+      refLeftEye,
+      refRightEye,
+      Math.max(12, headSpan * 0.2 * strictnessFactor),
+      Math.max(16, headSpan * 0.12 * strictnessFactor)
+    );
     const shoulderRect = this.createRectFromPair(
       refLeftShoulder,
       refRightShoulder,
@@ -373,6 +389,7 @@ export class LevelManager {
       aligned,
       score,
       setName: calibrationSet.name || 'callibration_date',
+      headRect,
       shoulderRect,
       hipRect
     };
@@ -408,13 +425,17 @@ export class LevelManager {
       return;
     }
 
-    const rect = this.canvas.getBoundingClientRect();
-    const leftOffset = Math.max(12, rect.left + 12);
-    const topOffset = Math.max(24, rect.top + 72);
+    const viewportWidth = window.innerWidth;
+    const leftNavWidth = 220;
+    const rightPanelWidth = 270;
+    const centerX = leftNavWidth + (viewportWidth - leftNavWidth - rightPanelWidth) / 2;
+    const bottomOffset = 28;
 
-    this.poseAlignmentInfoEl.style.left = `${leftOffset}px`;
+    this.poseAlignmentInfoEl.style.left = `${centerX}px`;
     this.poseAlignmentInfoEl.style.right = 'auto';
-    this.poseAlignmentInfoEl.style.top = `${topOffset}px`;
+    this.poseAlignmentInfoEl.style.top = 'auto';
+    this.poseAlignmentInfoEl.style.bottom = `${bottomOffset}px`;
+    this.poseAlignmentInfoEl.style.transform = 'translateX(-50%)';
   }
 
   updatePoseAlignmentPanelContent(status) {
@@ -424,11 +445,14 @@ export class LevelManager {
 
     const scorePercent = Math.round(status.score * 100);
     this.poseAlignmentInfoEl.innerHTML = `
-      <h3>Pose Warnung</h3>
-      <p>Körper außerhalb der Kallibrierungsgrenzen.</p>
-      <p class="pose-alignment-info-row">Set: ${status.setName || 'callibration_date'}</p>
-      <p class="pose-alignment-info-row">Übereinstimmung: ${scorePercent}%</p>
-      <p class="pose-alignment-info-row">Strenge: ${Math.round(this.calibrationComparisonStrictnessPercent)}%</p>
+      <div class="pose-warning-header">
+        <h3>Pose Warnung</h3>
+      </div>
+      <div class="pose-warning-body">
+        <p>Körper außerhalb der Kallibrierungsgrenzen.</p>
+        <div class="pose-warning-row"><span>Set</span><strong>${status.setName || 'callibration_date'}</strong></div>
+        <div class="pose-warning-row"><span>Übereinstimmung</span><strong>${scorePercent}%</strong></div>
+      </div>
     `;
   }
 
@@ -444,18 +468,48 @@ export class LevelManager {
       return;
     }
 
-    const rect = this.canvas.getBoundingClientRect();
-    const panelMargin = 12;
-    const panelMarginTop = 24;
-    const topOffset = Math.max(panelMarginTop, rect.top + panelMarginTop);
-
     this.calibrationInfoEl.style.left = 'auto';
-    this.calibrationInfoEl.style.right = `${panelMargin}px`;
-    this.calibrationInfoEl.style.top = `${topOffset}px`;
+    this.calibrationInfoEl.style.right = '12px';
+    this.calibrationInfoEl.style.top = '18px';
   }
 
   updateCalibrationPanelContent() {
     if (!this.calibrationInfoEl) {
+      return;
+    }
+
+    if (this.level === 0) {
+      const countdownSeconds = this.calibrationAligned && this.calibrationAlignedSince
+        ? Math.max(0, 3 - (performance.now() - this.calibrationAlignedSince) / 1000)
+        : 0;
+      const countdownText = this.calibrationAligned && !this.calibrationSuccess
+        ? `<div class="calibration-score-row"><span>Countdown</span><strong>${countdownSeconds.toFixed(1)}s</strong></div>`
+        : '';
+
+      this.calibrationInfoEl.classList.toggle('success', this.calibrationSuccess);
+      const successSummary = this.calibrationSuccess
+        ? `
+          <p class="calibration-status">Kalibrierung gespeichert.</p>
+          <p class="calibration-hint">Du kannst jederzeit eine neue Kalibrierung starten, indem du erneut in die gewünschte Position gehst. Wenn du zufrieden bist, kannst du mit den anderen Bereichen weiterarbeiten. Die gespeicherte Kalibrierung bleibt aktiv und kann über die letzten Kalibrierungen bzw. die Einstellungen wieder aufgerufen werden.</p>
+        `
+        : `
+          <p class="calibration-status">${this.calibrationAligned ? 'Winkel und Haltung korrekt - halte die Position.' : 'Ausrichtung noch unvollständig.'}</p>
+          <p class="calibration-hint">Die Hilfslinien dienen nur als grobe Orientierung; die tatsächliche Korrektur erfolgt über die Schulter- und Ellenbogenwinkel.</p>
+        `;
+
+      this.calibrationInfoEl.innerHTML = `
+        <h3>Kallibrierung - Oberkörper</h3>
+        <p>Bitte circa 1,5 m von der Kamera entfernt stehen, die Kamera auf Brusthöhe und gerade ausgerichtet positionieren. Am besten eignet sich eine feste Laptop- oder Webcam-Position.</p>
+        <ol>
+          <li>Stelle dein Gesicht in das rote Augen-Rechteck.</li>
+          <li>Richte die Hüfte in das untere grüne Rechteck aus.</li>
+          <li>Sobald Kopf und Hüfte korrekt sind, erscheint das orangefarbene Schulter-Rechteck.</li>
+          <li>Lege die Arme so an, dass der Schulterwinkel etwa 45° und der Ellenbogenwinkel etwa 180° beträgt.</li>
+          <li>Halte die Stellung stabil, bis der Countdown auf 0 läuft und die Linien grün werden.</li>
+        </ol>
+        ${countdownText}
+        ${successSummary}
+      `;
       return;
     }
 
@@ -525,14 +579,9 @@ export class LevelManager {
       return;
     }
 
-    const rect = this.canvas.getBoundingClientRect();
-    const panelMargin = 12;
-    const panelMarginTop = 24;
-    const topOffset = Math.max(panelMarginTop, rect.top + panelMarginTop);
-
     this.consistencyInfoEl.style.left = 'auto';
-    this.consistencyInfoEl.style.right = `${panelMargin}px`;
-    this.consistencyInfoEl.style.top = `${topOffset}px`;
+    this.consistencyInfoEl.style.right = '12px';
+    this.consistencyInfoEl.style.top = '18px';
   }
 
   updateConsistencyPanelContent() {
@@ -966,6 +1015,11 @@ export class LevelManager {
   }
 
   drawPoseAlignmentWarning(status) {
+    if (this.calibrationActive && this.level === 0) {
+      this.setPoseAlignmentPanelVisible(false);
+      return;
+    }
+
     if (!status || !status.available || status.aligned) {
       this.setPoseAlignmentPanelVisible(false);
       return;
@@ -976,7 +1030,9 @@ export class LevelManager {
     this.ctx.lineWidth = 2.4;
     this.ctx.setLineDash([9, 6]);
 
-    [status.shoulderRect, status.hipRect].forEach((rect) => {
+    const warningRects = [status.headRect, status.shoulderRect, status.hipRect];
+
+    warningRects.forEach((rect) => {
       if (!rect) return;
       this.ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
     });
@@ -994,6 +1050,13 @@ export class LevelManager {
   }
 
   renderPoseAlignmentFeedback() {
+    if (this.calibrationActive && this.level === 0) {
+      const status = this.poseAlignmentStatus;
+      this.drawPoseAlignmentLed(status);
+      this.drawPoseAlignmentWarning(status);
+      return;
+    }
+
     const inPlayableLevel = (
       this.calibrationActive && (this.level === 1 || this.level === 2)
     ) || (
@@ -1177,9 +1240,29 @@ export class LevelManager {
     return Math.max(0, 1 - (d - radius) / radius);
   }
 
+  angleBetweenVectors(a, b) {
+    if (!a || !b) {
+      return 0;
+    }
+
+    const dot = a.x * b.x + a.y * b.y;
+    const lenA = Math.hypot(a.x, a.y);
+    const lenB = Math.hypot(b.x, b.y);
+    if (lenA <= 0 || lenB <= 0) {
+      return 0;
+    }
+
+    const cosine = Math.max(-1, Math.min(1, dot / (lenA * lenB)));
+    return Math.acos(cosine) * 180 / Math.PI;
+  }
+
   evaluateCalibration() {
     const leftEye = this.getVisiblePoint(2) || this.getVisiblePoint(1);
     const rightEye = this.getVisiblePoint(5) || this.getVisiblePoint(4);
+    const leftShoulder = this.getVisiblePoint(11);
+    const rightShoulder = this.getVisiblePoint(12);
+    const leftElbow = this.getVisiblePoint(13);
+    const rightElbow = this.getVisiblePoint(14);
     const leftHip = this.getVisiblePoint(23);
     const rightHip = this.getVisiblePoint(24);
     const leftWrist = this.getVisiblePoint(15);
@@ -1193,92 +1276,465 @@ export class LevelManager {
 
     const eyeCenter = this.averagePoints(leftEye, rightEye);
     const hipCenter = this.averagePoints(leftHip, rightHip);
+    const shoulderCenter = this.averagePoints(leftShoulder, rightShoulder);
 
-    this.calibrationMetrics = {
-      leftEye,
-      rightEye,
-      leftHip,
-      rightHip,
-      leftWrist,
-      rightWrist,
-      leftHandRefA,
-      leftHandRefB,
-      rightHandRefA,
-      rightHandRefB,
-      leftHandCenter,
-      rightHandCenter,
-      eyeCenter,
-      hipCenter
-    };
-
-    if (!eyeCenter || !hipCenter || !leftHandCenter || !rightHandCenter) {
+    if (!eyeCenter || !hipCenter || !leftShoulder || !rightShoulder || !leftHip || !rightHip) {
+      this.calibrationMetrics = {
+        leftEye,
+        rightEye,
+        leftShoulder,
+        rightShoulder,
+        leftHip,
+        rightHip,
+        leftWrist,
+        rightWrist,
+        leftHandCenter,
+        rightHandCenter,
+        eyeCenter,
+        hipCenter,
+        shoulderCenter,
+        bodyAligned: false,
+        armAligned: false,
+        leftGuide: null,
+        rightGuide: null,
+        headRect: null,
+        shoulderRect: null,
+        hipRect: null
+      };
       this.calibrationScore = 0;
       this.calibrationAligned = false;
-      this.calibrationSuccess = false;
-      this.calibrationAlignedSince = 0;
+      if (!this.calibrationSuccess) {
+        this.calibrationAlignedSince = 0;
+      }
       return;
     }
 
     const w = this.canvas.width;
     const h = this.canvas.height;
     const centerX = w * 0.5;
-    const bodyCenterX = (eyeCenter.x + hipCenter.x) * 0.5;
-    const eyeTargetY = h * 0.11;
-    const hipTargetY = h * 0.9;
+    const shoulderSpan = this.distance(leftShoulder, rightShoulder);
+    const hipSpan = this.distance(leftHip, rightHip);
+    const headSpan = this.distance(leftEye, rightEye);
+    const bodyCenterX = (eyeCenter.x + shoulderCenter.x + hipCenter.x) / 3;
+    const centerScore = this.scoreByDistance(bodyCenterX, centerX, w * 0.1);
+
+    const headRect = this.createRectFromPair(
+      leftEye,
+      rightEye,
+      Math.max(18, headSpan * 0.28),
+      Math.max(12, headSpan / 12)
+    );
+    const shoulderRect = this.createRectFromPair(
+      leftShoulder,
+      rightShoulder,
+      Math.max(22, shoulderSpan * 0.26),
+      Math.max(12, shoulderSpan / 12)
+    );
+    const hipRect = this.createRectFromPair(
+      leftHip,
+      rightHip,
+      Math.max(24, hipSpan * 0.26),
+      Math.max(14, hipSpan / 12)
+    );
+
+    const headScore = this.scoreSegmentInRect(leftEye, rightEye, headRect);
+    const hipScore = this.scoreSegmentInRect(leftHip, rightHip, hipRect);
+
     const eyeZone = {
       x: centerX - w * 0.18,
-      y: 0,
+      y: Math.max(8, h * 0.04),
       width: w * 0.36,
-      height: h * 0.155
+      height: Math.max(28, h * 0.12)
     };
     const hipZone = {
       x: centerX - w * 0.2,
-      y: hipTargetY - h * 0.04,
+      y: Math.min(h - 40, Math.max(h * 0.68, hipCenter.y - h * 0.08)),
       width: w * 0.4,
-      height: h * 0.14
+      height: Math.max(36, h * 0.12)
     };
-    const wristY = h * 0.88;
-    const wristOffset = w * 0.4;
-    const leftTargetWrist = { x: centerX - wristOffset, y: wristY };
-    const rightTargetWrist = { x: centerX + wristOffset, y: wristY };
-    const wristTargetRadius = Math.max(26, Math.min(56, Math.min(w, h) * 0.06));
-    const leftWristOffset = centerX - leftHandCenter.x;
-    const rightWristOffset = rightHandCenter.x - centerX;
 
-    const centerScore = this.scoreByDistance(bodyCenterX, centerX, w * 0.12);
-    const eyeScore = this.scoreSegmentInRect(leftEye, rightEye, eyeZone);
-    const hipScore = this.scoreSegmentInRect(leftHip, rightHip, hipZone);
-    const handCircleScore = (
-      this.scorePointInCircle(leftHandCenter, leftTargetWrist, wristTargetRadius)
-      + this.scorePointInCircle(rightHandCenter, rightTargetWrist, wristTargetRadius)
-    ) / 2;
-    const symmetryScore = this.scoreByDistance(leftWristOffset, rightWristOffset, w * 0.14);
-
-    const score = (
-      centerScore * 0.25
-      + eyeScore * 0.2
-      + hipScore * 0.2
-      + symmetryScore * 0.15
-      + handCircleScore * 0.2
+    const bodyScore = (
+      centerScore * 0.35
+      + this.scoreSegmentInRect(leftEye, rightEye, eyeZone) * 0.35
+      + this.scoreSegmentInRect(leftHip, rightHip, hipZone) * 0.3
     );
 
-    this.calibrationScore = score;
-    this.calibrationAligned = score >= 0.78;
+    const bodyAligned = bodyScore >= 0.78
+      && this.scoreSegmentInRect(leftEye, rightEye, eyeZone) >= 0.8
+      && this.scoreSegmentInRect(leftHip, rightHip, hipZone) >= 0.8
+      && centerScore >= 0.8;
+
+    const leftArmSpreadVector = leftShoulder && leftElbow ? {
+      x: leftElbow.x - leftShoulder.x,
+      y: leftElbow.y - leftShoulder.y
+    } : null;
+    const rightArmSpreadVector = rightShoulder && rightElbow ? {
+      x: rightElbow.x - rightShoulder.x,
+      y: rightElbow.y - rightShoulder.y
+    } : null;
+    const verticalVector = { x: 0, y: 1 };
+
+    const getSideArmMetrics = (shoulder, elbow, wrist, spreadVector) => {
+      if (!shoulder || !elbow || !wrist || !spreadVector) {
+        return { angle: 0, elbowAngle: 0, score: 0, shoulderAngle: 0 };
+      }
+
+      const shoulderAngle = this.angleBetweenVectors(spreadVector, verticalVector);
+      const upperArm = { x: shoulder.x - elbow.x, y: shoulder.y - elbow.y };
+      const forearm = { x: wrist.x - elbow.x, y: wrist.y - elbow.y };
+      const elbowAngle = this.angleBetweenVectors(upperArm, forearm);
+      const spreadScore = 1 - Math.min(1, Math.abs(shoulderAngle - 45) / 28);
+      const elbowScore = 1 - Math.min(1, Math.abs(elbowAngle - 180) / 42);
+      return {
+        angle: shoulderAngle,
+        elbowAngle,
+        shoulderAngle,
+        score: (spreadScore * 0.6 + elbowScore * 0.4)
+      };
+    };
+
+    const leftArmMetrics = getSideArmMetrics(leftShoulder, leftElbow, leftWrist, leftArmSpreadVector);
+    const rightArmMetrics = getSideArmMetrics(rightShoulder, rightElbow, rightWrist, rightArmSpreadVector);
+    const leftArmScore = leftArmMetrics.score;
+    const rightArmScore = rightArmMetrics.score;
+    const armScore = bodyAligned
+      ? ((leftArmScore + rightArmScore) / 2) || 0
+      : 0;
+    const finalScore = bodyScore * 0.75 + armScore * 0.25;
+    const armAligned = bodyAligned
+      && leftArmScore >= 0.72
+      && rightArmScore >= 0.72
+      && Math.abs(leftArmMetrics.angle - 45) <= 18
+      && Math.abs(rightArmMetrics.angle - 45) <= 18
+      && Math.abs(leftArmMetrics.elbowAngle - 180) <= 30
+      && Math.abs(rightArmMetrics.elbowAngle - 180) <= 30;
+
+    this.calibrationMetrics = {
+      leftEye,
+      rightEye,
+      leftShoulder,
+      rightShoulder,
+      leftElbow,
+      rightElbow,
+      leftHip,
+      rightHip,
+      leftWrist,
+      rightWrist,
+      leftHandCenter,
+      rightHandCenter,
+      eyeCenter,
+      hipCenter,
+      shoulderCenter,
+      leftShoulderAngle: leftArmMetrics.angle,
+      rightShoulderAngle: rightArmMetrics.angle,
+      leftElbowAngle: leftArmMetrics.elbowAngle,
+      rightElbowAngle: rightArmMetrics.elbowAngle,
+      bodyAligned,
+      armAligned,
+      leftGuide: bodyAligned && leftShoulder ? {
+        start: leftShoulder,
+        end: { x: leftShoulder.x - 120, y: leftShoulder.y + 120 }
+      } : null,
+      rightGuide: bodyAligned && rightShoulder ? {
+        start: rightShoulder,
+        end: { x: rightShoulder.x + 120, y: rightShoulder.y + 120 }
+      } : null,
+      headRect,
+      shoulderRect,
+      hipRect,
+      bodyScore,
+      armScore,
+      score: finalScore
+    };
+
+    const wasAligned = this.calibrationAligned;
+    const hadSavedSuccess = this.calibrationSuccess;
+    this.calibrationScore = finalScore;
+    this.calibrationAligned = bodyAligned && armAligned;
 
     if (this.calibrationAligned) {
-      if (!this.calibrationAlignedSince) {
+      const isFreshReentry = hadSavedSuccess && !wasAligned;
+      if (isFreshReentry) {
+        this.calibrationAlignedSince = performance.now();
+        this.calibrationSuccess = false;
+        this.calibrationSavedInCurrentHighWindow = false;
+        this.calibrationSaveFeedbackText = '';
+        this.calibrationSaveFeedbackUntilMs = 0;
+      }
+
+      if (!this.calibrationAlignedSince || isFreshReentry) {
         this.calibrationAlignedSince = performance.now();
       }
-      this.calibrationSuccess = performance.now() - this.calibrationAlignedSince >= 800;
+
+      if (!this.calibrationSuccess && performance.now() - this.calibrationAlignedSince >= 3000) {
+        this.calibrationSuccess = true;
+      }
     } else {
       this.calibrationAlignedSince = 0;
-      this.calibrationSuccess = false;
+      this.calibrationSuccess = hadSavedSuccess ? true : false;
     }
 
     this.updateCalibrationSnapshotCapture();
   }
 
+  renderUpperBodyCalibration() {
+    const w = this.canvas.width;
+    const h = this.canvas.height;
+    const centerX = w * 0.5;
+    const eyeZoneWidth = w * 0.36;
+    const shoulderZoneWidth = w * 0.44;
+    const hipZoneWidth = w * 0.4;
+    const eyeZone = {
+      x: centerX - eyeZoneWidth / 2,
+      y: Math.max(8, h * 0.04),
+      width: eyeZoneWidth,
+      height: Math.max(24, eyeZoneWidth / 6)
+    };
+    const shoulderZone = this.calibrationMetrics?.shoulderRect || {
+      x: centerX - shoulderZoneWidth / 2,
+      y: Math.max(12, (this.calibrationMetrics?.shoulderCenter?.y ?? h * 0.26) - shoulderZoneWidth / 12),
+      width: shoulderZoneWidth,
+      height: Math.max(28, shoulderZoneWidth / 6)
+    };
+    const hipTargetRect = {
+      x: centerX - hipZoneWidth / 2,
+      y: h * 0.8,
+      width: hipZoneWidth,
+      height: Math.max(30, hipZoneWidth / 6)
+    };
+    const hipZone = {
+      x: centerX - hipZoneWidth / 2,
+      y: Math.min(h - 40, Math.max(h * 0.64, (this.calibrationMetrics?.hipCenter?.y ?? h * 0.72) - hipZoneWidth / 12)),
+      width: hipZoneWidth,
+      height: Math.max(30, hipZoneWidth / 6)
+    };
+
+    const bodyAlignedPreview = !!this.calibrationMetrics && this.calibrationMetrics.bodyAligned;
+    const hipGuideVisible = bodyAlignedPreview && !!this.calibrationMetrics && !!this.calibrationMetrics.hipRect;
+    const leftEyeRef = this.calibrationMetrics?.leftEye || null;
+    const rightEyeRef = this.calibrationMetrics?.rightEye || null;
+    const leftHipRef = this.calibrationMetrics?.leftHip || null;
+    const rightHipRef = this.calibrationMetrics?.rightHip || null;
+
+    const drawLargePrompt = (text, rect, color) => {
+      if (!rect) return;
+      this.ctx.save();
+      this.ctx.textAlign = 'center';
+      this.ctx.textBaseline = 'middle';
+      this.ctx.font = '700 24px Arial';
+      this.ctx.lineWidth = 4;
+      this.ctx.strokeStyle = 'rgba(7, 14, 22, 0.82)';
+      this.ctx.fillStyle = color;
+      const x = rect.x + rect.width / 2;
+      const y = rect.y + rect.height / 2 + 2;
+      this.ctx.strokeText(text, x, y);
+      this.ctx.fillText(text, x, y);
+      this.ctx.restore();
+    };
+
+    const bgGradient = this.ctx.createLinearGradient(0, 0, 0, h);
+    bgGradient.addColorStop(0, 'rgba(6, 14, 27, 0.16)');
+    bgGradient.addColorStop(1, 'rgba(8, 20, 36, 0.28)');
+    this.ctx.fillStyle = bgGradient;
+    this.ctx.fillRect(0, 0, w, h);
+
+    this.ctx.save();
+    this.ctx.shadowBlur = 16;
+    this.ctx.shadowColor = 'rgba(119, 252, 232, 0.7)';
+    this.ctx.strokeStyle = 'rgba(119, 252, 232, 0.95)';
+    this.ctx.lineWidth = 4;
+    this.ctx.setLineDash([14, 10]);
+    this.ctx.beginPath();
+    this.ctx.moveTo(centerX, h * 0.06);
+    this.ctx.lineTo(centerX, h * 0.94);
+    this.ctx.stroke();
+    this.ctx.setLineDash([]);
+
+    this.ctx.strokeStyle = 'rgba(255, 111, 145, 0.95)';
+    this.ctx.lineWidth = 2;
+    this.ctx.fillStyle = 'rgba(255, 111, 145, 0.2)';
+    this.ctx.fillRect(eyeZone.x, eyeZone.y, eyeZone.width, eyeZone.height);
+    this.ctx.strokeRect(eyeZone.x, eyeZone.y, eyeZone.width, eyeZone.height);
+
+    if (bodyAlignedPreview && this.calibrationMetrics?.shoulderRect) {
+      this.ctx.strokeStyle = 'rgba(255, 154, 102, 0.9)';
+      this.ctx.lineWidth = 2;
+      this.ctx.fillStyle = 'rgba(255, 154, 102, 0.12)';
+      this.ctx.fillRect(shoulderZone.x, shoulderZone.y, shoulderZone.width, shoulderZone.height);
+      this.ctx.strokeRect(shoulderZone.x, shoulderZone.y, shoulderZone.width, shoulderZone.height);
+    }
+
+    if (!bodyAlignedPreview && leftHipRef && rightHipRef) {
+      this.ctx.strokeStyle = 'rgba(255, 120, 143, 0.95)';
+      this.ctx.lineWidth = 2;
+      this.ctx.setLineDash([10, 8]);
+      this.ctx.fillStyle = 'rgba(255, 120, 143, 0.08)';
+      this.ctx.fillRect(hipTargetRect.x, hipTargetRect.y, hipTargetRect.width, hipTargetRect.height);
+      this.ctx.strokeRect(hipTargetRect.x, hipTargetRect.y, hipTargetRect.width, hipTargetRect.height);
+      this.ctx.setLineDash([]);
+      drawLargePrompt('HÜFTE', hipTargetRect, 'rgba(255, 232, 236, 0.98)');
+    }
+
+    if (hipGuideVisible) {
+      this.ctx.strokeStyle = 'rgba(95, 255, 188, 0.95)';
+      this.ctx.lineWidth = 2;
+      this.ctx.fillStyle = 'rgba(95, 255, 188, 0.2)';
+      this.ctx.fillRect(hipZone.x, hipZone.y, hipZone.width, hipZone.height);
+      this.ctx.strokeRect(hipZone.x, hipZone.y, hipZone.width, hipZone.height);
+    }
+    this.ctx.restore();
+
+    if (this.calibrationMetrics) {
+      const {
+        leftEye,
+        rightEye,
+        leftShoulder,
+        rightShoulder,
+        leftHip,
+        rightHip,
+        leftElbow,
+        rightElbow,
+        leftWrist,
+        rightWrist,
+        eyeCenter,
+        hipCenter,
+        shoulderCenter,
+        headRect,
+        shoulderRect,
+        hipRect,
+        leftGuide,
+        rightGuide,
+        bodyAligned,
+        armAligned,
+        leftShoulderAngle,
+        rightShoulderAngle,
+        leftElbowAngle,
+        rightElbowAngle
+      } = this.calibrationMetrics;
+
+      this.ctx.save();
+      this.ctx.setLineDash([9, 6]);
+      this.ctx.lineWidth = 2.2;
+      this.ctx.strokeStyle = bodyAligned ? 'rgba(99, 224, 149, 0.95)' : 'rgba(255, 106, 137, 0.95)';
+      if (headRect) {
+        this.ctx.strokeRect(headRect.x, headRect.y, headRect.width, headRect.height);
+      }
+      if (bodyAligned && shoulderRect) {
+        this.ctx.strokeRect(shoulderRect.x, shoulderRect.y, shoulderRect.width, shoulderRect.height);
+      }
+      this.ctx.restore();
+
+      if (leftEyeRef && rightEyeRef && !this.isSegmentInRect(leftEyeRef, rightEyeRef, eyeZone)) {
+        drawLargePrompt('AUGEN', eyeZone, 'rgba(255, 241, 244, 0.98)');
+      }
+
+      this.ctx.strokeStyle = 'rgba(95, 196, 255, 0.86)';
+      this.ctx.lineWidth = 2.5;
+
+      if (leftEye && rightEye) {
+        this.ctx.beginPath();
+        this.ctx.strokeStyle = this.isSegmentInRect(leftEye, rightEye, eyeZone)
+          ? 'rgba(99, 224, 149, 0.95)'
+          : 'rgba(255, 106, 137, 0.95)';
+        this.ctx.moveTo(leftEye.x, leftEye.y);
+        this.ctx.lineTo(rightEye.x, rightEye.y);
+        this.ctx.stroke();
+      }
+
+      if (bodyAligned && leftShoulder && rightShoulder) {
+        this.ctx.beginPath();
+        this.ctx.strokeStyle = this.isSegmentInRect(leftShoulder, rightShoulder, shoulderZone)
+          ? 'rgba(99, 224, 149, 0.95)'
+          : 'rgba(255, 106, 137, 0.95)';
+        this.ctx.moveTo(leftShoulder.x, leftShoulder.y);
+        this.ctx.lineTo(rightShoulder.x, rightShoulder.y);
+        this.ctx.stroke();
+      }
+
+      if (leftHip && rightHip) {
+        this.ctx.beginPath();
+        this.ctx.strokeStyle = this.isSegmentInRect(leftHip, rightHip, hipZone)
+          ? 'rgba(99, 224, 149, 0.95)'
+          : 'rgba(255, 106, 137, 0.95)';
+        this.ctx.moveTo(leftHip.x, leftHip.y);
+        this.ctx.lineTo(rightHip.x, rightHip.y);
+        this.ctx.stroke();
+      }
+
+      if (eyeCenter && hipCenter && shoulderCenter) {
+        this.ctx.beginPath();
+        this.ctx.strokeStyle = bodyAligned ? 'rgba(99, 224, 149, 0.95)' : 'rgba(255, 154, 102, 0.95)';
+        this.ctx.moveTo(eyeCenter.x, eyeCenter.y);
+        this.ctx.lineTo(shoulderCenter.x, shoulderCenter.y);
+        this.ctx.lineTo(hipCenter.x, hipCenter.y);
+        this.ctx.stroke();
+      }
+
+      const drawAngleReadout = (center, radius, actual, target, label, color, offsetX = 0, offsetY = 0) => {
+        const actualRadians = Math.max(0.15, Math.min((actual / 180) * Math.PI, Math.PI * 0.92));
+        this.ctx.save();
+        this.ctx.strokeStyle = color;
+        this.ctx.lineWidth = 4;
+        this.ctx.beginPath();
+        this.ctx.arc(center.x, center.y, radius, -Math.PI / 2, -Math.PI / 2 + actualRadians);
+        this.ctx.stroke();
+
+        this.ctx.fillStyle = 'rgba(240, 248, 255, 0.98)';
+        this.ctx.font = '700 18px Arial';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText(`${label}: ${Math.round(actual)}°`, center.x + offsetX, center.y + offsetY - radius - 20);
+        this.ctx.font = '700 15px Arial';
+        this.ctx.fillText(`Soll ${target}°`, center.x + offsetX, center.y + offsetY - radius - 4);
+        this.ctx.restore();
+      };
+
+      if (bodyAligned && leftShoulder && leftElbow && Number.isFinite(leftShoulderAngle)) {
+        const leftShoulderOk = Math.abs(leftShoulderAngle - 45) <= 18;
+        const leftElbowOk = Math.abs(leftElbowAngle - 180) <= 30;
+        drawAngleReadout(leftShoulder, 46, leftShoulderAngle, 45, 'Schulter', leftShoulderOk ? 'rgba(104,255,167,0.95)' : 'rgba(255,188,89,0.96)', -30, 10);
+        drawAngleReadout(leftElbow, 34, leftElbowAngle, 180, 'Ellenbogen', leftElbowOk ? 'rgba(104,255,167,0.95)' : 'rgba(255,188,89,0.96)', 40, 12);
+      }
+
+      if (bodyAligned && rightShoulder && rightElbow && Number.isFinite(rightShoulderAngle)) {
+        const rightShoulderOk = Math.abs(rightShoulderAngle - 45) <= 18;
+        const rightElbowOk = Math.abs(rightElbowAngle - 180) <= 30;
+        drawAngleReadout(rightShoulder, 46, rightShoulderAngle, 45, 'Schulter', rightShoulderOk ? 'rgba(104,255,167,0.95)' : 'rgba(255,188,89,0.96)', 26, 12);
+        drawAngleReadout(rightElbow, 34, rightElbowAngle, 180, 'Ellenbogen', rightElbowOk ? 'rgba(104,255,167,0.95)' : 'rgba(255,188,89,0.96)', -36, 10);
+      }
+
+      if (bodyAligned && (leftGuide || rightGuide)) {
+        this.ctx.save();
+        this.ctx.lineWidth = 4;
+        this.ctx.strokeStyle = armAligned ? 'rgba(104, 255, 167, 0.95)' : 'rgba(255, 188, 89, 0.96)';
+        [
+          { guide: leftGuide },
+          { guide: rightGuide }
+        ].forEach(({ guide }) => {
+          if (!guide) return;
+          this.ctx.beginPath();
+          this.ctx.moveTo(guide.start.x, guide.start.y);
+          this.ctx.lineTo(guide.end.x, guide.end.y);
+          this.ctx.stroke();
+
+          this.ctx.beginPath();
+          this.ctx.fillStyle = armAligned ? 'rgba(104, 255, 167, 0.95)' : 'rgba(255, 188, 89, 0.96)';
+          this.ctx.arc(guide.end.x, guide.end.y, 6, 0, Math.PI * 2);
+          this.ctx.fill();
+        });
+        this.ctx.restore();
+      }
+    }
+
+    this.updateCalibrationPanelPosition();
+    this.updateCalibrationPanelContent();
+  }
+
   renderCalibration() {
+    if (this.level === 0) {
+      this.renderUpperBodyCalibration();
+      return;
+    }
+
     if (this.level === 1 || this.level === 2) {
       if (this.level === 1) {
         this.renderCalibrationMotion(1, 1, false, 0.0001, 'wrist');

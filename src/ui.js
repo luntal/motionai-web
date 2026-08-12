@@ -92,9 +92,12 @@ function renderLevelButtons(levelRow) {
   const hasActiveChapter = Number.isInteger(uiState.activeChapter);
   const levelCount = hasActiveChapter ? getLevelCountForChapter(uiState.activeChapter) : 0;
 
-  // Toggle active state based on chapter selection
   if (hasActiveChapter) {
     levelRow.classList.add('active');
+    const title = document.createElement('div');
+    title.className = 'level-section-title';
+    title.textContent = uiState.activeChapter === 0 ? 'Bereiche' : 'Übungen';
+    levelRow.appendChild(title);
   } else {
     levelRow.classList.remove('active');
   }
@@ -146,18 +149,31 @@ export function setActiveChapter(chapter) {
 }
 
 export function createNavigationUI() {
-  const topBar = document.createElement('div');
-  topBar.className = 'top-ui-bar';
+  const sidebar = document.createElement('aside');
+  sidebar.className = 'left-navigation';
 
   const chapterRow = document.createElement('div');
-  chapterRow.className = 'chapter-row';
+  chapterRow.className = 'chapter-row nav-stack';
 
   const levelRow = document.createElement('div');
-  levelRow.className = 'level-row';
+  levelRow.className = 'level-row nav-stack';
 
-  topBar.appendChild(chapterRow);
-  topBar.appendChild(levelRow);
-  document.body.prepend(topBar);
+  const sidebarHeader = document.createElement('div');
+  sidebarHeader.className = 'nav-header-row';
+
+  const sectionTitle = document.createElement('div');
+  sectionTitle.className = 'nav-section-title';
+  sectionTitle.textContent = 'Navigation';
+
+  const headerActions = document.createElement('div');
+  headerActions.className = 'nav-header-actions';
+
+  sidebarHeader.appendChild(sectionTitle);
+  sidebarHeader.appendChild(headerActions);
+  sidebar.appendChild(sidebarHeader);
+  sidebar.appendChild(chapterRow);
+  sidebar.appendChild(levelRow);
+  document.body.prepend(sidebar);
 
   chapterRowElement = chapterRow;
   levelRowElement = levelRow;

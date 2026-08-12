@@ -24,7 +24,7 @@ export const chapterDescriptions = [
 ];
 
 export const levelTitles = [
-  ['Dynamikbereich', 'forte', 'piano'],
+  ['Oberkörper', 'forte', 'piano'],
   ['Rechts', 'Links', 'Symmetrisch', 'Alternierend', 'Parallele Linien'],
   ['Rechte Linie', 'Linke Linie', 'Synchron', 'Versetzt', '2:1 Tempo', 'Ellipsen'],
   ['Level 1', 'Level 2', 'Level 3', 'Level 4', 'Level 5']
@@ -32,7 +32,7 @@ export const levelTitles = [
 
 export const levelDescriptions = [
   [
-    'Dynamikbereich: Grundausrichtung vor der Kamera kalibrieren.',
+    'Oberkörper: Augen- und Hüftbereich in die vorgegebenen Rechtecke ausrichten und danach die Armkalibrierung freischalten.',
     'forte: Große, geführte Handbewegung entlang der Referenzpfade.',
     'piano: Kleinere, zentrierte Handbewegung entlang der Referenzpfade.'
   ],

@@ -55,6 +55,8 @@ export function startTracking(videoElement, canvasElement, options = {}) {
   let activeModel = options.initialModel === 'pose' ? 'pose' : 'hands';
   let activeStream = null;
   let activeDeviceId = null;
+  let selectedDeviceId = null;
+  let cameraEnabled = true;
   let processing = false;
   let operationQueue = Promise.resolve();
   let handsModel = null;
@@ -397,6 +399,7 @@ export function startTracking(videoElement, canvasElement, options = {}) {
   }
 
   async function startStream(deviceId = null) {
+    cameraEnabled = true;
     stopStream();
 
     const constraints = {
@@ -415,12 +418,16 @@ export function startTracking(videoElement, canvasElement, options = {}) {
 
     const stream = await navigator.mediaDevices.getUserMedia(constraints);
     activeStream = stream;
+    selectedDeviceId = deviceId || selectedDeviceId || null;
     videoElement.srcObject = stream;
     await videoElement.play();
 
     const [videoTrack] = stream.getVideoTracks();
     const settings = videoTrack ? videoTrack.getSettings() : null;
-    activeDeviceId = settings && settings.deviceId ? settings.deviceId : deviceId;
+    activeDeviceId = settings && settings.deviceId ? settings.deviceId : deviceId || selectedDeviceId;
+    if (activeDeviceId) {
+      selectedDeviceId = activeDeviceId;
+    }
     emitCameraChanged(activeDeviceId);
   }
 
@@ -472,9 +479,31 @@ export function startTracking(videoElement, canvasElement, options = {}) {
   }
 
   async function setCamera(deviceId) {
+    if (deviceId) {
+      selectedDeviceId = deviceId;
+    }
+    cameraEnabled = true;
     return enqueueOperation(async () => {
-      await startStream(deviceId || null);
+      await startStream(deviceId || selectedDeviceId || null);
     });
+  }
+
+  function setCameraEnabled(enabled) {
+    const desiredState = Boolean(enabled);
+    cameraEnabled = desiredState;
+
+    if (!desiredState) {
+      stopStream();
+      return;
+    }
+
+    return enqueueOperation(async () => {
+      await startStream(selectedDeviceId || null);
+    });
+  }
+
+  function isCameraEnabled() {
+    return cameraEnabled && Boolean(activeStream);
   }
 
   function getCurrentModel() {
@@ -482,11 +511,12 @@ export function startTracking(videoElement, canvasElement, options = {}) {
   }
 
   function getCurrentDeviceId() {
-    return activeDeviceId;
+    return activeDeviceId || selectedDeviceId || null;
   }
 
   function stop() {
     processing = false;
+    cameraEnabled = false;
     stopStream();
   }
 
@@ -513,6 +543,8 @@ export function startTracking(videoElement, canvasElement, options = {}) {
   return {
     listAvailableCameras,
     setCamera,
+    setCameraEnabled,
+    isCameraEnabled,
     setModel,
     getCurrentModel,
     getCurrentDeviceId,
