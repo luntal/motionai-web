@@ -43,6 +43,7 @@ export class LevelManager {
       score: 0,
       setName: ''
     };
+    this.poseWarningLandmarksVisible = false;
     this.calibrationAnimationStart = performance.now();
     this.calibrationInfoEl = null;
     this.poseAlignmentInfoEl = null;
@@ -93,6 +94,17 @@ export class LevelManager {
 
   getCalibrationComparisonStrictness() {
     return this.calibrationComparisonStrictnessPercent;
+  }
+
+  setPoseWarningLandmarksEnabled(enabled) {
+    this.poseWarningLandmarksVisible = Boolean(enabled);
+    if (this.canvas && this.canvas.width && this.canvas.height) {
+      this.render();
+    }
+  }
+
+  getPoseWarningLandmarksEnabled() {
+    return this.poseWarningLandmarksVisible;
   }
 
   getSelectedCalibrationPoseSet() {
@@ -519,6 +531,7 @@ export class LevelManager {
         <h3>Kallibrierung - forte</h3>
         <p>Folge den großen Referenz-Linien mit beiden Händen spiegelbildlich.</p>
         <p class="calibration-status">Pfad: Oben nach unten, dann nach innen und zurück.</p>
+        <p><strong>Wirkungsbereich:</strong> tief (Gürtelhöhe), fern (ausgestreckt) und weit (voneinander entfernt).</p>
         <p class="calibration-hint">Die Punkte laufen als visuelle Bewegungsführung.</p>
       `;
       return;
@@ -530,6 +543,7 @@ export class LevelManager {
         <h3>Kallibrierung - piano</h3>
         <p>Folge demselben Bewegungsmuster in einer kleineren Form zur Bildmitte.</p>
         <p class="calibration-status">Pfad: Kompakt, kontrolliert und symmetrisch.</p>
+        <p><strong>Wirkungsbereich:</strong> hoch (unter den Augen), nah (am Gesicht) und zusammen.</p>
         <p class="calibration-hint">Die Punkte zeigen den kleineren Bewegungsraum.</p>
       `;
       return;
@@ -1031,17 +1045,31 @@ export class LevelManager {
     this.ctx.setLineDash([9, 6]);
 
     const warningRects = [status.headRect, status.shoulderRect, status.hipRect];
-
     warningRects.forEach((rect) => {
       if (!rect) return;
       this.ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
     });
 
+    this.ctx.setLineDash([]);
     this.ctx.strokeStyle = 'rgba(255, 186, 112, 0.94)';
     this.ctx.beginPath();
     this.ctx.moveTo(this.canvas.width * 0.5, 0);
     this.ctx.lineTo(this.canvas.width * 0.5, this.canvas.height);
     this.ctx.stroke();
+
+    const calibrationSet = this.getSelectedCalibrationPoseSet();
+    if (this.poseWarningLandmarksVisible && Array.isArray(calibrationSet?.landmarks) && calibrationSet.landmarks.length > 0) {
+      this.ctx.fillStyle = 'rgba(255, 88, 88, 0.95)';
+      const landmarkIndices = [2, 5, 11, 12, 15, 16, 23, 24];
+      landmarkIndices.forEach((index) => {
+        const landmark = calibrationSet.landmarks[index];
+        if (!landmark) return;
+        this.ctx.beginPath();
+        this.ctx.arc(landmark.x, landmark.y, 5.5, 0, Math.PI * 2);
+        this.ctx.fill();
+      });
+    }
+
     this.ctx.restore();
 
     this.updatePoseAlignmentPanelPosition();
@@ -2034,6 +2062,11 @@ export class LevelManager {
     let leftEdgeX = centerX - wristOffset;
     let rightEdgeX = centerX + wristOffset;
     let bottomY = centerY + halfSpanY;
+    let leftBottomY = bottomY;
+    let rightBottomY = bottomY;
+    let topY = Math.max(h * 0.04, bottomY - halfSpanY * 2);
+    let leftInnerX = Math.min(centerX - 8, leftEdgeX + Math.max(22, wristOffset - innerOffset));
+    let rightInnerX = Math.max(centerX + 8, rightEdgeX - Math.max(22, wristOffset - innerOffset));
 
     if (anchorMode === 'wrist' || anchorMode === 'shoulder') {
       const selectedSet = this.getSelectedCalibrationPoseSet();
@@ -2042,7 +2075,6 @@ export class LevelManager {
 
       if (selectedSet && selectedSet.landmarks) {
         if (anchorMode === 'wrist') {
-          // Forte edge anchoring should follow calibrated hand-center points.
           leftAnchor = this.averagePoints(selectedSet.landmarks[17], selectedSet.landmarks[19]);
           rightAnchor = this.averagePoints(selectedSet.landmarks[18], selectedSet.landmarks[20]);
         } else {
@@ -2053,41 +2085,81 @@ export class LevelManager {
 
       if (leftAnchor && rightAnchor) {
         const paddingX = Math.max(16, w * 0.03);
-        leftEdgeX = Math.max(paddingX, Math.min(centerX - 20, leftAnchor.x));
-        rightEdgeX = Math.min(w - paddingX, Math.max(centerX + 20, rightAnchor.x));
+        const targetCenterX = (leftAnchor.x + rightAnchor.x) / 2;
+        const centerOffset = (centerX - targetCenterX) * 0.35;
+
+        leftEdgeX = leftAnchor.x + centerOffset;
+        rightEdgeX = rightAnchor.x + centerOffset;
+
+        leftEdgeX = Math.max(paddingX, leftEdgeX);
+        rightEdgeX = Math.min(w - paddingX, rightEdgeX);
 
         const minSpan = Math.max(54, w * 0.12 * scale);
         if (rightEdgeX - leftEdgeX < minSpan) {
-          leftEdgeX = centerX - minSpan / 2;
-          rightEdgeX = centerX + minSpan / 2;
+          const fallbackCenterX = (leftEdgeX + rightEdgeX) / 2 || centerX;
+          const spanHalf = minSpan / 2;
+          leftEdgeX = fallbackCenterX - spanHalf;
+          rightEdgeX = fallbackCenterX + spanHalf;
         }
 
         if (anchorMode === 'wrist') {
           const avgAnchorY = (leftAnchor.y + rightAnchor.y) / 2;
           bottomY = Math.max(h * 0.26, Math.min(h * 0.94, avgAnchorY));
+          leftBottomY = bottomY;
+          rightBottomY = bottomY;
         } else {
-          // For piano, keep the compact shape but align edge x-positions to calibrated shoulders.
-          const avgAnchorY = (leftAnchor.y + rightAnchor.y) / 2;
-          bottomY = Math.max(h * 0.2, Math.min(h * 0.86, avgAnchorY + halfSpanY * 0.9));
+          const leftShoulder = selectedSet?.landmarks?.[11] || leftAnchor;
+          const rightShoulder = selectedSet?.landmarks?.[12] || rightAnchor;
+          const leftEye = selectedSet?.landmarks?.[2] || selectedSet?.landmarks?.[1] || leftAnchor;
+          const rightEye = selectedSet?.landmarks?.[5] || selectedSet?.landmarks?.[4] || rightAnchor;
+          const eyeCenterY = ((leftEye?.y ?? 0) + (rightEye?.y ?? 0)) / 2;
+          const shoulderWidth = leftShoulder && rightShoulder ? this.distance(leftShoulder, rightShoulder) : Math.max(54, w * 0.18 * scale);
+          const xSpread = Math.max(28, shoulderWidth * 0.2);
+          const shoulderReach = Math.max(42, shoulderWidth * 0.7);
+          const eyeGuideY = Math.max(h * 0.1, Math.min(h * 0.28, eyeCenterY + h * 0.04));
+          const minVerticalLength = Math.max(52, h * 0.08);
+
+          leftEdgeX = leftShoulder ? leftShoulder.x - xSpread : leftEdgeX;
+          rightEdgeX = rightShoulder ? rightShoulder.x + xSpread : rightEdgeX;
+          leftBottomY = leftShoulder ? leftShoulder.y : leftBottomY;
+          rightBottomY = rightShoulder ? rightShoulder.y : rightBottomY;
+          const lowestBottomY = Math.min(leftBottomY, rightBottomY);
+          const maxTopY = lowestBottomY - minVerticalLength;
+          topY = Math.max(h * 0.04, Math.min(eyeGuideY, maxTopY));
+          leftBottomY = Math.min(h * 0.9, leftBottomY);
+          rightBottomY = Math.min(h * 0.9, rightBottomY);
+          bottomY = (leftBottomY + rightBottomY) / 2;
+
+          leftInnerX = leftEdgeX + shoulderReach;
+          rightInnerX = rightEdgeX - shoulderReach;
         }
       }
     }
 
-    const topY = Math.max(h * 0.04, bottomY - halfSpanY * 2);
+    topY = Math.max(h * 0.04, Math.min(topY, bottomY - 8));
     bottomY = Math.min(h * 0.96, Math.max(topY + 8, bottomY));
+    leftBottomY = Math.min(h * 0.96, Math.max(topY + 8, leftBottomY));
+    rightBottomY = Math.min(h * 0.96, Math.max(topY + 8, rightBottomY));
     const horizontalReach = Math.max(22, wristOffset - innerOffset);
-    const leftInnerX = Math.min(centerX - 8, leftEdgeX + horizontalReach);
-    const rightInnerX = Math.max(centerX + 8, rightEdgeX - horizontalReach);
+    leftInnerX = Math.min(centerX - 8, leftEdgeX + horizontalReach);
+    rightInnerX = Math.max(centerX + 8, rightEdgeX - horizontalReach);
+
+    if (anchorMode === 'shoulder') {
+      const shoulderSpan = Math.max(24, rightEdgeX - leftEdgeX);
+      const shoulderReach = Math.min(shoulderSpan * 0.42, Math.max(42, wristOffset * 0.42));
+      leftInnerX = leftEdgeX + shoulderReach;
+      rightInnerX = rightEdgeX - shoulderReach;
+    }
 
     const leftPath = {
       a: { x: leftEdgeX, y: topY },
-      b: { x: leftEdgeX, y: bottomY },
-      c: { x: leftInnerX, y: bottomY }
+      b: { x: leftEdgeX, y: leftBottomY },
+      c: { x: leftInnerX, y: leftBottomY }
     };
     const rightPath = {
       a: { x: rightEdgeX, y: topY },
-      b: { x: rightEdgeX, y: bottomY },
-      c: { x: rightInnerX, y: bottomY }
+      b: { x: rightEdgeX, y: rightBottomY },
+      c: { x: rightInnerX, y: rightBottomY }
     };
 
     const bgGradient = this.ctx.createLinearGradient(0, 0, 0, h);

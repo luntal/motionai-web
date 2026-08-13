@@ -114,6 +114,12 @@ function createTrackingControls(trackingController) {
   landmarkDrawingButton.className = 'tracking-controls-button';
   let landmarkDrawingVisible = true;
 
+  const poseWarningLandmarksButton = document.createElement('button');
+  poseWarningLandmarksButton.type = 'button';
+  poseWarningLandmarksButton.className = 'tracking-controls-button';
+  let poseWarningLandmarksVisible = false;
+  let levelManagerRef = null;
+
   const modeLabel = document.createElement('div');
   modeLabel.textContent = 'Playback';
   modeLabel.className = 'tracking-controls-label';
@@ -228,6 +234,11 @@ function createTrackingControls(trackingController) {
     landmarkDrawingButton.setAttribute('aria-pressed', String(landmarkDrawingVisible));
   }
 
+  function updatePoseWarningLandmarksLabel() {
+    poseWarningLandmarksButton.textContent = poseWarningLandmarksVisible ? 'Pose Warning Landmarks: ON' : 'Pose Warning Landmarks: OFF';
+    poseWarningLandmarksButton.setAttribute('aria-pressed', String(poseWarningLandmarksVisible));
+  }
+
   async function refreshCameraList() {
     const cameras = await trackingController.listAvailableCameras();
     const activeDeviceId = trackingController.getCurrentDeviceId();
@@ -323,6 +334,14 @@ function createTrackingControls(trackingController) {
     updateLandmarkDrawingLabel();
   });
 
+  poseWarningLandmarksButton.addEventListener('click', () => {
+    poseWarningLandmarksVisible = !poseWarningLandmarksVisible;
+    if (levelManagerRef) {
+      levelManagerRef.setPoseWarningLandmarksEnabled(poseWarningLandmarksVisible);
+    }
+    updatePoseWarningLandmarksLabel();
+  });
+
   trackingController.onModelChange((modelName) => {
     modelSelect.value = modelName;
   });
@@ -337,8 +356,12 @@ function createTrackingControls(trackingController) {
 
   setStabilizationEnabled(stabilizationEnabled);
   setLandmarkDrawingEnabled(landmarkDrawingVisible);
+  if (levelManagerRef) {
+    levelManagerRef.setPoseWarningLandmarksEnabled(poseWarningLandmarksVisible);
+  }
   updateStabilizationLabel();
   updateLandmarkDrawingLabel();
+  updatePoseWarningLandmarksLabel();
   updateCameraToggleLabel();
   updateToggleLabel();
 
@@ -367,6 +390,7 @@ function createTrackingControls(trackingController) {
   container.appendChild(modeGroup);
   container.appendChild(stabilizationButton);
   container.appendChild(landmarkDrawingButton);
+  container.appendChild(poseWarningLandmarksButton);
 
   settingsSection.appendChild(container);
 
@@ -395,7 +419,13 @@ function createTrackingControls(trackingController) {
     setCalibrationPoseSets,
     setCalibrationSetChangeHandler,
     setCalibrationStrictness,
-    setCalibrationStrictnessChangeHandler
+    setCalibrationStrictnessChangeHandler,
+    setLevelManager: (manager) => {
+      levelManagerRef = manager;
+      if (levelManagerRef) {
+        levelManagerRef.setPoseWarningLandmarksEnabled(poseWarningLandmarksVisible);
+      }
+    }
   };
 }
 
@@ -408,7 +438,11 @@ export function initApp() {
   const stageShell = document.createElement('div');
   stageShell.className = 'video-stage-shell';
   canvasElement.parentNode.insertBefore(stageShell, canvasElement);
-  stageShell.appendChild(canvasElement);
+
+  const stageFrame = document.createElement('div');
+  stageFrame.className = 'video-stage-frame';
+  stageShell.appendChild(stageFrame);
+  stageFrame.appendChild(canvasElement);
 
   const loadingOverlay = document.createElement('div');
   loadingOverlay.className = 'video-loading-overlay';
@@ -416,7 +450,7 @@ export function initApp() {
     <div class="video-loading-title">Video lädt...</div>
     <div class="video-loading-subtitle">Bitte kurz warten...</div>
   `;
-  stageShell.appendChild(loadingOverlay);
+  stageFrame.appendChild(loadingOverlay);
 
   let hasReceivedInitialLandmarks = false;
 
@@ -456,9 +490,10 @@ export function initApp() {
   levelCanvas.style.top = '0';
   levelCanvas.style.width = '100%';
   levelCanvas.style.height = '100%';
-  stageShell.appendChild(levelCanvas);
+  stageFrame.appendChild(levelCanvas);
 
   const levelManager = new LevelManager(levelCanvas);
+  controls.setLevelManager(levelManager);
   controls.setCalibrationPoseSets(levelManager.getCalibrationPoseSets());
   controls.setCalibrationSetChangeHandler((index) => {
     levelManager.setSelectedCalibrationPoseSet(index);
@@ -472,26 +507,16 @@ export function initApp() {
   });
 
   function resizeOverlays() {
-    const rect = canvasElement.getBoundingClientRect();
     levelCanvas.width = canvasElement.width;
     levelCanvas.height = canvasElement.height;
-    levelCanvas.style.left = `${rect.left}px`;
-    levelCanvas.style.top = `${rect.top}px`;
-    levelCanvas.style.width = `${rect.width}px`;
-    levelCanvas.style.height = `${rect.height}px`;
     levelManager.resize(canvasElement.width, canvasElement.height);
   }
 
   window.addEventListener('resize', resizeOverlays);
 
   onCanvasResize((width, height) => {
-    const rect = canvasElement.getBoundingClientRect();
     levelCanvas.width = width;
     levelCanvas.height = height;
-    levelCanvas.style.left = `${rect.left}px`;
-    levelCanvas.style.top = `${rect.top}px`;
-    levelCanvas.style.width = `${rect.width}px`;
-    levelCanvas.style.height = `${rect.height}px`;
     levelManager.resize(width, height);
   });
 

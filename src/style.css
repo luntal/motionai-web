@@ -141,6 +141,15 @@ canvas {
   z-index: 5;
 }
 
+.video-stage-frame {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 100%;
+  max-height: calc(100vh - 2rem);
+}
+
 .video-loading-overlay {
   position: absolute;
   left: 50%;
@@ -179,7 +188,7 @@ canvas {
   position: relative;
   display: block;
   max-width: 100%;
-  max-height: calc(100vh - 2rem);
+  max-height: 100%;
   width: auto;
   height: auto;
   background: rgba(4, 8, 15, 0.65);
