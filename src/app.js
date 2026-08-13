@@ -75,9 +75,19 @@ function createTrackingControls(trackingController) {
   cameraToggleButton.className = 'tracking-controls-button';
   let cameraEnabled = true;
 
+  const resolutionToggleButton = document.createElement('button');
+  resolutionToggleButton.type = 'button';
+  resolutionToggleButton.className = 'tracking-controls-button';
+  let resolutionPreset = trackingController.getResolutionPreset() === 'low' ? 'low' : 'high';
+
   function updateCameraToggleLabel() {
     cameraToggleButton.textContent = cameraEnabled ? 'Camera: ON' : 'Camera: OFF';
     cameraToggleButton.setAttribute('aria-pressed', String(cameraEnabled));
+  }
+
+  function updateResolutionToggleLabel() {
+    resolutionToggleButton.textContent = `Resolution: ${resolutionPreset.toUpperCase()}`;
+    resolutionToggleButton.setAttribute('aria-pressed', String(resolutionPreset === 'high'));
   }
 
   const calibrationSetLabel = document.createElement('label');
@@ -306,6 +316,15 @@ function createTrackingControls(trackingController) {
     updateCameraToggleLabel();
   });
 
+  resolutionToggleButton.addEventListener('click', async () => {
+    const nextPreset = resolutionPreset === 'high' ? 'low' : 'high';
+    resolutionToggleButton.disabled = true;
+    await trackingController.setResolutionPreset(nextPreset);
+    resolutionPreset = trackingController.getResolutionPreset();
+    updateResolutionToggleLabel();
+    resolutionToggleButton.disabled = false;
+  });
+
   calibrationSetSelect.addEventListener('change', () => {
     const value = Number(calibrationSetSelect.value);
     selectedCalibrationSetIndex = Number.isInteger(value) ? value : null;
@@ -363,6 +382,7 @@ function createTrackingControls(trackingController) {
   updateLandmarkDrawingLabel();
   updatePoseWarningLandmarksLabel();
   updateCameraToggleLabel();
+  updateResolutionToggleLabel();
   updateToggleLabel();
 
   visibilityToggle.addEventListener('click', () => {
@@ -381,6 +401,7 @@ function createTrackingControls(trackingController) {
   container.appendChild(cameraLabel);
   container.appendChild(cameraSelect);
   container.appendChild(cameraToggleButton);
+  container.appendChild(resolutionToggleButton);
   container.appendChild(calibrationSetLabel);
   container.appendChild(calibrationSetSelect);
   container.appendChild(calibrationStrictnessLabel);
@@ -432,6 +453,13 @@ function createTrackingControls(trackingController) {
 export function initApp() {
   const videoElement = document.getElementById('video');
   const canvasElement = document.getElementById('canvas');
+
+  function setStageAspectRatio(stageEl, width, height) {
+    if (!stageEl || !width || !height) {
+      return;
+    }
+    stageEl.style.setProperty('--video-aspect-ratio', `${width} / ${height}`);
+  }
 
   createNavigationUI();
 
@@ -507,6 +535,7 @@ export function initApp() {
   });
 
   function resizeOverlays() {
+    setStageAspectRatio(stageFrame, canvasElement.width, canvasElement.height);
     levelCanvas.width = canvasElement.width;
     levelCanvas.height = canvasElement.height;
     levelManager.resize(canvasElement.width, canvasElement.height);
@@ -515,6 +544,7 @@ export function initApp() {
   window.addEventListener('resize', resizeOverlays);
 
   onCanvasResize((width, height) => {
+    setStageAspectRatio(stageFrame, width, height);
     levelCanvas.width = width;
     levelCanvas.height = height;
     levelManager.resize(width, height);

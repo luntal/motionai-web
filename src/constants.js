@@ -1,6 +1,6 @@
-export const CHAPTER_COUNT = 4;
+export const CHAPTER_COUNT = 6;
 export const LEVEL_COUNT = 5;
-export const chapterLevelCounts = [3, 5, 6, 5];
+export const chapterLevelCounts = [3, 5, 6, 5, 5, 5];
 
 export function getLevelCountForChapter(chapter) {
   if (!Number.isInteger(chapter) || chapter < 0 || chapter >= chapterLevelCounts.length) {
@@ -13,21 +13,27 @@ export const chapterTitles = [
   'Kallibrierung',
   'Eingewöhnung',
   'Gleichmäßigkeit',
-  'Grundfiguren'
+  'Grundfiguren',
+  'Einsätze geben',
+  'Prüfung'
 ];
 
 export const chapterDescriptions = [
   'Kallibrierung: Positioniere dich vor der Kamera und kalibriere deine Handbewegungen.',
   'Eingewöhnung: Einfache Übungen zur Gewöhnung an die Bewegungserkennung und das Feedback.',
   'Gleichmäßigkeit: Übe deine Bewegungen gleichmäßig auszuführen.',
-  'Grundfiguren: Übe grundlegende Dirigierschläge und Bewegungsmuster.'
+  'Grundfiguren: Übe grundlegende Dirigierschläge und Bewegungsmuster.',
+  'Einsätze geben: Platzhalter für zukünftige Einsatzübungen.',
+  'Prüfung: Platzhalter für die Prüfungsstruktur und spätere Aufgaben.'
 ];
 
 export const levelTitles = [
   ['Oberkörper', 'forte', 'piano'],
   ['Rechts', 'Links', 'Symmetrisch', 'Alternierend', 'Parallele Linien'],
   ['Rechte Linie', 'Linke Linie', 'Synchron', 'Versetzt', '2:1 Tempo', 'Ellipsen'],
-  ['Level 1', 'Level 2', 'Level 3', 'Level 4', 'Level 5']
+  ['Einserfigur', 'Zweierfigur', 'Dreierfigur', 'Viererfigur', 'Fünferfigur'],
+  ['Einsatz 1', 'Einsatz 2', 'Einsatz 3', 'Einsatz 4', 'Einsatz 5'],
+  ['Prüfung 1', 'Prüfung 2', 'Prüfung 3', 'Prüfung 4', 'Prüfung 5']
 ];
 
 export const levelDescriptions = [
@@ -52,10 +58,24 @@ export const levelDescriptions = [
     'Ellipsen: Beide Hände folgen zwei Punkten auf elliptischen Kreisbahnen in einer Dauerschleife.'
   ],
   [
-    'Level 1: Optimize motion detection.',
+    'Einserfigur: Die Folge stetig gleicher Bewegungen, reduziert auf zwei Grundbedürfnisse: Eine Aufwärtsbewegung und eine Abwärtsbewegung und eine Abwärtsbewegung.',
     'Level 2: Handle edge cases smoothly.',
     'Level 3: Customize advanced behavior.',
     'Level 4: Enable expert-level controls.',
     'Level 5: Finalize and polish the experience.'
+  ],
+  [
+    'Level 1: Platzhalter für Einsatzübungen.',
+    'Level 2: Platzhalter für Einsatzübungen.',
+    'Level 3: Platzhalter für Einsatzübungen.',
+    'Level 4: Platzhalter für Einsatzübungen.',
+    'Level 5: Platzhalter für Einsatzübungen.'
+  ],
+  [
+    'Level 1: Platzhalter für Prüfungsaufgaben.',
+    'Level 2: Platzhalter für Prüfungsaufgaben.',
+    'Level 3: Platzhalter für Prüfungsaufgaben.',
+    'Level 4: Platzhalter für Prüfungsaufgaben.',
+    'Level 5: Platzhalter für Prüfungsaufgaben.'
   ]
 ];

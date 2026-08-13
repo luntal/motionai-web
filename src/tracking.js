@@ -32,6 +32,10 @@ export function onCanvasResize(callback) {
 
 export function startTracking(videoElement, canvasElement, options = {}) {
   const ctx = canvasElement.getContext('2d');
+  const VIDEO_RESOLUTION_PRESETS = {
+    high: { width: 1280, height: 720 },
+    low: { width: 640, height: 360 }
+  };
   const connectorStyle = { color: '#5de6b1', lineWidth: 2 };
   const landmarkStyle = { fillStyle: '#f1ffb0', radius: 4 };
   const triggerStyle = { radius: 9 };
@@ -56,6 +60,7 @@ export function startTracking(videoElement, canvasElement, options = {}) {
   let activeStream = null;
   let activeDeviceId = null;
   let selectedDeviceId = null;
+  let videoResolutionPreset = options.initialResolution === 'low' ? 'low' : 'high';
   let cameraEnabled = true;
   let processing = false;
   let operationQueue = Promise.resolve();
@@ -295,7 +300,7 @@ export function startTracking(videoElement, canvasElement, options = {}) {
         for (let i = 0; i < stableHands.length; i++) {
           const handLandmarks = stableHands[i];
           const mpLabel = handednessData[i] ? handednessData[i].label : null;
-          const side = mpLabel === 'Left' ? 'left' : mpLabel === 'Right' ? 'right' : null;
+          const side = mpLabel === 'Left' ? 'right' : mpLabel === 'Right' ? 'left' : null;
           const indexTipTrigger = createTriggerPointFromLandmarks(handLandmarks, 8);
           drawTriggerPoint(indexTipTrigger, side);
         }
@@ -402,18 +407,19 @@ export function startTracking(videoElement, canvasElement, options = {}) {
     cameraEnabled = true;
     stopStream();
 
+    const resolution = VIDEO_RESOLUTION_PRESETS[videoResolutionPreset] || VIDEO_RESOLUTION_PRESETS.high;
+    const videoConstraints = {
+      width: { ideal: resolution.width },
+      height: { ideal: resolution.height }
+    };
+
+    if (deviceId) {
+      videoConstraints.deviceId = { exact: deviceId };
+    }
+
     const constraints = {
       audio: false,
-      video: deviceId
-        ? {
-            deviceId: { exact: deviceId },
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
-          }
-        : {
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
-          }
+      video: videoConstraints
     };
 
     const stream = await navigator.mediaDevices.getUserMedia(constraints);
@@ -514,6 +520,30 @@ export function startTracking(videoElement, canvasElement, options = {}) {
     return activeDeviceId || selectedDeviceId || null;
   }
 
+  async function setResolutionPreset(preset) {
+    const nextPreset = preset === 'low' ? 'low' : 'high';
+
+    return enqueueOperation(async () => {
+      if (videoResolutionPreset === nextPreset) {
+        return;
+      }
+
+      videoResolutionPreset = nextPreset;
+      smoothedHandLandmarks = [];
+      smoothedPoseLandmarks = null;
+      landmarksListeners.forEach((listener) => listener([]));
+      poseListeners.forEach((listener) => listener([]));
+
+      if (cameraEnabled) {
+        await startStream(selectedDeviceId || null);
+      }
+    });
+  }
+
+  function getResolutionPreset() {
+    return videoResolutionPreset;
+  }
+
   function stop() {
     processing = false;
     cameraEnabled = false;
@@ -548,6 +578,8 @@ export function startTracking(videoElement, canvasElement, options = {}) {
     setModel,
     getCurrentModel,
     getCurrentDeviceId,
+    setResolutionPreset,
+    getResolutionPreset,
     onModelChange,
     onCameraChange,
     stop

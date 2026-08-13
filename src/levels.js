@@ -49,6 +49,17 @@ export class LevelManager {
     this.poseAlignmentInfoEl = null;
     this.consistencyActive = false;
     this.consistencyInfoEl = null;
+    this.figureActive = false;
+    this.figureInfoEl = null;
+    this.figureHardnessPercent = 0;
+    this.figureTempoBpm = 60;
+    this.figureStrictnessPercent = 75;
+    this.figureDynamicRangePercent = 60;
+    this.figureFollowMode = 'center';
+    this.figureDirectionInverted = false;
+    this.figurePhaseInverted = false;
+    this.figurePhase = 0;
+    this.figureLastTickMs = performance.now();
     this.consistencyScoreHistory = [];
     this.consistencyAccuracy = 0;
     this.consistencyAnimationStart = performance.now();
@@ -59,24 +70,45 @@ export class LevelManager {
     this.consistencyMotionBlendPercent = 0;
     this.gridRows = 12;
     this.gridCols = 16;
+    this.targetIndexByCircle = new Map();
+    this.renderQueued = false;
+    this.scaledCalibrationCache = {
+      set: null,
+      width: 0,
+      height: 0,
+      landmarks: []
+    };
     this.createCalibrationInfoPanel();
     this.createPoseAlignmentInfoPanel();
     this.createConsistencyInfoPanel();
+    this.createFigureInfoPanel();
     this.buildGrid();
   }
 
   setSelectedCalibrationPoseSet(index) {
     if (!Number.isInteger(index)) {
       this.selectedCalibrationPoseSetIndex = null;
+      this.invalidateScaledCalibrationCache();
       return;
     }
 
     if (index < 0 || index >= this.calibrationPoseSets.length) {
       this.selectedCalibrationPoseSetIndex = null;
+      this.invalidateScaledCalibrationCache();
       return;
     }
 
     this.selectedCalibrationPoseSetIndex = index;
+    this.invalidateScaledCalibrationCache();
+  }
+
+  invalidateScaledCalibrationCache() {
+    this.scaledCalibrationCache = {
+      set: null,
+      width: 0,
+      height: 0,
+      landmarks: []
+    };
   }
 
   getSelectedCalibrationPoseSetIndex() {
@@ -113,6 +145,148 @@ export class LevelManager {
     }
 
     return this.calibrationPoseSets[this.selectedCalibrationPoseSetIndex] || null;
+  }
+
+  inferReferenceDimensionsFromLandmarks(landmarks) {
+    if (!Array.isArray(landmarks) || landmarks.length === 0) {
+      return null;
+    }
+
+    let maxX = 0;
+    let maxY = 0;
+    landmarks.forEach((landmark) => {
+      if (!landmark) {
+        return;
+      }
+      if (Number.isFinite(landmark.x)) {
+        maxX = Math.max(maxX, landmark.x);
+      }
+      if (Number.isFinite(landmark.y)) {
+        maxY = Math.max(maxY, landmark.y);
+      }
+    });
+
+    const presets = [
+      { width: 640, height: 360 },
+      { width: 1280, height: 720 },
+      { width: 1920, height: 1080 }
+    ];
+
+    const viablePresets = presets.filter((preset) => (
+      maxX <= preset.width * 1.05 && maxY <= preset.height * 1.05
+    ));
+
+    if (viablePresets.length === 0) {
+      return null;
+    }
+
+    let best = viablePresets[0];
+    let bestScore = (best.width - maxX) + (best.height - maxY);
+    for (let i = 1; i < viablePresets.length; i += 1) {
+      const candidate = viablePresets[i];
+      const score = (candidate.width - maxX) + (candidate.height - maxY);
+      if (score < bestScore) {
+        best = candidate;
+        bestScore = score;
+      }
+    }
+
+    return best;
+  }
+
+  normalizeCalibrationPoseSetEntry(entry) {
+    if (!entry || !Array.isArray(entry.landmarks)) {
+      return null;
+    }
+
+    const landmarks = entry.landmarks.map((landmark) => {
+      if (!landmark) {
+        return null;
+      }
+
+      return {
+        x: Number.isFinite(landmark.x) ? landmark.x : 0,
+        y: Number.isFinite(landmark.y) ? landmark.y : 0,
+        z: Number.isFinite(landmark.z) ? landmark.z : 0,
+        visibility: typeof landmark.visibility === 'number' ? landmark.visibility : 1
+      };
+    });
+
+    let referenceWidth = Number(entry.referenceWidth);
+    let referenceHeight = Number(entry.referenceHeight);
+    const hasReferenceDimensions = referenceWidth > 0 && referenceHeight > 0;
+
+    if (!hasReferenceDimensions) {
+      const inferred = this.inferReferenceDimensionsFromLandmarks(landmarks);
+      if (inferred) {
+        referenceWidth = inferred.width;
+        referenceHeight = inferred.height;
+      }
+    }
+
+    return {
+      ...entry,
+      landmarks,
+      referenceWidth: referenceWidth > 0 ? referenceWidth : null,
+      referenceHeight: referenceHeight > 0 ? referenceHeight : null
+    };
+  }
+
+  getCalibrationLandmarksForCanvas(calibrationSet) {
+    if (!calibrationSet || !Array.isArray(calibrationSet.landmarks) || calibrationSet.landmarks.length === 0) {
+      return [];
+    }
+
+    const targetWidth = Number(this.canvas?.width);
+    const targetHeight = Number(this.canvas?.height);
+    const cached = this.scaledCalibrationCache;
+    if (
+      cached
+      && cached.set === calibrationSet
+      && cached.width === targetWidth
+      && cached.height === targetHeight
+      && Array.isArray(cached.landmarks)
+    ) {
+      return cached.landmarks;
+    }
+
+    const referenceWidth = Number(calibrationSet.referenceWidth);
+    const referenceHeight = Number(calibrationSet.referenceHeight);
+
+    if (!(referenceWidth > 0 && referenceHeight > 0) || !(targetWidth > 0 && targetHeight > 0)) {
+      const passthrough = calibrationSet.landmarks.map((landmark) => (landmark ? { ...landmark } : null));
+      this.scaledCalibrationCache = {
+        set: calibrationSet,
+        width: targetWidth,
+        height: targetHeight,
+        landmarks: passthrough
+      };
+      return passthrough;
+    }
+
+    const scaleX = targetWidth / referenceWidth;
+    const scaleY = targetHeight / referenceHeight;
+
+    const scaled = calibrationSet.landmarks.map((landmark) => {
+      if (!landmark) {
+        return null;
+      }
+
+      return {
+        ...landmark,
+        x: landmark.x * scaleX,
+        y: landmark.y * scaleY
+      };
+    });
+
+    this.scaledCalibrationCache = {
+      set: calibrationSet,
+      width: targetWidth,
+      height: targetHeight,
+      landmarks: scaled
+    };
+
+    return scaled;
   }
 
   onCalibrationPoseSetsChange(handler) {
@@ -152,6 +326,8 @@ export class LevelManager {
 
       return parsed
         .filter((entry) => entry && Array.isArray(entry.landmarks))
+        .map((entry) => this.normalizeCalibrationPoseSetEntry(entry))
+        .filter((entry) => entry)
         .slice(-10);
     } catch (error) {
       console.warn('Failed to load calibration pose sets:', error);
@@ -237,7 +413,9 @@ export class LevelManager {
     const entry = {
       name: 'callibration_date',
       timestamp: Date.now(),
-      landmarks: averagedLandmarks
+      landmarks: averagedLandmarks,
+      referenceWidth: this.canvas?.width || null,
+      referenceHeight: this.canvas?.height || null
     };
 
     this.calibrationPoseSets.push(entry);
@@ -254,6 +432,8 @@ export class LevelManager {
     this.calibrationSaveFeedbackText = `Kallibrierung abgeschlossen: ${entry.name} (${savedAt})`;
     this.calibrationSaveFeedbackUntilMs = performance.now() + 5000;
     this.calibrationSuccess = true;
+
+    this.invalidateScaledCalibrationCache();
 
     this.persistCalibrationPoseSets();
     this.emitCalibrationPoseSetsChange();
@@ -323,7 +503,8 @@ export class LevelManager {
 
   evaluatePoseAlignmentAgainstCalibration() {
     const calibrationSet = this.getSelectedCalibrationPoseSet();
-    if (!calibrationSet || !Array.isArray(calibrationSet.landmarks) || calibrationSet.landmarks.length === 0) {
+    const calibrationLandmarks = this.getCalibrationLandmarksForCanvas(calibrationSet);
+    if (!calibrationSet || calibrationLandmarks.length === 0) {
       return { available: false, aligned: false, score: 0, setName: '' };
     }
 
@@ -336,16 +517,16 @@ export class LevelManager {
     const requiredIndices = [...coreIndices, ...headIndices];
     const strictnessFactor = 100 / Math.max(1, this.calibrationComparisonStrictnessPercent);
 
-    if (requiredIndices.some((index) => !calibrationSet.landmarks[index] || !this.poseLandmarks[index])) {
+    if (requiredIndices.some((index) => !calibrationLandmarks[index] || !this.poseLandmarks[index])) {
       return { available: false, aligned: false, score: 0, setName: calibrationSet.name || '' };
     }
 
-    const refLeftEye = calibrationSet.landmarks[2];
-    const refRightEye = calibrationSet.landmarks[5];
-    const refLeftShoulder = calibrationSet.landmarks[11];
-    const refRightShoulder = calibrationSet.landmarks[12];
-    const refLeftHip = calibrationSet.landmarks[23];
-    const refRightHip = calibrationSet.landmarks[24];
+    const refLeftEye = calibrationLandmarks[2];
+    const refRightEye = calibrationLandmarks[5];
+    const refLeftShoulder = calibrationLandmarks[11];
+    const refRightShoulder = calibrationLandmarks[12];
+    const refLeftHip = calibrationLandmarks[23];
+    const refRightHip = calibrationLandmarks[24];
     const shoulderSpan = this.distance(refLeftShoulder, refRightShoulder);
     const hipSpan = this.distance(refLeftHip, refRightHip);
     const headSpan = this.distance(refLeftEye, refRightEye);
@@ -357,7 +538,7 @@ export class LevelManager {
     let weightTotal = 0;
     const computeWeightedScore = (index, tolerance, weight) => {
       const live = this.poseLandmarks[index];
-      const ref = calibrationSet.landmarks[index];
+      const ref = calibrationLandmarks[index];
       const distance = this.distance(live, ref);
       const score = Math.max(0, 1 - distance / tolerance);
       weightedSum += score * weight;
@@ -497,24 +678,32 @@ export class LevelManager {
       const countdownText = this.calibrationAligned && !this.calibrationSuccess
         ? `<div class="calibration-score-row"><span>Countdown</span><strong>${countdownSeconds.toFixed(1)}s</strong></div>`
         : '';
+      const activeCalibration = this.getSelectedCalibrationPoseSet();
+      const activeCalibrationLabel = activeCalibration
+        ? `${activeCalibration.name || 'callibration_date'} vom ${new Date(activeCalibration.timestamp || Date.now()).toLocaleString()}`
+        : 'Keine aktive Kalibrierung ausgewählt';
 
       this.calibrationInfoEl.classList.toggle('success', this.calibrationSuccess);
       const successSummary = this.calibrationSuccess
         ? `
           <p class="calibration-status">Kalibrierung gespeichert.</p>
-          <p class="calibration-hint">Du kannst jederzeit eine neue Kalibrierung starten, indem du erneut in die gewünschte Position gehst. Wenn du zufrieden bist, kannst du mit den anderen Bereichen weiterarbeiten. Die gespeicherte Kalibrierung bleibt aktiv und kann über die letzten Kalibrierungen bzw. die Einstellungen wieder aufgerufen werden.</p>
+          <p class="calibration-hint"><strong>Aktive Kalibrierung:</strong> ${activeCalibrationLabel}</p>
+          <p class="calibration-hint">Die aktive Kalibrierung kann in den Einstellungen geändert werden.</p>
         `
         : `
           <p class="calibration-status">${this.calibrationAligned ? 'Winkel und Haltung korrekt - halte die Position.' : 'Ausrichtung noch unvollständig.'}</p>
-          <p class="calibration-hint">Die Hilfslinien dienen nur als grobe Orientierung; die tatsächliche Korrektur erfolgt über die Schulter- und Ellenbogenwinkel.</p>
+          <p class="calibration-hint"><strong>Aktive Kalibrierung:</strong> ${activeCalibrationLabel}</p>
+          <p class="calibration-hint">Die aktive Kalibrierung kann in den Einstellungen geändert werden.</p>
         `;
 
       this.calibrationInfoEl.innerHTML = `
         <h3>Kallibrierung - Oberkörper</h3>
         <p>Bitte circa 1,5 m von der Kamera entfernt stehen, die Kamera auf Brusthöhe und gerade ausgerichtet positionieren. Am besten eignet sich eine feste Laptop- oder Webcam-Position.</p>
+        <h4>Neukalibrierung:</h4>
         <ol>
           <li>Stelle dein Gesicht in das rote Augen-Rechteck.</li>
           <li>Richte die Hüfte in das untere grüne Rechteck aus.</li>
+          <li>Die gestrichelte vertikale Mittellinie dient als Orientierung für die Körpermitte, der Oberkörper soll senkrecht ausgerichtet sein.</li>
           <li>Sobald Kopf und Hüfte korrekt sind, erscheint das orangefarbene Schulter-Rechteck.</li>
           <li>Lege die Arme so an, dass der Schulterwinkel etwa 45° und der Ellenbogenwinkel etwa 180° beträgt.</li>
           <li>Halte die Stellung stabil, bis der Countdown auf 0 läuft und die Linien grün werden.</li>
@@ -581,11 +770,198 @@ export class LevelManager {
     this.consistencyInfoEl = panel;
   }
 
+  createFigureInfoPanel() {
+    const panel = document.createElement('div');
+    panel.className = 'figure-info-panel';
+    panel.innerHTML = '<h3>Eine Figur</h3><p>Warte auf Start...</p>';
+    panel.style.display = 'none';
+    document.body.appendChild(panel);
+    this.figureInfoEl = panel;
+  }
+
+  setFigurePanelVisible(visible) {
+    if (!this.figureInfoEl) {
+      return;
+    }
+
+    const shouldShow = Boolean(visible);
+    this.figureInfoEl.style.display = shouldShow ? 'block' : 'none';
+
+    if (shouldShow) {
+      this.updateFigurePanelPosition();
+      this.updateFigurePanelContent();
+    }
+  }
+
   setConsistencyPanelVisible(visible) {
     if (!this.consistencyInfoEl) {
       return;
     }
-    this.consistencyInfoEl.style.display = visible ? 'block' : 'none';
+
+    const shouldShow = Boolean(visible);
+    this.consistencyInfoEl.style.display = shouldShow ? 'block' : 'none';
+
+    if (shouldShow) {
+      this.updateConsistencyPanelPosition();
+      this.updateConsistencyPanelContent();
+    }
+  }
+
+  updateFigurePanelPosition() {
+    if (!this.figureInfoEl) {
+      return;
+    }
+
+    this.figureInfoEl.style.left = 'auto';
+    this.figureInfoEl.style.right = '12px';
+    this.figureInfoEl.style.top = '18px';
+  }
+
+  updateFigurePanelContent() {
+    if (!this.figureInfoEl) {
+      return;
+    }
+
+    const titleName = this.level !== null && Number.isInteger(this.level)
+      ? (['Einserfigur', 'Zweierfigur', 'Dreierfigur', 'Viererfigur', 'Fünferfigur'][this.level] || 'Eine Figur')
+      : 'Eine Figur';
+
+    if (!this.figureInfoEl.querySelector('.figure-hardness-slider')) {
+      this.figureInfoEl.innerHTML = `
+        <h3 class="figure-panel-title">${titleName}</h3>
+        <div class="figure-slider-row">
+          <div class="figure-slider-header">
+            <label for="figure-hardness-slider">Härte</label>
+            <span class="figure-slider-value figure-hardness-value">${this.figureHardnessPercent}%</span>
+          </div>
+          <input id="figure-hardness-slider" class="figure-hardness-slider" type="range" min="0" max="100" step="1" value="${this.figureHardnessPercent}" />
+        </div>
+        <div class="figure-slider-row">
+          <div class="figure-slider-header">
+            <label for="figure-speed-slider">Geschwindigkeit</label>
+            <span class="figure-slider-value figure-speed-value">${this.figureTempoBpm} bpm</span>
+          </div>
+          <input id="figure-speed-slider" class="figure-speed-slider" type="range" min="30" max="100" step="1" value="${this.figureTempoBpm}" />
+        </div>
+        <div class="figure-slider-row">
+          <div class="figure-slider-header">
+            <label for="figure-strictness-slider">Strenge</label>
+            <span class="figure-slider-value figure-strictness-value">${this.figureStrictnessPercent}%</span>
+          </div>
+          <input id="figure-strictness-slider" class="figure-strictness-slider" type="range" min="20" max="100" step="1" value="${this.figureStrictnessPercent}" />
+        </div>
+        <div class="figure-slider-row">
+          <div class="figure-slider-header">
+            <label for="figure-dynamic-range-slider">Dynamikbereich</label>
+            <span class="figure-slider-value figure-dynamic-range-value">${this.figureDynamicRangePercent}%</span>
+          </div>
+          <input id="figure-dynamic-range-slider" class="figure-dynamic-range-slider" type="range" min="20" max="100" step="1" value="${this.figureDynamicRangePercent}" />
+        </div>
+        <div class="figure-mode-row">
+          <div class="figure-mode-header">Modus</div>
+          <div class="figure-mode-group">
+            <label class="figure-mode-option"><input type="radio" name="figure-mode" value="center" ${this.figureFollowMode === 'center' ? 'checked' : ''} /> Mitte</label>
+            <label class="figure-mode-option"><input type="radio" name="figure-mode" value="left" ${this.figureFollowMode === 'left' ? 'checked' : ''} /> Links</label>
+            <label class="figure-mode-option"><input type="radio" name="figure-mode" value="right" ${this.figureFollowMode === 'right' ? 'checked' : ''} /> Rechts</label>
+            <label class="figure-mode-option"><input type="radio" name="figure-mode" value="both" ${this.figureFollowMode === 'both' ? 'checked' : ''} /> Beidhändig</label>
+          </div>
+        </div>
+        <div class="figure-direction-row">
+          <label class="figure-direction-toggle">
+            <input id="figure-direction-toggle" type="checkbox" ${this.figureDirectionInverted ? 'checked' : ''} />
+            <span>Richtung umkehren</span>
+          </label>
+        </div>
+        <div class="figure-direction-row">
+          <label class="figure-direction-toggle">
+            <input id="figure-phase-toggle" type="checkbox" ${this.figurePhaseInverted ? 'checked' : ''} />
+            <span>Phase umkehren</span>
+          </label>
+        </div>
+      `;
+
+      const hardnessSlider = this.figureInfoEl.querySelector('#figure-hardness-slider');
+      const speedSlider = this.figureInfoEl.querySelector('#figure-speed-slider');
+      const strictnessSlider = this.figureInfoEl.querySelector('#figure-strictness-slider');
+      const dynamicRangeSlider = this.figureInfoEl.querySelector('#figure-dynamic-range-slider');
+      const modeInputs = this.figureInfoEl.querySelectorAll('input[name="figure-mode"]');
+      const directionToggle = this.figureInfoEl.querySelector('#figure-direction-toggle');
+      const phaseToggle = this.figureInfoEl.querySelector('#figure-phase-toggle');
+
+      if (hardnessSlider) {
+        hardnessSlider.addEventListener('input', (event) => {
+          const next = Number(event.target.value);
+          this.figureHardnessPercent = Number.isFinite(next) ? Math.max(0, Math.min(100, next)) : 0;
+          this.updateFigurePanelContent();
+        });
+      }
+      if (speedSlider) {
+        speedSlider.addEventListener('input', (event) => {
+          const next = Number(event.target.value);
+          this.figureTempoBpm = Number.isFinite(next) ? Math.max(30, Math.min(100, next)) : 60;
+          this.updateFigurePanelContent();
+        });
+      }
+      if (strictnessSlider) {
+        strictnessSlider.addEventListener('input', (event) => {
+          const next = Number(event.target.value);
+          this.figureStrictnessPercent = Number.isFinite(next) ? Math.max(20, Math.min(100, next)) : 75;
+          this.updateFigurePanelContent();
+        });
+      }
+      if (dynamicRangeSlider) {
+        dynamicRangeSlider.addEventListener('input', (event) => {
+          const next = Number(event.target.value);
+          this.figureDynamicRangePercent = Number.isFinite(next) ? Math.max(20, Math.min(100, next)) : 60;
+          this.updateFigurePanelContent();
+        });
+      }
+      if (modeInputs) {
+        modeInputs.forEach((modeInput) => {
+          modeInput.addEventListener('change', (event) => {
+            const nextMode = event.target.value;
+            if (['center', 'left', 'right', 'both'].includes(nextMode)) {
+              this.figureFollowMode = nextMode;
+              this.updateFigurePanelContent();
+            }
+          });
+        });
+      }
+      if (directionToggle) {
+        directionToggle.addEventListener('change', (event) => {
+          this.figureDirectionInverted = Boolean(event.target.checked);
+          this.updateFigurePanelContent();
+        });
+      }
+      if (phaseToggle) {
+        phaseToggle.addEventListener('change', (event) => {
+          this.figurePhaseInverted = Boolean(event.target.checked);
+          this.updateFigurePanelContent();
+        });
+      }
+    }
+
+    const panelTitleEl = this.figureInfoEl.querySelector('.figure-panel-title');
+    const hardnessValueEl = this.figureInfoEl.querySelector('.figure-hardness-value');
+    const speedValueEl = this.figureInfoEl.querySelector('.figure-speed-value');
+    const strictnessValueEl = this.figureInfoEl.querySelector('.figure-strictness-value');
+    const dynamicRangeValueEl = this.figureInfoEl.querySelector('.figure-dynamic-range-value');
+
+    if (panelTitleEl) {
+      panelTitleEl.textContent = titleName;
+    }
+    if (hardnessValueEl) {
+      hardnessValueEl.textContent = `${Math.round(this.figureHardnessPercent)}%`;
+    }
+    if (speedValueEl) {
+      speedValueEl.textContent = `${Math.round(this.figureTempoBpm)} bpm`;
+    }
+    if (strictnessValueEl) {
+      strictnessValueEl.textContent = `${Math.round(this.figureStrictnessPercent)}%`;
+    }
+    if (dynamicRangeValueEl) {
+      dynamicRangeValueEl.textContent = `${Math.round(this.figureDynamicRangePercent)}%`;
+    }
   }
 
   updateConsistencyPanelPosition() {
@@ -709,12 +1085,10 @@ export class LevelManager {
     this.circleScales = [];
     const w = this.canvas.width;
     const h = this.canvas.height;
-    console.log(`Building grid with canvas dimensions: ${w}x${h}`);
     const spacingX = w / cols;
     const spacingY = h / rows;
     const radiusX = spacingX / 2 * 0.98;
     const radiusY = spacingY / 2 * 0.98;
-    console.log(`Grid spacing: ${spacingX.toFixed(1)}x${spacingY.toFixed(1)}, radii: ${radiusX.toFixed(1)}x${radiusY.toFixed(1)}`);
 
     for (let row = 0; row < rows; row += 1) {
       for (let col = 0; col < cols; col += 1) {
@@ -729,7 +1103,48 @@ export class LevelManager {
         this.circleScales.push(1.0);
       }
     }
-    console.log(`Built grid with ${this.grid.length} circles`);
+
+    this.rebuildTargetIndexLookup();
+  }
+
+  rebuildTargetIndexLookup() {
+    this.targetIndexByCircle.clear();
+
+    for (let targetIndex = 0; targetIndex < this.targets.length; targetIndex += 1) {
+      const target = this.targets[targetIndex];
+      if (!target) {
+        continue;
+      }
+
+      const circleIndices = [];
+      if (Number.isInteger(target.index)) {
+        circleIndices.push(target.index);
+      }
+      if (Number.isInteger(target.leftIndex)) {
+        circleIndices.push(target.leftIndex);
+      }
+      if (Number.isInteger(target.rightIndex)) {
+        circleIndices.push(target.rightIndex);
+      }
+
+      circleIndices.forEach((circleIndex) => {
+        if (!this.targetIndexByCircle.has(circleIndex)) {
+          this.targetIndexByCircle.set(circleIndex, targetIndex);
+        }
+      });
+    }
+  }
+
+  requestRender() {
+    if (this.renderQueued) {
+      return;
+    }
+
+    this.renderQueued = true;
+    requestAnimationFrame(() => {
+      this.renderQueued = false;
+      this.render();
+    });
   }
 
   getGridColumnForX(x) {
@@ -771,9 +1186,18 @@ export class LevelManager {
 
   setupLevel() {
     this.targets = [];
+    this.targetIndexByCircle.clear();
     this.nextTarget = 0;
     this.completed = false;
-    console.log(`setupLevel called: chapter=${this.chapter}, level=${this.level}`);
+
+    this.active = false;
+    this.calibrationActive = false;
+    this.consistencyActive = false;
+    this.figureActive = false;
+    this.setCalibrationPanelVisible(false);
+    this.setConsistencyPanelVisible(false);
+    this.setFigurePanelVisible(false);
+    this.setPoseAlignmentPanelVisible(false);
 
     if (!(this.chapter === 0 && this.level === 0)) {
       this.finalizeCalibrationSnapshotCapture();
@@ -781,9 +1205,6 @@ export class LevelManager {
     }
 
     if (this.chapter === 0) {
-      this.consistencyActive = false;
-      this.setConsistencyPanelVisible(false);
-      this.active = false;
       this.calibrationActive = this.level !== null && this.level >= 0 && this.level <= 2;
       this.calibrationAligned = false;
       this.calibrationSuccess = false;
@@ -795,9 +1216,6 @@ export class LevelManager {
     }
 
     if (this.chapter === 2) {
-      this.active = false;
-      this.calibrationActive = false;
-      this.setCalibrationPanelVisible(false);
       this.consistencyActive = this.level !== null && this.level >= 0 && this.level <= 5;
       this.consistencyScoreHistory = [];
       this.consistencyAccuracy = 0;
@@ -809,14 +1227,15 @@ export class LevelManager {
       return;
     }
 
-    this.calibrationActive = false;
-    this.setCalibrationPanelVisible(false);
-    this.consistencyActive = false;
-    this.setConsistencyPanelVisible(false);
+    if (this.chapter >= 3 && this.chapter <= 5) {
+      this.active = this.level !== null && this.level >= 0 && this.level <= 4;
+      this.figureActive = this.active;
+      this.setFigurePanelVisible(this.figureActive);
+      this.render();
+      return;
+    }
 
     if (this.chapter !== 1 || this.level === null) {
-      this.active = false;
-      console.log(`Level inactive - conditions not met`);
       this.render();
       return;
     }
@@ -835,7 +1254,6 @@ export class LevelManager {
     this.buildGrid();
 
     this.active = true;
-    console.log(`Level activated!`);
 
     const rows = this.gridRows;
     const cols = this.gridCols;
@@ -927,7 +1345,7 @@ export class LevelManager {
       }
     }
 
-    console.log(`Targets set up: ${this.targets.length} targets`);
+    this.rebuildTargetIndexLookup();
     this.render();
   }
 
@@ -1058,11 +1476,12 @@ export class LevelManager {
     this.ctx.stroke();
 
     const calibrationSet = this.getSelectedCalibrationPoseSet();
-    if (this.poseWarningLandmarksVisible && Array.isArray(calibrationSet?.landmarks) && calibrationSet.landmarks.length > 0) {
+    const calibrationLandmarks = this.getCalibrationLandmarksForCanvas(calibrationSet);
+    if (this.poseWarningLandmarksVisible && calibrationLandmarks.length > 0) {
       this.ctx.fillStyle = 'rgba(255, 88, 88, 0.95)';
       const landmarkIndices = [2, 5, 11, 12, 15, 16, 23, 24];
       landmarkIndices.forEach((index) => {
-        const landmark = calibrationSet.landmarks[index];
+        const landmark = calibrationLandmarks[index];
         if (!landmark) return;
         this.ctx.beginPath();
         this.ctx.arc(landmark.x, landmark.y, 5.5, 0, Math.PI * 2);
@@ -1088,7 +1507,7 @@ export class LevelManager {
     const inPlayableLevel = (
       this.calibrationActive && (this.level === 1 || this.level === 2)
     ) || (
-      !this.calibrationActive && (this.active || this.consistencyActive)
+      !this.calibrationActive && (this.active || this.consistencyActive || this.figureActive)
     );
 
     if (!inPlayableLevel) {
@@ -1101,9 +1520,205 @@ export class LevelManager {
     this.drawPoseAlignmentWarning(status);
   }
 
+  renderFigure() {
+    const nowMs = performance.now();
+    const dtMs = Math.max(0, nowMs - this.figureLastTickMs);
+    this.figureLastTickMs = nowMs;
+    const bpm = Math.max(30, Math.min(100, this.figureTempoBpm));
+    const deltaPhase = dtMs * bpm / 60000;
+    this.figurePhase = (this.figurePhase + deltaPhase) % 1;
+
+    const w = this.canvas.width;
+    const h = this.canvas.height;
+    const centerX = w * 0.5;
+    const centerY = h * 0.5;
+    const hardness = Math.max(0, Math.min(1, this.figureHardnessPercent / 100));
+    const dynamicScale = Math.max(0.12, this.figureDynamicRangePercent / 100);
+
+    const leftEye = this.calibrationMetrics && this.calibrationMetrics.leftEye ? this.calibrationMetrics.leftEye : null;
+    const rightEye = this.calibrationMetrics && this.calibrationMetrics.rightEye ? this.calibrationMetrics.rightEye : null;
+    const leftHand = this.calibrationMetrics && this.calibrationMetrics.leftHandCenter ? this.calibrationMetrics.leftHandCenter : null;
+    const rightHand = this.calibrationMetrics && this.calibrationMetrics.rightHandCenter ? this.calibrationMetrics.rightHandCenter : null;
+    const hipCenter = this.calibrationMetrics && this.calibrationMetrics.hipCenter ? this.calibrationMetrics.hipCenter : null;
+    const eyeAnchorY = leftEye && rightEye
+      ? ((leftEye.y + rightEye.y) / 2)
+      : centerY - Math.min(w, h) * 0.18;
+    const topAnchorY = eyeAnchorY - 120;
+    const dynamicRatio = Math.max(0.1, Math.min(1, this.figureDynamicRangePercent / 100));
+    const hipAnchorY = hipCenter ? hipCenter.y : centerY + Math.min(w, h) * 0.2;
+    const fullSpan = Math.max(72, hipAnchorY - topAnchorY);
+    const anchorSpan = fullSpan * dynamicRatio;
+    const ellipseRy = anchorSpan * 0.5;
+    const fixedRadius = ellipseRy;
+    const ellipseRx = Math.max(1, fixedRadius * (1 - hardness * 0.995));
+    const baseY = topAnchorY + ellipseRy;
+    const directionMultiplier = this.figureDirectionInverted ? -1 : 1;
+    const basePhaseAngle = this.figurePhase * Math.PI * 2;
+    const phaseAngle = basePhaseAngle * directionMultiplier;
+    const strictnessFactor = Math.max(0.2, this.figureStrictnessPercent / 100);
+    const acceptanceDistance = 30 + (1 - strictnessFactor) * 54;
+
+    const getModeCenterX = (handReference) => {
+      if (!handReference) {
+        return centerX;
+      }
+      const offsetX = (centerX - handReference.x) * 0.5;
+      return centerX - offsetX;
+    };
+
+    const centerModeX = centerX;
+    const leftModeX = leftHand ? getModeCenterX(leftHand) : centerX - Math.min(w * 0.14, 120);
+    const rightModeX = rightHand ? getModeCenterX(rightHand) : centerX + Math.min(w * 0.14, 120);
+
+    const localOrbit = (orbitCenterX, orbitCenterY, orbitAngle, offsetMultiplier = 1) => ({
+      x: orbitCenterX + Math.cos(orbitAngle) * ellipseRx * offsetMultiplier,
+      y: orbitCenterY + Math.sin(orbitAngle) * ellipseRy * offsetMultiplier
+    });
+
+    let orbitConfigs = [];
+    if (this.figureFollowMode === 'left') {
+      orbitConfigs.push({ centerX: leftModeX, centerY: baseY, angle: phaseAngle, label: 'left' });
+    } else if (this.figureFollowMode === 'right') {
+      orbitConfigs.push({ centerX: rightModeX, centerY: baseY, angle: phaseAngle, label: 'right' });
+    } else if (this.figureFollowMode === 'both') {
+      const directionMultiplier = this.figureDirectionInverted ? -1 : 1;
+      const leftAngle = basePhaseAngle * directionMultiplier;
+      const mirroredRightAngle = Math.PI - leftAngle;
+      const rightAngle = this.figurePhaseInverted
+        ? mirroredRightAngle + Math.PI
+        : mirroredRightAngle;
+
+      orbitConfigs.push({ centerX: leftModeX, centerY: baseY, angle: leftAngle, label: 'left' });
+      orbitConfigs.push({ centerX: rightModeX, centerY: baseY, angle: rightAngle, label: 'right' });
+    } else {
+      orbitConfigs.push({ centerX: centerModeX, centerY: baseY, angle: phaseAngle, label: 'center' });
+    }
+
+    const currentPoints = orbitConfigs.map((config) => ({
+      ...config,
+      point: localOrbit(config.centerX, config.centerY, config.angle)
+    }));
+
+    const isLine = hardness >= 0.995;
+    const drawRing = (ringCenterX, ringCenterY, ringRadius) => {
+      this.ctx.beginPath();
+      this.ctx.setLineDash([10, 8]);
+      this.ctx.strokeStyle = 'rgba(138, 213, 255, 0.9)';
+      this.ctx.lineWidth = 1.6;
+      this.ctx.ellipse(ringCenterX, ringCenterY, ringRadius, ringRadius, 0, 0, Math.PI * 2);
+      this.ctx.stroke();
+      this.ctx.setLineDash([]);
+    };
+
+    const isWithinTolerance = (referencePoint, samplePoint) => {
+      if (!referencePoint || !samplePoint) {
+        return false;
+      }
+      return this.distance(referencePoint, samplePoint) <= acceptanceDistance;
+    };
+
+    const matchStates = currentPoints.map((config, index) => {
+      if (this.figureFollowMode === 'center') {
+        const hasLeft = !!leftHand;
+        const hasRight = !!rightHand;
+        if (!hasLeft && !hasRight) {
+          return false;
+        }
+        const leftMatch = !hasLeft || isWithinTolerance(leftHand, config.point);
+        const rightMatch = !hasRight || isWithinTolerance(rightHand, config.point);
+        return leftMatch && rightMatch;
+      }
+      if (this.figureFollowMode === 'left') {
+        return !!leftHand && isWithinTolerance(leftHand, config.point);
+      }
+      if (this.figureFollowMode === 'right') {
+        return !!rightHand && isWithinTolerance(rightHand, config.point);
+      }
+      if (this.figureFollowMode === 'both') {
+        if (index === 0) {
+          return !!leftHand && isWithinTolerance(leftHand, config.point);
+        }
+        return !!rightHand && isWithinTolerance(rightHand, config.point);
+      }
+      return false;
+    });
+
+    const pulseRatio = matchStates.some(Boolean)
+      ? 0.6 + 0.4 * Math.sin(nowMs * 0.02)
+      : 0.8;
+
+    this.ctx.save();
+    this.ctx.clearRect(0, 0, w, h);
+    this.ctx.fillStyle = 'rgba(7, 12, 20, 0.25)';
+    this.ctx.fillRect(0, 0, w, h);
+    this.ctx.restore();
+
+    const orbitToleranceRadius = Math.max(12, acceptanceDistance);
+
+    this.ctx.save();
+    if (this.figureFollowMode === 'both') {
+      currentPoints.forEach((config) => {
+        drawRing(config.point.x, config.point.y, orbitToleranceRadius);
+      });
+    } else {
+      const targetPoint = currentPoints[0]?.point || { x: centerX, y: baseY };
+      drawRing(targetPoint.x, targetPoint.y, orbitToleranceRadius);
+    }
+    this.ctx.restore();
+
+    this.ctx.save();
+    this.ctx.beginPath();
+    this.ctx.strokeStyle = 'rgba(255, 219, 106, 0.9)';
+    this.ctx.lineWidth = 4;
+    this.ctx.shadowBlur = 14;
+    this.ctx.shadowColor = 'rgba(255, 219, 106, 0.35)';
+
+    if (this.figureFollowMode === 'both') {
+      currentPoints.forEach((config) => {
+        if (isLine) {
+          const lineLength = Math.max(10, anchorSpan);
+          const lineHalfLength = lineLength / 2;
+          this.ctx.moveTo(config.centerX, config.centerY - lineHalfLength);
+          this.ctx.lineTo(config.centerX, config.centerY + lineHalfLength);
+        } else {
+          this.ctx.beginPath();
+          this.ctx.ellipse(config.centerX, config.centerY, ellipseRx, ellipseRy, 0, 0, Math.PI * 2);
+          this.ctx.stroke();
+        }
+      });
+    } else {
+      const targetShape = currentPoints[0] || { centerX: centerX, centerY: baseY };
+      if (isLine) {
+        const lineLength = Math.max(10, anchorSpan);
+        const lineHalfLength = lineLength / 2;
+        this.ctx.moveTo(targetShape.centerX, targetShape.centerY - lineHalfLength);
+        this.ctx.lineTo(targetShape.centerX, targetShape.centerY + lineHalfLength);
+      } else {
+        this.ctx.ellipse(targetShape.centerX, targetShape.centerY, ellipseRx, ellipseRy, 0, 0, Math.PI * 2);
+      }
+    }
+    this.ctx.stroke();
+    this.ctx.restore();
+
+    this.ctx.save();
+    currentPoints.forEach((config, index) => {
+      this.ctx.beginPath();
+      const pointMatch = matchStates[index];
+      this.ctx.fillStyle = pointMatch ? 'rgba(122, 255, 181, 0.96)' : 'rgba(255, 160, 82, 0.98)';
+      this.ctx.shadowBlur = pointMatch ? 20 : 18;
+      this.ctx.shadowColor = pointMatch ? 'rgba(122, 255, 181, 0.8)' : 'rgba(255, 160, 82, 0.7)';
+      const dotRadius = pointMatch ? 10 + pulseRatio * 7 : 10;
+      this.ctx.arc(config.point.x, config.point.y, dotRadius, 0, Math.PI * 2);
+      this.ctx.fill();
+    });
+    this.ctx.restore();
+
+    this.updateFigurePanelPosition();
+    this.updateFigurePanelContent();
+  }
+
   render() {
     if (!this.canvas.width || !this.canvas.height) {
-      console.log(`Render skipped: canvas dimensions are 0`);
       return;
     }
     this.clear();
@@ -1111,6 +1726,7 @@ export class LevelManager {
     if (this.calibrationActive) {
       this.setCalibrationPanelVisible(true);
       this.setConsistencyPanelVisible(false);
+      this.setFigurePanelVisible(false);
       this.renderCalibration();
       this.renderPoseAlignmentFeedback();
       return;
@@ -1120,6 +1736,7 @@ export class LevelManager {
 
     if (this.consistencyActive) {
       this.setConsistencyPanelVisible(true);
+      this.setFigurePanelVisible(false);
       this.renderConsistency();
       this.renderPoseAlignmentFeedback();
       return;
@@ -1127,13 +1744,20 @@ export class LevelManager {
 
     this.setConsistencyPanelVisible(false);
 
-    if (!this.active) {
-      this.setPoseAlignmentPanelVisible(false);
-      console.log(`Render skipped: level not active`);
+    if (this.figureActive) {
+      this.setFigurePanelVisible(true);
+      this.renderFigure();
+      this.renderPoseAlignmentFeedback();
       return;
     }
 
-    console.log(`Rendering: grid=${this.grid.length}, active=${this.active}, scales sample: ${this.circleScales.slice(0, 3).map(s => s.toFixed(2)).join(',')}`);
+    this.setFigurePanelVisible(false);
+
+    if (!this.active) {
+      this.setPoseAlignmentPanelVisible(false);
+      return;
+    }
+
     // draw grid
     for (let i = 0; i < this.grid.length; i += 1) {
       const circle = this.grid[i];
@@ -1144,7 +1768,7 @@ export class LevelManager {
       let stroke = 'rgba(255, 255, 255, 0.16)';
 
       // check if target
-      const targetIndex = this.targets.findIndex(t => t.index === i || t.leftIndex === i || t.rightIndex === i);
+      const targetIndex = this.targetIndexByCircle.has(i) ? this.targetIndexByCircle.get(i) : -1;
       if (targetIndex !== -1) {
         const t = this.targets[targetIndex];
         const targetColors = this.getTargetBubbleColors(
@@ -1184,7 +1808,7 @@ export class LevelManager {
     if (!this.calibrationActive) {
       this.finalizeCalibrationSnapshotCapture();
       if (this.active || this.consistencyActive) {
-        this.render();
+        this.requestRender();
       }
       return;
     }
@@ -1192,7 +1816,7 @@ export class LevelManager {
     if (this.level === 0) {
       this.evaluateCalibration();
     }
-    this.render();
+    this.requestRender();
   }
 
   getVisiblePoint(index, minVisibility = 0.35) {
@@ -2070,16 +2694,17 @@ export class LevelManager {
 
     if (anchorMode === 'wrist' || anchorMode === 'shoulder') {
       const selectedSet = this.getSelectedCalibrationPoseSet();
+      const selectedSetLandmarks = this.getCalibrationLandmarksForCanvas(selectedSet);
       let leftAnchor = null;
       let rightAnchor = null;
 
-      if (selectedSet && selectedSet.landmarks) {
+      if (selectedSet && selectedSetLandmarks.length > 0) {
         if (anchorMode === 'wrist') {
-          leftAnchor = this.averagePoints(selectedSet.landmarks[17], selectedSet.landmarks[19]);
-          rightAnchor = this.averagePoints(selectedSet.landmarks[18], selectedSet.landmarks[20]);
+          leftAnchor = this.averagePoints(selectedSetLandmarks[17], selectedSetLandmarks[19]);
+          rightAnchor = this.averagePoints(selectedSetLandmarks[18], selectedSetLandmarks[20]);
         } else {
-          leftAnchor = selectedSet.landmarks[11];
-          rightAnchor = selectedSet.landmarks[12];
+          leftAnchor = selectedSetLandmarks[11];
+          rightAnchor = selectedSetLandmarks[12];
         }
       }
 
@@ -2108,10 +2733,10 @@ export class LevelManager {
           leftBottomY = bottomY;
           rightBottomY = bottomY;
         } else {
-          const leftShoulder = selectedSet?.landmarks?.[11] || leftAnchor;
-          const rightShoulder = selectedSet?.landmarks?.[12] || rightAnchor;
-          const leftEye = selectedSet?.landmarks?.[2] || selectedSet?.landmarks?.[1] || leftAnchor;
-          const rightEye = selectedSet?.landmarks?.[5] || selectedSet?.landmarks?.[4] || rightAnchor;
+          const leftShoulder = selectedSetLandmarks[11] || leftAnchor;
+          const rightShoulder = selectedSetLandmarks[12] || rightAnchor;
+          const leftEye = selectedSetLandmarks[2] || selectedSetLandmarks[1] || leftAnchor;
+          const rightEye = selectedSetLandmarks[5] || selectedSetLandmarks[4] || rightAnchor;
           const eyeCenterY = ((leftEye?.y ?? 0) + (rightEye?.y ?? 0)) / 2;
           const shoulderWidth = leftShoulder && rightShoulder ? this.distance(leftShoulder, rightShoulder) : Math.max(54, w * 0.18 * scale);
           const xSpread = Math.max(28, shoulderWidth * 0.2);
@@ -2480,12 +3105,12 @@ export class LevelManager {
     }
 
     if (this.calibrationActive && (this.level === 1 || this.level === 2)) {
-      this.render();
+      this.requestRender();
       return;
     }
 
     if (this.consistencyActive) {
-      this.render();
+      this.requestRender();
       return;
     }
 
@@ -2506,7 +3131,6 @@ export class LevelManager {
     for (let i = 0; i < this.circleScales.length; i += 1) {
       this.circleScales[i] += (targetScales[i] - this.circleScales[i]) * 0.1;
     }
-    console.log(`After lerp: scales sample: ${this.circleScales.slice(0, 3).map(s => s.toFixed(2)).join(',')}`);
 
     const target = this.targets[this.nextTarget];
     if (!target) return;
@@ -2525,16 +3149,15 @@ export class LevelManager {
     }
 
     if (touched) {
-      console.log(`Target touched! Moving to next target: ${this.nextTarget + 1}/${this.targets.length}`);
       this.nextTarget += 1;
       if (this.nextTarget >= this.targets.length) {
         this.completed = true;
         this.active = false;
         if (this.completionCallback) this.completionCallback(this.chapter, this.level);
       }
-      this.render();
+      this.requestRender();
     } else {
-      this.render();
+      this.requestRender();
     }
   }
 
