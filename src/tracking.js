@@ -241,6 +241,7 @@ export function startTracking(videoElement, canvasElement, options = {}) {
         y: leftTipMidpoint.y * canvasElement.height,
         z: leftTipMidpoint.z
       };
+      leftHand.side = 'left';
       pseudoHands.push(leftHand);
     }
 
@@ -252,6 +253,7 @@ export function startTracking(videoElement, canvasElement, options = {}) {
         y: rightTipMidpoint.y * canvasElement.height,
         z: rightTipMidpoint.z
       };
+      rightHand.side = 'right';
       pseudoHands.push(rightHand);
     }
 
@@ -300,16 +302,22 @@ export function startTracking(videoElement, canvasElement, options = {}) {
         for (let i = 0; i < stableHands.length; i++) {
           const handLandmarks = stableHands[i];
           const mpLabel = handednessData[i] ? handednessData[i].label : null;
-          const side = mpLabel === 'Left' ? 'right' : mpLabel === 'Right' ? 'left' : null;
+          const side = mpLabel === 'Left' ? 'left' : mpLabel === 'Right' ? 'right' : null;
           const indexTipTrigger = createTriggerPointFromLandmarks(handLandmarks, 8);
           drawTriggerPoint(indexTipTrigger, side);
         }
 
-        const canvasLandmarks = stableHands.map((hand) => hand.map((landmark) => ({
-          x: (1 - landmark.x) * canvasElement.width,
-          y: landmark.y * canvasElement.height,
-          z: landmark.z
-        })));
+        const canvasLandmarks = stableHands.map((hand, index) => {
+          const normalized = hand.map((landmark) => ({
+            x: (1 - landmark.x) * canvasElement.width,
+            y: landmark.y * canvasElement.height,
+            z: landmark.z
+          }));
+          const mpLabel = handednessData[index] ? handednessData[index].label : null;
+          const side = mpLabel === 'Left' ? 'left' : mpLabel === 'Right' ? 'right' : null;
+          normalized.side = side;
+          return normalized;
+        });
 
         landmarksListeners.forEach((listener) => listener(canvasLandmarks));
         poseListeners.forEach((listener) => listener([]));

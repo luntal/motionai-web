@@ -1,3 +1,5 @@
+import { basicFigurePaths } from './constants.js';
+
 export class LevelManager {
   constructor(overlayCanvas) {
     this.canvas = overlayCanvas;
@@ -49,17 +51,6 @@ export class LevelManager {
     this.poseAlignmentInfoEl = null;
     this.consistencyActive = false;
     this.consistencyInfoEl = null;
-    this.figureActive = false;
-    this.figureInfoEl = null;
-    this.figureHardnessPercent = 0;
-    this.figureTempoBpm = 60;
-    this.figureStrictnessPercent = 75;
-    this.figureDynamicRangePercent = 60;
-    this.figureFollowMode = 'center';
-    this.figureDirectionInverted = false;
-    this.figurePhaseInverted = false;
-    this.figurePhase = 0;
-    this.figureLastTickMs = performance.now();
     this.consistencyScoreHistory = [];
     this.consistencyAccuracy = 0;
     this.consistencyAnimationStart = performance.now();
@@ -72,6 +63,19 @@ export class LevelManager {
     this.gridCols = 16;
     this.targetIndexByCircle = new Map();
     this.renderQueued = false;
+    this.figureVariant = 'soft';
+    this.figureScale = 1 / 3;
+    this.figureStrokeWidth = 0.4;
+    this.figureSide = 'left';
+    this.figureHorizontalOffset = 50;
+    this.figureYPosition = 0;
+    this.figureTempoBpm = 60;
+    this.figureDynamicsVisible = false;
+    this.figureCountTimesVisible = false;
+    this.figureHardLinearity = 10;
+    this.figureSoftTransitionPercent = 0;
+    this.figureAnimationStart = performance.now();
+    this.figureActive = false;
     this.scaledCalibrationCache = {
       set: null,
       width: 0,
@@ -81,7 +85,6 @@ export class LevelManager {
     this.createCalibrationInfoPanel();
     this.createPoseAlignmentInfoPanel();
     this.createConsistencyInfoPanel();
-    this.createFigureInfoPanel();
     this.buildGrid();
   }
 
@@ -252,6 +255,32 @@ export class LevelManager {
 
     const referenceWidth = Number(calibrationSet.referenceWidth);
     const referenceHeight = Number(calibrationSet.referenceHeight);
+    const coordinateValues = calibrationSet.landmarks
+      .filter(Boolean)
+      .flatMap((landmark) => [Math.abs(Number(landmark.x)), Math.abs(Number(landmark.y))]);
+    const hasNormalizedCoordinates = coordinateValues.length > 0
+      && Math.max(...coordinateValues) <= 1.5;
+
+    if (hasNormalizedCoordinates && targetWidth > 0 && targetHeight > 0) {
+      const normalized = calibrationSet.landmarks.map((landmark) => {
+        if (!landmark) {
+          return null;
+        }
+
+        return {
+          ...landmark,
+          x: landmark.x * targetWidth,
+          y: landmark.y * targetHeight
+        };
+      });
+      this.scaledCalibrationCache = {
+        set: calibrationSet,
+        width: targetWidth,
+        height: targetHeight,
+        landmarks: normalized
+      };
+      return normalized;
+    }
 
     if (!(referenceWidth > 0 && referenceHeight > 0) || !(targetWidth > 0 && targetHeight > 0)) {
       const passthrough = calibrationSet.landmarks.map((landmark) => (landmark ? { ...landmark } : null));
@@ -770,29 +799,6 @@ export class LevelManager {
     this.consistencyInfoEl = panel;
   }
 
-  createFigureInfoPanel() {
-    const panel = document.createElement('div');
-    panel.className = 'figure-info-panel';
-    panel.innerHTML = '<h3>Eine Figur</h3><p>Warte auf Start...</p>';
-    panel.style.display = 'none';
-    document.body.appendChild(panel);
-    this.figureInfoEl = panel;
-  }
-
-  setFigurePanelVisible(visible) {
-    if (!this.figureInfoEl) {
-      return;
-    }
-
-    const shouldShow = Boolean(visible);
-    this.figureInfoEl.style.display = shouldShow ? 'block' : 'none';
-
-    if (shouldShow) {
-      this.updateFigurePanelPosition();
-      this.updateFigurePanelContent();
-    }
-  }
-
   setConsistencyPanelVisible(visible) {
     if (!this.consistencyInfoEl) {
       return;
@@ -804,163 +810,6 @@ export class LevelManager {
     if (shouldShow) {
       this.updateConsistencyPanelPosition();
       this.updateConsistencyPanelContent();
-    }
-  }
-
-  updateFigurePanelPosition() {
-    if (!this.figureInfoEl) {
-      return;
-    }
-
-    this.figureInfoEl.style.left = 'auto';
-    this.figureInfoEl.style.right = '12px';
-    this.figureInfoEl.style.top = '18px';
-  }
-
-  updateFigurePanelContent() {
-    if (!this.figureInfoEl) {
-      return;
-    }
-
-    const titleName = this.level !== null && Number.isInteger(this.level)
-      ? (['Einserfigur', 'Zweierfigur', 'Dreierfigur', 'Viererfigur', 'Fünferfigur'][this.level] || 'Eine Figur')
-      : 'Eine Figur';
-
-    if (!this.figureInfoEl.querySelector('.figure-hardness-slider')) {
-      this.figureInfoEl.innerHTML = `
-        <h3 class="figure-panel-title">${titleName}</h3>
-        <div class="figure-slider-row">
-          <div class="figure-slider-header">
-            <label for="figure-hardness-slider">Härte</label>
-            <span class="figure-slider-value figure-hardness-value">${this.figureHardnessPercent}%</span>
-          </div>
-          <input id="figure-hardness-slider" class="figure-hardness-slider" type="range" min="0" max="100" step="1" value="${this.figureHardnessPercent}" />
-        </div>
-        <div class="figure-slider-row">
-          <div class="figure-slider-header">
-            <label for="figure-speed-slider">Geschwindigkeit</label>
-            <span class="figure-slider-value figure-speed-value">${this.figureTempoBpm} bpm</span>
-          </div>
-          <input id="figure-speed-slider" class="figure-speed-slider" type="range" min="30" max="100" step="1" value="${this.figureTempoBpm}" />
-        </div>
-        <div class="figure-slider-row">
-          <div class="figure-slider-header">
-            <label for="figure-strictness-slider">Strenge</label>
-            <span class="figure-slider-value figure-strictness-value">${this.figureStrictnessPercent}%</span>
-          </div>
-          <input id="figure-strictness-slider" class="figure-strictness-slider" type="range" min="20" max="100" step="1" value="${this.figureStrictnessPercent}" />
-        </div>
-        <div class="figure-slider-row">
-          <div class="figure-slider-header">
-            <label for="figure-dynamic-range-slider">Dynamikbereich</label>
-            <span class="figure-slider-value figure-dynamic-range-value">${this.figureDynamicRangePercent}%</span>
-          </div>
-          <input id="figure-dynamic-range-slider" class="figure-dynamic-range-slider" type="range" min="20" max="100" step="1" value="${this.figureDynamicRangePercent}" />
-        </div>
-        <div class="figure-mode-row">
-          <div class="figure-mode-header">Modus</div>
-          <div class="figure-mode-group">
-            <label class="figure-mode-option"><input type="radio" name="figure-mode" value="center" ${this.figureFollowMode === 'center' ? 'checked' : ''} /> Mitte</label>
-            <label class="figure-mode-option"><input type="radio" name="figure-mode" value="left" ${this.figureFollowMode === 'left' ? 'checked' : ''} /> Links</label>
-            <label class="figure-mode-option"><input type="radio" name="figure-mode" value="right" ${this.figureFollowMode === 'right' ? 'checked' : ''} /> Rechts</label>
-            <label class="figure-mode-option"><input type="radio" name="figure-mode" value="both" ${this.figureFollowMode === 'both' ? 'checked' : ''} /> Beidhändig</label>
-          </div>
-        </div>
-        <div class="figure-direction-row">
-          <label class="figure-direction-toggle">
-            <input id="figure-direction-toggle" type="checkbox" ${this.figureDirectionInverted ? 'checked' : ''} />
-            <span>Richtung umkehren</span>
-          </label>
-        </div>
-        <div class="figure-direction-row">
-          <label class="figure-direction-toggle">
-            <input id="figure-phase-toggle" type="checkbox" ${this.figurePhaseInverted ? 'checked' : ''} />
-            <span>Phase umkehren</span>
-          </label>
-        </div>
-      `;
-
-      const hardnessSlider = this.figureInfoEl.querySelector('#figure-hardness-slider');
-      const speedSlider = this.figureInfoEl.querySelector('#figure-speed-slider');
-      const strictnessSlider = this.figureInfoEl.querySelector('#figure-strictness-slider');
-      const dynamicRangeSlider = this.figureInfoEl.querySelector('#figure-dynamic-range-slider');
-      const modeInputs = this.figureInfoEl.querySelectorAll('input[name="figure-mode"]');
-      const directionToggle = this.figureInfoEl.querySelector('#figure-direction-toggle');
-      const phaseToggle = this.figureInfoEl.querySelector('#figure-phase-toggle');
-
-      if (hardnessSlider) {
-        hardnessSlider.addEventListener('input', (event) => {
-          const next = Number(event.target.value);
-          this.figureHardnessPercent = Number.isFinite(next) ? Math.max(0, Math.min(100, next)) : 0;
-          this.updateFigurePanelContent();
-        });
-      }
-      if (speedSlider) {
-        speedSlider.addEventListener('input', (event) => {
-          const next = Number(event.target.value);
-          this.figureTempoBpm = Number.isFinite(next) ? Math.max(30, Math.min(100, next)) : 60;
-          this.updateFigurePanelContent();
-        });
-      }
-      if (strictnessSlider) {
-        strictnessSlider.addEventListener('input', (event) => {
-          const next = Number(event.target.value);
-          this.figureStrictnessPercent = Number.isFinite(next) ? Math.max(20, Math.min(100, next)) : 75;
-          this.updateFigurePanelContent();
-        });
-      }
-      if (dynamicRangeSlider) {
-        dynamicRangeSlider.addEventListener('input', (event) => {
-          const next = Number(event.target.value);
-          this.figureDynamicRangePercent = Number.isFinite(next) ? Math.max(20, Math.min(100, next)) : 60;
-          this.updateFigurePanelContent();
-        });
-      }
-      if (modeInputs) {
-        modeInputs.forEach((modeInput) => {
-          modeInput.addEventListener('change', (event) => {
-            const nextMode = event.target.value;
-            if (['center', 'left', 'right', 'both'].includes(nextMode)) {
-              this.figureFollowMode = nextMode;
-              this.updateFigurePanelContent();
-            }
-          });
-        });
-      }
-      if (directionToggle) {
-        directionToggle.addEventListener('change', (event) => {
-          this.figureDirectionInverted = Boolean(event.target.checked);
-          this.updateFigurePanelContent();
-        });
-      }
-      if (phaseToggle) {
-        phaseToggle.addEventListener('change', (event) => {
-          this.figurePhaseInverted = Boolean(event.target.checked);
-          this.updateFigurePanelContent();
-        });
-      }
-    }
-
-    const panelTitleEl = this.figureInfoEl.querySelector('.figure-panel-title');
-    const hardnessValueEl = this.figureInfoEl.querySelector('.figure-hardness-value');
-    const speedValueEl = this.figureInfoEl.querySelector('.figure-speed-value');
-    const strictnessValueEl = this.figureInfoEl.querySelector('.figure-strictness-value');
-    const dynamicRangeValueEl = this.figureInfoEl.querySelector('.figure-dynamic-range-value');
-
-    if (panelTitleEl) {
-      panelTitleEl.textContent = titleName;
-    }
-    if (hardnessValueEl) {
-      hardnessValueEl.textContent = `${Math.round(this.figureHardnessPercent)}%`;
-    }
-    if (speedValueEl) {
-      speedValueEl.textContent = `${Math.round(this.figureTempoBpm)} bpm`;
-    }
-    if (strictnessValueEl) {
-      strictnessValueEl.textContent = `${Math.round(this.figureStrictnessPercent)}%`;
-    }
-    if (dynamicRangeValueEl) {
-      dynamicRangeValueEl.textContent = `${Math.round(this.figureDynamicRangePercent)}%`;
     }
   }
 
@@ -1184,20 +1033,870 @@ export class LevelManager {
     this.setupLevel();
   }
 
+  setFigureVariant(variant) {
+    const nextVariant = variant === 'hard' ? 'hard' : 'soft';
+    if (this.figureVariant === nextVariant) {
+      return;
+    }
+
+    this.figureVariant = nextVariant;
+    this.requestRender();
+  }
+
+  setFigureScale(scale) {
+    const next = Number(scale);
+    if (!Number.isFinite(next)) {
+      return;
+    }
+
+    const clamped = Math.min(1, Math.max(0.2, next));
+    if (this.figureScale === clamped) {
+      return;
+    }
+
+    this.figureScale = clamped;
+    this.requestRender();
+  }
+
+  setFigureStrokeWidth(width) {
+    const next = Number(width);
+    if (!Number.isFinite(next)) {
+      return;
+    }
+
+    const clamped = Math.min(0.5, Math.max(0.01, next));
+    if (this.figureStrokeWidth === clamped) {
+      return;
+    }
+
+    this.figureStrokeWidth = clamped;
+    this.requestRender();
+  }
+
+  setFigureSide(side) {
+    const nextSide = side === 'right' ? 'right' : side === 'both' ? 'both' : 'left';
+    if (this.figureSide === nextSide) {
+      return;
+    }
+
+    this.figureSide = nextSide;
+    this.requestRender();
+  }
+
+  setFigureHorizontalOffset(offset) {
+    const next = Number(offset);
+    if (!Number.isFinite(next)) {
+      return;
+    }
+
+    const clamped = Math.min(300, Math.max(50, next));
+    if (this.figureHorizontalOffset === clamped) {
+      return;
+    }
+
+    this.figureHorizontalOffset = clamped;
+    this.requestRender();
+  }
+
+  setFigureYPosition(yPosition) {
+    const next = Number(yPosition);
+    if (!Number.isFinite(next)) {
+      return;
+    }
+
+    const clamped = Math.min(300, Math.max(-300, next));
+    if (this.figureYPosition === clamped) {
+      return;
+    }
+
+    this.figureYPosition = clamped;
+    this.requestRender();
+  }
+
+  setFigureDynamicsVisible(visible) {
+    const next = Boolean(visible);
+    if (this.figureDynamicsVisible === next) {
+      return;
+    }
+
+    this.figureDynamicsVisible = next;
+    this.requestRender();
+  }
+
+  setFigureCountTimesVisible(visible) {
+    const next = Boolean(visible);
+    if (this.figureCountTimesVisible === next) {
+      return;
+    }
+
+    this.figureCountTimesVisible = next;
+    this.requestRender();
+  }
+
+  setFigureTempoBpm(bpm) {
+    const next = Number(bpm);
+    if (!Number.isFinite(next)) {
+      return;
+    }
+
+    const clamped = Math.min(120, Math.max(30, next));
+    if (this.figureTempoBpm === clamped) {
+      return;
+    }
+
+    this.figureTempoBpm = clamped;
+    this.requestRender();
+  }
+
+  setFigureHardLinearity(linearity) {
+    const next = Number(linearity);
+    if (!Number.isFinite(next)) {
+      return;
+    }
+
+    const clamped = Math.min(100, Math.max(0, next));
+    if (this.figureHardLinearity === clamped) {
+      return;
+    }
+
+    this.figureHardLinearity = clamped;
+    this.requestRender();
+  }
+
+  setFigureSoftTransitionPercent(percent) {
+    const next = Number(percent);
+    if (!Number.isFinite(next)) {
+      return;
+    }
+
+    const clamped = Math.min(50, Math.max(0, next));
+    if (this.figureSoftTransitionPercent === clamped) {
+      return;
+    }
+
+    this.figureSoftTransitionPercent = clamped;
+    this.requestRender();
+  }
+
+  getFigureDefinitionForLevel(level) {
+    if (!Number.isInteger(level) || level < 0 || level > 3) {
+      return null;
+    }
+
+    const levelNames = ['Einserfigur', 'Zweierfigur', 'Dreierfigur', 'Viererfigur'];
+    const figureName = levelNames[level] || null;
+    if (!figureName || !basicFigurePaths[figureName]) {
+      return null;
+    }
+
+    const numberPlannedSegments = (level + 1) * 2;
+    return {
+      ...basicFigurePaths[figureName],
+      numberPlannedSegments
+    };
+  }
+
+  buildPlannedFigureSegments(pathData, plannedSegmentCount) {
+    const originalSegments = this.parseSvgPathSegments(pathData);
+    if (originalSegments.length === 0) {
+      return [];
+    }
+
+    const totalOriginalSegments = originalSegments.length;
+    const effectivePlannedCount = Math.max(1, Math.min(totalOriginalSegments, Number(plannedSegmentCount) || totalOriginalSegments));
+    const plannedSegments = [];
+
+    for (let index = 0; index < effectivePlannedCount; index += 1) {
+      const isLastPlannedSegment = index === effectivePlannedCount - 1;
+      const remainingOriginalSegments = originalSegments.slice(index);
+
+      if (isLastPlannedSegment && totalOriginalSegments > effectivePlannedCount) {
+        plannedSegments.push({
+          type: 'combined',
+          plannedIndex: index,
+          segments: remainingOriginalSegments
+        });
+        break;
+      }
+
+      plannedSegments.push({
+        ...originalSegments[index],
+        plannedIndex: index
+      });
+    }
+
+    return plannedSegments;
+  }
+
+  parseSvgPathSegments(pathData) {
+    if (!pathData || typeof pathData !== 'string') {
+      return [];
+    }
+
+    const tokens = pathData.match(/[A-Za-z]|-?\d*\.?\d+(?:e[-+]?\d+)?/g) || [];
+    const segments = [];
+    
+    let current = { x: 0, y: 0 };
+    let start = { x: 0, y: 0 };
+    let command = null;
+    let args = [];
+
+
+    const flushCurrentCommand = () => {
+      if (!command) {
+        return;
+      }
+
+      if (command === 'M') {
+        if (args.length >= 2) {
+          current = { x: args[0], y: args[1] };
+          start = { ...current };
+          args = args.slice(2);
+        }
+      } else if (command === 'L') {
+        while (args.length >= 2) {
+          const end = { x: args[0], y: args[1] };
+          segments.push({ type: 'L', start: { ...current }, end });
+          current = { ...end };
+          args = args.slice(2);
+        }
+      } else if (command === 'C') {
+        while (args.length >= 6) {
+          const control1 = { x: args[0], y: args[1] };
+          const control2 = { x: args[2], y: args[3] };
+          const end = { x: args[4], y: args[5] };
+          segments.push({ type: 'C', start: { ...current }, control1, control2, end });
+          current = { ...end };
+          args = args.slice(6);
+        }
+      } else if (command === 'Z') {
+        segments.push({ type: 'Z', start: { ...current }, end: { ...start } });
+        current = { ...start };
+      }
+    };
+
+    tokens.forEach((token) => {
+      if (/[A-Za-z]/.test(token)) {
+        flushCurrentCommand();
+        command = token.toUpperCase();
+        args = [];
+        return;
+      }
+
+      args.push(Number(token));
+    });
+
+    flushCurrentCommand();
+    return segments;
+  }
+
+  getCurrentFigureRenderState() {
+    if (!this.canvas || !this.canvas.width || !this.canvas.height) {
+      return null;
+    }
+
+    const definition = this.getFigureDefinitionForLevel(this.level);
+    if (!definition) {
+      return null;
+    }
+
+    const variant = this.figureVariant === 'hard' ? 'hardD' : 'softD';
+    const pathData = definition[variant];
+    if (!pathData) {
+      return null;
+    }
+
+    const centerX = this.canvas.width / 2;
+    const centerY = this.canvas.height / 2;
+    const plannedSegmentCount = Number(definition.numberPlannedSegments) || 0;
+    const renderSegments = this.buildPlannedFigureSegments(pathData, plannedSegmentCount);
+    const baseScale = Math.min(this.canvas.width, this.canvas.height) / 18;
+    const scaleX = baseScale * this.figureScale;
+    const scaleY = baseScale * this.figureScale;
+    const effectiveStrokeWidth = this.figureStrokeWidth / Math.max(this.figureScale, 0.2);
+    const side = this.figureSide || 'left';
+    const figureConfigs = side === 'both'
+      ? [
+          { mirrorX: false, offsetX: -this.figureHorizontalOffset },
+          { mirrorX: true, offsetX: this.figureHorizontalOffset }
+        ]
+      : [{ mirrorX: side === 'right', offsetX: side === 'right' ? this.figureHorizontalOffset : -this.figureHorizontalOffset }];
+
+    return {
+      pathData,
+      renderSegments,
+      centerX,
+      centerY,
+      scaleX,
+      scaleY,
+      effectiveStrokeWidth,
+      figureConfigs
+    };
+  }
+
+  drawFigurePath(state = this.getCurrentFigureRenderState()) {
+    if (!state) {
+      return;
+    }
+
+    const {
+      pathData,
+      renderSegments,
+      centerX,
+      centerY,
+      scaleX,
+      scaleY,
+      effectiveStrokeWidth,
+      figureConfigs
+    } = state;
+    const colors = ['#6ee7a8', '#7dd3fc'];
+
+    const renderSingleFigure = ({ mirrorX, offsetX }) => {
+      this.ctx.save();
+      this.ctx.translate(centerX + offsetX, centerY + this.figureYPosition);
+      this.ctx.scale(scaleX, scaleY);
+      this.ctx.lineCap = 'round';
+      this.ctx.lineJoin = 'round';
+      this.ctx.lineWidth = effectiveStrokeWidth;
+
+      if (mirrorX) {
+        this.ctx.scale(-1, 1);
+      }
+
+      if (renderSegments.length > 0) {
+        renderSegments.forEach((segment, index) => {
+          const color = colors[index % colors.length];
+          this.ctx.beginPath();
+
+          if (segment.type === 'combined' && Array.isArray(segment.segments)) {
+            const firstSubSegment = segment.segments[0];
+            if (firstSubSegment) {
+              if (firstSubSegment.type === 'L') {
+                this.ctx.moveTo(firstSubSegment.start.x, firstSubSegment.start.y);
+                this.ctx.lineTo(firstSubSegment.end.x, firstSubSegment.end.y);
+              } else if (firstSubSegment.type === 'C') {
+                this.ctx.moveTo(firstSubSegment.start.x, firstSubSegment.start.y);
+                this.ctx.bezierCurveTo(
+                  firstSubSegment.control1.x,
+                  firstSubSegment.control1.y,
+                  firstSubSegment.control2.x,
+                  firstSubSegment.control2.y,
+                  firstSubSegment.end.x,
+                  firstSubSegment.end.y
+                );
+              } else if (firstSubSegment.type === 'Z') {
+                this.ctx.moveTo(firstSubSegment.start.x, firstSubSegment.start.y);
+                this.ctx.lineTo(firstSubSegment.end.x, firstSubSegment.end.y);
+              }
+
+              for (let i = 1; i < segment.segments.length; i += 1) {
+                const subSegment = segment.segments[i];
+                if (subSegment.type === 'L') {
+                  this.ctx.lineTo(subSegment.end.x, subSegment.end.y);
+                } else if (subSegment.type === 'C') {
+                  this.ctx.bezierCurveTo(
+                    subSegment.control1.x,
+                    subSegment.control1.y,
+                    subSegment.control2.x,
+                    subSegment.control2.y,
+                    subSegment.end.x,
+                    subSegment.end.y
+                  );
+                } else if (subSegment.type === 'Z') {
+                  this.ctx.lineTo(subSegment.end.x, subSegment.end.y);
+                }
+              }
+            }
+          } else if (segment.type === 'L') {
+            this.ctx.moveTo(segment.start.x, segment.start.y);
+            this.ctx.lineTo(segment.end.x, segment.end.y);
+          } else if (segment.type === 'C') {
+            this.ctx.moveTo(segment.start.x, segment.start.y);
+            this.ctx.bezierCurveTo(
+              segment.control1.x,
+              segment.control1.y,
+              segment.control2.x,
+              segment.control2.y,
+              segment.end.x,
+              segment.end.y
+            );
+          } else if (segment.type === 'Z') {
+            this.ctx.moveTo(segment.start.x, segment.start.y);
+            this.ctx.lineTo(segment.end.x, segment.end.y);
+          }
+
+          this.ctx.strokeStyle = color;
+          this.ctx.shadowColor = color;
+          this.ctx.shadowBlur = 10;
+          this.ctx.stroke();
+        });
+      } else {
+        const fallbackPath = new Path2D(pathData);
+        this.ctx.strokeStyle = this.figureVariant === 'hard' ? '#7dd3fc' : '#6ee7a8';
+        this.ctx.shadowColor = this.ctx.strokeStyle;
+        this.ctx.shadowBlur = 10;
+        this.ctx.stroke(fallbackPath);
+      }
+
+      this.ctx.restore();
+    };
+
+    figureConfigs.forEach((config) => {
+      renderSingleFigure(config);
+    });
+  }
+
+  getLinePoint(start, end, t) {
+    return {
+      x: start.x + (end.x - start.x) * t,
+      y: start.y + (end.y - start.y) * t
+    };
+  }
+
+  getCubicPoint(segment, t) {
+    const mt = 1 - t;
+    return {
+      x: mt ** 3 * segment.start.x
+        + 3 * mt ** 2 * t * segment.control1.x
+        + 3 * mt * t ** 2 * segment.control2.x
+        + t ** 3 * segment.end.x,
+      y: mt ** 3 * segment.start.y
+        + 3 * mt ** 2 * t * segment.control1.y
+        + 3 * mt * t ** 2 * segment.control2.y
+        + t ** 3 * segment.end.y
+    };
+  }
+
+  samplePathSegment(segment, steps = 28) {
+    if (!segment) {
+      return [];
+    }
+
+    if (segment.type === 'combined' && Array.isArray(segment.segments)) {
+      const points = [];
+      segment.segments.forEach((subSegment) => {
+        const subPoints = this.samplePathSegment(subSegment, steps);
+        subPoints.forEach((point, index) => {
+          if (points.length > 0 && index === 0) {
+            return;
+          }
+          points.push(point);
+        });
+      });
+      return points;
+    }
+
+    if (segment.type === 'L' || segment.type === 'Z') {
+      return [segment.start, segment.end];
+    }
+
+    if (segment.type === 'C') {
+      const points = [];
+      for (let i = 0; i <= steps; i += 1) {
+        points.push(this.getCubicPoint(segment, i / steps));
+      }
+      return points;
+    }
+
+    return [];
+  }
+
+  getPointAtDistance(points, distance) {
+    if (!Array.isArray(points) || points.length === 0) {
+      return null;
+    }
+
+    if (points.length === 1 || distance <= 0) {
+      return points[0];
+    }
+
+    let remaining = distance;
+    for (let i = 1; i < points.length; i += 1) {
+      const start = points[i - 1];
+      const end = points[i];
+      const length = this.distance(start, end);
+      if (length <= 0) {
+        continue;
+      }
+      if (remaining <= length) {
+        return this.getLinePoint(start, end, remaining / length);
+      }
+      remaining -= length;
+    }
+
+    return points[points.length - 1];
+  }
+
+  getSampledSegmentLength(segment) {
+    const points = this.samplePathSegment(segment);
+    let length = 0;
+    for (let index = 1; index < points.length; index += 1) {
+      length += this.distance(points[index - 1], points[index]);
+    }
+    return length;
+  }
+
+  getHardSegmentProgress(segmentProgress, segmentIndex) {
+    const linearity = Math.min(100, Math.max(0, Number(this.figureHardLinearity) || 0));
+    const strength = (100 - linearity) / 100;
+    const exponent = 1 + strength * 5;
+    const progress = Math.min(1, Math.max(0, segmentProgress));
+
+    return segmentIndex % 2 === 0
+      ? 1 - ((1 - progress) ** exponent)
+      : progress ** exponent;
+  }
+
+  computeSoftTransitionProfiles(segmentLengths, transitionPercent) {
+    const lengths = Array.isArray(segmentLengths) ? segmentLengths : [];
+    const transition = Math.min(0.5, Math.max(0, Number(transitionPercent) || 0) / 100);
+    const segmentCount = lengths.length;
+    if (segmentCount === 0) {
+      return [];
+    }
+
+    const boundarySpeeds = lengths.slice(0, -1).map((length, index) => (
+      (length + lengths[index + 1]) / 2
+    ));
+
+    return lengths.map((length, index) => {
+      const startSpeed = index === 0 ? length : boundarySpeeds[index - 1];
+      const endSpeed = index === segmentCount - 1 ? length : boundarySpeeds[index];
+
+      if (transition === 0) {
+        return {
+          length,
+          startSpeed: length,
+          coreSpeed: length,
+          endSpeed: length,
+          velocityAt: () => length,
+          distanceAt: (progress) => length * Math.min(1, Math.max(0, progress)),
+          progressAtDistance: (distance) => length > 0
+            ? Math.min(1, Math.max(0, distance / length))
+            : 0
+        };
+      }
+
+      const coreSpeed = (
+        length - (transition / 2) * (startSpeed + endSpeed)
+      ) / (1 - transition);
+      const distanceAt = (progress) => {
+        const clampedProgress = Math.min(1, Math.max(0, progress));
+        if (clampedProgress <= transition) {
+          return startSpeed * clampedProgress
+            + ((coreSpeed - startSpeed) * clampedProgress ** 2) / (2 * transition);
+        }
+
+        const firstRampDistance = transition * (startSpeed + coreSpeed) / 2;
+        if (clampedProgress <= 1 - transition) {
+          return firstRampDistance + coreSpeed * (clampedProgress - transition);
+        }
+
+        const secondRampProgress = clampedProgress - (1 - transition);
+        return firstRampDistance
+          + coreSpeed * (1 - 2 * transition)
+          + coreSpeed * secondRampProgress
+          + ((endSpeed - coreSpeed) * secondRampProgress ** 2) / (2 * transition);
+      };
+
+      return {
+        length,
+        startSpeed,
+        coreSpeed,
+        endSpeed,
+        velocityAt: (progress) => {
+          const clampedProgress = Math.min(1, Math.max(0, progress));
+          if (clampedProgress <= transition) {
+            return startSpeed + (coreSpeed - startSpeed) * (clampedProgress / transition);
+          }
+          if (clampedProgress <= 1 - transition) {
+            return coreSpeed;
+          }
+          return coreSpeed + (endSpeed - coreSpeed)
+            * ((clampedProgress - (1 - transition)) / transition);
+        },
+        distanceAt,
+        progressAtDistance: (distance) => {
+          const targetDistance = Math.min(length, Math.max(0, distance));
+          let low = 0;
+          let high = 1;
+          for (let iteration = 0; iteration < 32; iteration += 1) {
+            const middle = (low + high) / 2;
+            if (distanceAt(middle) < targetDistance) {
+              low = middle;
+            } else {
+              high = middle;
+            }
+          }
+          return (low + high) / 2;
+        }
+      };
+    });
+  }
+
+  getSoftSegmentProgress(segmentProgress, segmentIndex, transitionProfiles) {
+    const progress = Math.min(1, Math.max(0, segmentProgress));
+    const profile = transitionProfiles?.[segmentIndex];
+    if (!profile) {
+      return progress;
+    }
+    return profile.length > 0 ? profile.distanceAt(progress) / profile.length : progress;
+  }
+
+  getFigureMotionPointAtElapsed(
+    renderSegments,
+    elapsedMs,
+    segmentLengths,
+    segmentDurationMs,
+    pathDurationMs,
+    transitionProfiles
+  ) {
+    const normalizedElapsedMs = ((elapsedMs % pathDurationMs) + pathDurationMs) % pathDurationMs;
+    const segmentIndex = Math.min(
+      renderSegments.length - 1,
+      Math.floor(normalizedElapsedMs / segmentDurationMs)
+    );
+    const segmentProgress = (
+      normalizedElapsedMs - segmentIndex * segmentDurationMs
+    ) / segmentDurationMs;
+    const points = this.samplePathSegment(renderSegments[segmentIndex]);
+    if (points.length === 0) {
+      return null;
+    }
+
+    const segmentLength = segmentLengths[segmentIndex] || 0;
+    const adjustedProgress = this.figureVariant === 'hard'
+      ? this.getHardSegmentProgress(segmentProgress, segmentIndex)
+      : this.getSoftSegmentProgress(segmentProgress, segmentIndex, transitionProfiles);
+    const completedLength = segmentLengths
+      .slice(0, segmentIndex)
+      .reduce((total, length) => total + length, 0);
+
+    return {
+      point: this.getPointAtDistance(points, segmentLength * adjustedProgress),
+      pathDistance: completedLength + segmentLength * adjustedProgress,
+      velocity: this.figureVariant === 'hard'
+        ? null
+        : transitionProfiles?.[segmentIndex]?.velocityAt(segmentProgress) || 0,
+      segmentIndex,
+      segmentProgress
+    };
+  }
+
+  getFigureMotionState(renderSegments, scale = 1) {
+    if (!Array.isArray(renderSegments) || renderSegments.length === 0) {
+      return null;
+    }
+
+    const bpm = Math.min(120, Math.max(30, Number(this.figureTempoBpm) || 60));
+    const beatDurationMs = 60000 / bpm;
+    const segmentDurationMs = beatDurationMs / 2;
+    const pathDurationMs = segmentDurationMs * renderSegments.length;
+    if (!(pathDurationMs > 0)) {
+      return null;
+    }
+
+    const nowMs = performance.now() - this.figureAnimationStart;
+    const segmentLengths = renderSegments.map((segment) => this.getSampledSegmentLength(segment));
+    const transitionProfiles = this.figureVariant === 'hard'
+      ? []
+      : this.computeSoftTransitionProfiles(segmentLengths, this.figureSoftTransitionPercent);
+    const currentState = this.getFigureMotionPointAtElapsed(
+      renderSegments,
+      nowMs,
+      segmentLengths,
+      segmentDurationMs,
+      pathDurationMs,
+      transitionProfiles
+    );
+    const measurementWindowMs = Math.min(12, segmentDurationMs / 8);
+    const previousState = this.getFigureMotionPointAtElapsed(
+      renderSegments,
+      nowMs - measurementWindowMs,
+      segmentLengths,
+      segmentDurationMs,
+      pathDurationMs,
+      transitionProfiles
+    );
+    const nextState = this.getFigureMotionPointAtElapsed(
+      renderSegments,
+      nowMs + measurementWindowMs,
+      segmentLengths,
+      segmentDurationMs,
+      pathDurationMs,
+      transitionProfiles
+    );
+    if (!currentState || !previousState || !nextState) {
+      return null;
+    }
+
+    const totalPathLength = segmentLengths.reduce((total, length) => total + length, 0);
+    let measuredDistance = nextState.pathDistance - previousState.pathDistance;
+    if (measuredDistance < 0) {
+      measuredDistance += totalPathLength;
+    }
+    const speedPathUnitsPerSecond = totalPathLength > 0
+      ? measuredDistance / (measurementWindowMs * 2 / 1000)
+      : 0;
+
+    return {
+      point: currentState.point,
+      speed: currentState.velocity === null
+        ? Math.max(0, speedPathUnitsPerSecond * scale)
+        : Math.max(0, currentState.velocity * scale / (segmentDurationMs / 1000)),
+      segmentIndex: currentState.segmentIndex,
+      segmentProgress: currentState.segmentProgress
+    };
+  }
+
+  getFigureMotionPoint(renderSegments) {
+    const motionState = this.getFigureMotionState(renderSegments);
+    return motionState ? motionState.point : null;
+  }
+
+  drawFigureMotionPoints(state = this.getCurrentFigureRenderState()) {
+    if (!state) {
+      return;
+    }
+
+    const motionState = this.getFigureMotionState(state.renderSegments, state.scaleX);
+    if (!motionState) {
+      return;
+    }
+
+    const motionPoint = motionState.point;
+    const pointRadius = Math.max(6, Math.min(this.canvas.width, this.canvas.height) * 0.016);
+
+    state.figureConfigs.forEach(({ mirrorX, offsetX }) => {
+      const mirroredX = mirrorX ? -motionPoint.x : motionPoint.x;
+      const x = state.centerX + offsetX + mirroredX * state.scaleX;
+      const y = state.centerY + this.figureYPosition + motionPoint.y * state.scaleY;
+
+      this.ctx.save();
+      this.ctx.fillStyle = 'rgba(255, 255, 255, 0.96)';
+      this.ctx.strokeStyle = 'rgba(20, 28, 38, 0.55)';
+      this.ctx.lineWidth = 2;
+      this.ctx.shadowColor = 'rgba(255, 255, 255, 0.9)';
+      this.ctx.shadowBlur = 14;
+      this.ctx.beginPath();
+      this.ctx.arc(x, y, pointRadius, 0, Math.PI * 2);
+      this.ctx.fill();
+      this.ctx.shadowBlur = 0;
+      this.ctx.stroke();
+
+      this.ctx.restore();
+    });
+  }
+
+  drawFigureDynamics() {
+    if (!this.figureDynamicsVisible) {
+      return;
+    }
+
+    const calibrationSet = this.getSelectedCalibrationPoseSet();
+    const landmarks = this.getCalibrationLandmarksForCanvas(calibrationSet);
+    const leftShoulder = landmarks[11];
+    const rightShoulder = landmarks[12];
+    const leftHip = landmarks[23];
+    const rightHip = landmarks[24];
+    if (!leftShoulder || !rightShoulder || !leftHip || !rightHip) {
+      return;
+    }
+
+    const shoulderY = (leftShoulder.y + rightShoulder.y) / 2;
+    const hipY = (leftHip.y + rightHip.y) / 2;
+    const labels = ['PP', 'MP', 'MF', 'F'];
+    const lineColors = [
+      'rgba(188, 231, 255, 0.9)',
+      'rgba(145, 214, 255, 0.78)',
+      'rgba(255, 211, 135, 0.78)',
+      'rgba(255, 157, 122, 0.9)'
+    ];
+
+    this.ctx.save();
+    this.ctx.setLineDash([10, 8]);
+    this.ctx.lineWidth = 1.8;
+    this.ctx.font = '700 12px sans-serif';
+    this.ctx.textAlign = 'left';
+    this.ctx.textBaseline = 'bottom';
+    labels.forEach((label, index) => {
+      const y = shoulderY + (hipY - shoulderY) * (index / (labels.length - 1));
+      this.ctx.strokeStyle = lineColors[index];
+      this.ctx.beginPath();
+      this.ctx.moveTo(0, y);
+      this.ctx.lineTo(this.canvas.width, y);
+      this.ctx.stroke();
+      this.ctx.setLineDash([]);
+      this.ctx.fillStyle = lineColors[index];
+      this.ctx.fillText(label, 12, y - 6);
+      this.ctx.setLineDash([10, 8]);
+    });
+    this.ctx.restore();
+  }
+
+  getFigureAnchorPoint(renderSegments, anchorIndex) {
+    if (!Array.isArray(renderSegments) || renderSegments.length === 0) {
+      return null;
+    }
+
+    if (anchorIndex < renderSegments.length) {
+      const segment = renderSegments[anchorIndex];
+      if (segment.type === 'combined' && Array.isArray(segment.segments)) {
+        return segment.segments[0]?.start || null;
+      }
+      return segment.start || null;
+    }
+
+    const lastSegment = renderSegments[renderSegments.length - 1];
+    if (lastSegment.type === 'combined' && Array.isArray(lastSegment.segments)) {
+      return lastSegment.segments[lastSegment.segments.length - 1]?.end || null;
+    }
+    return lastSegment.end || null;
+  }
+
+  drawFigureCountTimes(state = this.getCurrentFigureRenderState()) {
+    if (!this.figureCountTimesVisible || !state || state.renderSegments.length === 0) {
+      return;
+    }
+
+    const plannedSegmentCount = state.renderSegments.length;
+    const beatCount = Math.ceil(plannedSegmentCount / 2);
+    const beatSegmentStep = 2;
+
+    state.figureConfigs.forEach(({ mirrorX, offsetX }) => {
+      for (let beatIndex = 0; beatIndex < beatCount; beatIndex += 1) {
+        const anchor = this.getFigureAnchorPoint(
+          state.renderSegments,
+          beatIndex * beatSegmentStep
+        );
+        if (!anchor) {
+          continue;
+        }
+
+        const anchorX = mirrorX ? -anchor.x : anchor.x;
+        const x = state.centerX + offsetX + anchorX * state.scaleX;
+        const y = state.centerY + this.figureYPosition + anchor.y * state.scaleY;
+
+        this.ctx.save();
+        this.ctx.font = '400 17px sans-serif';
+        this.ctx.textAlign = 'center';
+        this.ctx.textBaseline = 'middle';
+        this.ctx.fillStyle = 'rgba(8, 18, 30, 0.86)';
+        this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.82)';
+        this.ctx.lineWidth = 3;
+        this.ctx.strokeText(String(beatIndex + 1), x, y - 15);
+        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.98)';
+        this.ctx.fillText(String(beatIndex + 1), x, y - 15);
+        this.ctx.restore();
+      }
+    });
+  }
+
   setupLevel() {
     this.targets = [];
     this.targetIndexByCircle.clear();
     this.nextTarget = 0;
     this.completed = false;
-
-    this.active = false;
-    this.calibrationActive = false;
-    this.consistencyActive = false;
-    this.figureActive = false;
-    this.setCalibrationPanelVisible(false);
-    this.setConsistencyPanelVisible(false);
-    this.setFigurePanelVisible(false);
-    this.setPoseAlignmentPanelVisible(false);
 
     if (!(this.chapter === 0 && this.level === 0)) {
       this.finalizeCalibrationSnapshotCapture();
@@ -1205,6 +1904,9 @@ export class LevelManager {
     }
 
     if (this.chapter === 0) {
+      this.consistencyActive = false;
+      this.setConsistencyPanelVisible(false);
+      this.active = false;
       this.calibrationActive = this.level !== null && this.level >= 0 && this.level <= 2;
       this.calibrationAligned = false;
       this.calibrationSuccess = false;
@@ -1216,6 +1918,9 @@ export class LevelManager {
     }
 
     if (this.chapter === 2) {
+      this.active = false;
+      this.calibrationActive = false;
+      this.setCalibrationPanelVisible(false);
       this.consistencyActive = this.level !== null && this.level >= 0 && this.level <= 5;
       this.consistencyScoreHistory = [];
       this.consistencyAccuracy = 0;
@@ -1227,15 +1932,26 @@ export class LevelManager {
       return;
     }
 
-    if (this.chapter >= 3 && this.chapter <= 5) {
-      this.active = this.level !== null && this.level >= 0 && this.level <= 4;
-      this.figureActive = this.active;
-      this.setFigurePanelVisible(this.figureActive);
+    if (this.chapter === 3) {
+      this.figureActive = Number.isInteger(this.level) && this.level >= 0 && this.level <= 3;
+      this.figureAnimationStart = performance.now();
+      this.active = false;
+      this.calibrationActive = false;
+      this.consistencyActive = false;
+      this.setCalibrationPanelVisible(false);
+      this.setConsistencyPanelVisible(false);
       this.render();
       return;
     }
 
+    this.figureActive = false;
+    this.calibrationActive = false;
+    this.setCalibrationPanelVisible(false);
+    this.consistencyActive = false;
+    this.setConsistencyPanelVisible(false);
+
     if (this.chapter !== 1 || this.level === null) {
+      this.active = false;
       this.render();
       return;
     }
@@ -1507,7 +2223,9 @@ export class LevelManager {
     const inPlayableLevel = (
       this.calibrationActive && (this.level === 1 || this.level === 2)
     ) || (
-      !this.calibrationActive && (this.active || this.consistencyActive || this.figureActive)
+      this.chapter === 3 && this.figureActive
+    ) || (
+      !this.calibrationActive && (this.active || this.consistencyActive)
     );
 
     if (!inPlayableLevel) {
@@ -1520,203 +2238,6 @@ export class LevelManager {
     this.drawPoseAlignmentWarning(status);
   }
 
-  renderFigure() {
-    const nowMs = performance.now();
-    const dtMs = Math.max(0, nowMs - this.figureLastTickMs);
-    this.figureLastTickMs = nowMs;
-    const bpm = Math.max(30, Math.min(100, this.figureTempoBpm));
-    const deltaPhase = dtMs * bpm / 60000;
-    this.figurePhase = (this.figurePhase + deltaPhase) % 1;
-
-    const w = this.canvas.width;
-    const h = this.canvas.height;
-    const centerX = w * 0.5;
-    const centerY = h * 0.5;
-    const hardness = Math.max(0, Math.min(1, this.figureHardnessPercent / 100));
-    const dynamicScale = Math.max(0.12, this.figureDynamicRangePercent / 100);
-
-    const leftEye = this.calibrationMetrics && this.calibrationMetrics.leftEye ? this.calibrationMetrics.leftEye : null;
-    const rightEye = this.calibrationMetrics && this.calibrationMetrics.rightEye ? this.calibrationMetrics.rightEye : null;
-    const leftHand = this.calibrationMetrics && this.calibrationMetrics.leftHandCenter ? this.calibrationMetrics.leftHandCenter : null;
-    const rightHand = this.calibrationMetrics && this.calibrationMetrics.rightHandCenter ? this.calibrationMetrics.rightHandCenter : null;
-    const hipCenter = this.calibrationMetrics && this.calibrationMetrics.hipCenter ? this.calibrationMetrics.hipCenter : null;
-    const eyeAnchorY = leftEye && rightEye
-      ? ((leftEye.y + rightEye.y) / 2)
-      : centerY - Math.min(w, h) * 0.18;
-    const topAnchorY = eyeAnchorY - 120;
-    const dynamicRatio = Math.max(0.1, Math.min(1, this.figureDynamicRangePercent / 100));
-    const hipAnchorY = hipCenter ? hipCenter.y : centerY + Math.min(w, h) * 0.2;
-    const fullSpan = Math.max(72, hipAnchorY - topAnchorY);
-    const anchorSpan = fullSpan * dynamicRatio;
-    const ellipseRy = anchorSpan * 0.5;
-    const fixedRadius = ellipseRy;
-    const ellipseRx = Math.max(1, fixedRadius * (1 - hardness * 0.995));
-    const baseY = topAnchorY + ellipseRy;
-    const directionMultiplier = this.figureDirectionInverted ? -1 : 1;
-    const basePhaseAngle = this.figurePhase * Math.PI * 2;
-    const phaseAngle = basePhaseAngle * directionMultiplier;
-    const strictnessFactor = Math.max(0.2, this.figureStrictnessPercent / 100);
-    const acceptanceDistance = 30 + (1 - strictnessFactor) * 54;
-
-    const getModeCenterX = (handReference) => {
-      if (!handReference) {
-        return centerX;
-      }
-      const offsetX = (centerX - handReference.x) * 0.5;
-      return centerX - offsetX;
-    };
-
-    const centerModeX = centerX;
-    const leftModeX = leftHand ? getModeCenterX(leftHand) : centerX - Math.min(w * 0.14, 120);
-    const rightModeX = rightHand ? getModeCenterX(rightHand) : centerX + Math.min(w * 0.14, 120);
-
-    const localOrbit = (orbitCenterX, orbitCenterY, orbitAngle, offsetMultiplier = 1) => ({
-      x: orbitCenterX + Math.cos(orbitAngle) * ellipseRx * offsetMultiplier,
-      y: orbitCenterY + Math.sin(orbitAngle) * ellipseRy * offsetMultiplier
-    });
-
-    let orbitConfigs = [];
-    if (this.figureFollowMode === 'left') {
-      orbitConfigs.push({ centerX: leftModeX, centerY: baseY, angle: phaseAngle, label: 'left' });
-    } else if (this.figureFollowMode === 'right') {
-      orbitConfigs.push({ centerX: rightModeX, centerY: baseY, angle: phaseAngle, label: 'right' });
-    } else if (this.figureFollowMode === 'both') {
-      const directionMultiplier = this.figureDirectionInverted ? -1 : 1;
-      const leftAngle = basePhaseAngle * directionMultiplier;
-      const mirroredRightAngle = Math.PI - leftAngle;
-      const rightAngle = this.figurePhaseInverted
-        ? mirroredRightAngle + Math.PI
-        : mirroredRightAngle;
-
-      orbitConfigs.push({ centerX: leftModeX, centerY: baseY, angle: leftAngle, label: 'left' });
-      orbitConfigs.push({ centerX: rightModeX, centerY: baseY, angle: rightAngle, label: 'right' });
-    } else {
-      orbitConfigs.push({ centerX: centerModeX, centerY: baseY, angle: phaseAngle, label: 'center' });
-    }
-
-    const currentPoints = orbitConfigs.map((config) => ({
-      ...config,
-      point: localOrbit(config.centerX, config.centerY, config.angle)
-    }));
-
-    const isLine = hardness >= 0.995;
-    const drawRing = (ringCenterX, ringCenterY, ringRadius) => {
-      this.ctx.beginPath();
-      this.ctx.setLineDash([10, 8]);
-      this.ctx.strokeStyle = 'rgba(138, 213, 255, 0.9)';
-      this.ctx.lineWidth = 1.6;
-      this.ctx.ellipse(ringCenterX, ringCenterY, ringRadius, ringRadius, 0, 0, Math.PI * 2);
-      this.ctx.stroke();
-      this.ctx.setLineDash([]);
-    };
-
-    const isWithinTolerance = (referencePoint, samplePoint) => {
-      if (!referencePoint || !samplePoint) {
-        return false;
-      }
-      return this.distance(referencePoint, samplePoint) <= acceptanceDistance;
-    };
-
-    const matchStates = currentPoints.map((config, index) => {
-      if (this.figureFollowMode === 'center') {
-        const hasLeft = !!leftHand;
-        const hasRight = !!rightHand;
-        if (!hasLeft && !hasRight) {
-          return false;
-        }
-        const leftMatch = !hasLeft || isWithinTolerance(leftHand, config.point);
-        const rightMatch = !hasRight || isWithinTolerance(rightHand, config.point);
-        return leftMatch && rightMatch;
-      }
-      if (this.figureFollowMode === 'left') {
-        return !!leftHand && isWithinTolerance(leftHand, config.point);
-      }
-      if (this.figureFollowMode === 'right') {
-        return !!rightHand && isWithinTolerance(rightHand, config.point);
-      }
-      if (this.figureFollowMode === 'both') {
-        if (index === 0) {
-          return !!leftHand && isWithinTolerance(leftHand, config.point);
-        }
-        return !!rightHand && isWithinTolerance(rightHand, config.point);
-      }
-      return false;
-    });
-
-    const pulseRatio = matchStates.some(Boolean)
-      ? 0.6 + 0.4 * Math.sin(nowMs * 0.02)
-      : 0.8;
-
-    this.ctx.save();
-    this.ctx.clearRect(0, 0, w, h);
-    this.ctx.fillStyle = 'rgba(7, 12, 20, 0.25)';
-    this.ctx.fillRect(0, 0, w, h);
-    this.ctx.restore();
-
-    const orbitToleranceRadius = Math.max(12, acceptanceDistance);
-
-    this.ctx.save();
-    if (this.figureFollowMode === 'both') {
-      currentPoints.forEach((config) => {
-        drawRing(config.point.x, config.point.y, orbitToleranceRadius);
-      });
-    } else {
-      const targetPoint = currentPoints[0]?.point || { x: centerX, y: baseY };
-      drawRing(targetPoint.x, targetPoint.y, orbitToleranceRadius);
-    }
-    this.ctx.restore();
-
-    this.ctx.save();
-    this.ctx.beginPath();
-    this.ctx.strokeStyle = 'rgba(255, 219, 106, 0.9)';
-    this.ctx.lineWidth = 4;
-    this.ctx.shadowBlur = 14;
-    this.ctx.shadowColor = 'rgba(255, 219, 106, 0.35)';
-
-    if (this.figureFollowMode === 'both') {
-      currentPoints.forEach((config) => {
-        if (isLine) {
-          const lineLength = Math.max(10, anchorSpan);
-          const lineHalfLength = lineLength / 2;
-          this.ctx.moveTo(config.centerX, config.centerY - lineHalfLength);
-          this.ctx.lineTo(config.centerX, config.centerY + lineHalfLength);
-        } else {
-          this.ctx.beginPath();
-          this.ctx.ellipse(config.centerX, config.centerY, ellipseRx, ellipseRy, 0, 0, Math.PI * 2);
-          this.ctx.stroke();
-        }
-      });
-    } else {
-      const targetShape = currentPoints[0] || { centerX: centerX, centerY: baseY };
-      if (isLine) {
-        const lineLength = Math.max(10, anchorSpan);
-        const lineHalfLength = lineLength / 2;
-        this.ctx.moveTo(targetShape.centerX, targetShape.centerY - lineHalfLength);
-        this.ctx.lineTo(targetShape.centerX, targetShape.centerY + lineHalfLength);
-      } else {
-        this.ctx.ellipse(targetShape.centerX, targetShape.centerY, ellipseRx, ellipseRy, 0, 0, Math.PI * 2);
-      }
-    }
-    this.ctx.stroke();
-    this.ctx.restore();
-
-    this.ctx.save();
-    currentPoints.forEach((config, index) => {
-      this.ctx.beginPath();
-      const pointMatch = matchStates[index];
-      this.ctx.fillStyle = pointMatch ? 'rgba(122, 255, 181, 0.96)' : 'rgba(255, 160, 82, 0.98)';
-      this.ctx.shadowBlur = pointMatch ? 20 : 18;
-      this.ctx.shadowColor = pointMatch ? 'rgba(122, 255, 181, 0.8)' : 'rgba(255, 160, 82, 0.7)';
-      const dotRadius = pointMatch ? 10 + pulseRatio * 7 : 10;
-      this.ctx.arc(config.point.x, config.point.y, dotRadius, 0, Math.PI * 2);
-      this.ctx.fill();
-    });
-    this.ctx.restore();
-
-    this.updateFigurePanelPosition();
-    this.updateFigurePanelContent();
-  }
-
   render() {
     if (!this.canvas.width || !this.canvas.height) {
       return;
@@ -1726,7 +2247,6 @@ export class LevelManager {
     if (this.calibrationActive) {
       this.setCalibrationPanelVisible(true);
       this.setConsistencyPanelVisible(false);
-      this.setFigurePanelVisible(false);
       this.renderCalibration();
       this.renderPoseAlignmentFeedback();
       return;
@@ -1736,7 +2256,6 @@ export class LevelManager {
 
     if (this.consistencyActive) {
       this.setConsistencyPanelVisible(true);
-      this.setFigurePanelVisible(false);
       this.renderConsistency();
       this.renderPoseAlignmentFeedback();
       return;
@@ -1744,14 +2263,16 @@ export class LevelManager {
 
     this.setConsistencyPanelVisible(false);
 
-    if (this.figureActive) {
-      this.setFigurePanelVisible(true);
-      this.renderFigure();
+    if (this.chapter === 3 && Number.isInteger(this.level) && this.level >= 0 && this.level <= 3) {
+      const figureState = this.getCurrentFigureRenderState();
+      this.drawFigureDynamics();
+      this.drawFigurePath(figureState);
+      this.drawFigureCountTimes(figureState);
+      this.drawFigureMotionPoints(figureState);
       this.renderPoseAlignmentFeedback();
+      this.requestRender();
       return;
     }
-
-    this.setFigurePanelVisible(false);
 
     if (!this.active) {
       this.setPoseAlignmentPanelVisible(false);

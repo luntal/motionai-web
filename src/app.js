@@ -1,7 +1,473 @@
-import { createNavigationUI, onChapterChange, onLevelChange, clearHoverDescription, setLevelActive, setActiveLevel } from './ui.js';
+import {
+  createNavigationUI,
+  onChapterChange,
+  onLevelChange,
+  clearHoverDescription,
+  setLevelActive,
+  setActiveLevel,
+  uiState
+} from './ui.js';
 import { startTracking, onLandmarksUpdate, onPoseUpdate, setStabilizationEnabled, setLandmarkDrawingEnabled, onCanvasResize } from './tracking.js';
 import { LevelManager } from './levels.js';
 import { getLevelCountForChapter } from './constants.js';
+
+function createFigureModePanel(initialManager) {
+  const figureSettingsStorageKey = 'motionai.figure-panel-settings';
+  let storedFigureSettings = {};
+  try {
+    const stored = localStorage.getItem(figureSettingsStorageKey);
+    storedFigureSettings = stored ? JSON.parse(stored) : {};
+  } catch (error) {
+    storedFigureSettings = {};
+  }
+
+  const panel = document.createElement('aside');
+  panel.className = 'figure-side-panel hidden';
+
+  const title = document.createElement('div');
+  title.className = 'figure-side-panel-title';
+  title.textContent = 'Grundfigur';
+
+  const radioGroup = document.createElement('div');
+  radioGroup.className = 'figure-mode-group';
+
+  const sideGroup = document.createElement('div');
+  sideGroup.className = 'figure-side-group';
+
+  const radioDivider = document.createElement('div');
+  radioDivider.className = 'figure-radio-divider';
+
+  const sizeWrap = document.createElement('div');
+  sizeWrap.className = 'figure-size-wrap';
+
+  const sizeLabel = document.createElement('div');
+  sizeLabel.className = 'figure-size-label';
+  sizeLabel.textContent = 'Größe';
+
+  const sizeSlider = document.createElement('input');
+  sizeSlider.type = 'range';
+  sizeSlider.min = '0.2';
+  sizeSlider.max = '1.0';
+  sizeSlider.step = '0.01';
+  sizeSlider.value = String(storedFigureSettings.figureScale ?? initialManager?.figureScale ?? 1 / 3);
+
+  const sizeValue = document.createElement('div');
+  sizeValue.className = 'figure-size-value';
+  sizeValue.textContent = `${Number(sizeSlider.value).toFixed(2)}x`;
+
+  sizeSlider.addEventListener('input', () => {
+    const next = Number(sizeSlider.value);
+    sizeValue.textContent = `${next.toFixed(2)}x`;
+    if (managerRef) {
+      managerRef.setFigureScale(next);
+    }
+    persistFigureSettings();
+  });
+
+  const strokeWrap = document.createElement('div');
+  strokeWrap.className = 'figure-size-wrap';
+
+  const strokeLabel = document.createElement('div');
+  strokeLabel.className = 'figure-size-label';
+  strokeLabel.textContent = 'Stroke';
+
+  const offsetWrap = document.createElement('div');
+  offsetWrap.className = 'figure-size-wrap';
+
+  const offsetLabel = document.createElement('div');
+  offsetLabel.className = 'figure-size-label';
+  offsetLabel.textContent = 'Offset';
+
+  const offsetSlider = document.createElement('input');
+  offsetSlider.type = 'range';
+  offsetSlider.min = '50';
+  offsetSlider.max = '300';
+  offsetSlider.step = '5';
+  offsetSlider.value = String(storedFigureSettings.figureHorizontalOffset ?? initialManager?.figureHorizontalOffset ?? 50);
+
+  const offsetValue = document.createElement('div');
+  offsetValue.className = 'figure-size-value';
+  offsetValue.textContent = `${Number(offsetSlider.value).toFixed(0)}px`;
+
+  offsetSlider.addEventListener('input', () => {
+    const next = Number(offsetSlider.value);
+    offsetValue.textContent = `${next.toFixed(0)}px`;
+    if (managerRef) {
+      managerRef.setFigureHorizontalOffset(next);
+    }
+    persistFigureSettings();
+  });
+
+  const yWrap = document.createElement('div');
+  yWrap.className = 'figure-size-wrap';
+
+  const yLabel = document.createElement('div');
+  yLabel.className = 'figure-size-label';
+  yLabel.textContent = 'Y';
+
+  const ySlider = document.createElement('input');
+  ySlider.type = 'range';
+  ySlider.min = '-300';
+  ySlider.max = '300';
+  ySlider.step = '5';
+  ySlider.value = String(storedFigureSettings.figureYPosition ?? initialManager?.figureYPosition ?? 0);
+
+  const yValue = document.createElement('div');
+  yValue.className = 'figure-size-value';
+  yValue.textContent = `${Number(ySlider.value).toFixed(0)}px`;
+
+  ySlider.addEventListener('input', () => {
+    const next = Number(ySlider.value);
+    yValue.textContent = `${next.toFixed(0)}px`;
+    if (managerRef) {
+      managerRef.setFigureYPosition(next);
+    }
+    persistFigureSettings();
+  });
+
+  const tempoWrap = document.createElement('div');
+  tempoWrap.className = 'figure-size-wrap';
+
+  const tempoLabel = document.createElement('div');
+  tempoLabel.className = 'figure-size-label';
+  tempoLabel.textContent = 'BPM';
+
+  const tempoSlider = document.createElement('input');
+  tempoSlider.type = 'range';
+  tempoSlider.min = '30';
+  tempoSlider.max = '120';
+  tempoSlider.step = '1';
+  tempoSlider.value = String(storedFigureSettings.figureTempoBpm ?? initialManager?.figureTempoBpm ?? 60);
+
+  const tempoValue = document.createElement('div');
+  tempoValue.className = 'figure-size-value';
+  tempoValue.textContent = `${Number(tempoSlider.value).toFixed(0)} bpm`;
+
+  tempoSlider.addEventListener('input', () => {
+    const next = Number(tempoSlider.value);
+    tempoValue.textContent = `${next.toFixed(0)} bpm`;
+    if (managerRef) {
+      managerRef.setFigureTempoBpm(next);
+    }
+    persistFigureSettings();
+  });
+
+  const hardLinearityWrap = document.createElement('div');
+  hardLinearityWrap.className = 'figure-size-wrap';
+
+  const hardLinearityLabel = document.createElement('div');
+  hardLinearityLabel.className = 'figure-size-label';
+  hardLinearityLabel.textContent = 'Linearität';
+
+  const hardLinearitySlider = document.createElement('input');
+  hardLinearitySlider.type = 'range';
+  hardLinearitySlider.min = '0';
+  hardLinearitySlider.max = '100';
+  hardLinearitySlider.step = '1';
+  hardLinearitySlider.value = String(storedFigureSettings.figureHardLinearity ?? initialManager?.figureHardLinearity ?? 10);
+
+  const hardLinearityValue = document.createElement('div');
+  hardLinearityValue.className = 'figure-size-value';
+  hardLinearityValue.textContent = `${Number(hardLinearitySlider.value).toFixed(0)}%`;
+
+  hardLinearitySlider.addEventListener('input', () => {
+    const next = Number(hardLinearitySlider.value);
+    hardLinearityValue.textContent = `${next.toFixed(0)}%`;
+    if (managerRef) {
+      managerRef.setFigureHardLinearity(next);
+    }
+    persistFigureSettings();
+  });
+
+  const softTransitionWrap = document.createElement('div');
+  softTransitionWrap.className = 'figure-size-wrap';
+
+  const softTransitionLabel = document.createElement('div');
+  softTransitionLabel.className = 'figure-size-label';
+  softTransitionLabel.textContent = 'Übergangslänge';
+
+  const softTransitionSlider = document.createElement('input');
+  softTransitionSlider.type = 'range';
+  softTransitionSlider.min = '0';
+  softTransitionSlider.max = '50';
+  softTransitionSlider.step = '1';
+  softTransitionSlider.value = String(storedFigureSettings.figureSoftTransitionPercent ?? initialManager?.figureSoftTransitionPercent ?? 0);
+
+  const softTransitionValue = document.createElement('div');
+  softTransitionValue.className = 'figure-size-value';
+  softTransitionValue.textContent = `${Number(softTransitionSlider.value).toFixed(0)}%`;
+
+  softTransitionSlider.addEventListener('input', () => {
+    const next = Number(softTransitionSlider.value);
+    softTransitionValue.textContent = `${next.toFixed(0)}%`;
+    if (managerRef) {
+      managerRef.setFigureSoftTransitionPercent(next);
+    }
+    persistFigureSettings();
+  });
+
+  const dynamicsWrap = document.createElement('label');
+  dynamicsWrap.className = 'figure-dynamics-toggle';
+
+  const dynamicsToggle = document.createElement('input');
+  dynamicsToggle.type = 'checkbox';
+  dynamicsToggle.checked = Boolean(storedFigureSettings.figureDynamicsVisible);
+
+  const dynamicsText = document.createElement('span');
+  dynamicsText.textContent = 'Dynamiklinien';
+  dynamicsWrap.appendChild(dynamicsToggle);
+  dynamicsWrap.appendChild(dynamicsText);
+
+  dynamicsToggle.addEventListener('change', () => {
+    if (managerRef) {
+      managerRef.setFigureDynamicsVisible(dynamicsToggle.checked);
+    }
+    persistFigureSettings();
+  });
+
+  const countTimesWrap = document.createElement('label');
+  countTimesWrap.className = 'figure-dynamics-toggle';
+
+  const countTimesToggle = document.createElement('input');
+  countTimesToggle.type = 'checkbox';
+  countTimesToggle.checked = Boolean(storedFigureSettings.figureCountTimesVisible);
+
+  const countTimesText = document.createElement('span');
+  countTimesText.textContent = 'Zählzeiten';
+  countTimesWrap.appendChild(countTimesToggle);
+  countTimesWrap.appendChild(countTimesText);
+
+  countTimesToggle.addEventListener('change', () => {
+    if (managerRef) {
+      managerRef.setFigureCountTimesVisible(countTimesToggle.checked);
+    }
+    persistFigureSettings();
+  });
+
+  const strokeSlider = document.createElement('input');
+  strokeSlider.type = 'range';
+  strokeSlider.min = '0.01';
+  strokeSlider.max = '0.5';
+  strokeSlider.step = '0.01';
+  strokeSlider.value = String(storedFigureSettings.figureStrokeWidth ?? initialManager?.figureStrokeWidth ?? 0.5);
+
+  const strokeValue = document.createElement('div');
+  strokeValue.className = 'figure-size-value';
+  strokeValue.textContent = `${Number(strokeSlider.value).toFixed(1)}px`;
+
+  strokeSlider.addEventListener('input', () => {
+    const next = Number(strokeSlider.value);
+    strokeValue.textContent = `${next.toFixed(2)}px`;
+    if (managerRef) {
+      managerRef.setFigureStrokeWidth(next);
+    }
+    persistFigureSettings();
+  });
+
+  sizeWrap.appendChild(sizeLabel);
+  sizeWrap.appendChild(sizeSlider);
+  sizeWrap.appendChild(sizeValue);
+
+  strokeWrap.appendChild(strokeLabel);
+  strokeWrap.appendChild(strokeSlider);
+  strokeWrap.appendChild(strokeValue);
+
+  const variants = [
+    { value: 'soft', label: 'Weich' },
+    { value: 'hard', label: 'Hart' }
+  ];
+
+  const handSides = [
+    { value: 'left', label: 'Links' },
+    { value: 'right', label: 'Rechts' },
+    { value: 'both', label: 'Beidhändig' }
+  ];
+
+  let selectedVariant = storedFigureSettings.figureVariant === 'hard' ? 'hard' : 'soft';
+  let selectedSide = ['left', 'right', 'both'].includes(storedFigureSettings.figureSide)
+    ? storedFigureSettings.figureSide
+    : 'left';
+  let managerRef = initialManager || null;
+
+  function persistFigureSettings() {
+    try {
+      localStorage.setItem(figureSettingsStorageKey, JSON.stringify({
+        figureVariant: selectedVariant,
+        figureSide: selectedSide,
+        figureScale: Number(sizeSlider.value),
+        figureStrokeWidth: Number(strokeSlider.value),
+        figureHorizontalOffset: Number(offsetSlider.value),
+        figureYPosition: Number(ySlider.value),
+        figureTempoBpm: Number(tempoSlider.value),
+        figureHardLinearity: Number(hardLinearitySlider.value),
+        figureSoftTransitionPercent: Number(softTransitionSlider.value),
+        figureDynamicsVisible: dynamicsToggle.checked,
+        figureCountTimesVisible: countTimesToggle.checked
+      }));
+    } catch (error) {
+      return;
+    }
+  }
+
+  variants.forEach(({ value, label }) => {
+    const option = document.createElement('label');
+    option.className = 'figure-mode-option';
+
+    const input = document.createElement('input');
+    input.type = 'radio';
+    input.name = 'figure-mode';
+    input.value = value;
+    input.checked = value === selectedVariant;
+
+    input.addEventListener('change', () => {
+      if (!input.checked) {
+        return;
+      }
+      selectedVariant = value;
+      updateMotionControlVisibility();
+      persistFigureSettings();
+      if (managerRef) {
+        managerRef.setFigureVariant(selectedVariant);
+      }
+    });
+
+    const caption = document.createElement('span');
+    caption.textContent = label;
+
+    option.appendChild(input);
+    option.appendChild(caption);
+    radioGroup.appendChild(option);
+  });
+
+  handSides.forEach(({ value, label }) => {
+    const option = document.createElement('label');
+    option.className = 'figure-side-option';
+
+    const input = document.createElement('input');
+    input.type = 'radio';
+    input.name = 'figure-side';
+    input.value = value;
+    input.checked = value === selectedSide;
+
+    input.addEventListener('change', () => {
+      if (!input.checked) {
+        return;
+      }
+      selectedSide = value;
+      persistFigureSettings();
+      if (managerRef) {
+        managerRef.setFigureSide(selectedSide);
+      }
+    });
+
+    const caption = document.createElement('span');
+    caption.textContent = label;
+
+    option.appendChild(input);
+    option.appendChild(caption);
+    sideGroup.appendChild(option);
+  });
+
+  offsetWrap.appendChild(offsetLabel);
+  offsetWrap.appendChild(offsetSlider);
+  offsetWrap.appendChild(offsetValue);
+
+  yWrap.appendChild(yLabel);
+  yWrap.appendChild(ySlider);
+  yWrap.appendChild(yValue);
+
+  tempoWrap.appendChild(tempoLabel);
+  tempoWrap.appendChild(tempoSlider);
+  tempoWrap.appendChild(tempoValue);
+
+  hardLinearityWrap.appendChild(hardLinearityLabel);
+  hardLinearityWrap.appendChild(hardLinearitySlider);
+  hardLinearityWrap.appendChild(hardLinearityValue);
+
+  softTransitionWrap.appendChild(softTransitionLabel);
+  softTransitionWrap.appendChild(softTransitionSlider);
+  softTransitionWrap.appendChild(softTransitionValue);
+
+  panel.appendChild(title);
+  panel.appendChild(radioGroup);
+  panel.appendChild(radioDivider);
+  panel.appendChild(sideGroup);
+  panel.appendChild(sizeWrap);
+  panel.appendChild(strokeWrap);
+  panel.appendChild(offsetWrap);
+  panel.appendChild(yWrap);
+  panel.appendChild(tempoWrap);
+  panel.appendChild(hardLinearityWrap);
+  panel.appendChild(softTransitionWrap);
+  panel.appendChild(dynamicsWrap);
+  panel.appendChild(countTimesWrap);
+
+  function updateMotionControlVisibility() {
+    const isHard = selectedVariant === 'hard';
+    hardLinearityWrap.hidden = !isHard;
+    softTransitionWrap.hidden = isHard;
+  }
+
+  function setVisible(visible) {
+    panel.classList.toggle('hidden', !visible);
+  }
+
+  function setLevelManager(manager) {
+    managerRef = manager || null;
+    if (managerRef) {
+      managerRef.setFigureScale(Number(sizeSlider.value));
+      managerRef.setFigureStrokeWidth(Number(strokeSlider.value));
+      managerRef.setFigureHorizontalOffset(Number(offsetSlider.value));
+      managerRef.setFigureYPosition(Number(ySlider.value));
+      managerRef.setFigureTempoBpm(Number(tempoSlider.value));
+      managerRef.setFigureHardLinearity(Number(hardLinearitySlider.value));
+      managerRef.setFigureSoftTransitionPercent(Number(softTransitionSlider.value));
+      managerRef.setFigureDynamicsVisible(dynamicsToggle.checked);
+      managerRef.setFigureCountTimesVisible(countTimesToggle.checked);
+      sizeSlider.value = String(managerRef.figureScale ?? 1 / 3);
+      sizeValue.textContent = `${Number(sizeSlider.value).toFixed(2)}x`;
+      strokeSlider.value = String(managerRef.figureStrokeWidth ?? 0.5);
+      strokeValue.textContent = `${Number(strokeSlider.value).toFixed(2)}px`;
+      offsetValue.textContent = `${Number(offsetSlider.value).toFixed(0)}px`;
+      yValue.textContent = `${Number(ySlider.value).toFixed(0)}px`;
+      tempoValue.textContent = `${Number(tempoSlider.value).toFixed(0)} bpm`;
+      hardLinearityValue.textContent = `${Number(hardLinearitySlider.value).toFixed(0)}%`;
+      softTransitionValue.textContent = `${Number(softTransitionSlider.value).toFixed(0)}%`;
+      setVariant(selectedVariant);
+      setSide(selectedSide);
+      persistFigureSettings();
+    }
+  }
+
+  function setVariant(variant) {
+    const safe = variant === 'hard' ? 'hard' : 'soft';
+    selectedVariant = safe;
+    updateMotionControlVisibility();
+    const radios = radioGroup.querySelectorAll('input[name="figure-mode"]');
+    radios.forEach((radio) => {
+      radio.checked = radio.value === safe;
+    });
+    if (managerRef) {
+      managerRef.setFigureVariant(safe);
+    }
+    persistFigureSettings();
+  }
+
+  function setSide(side) {
+    const safe = side === 'right' ? 'right' : side === 'both' ? 'both' : 'left';
+    selectedSide = safe;
+    const radios = sideGroup.querySelectorAll('input[name="figure-side"]');
+    radios.forEach((radio) => {
+      radio.checked = radio.value === safe;
+    });
+    if (managerRef) {
+      managerRef.setFigureSide(safe);
+    }
+    persistFigureSettings();
+  }
+
+  return { panel, setVisible, setVariant, setSide, setLevelManager, getVariant: () => selectedVariant, getSide: () => selectedSide };
+}
 
 function createTrackingControls(trackingController) {
   const settingsSection = document.createElement('div');
@@ -509,6 +975,8 @@ export function initApp() {
 
   const trackingController = startTracking(videoElement, canvasElement, { initialModel: 'pose' });
   const controls = createTrackingControls(trackingController);
+  const figurePanel = createFigureModePanel(null);
+  document.body.appendChild(figurePanel.panel);
 
   const levelCanvas = document.createElement('canvas');
   levelCanvas.className = 'level-overlay';
@@ -521,6 +989,7 @@ export function initApp() {
   stageFrame.appendChild(levelCanvas);
 
   const levelManager = new LevelManager(levelCanvas);
+  figurePanel.setLevelManager(levelManager);
   controls.setLevelManager(levelManager);
   controls.setCalibrationPoseSets(levelManager.getCalibrationPoseSets());
   controls.setCalibrationSetChangeHandler((index) => {
@@ -552,7 +1021,16 @@ export function initApp() {
 
   resizeOverlays();
 
-  onChapterChange((chapter) => levelManager.setChapter(chapter));
+  onChapterChange((chapter) => {
+    levelManager.setChapter(chapter);
+    const isFigureChapter = chapter === 3;
+    figurePanel.setVisible(isFigureChapter);
+    if (!isFigureChapter) {
+      return;
+    }
+    figurePanel.setVariant(levelManager.figureVariant || 'soft');
+  });
+
   onLevelChange((level) => {
     levelManager.setLevel(level);
     if (level !== null) {
@@ -560,6 +1038,12 @@ export function initApp() {
       clearHoverDescription();
     } else {
       setLevelActive(false);
+    }
+
+    if (uiState.activeChapter === 3) {
+      figurePanel.setVisible(level !== null);
+    } else {
+      figurePanel.setVisible(false);
     }
   });
 
