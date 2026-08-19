@@ -1,4 +1,4 @@
-import { basicFigurePaths } from './constants.js';
+import { basicFigurePaths, extendedFigurePaths } from './constants.js';
 
 export class LevelManager {
   constructor(overlayCanvas) {
@@ -76,6 +76,21 @@ export class LevelManager {
     this.figureSoftTransitionPercent = 0;
     this.figureAnimationStart = performance.now();
     this.figureActive = false;
+    this.dynamicFigureVariant = 'hard';
+    this.dynamicFigureScale = 1 / 3;
+    this.dynamicFigureStrokeWidth = 0.4;
+    this.dynamicFigureSide = 'left';
+    this.dynamicFigureHorizontalOffset = 50;
+    this.dynamicFigureYPosition = 0;
+    this.dynamicFigureTempoBpm = 60;
+    this.dynamicFigureDynamicsVisible = false;
+    this.dynamicFigureCountTimesVisible = false;
+    this.dynamicFigureHardLinearity = 10;
+    this.dynamicFigureSoftTransitionPercent = 0;
+    this.dynamicFigureCornerHeights = Array(8).fill(0);
+    this.dynamicFigureCornerHeightsByLevel = this.loadDynamicFigureCornerHeights();
+    this.dynamicFigureAnimationStart = performance.now();
+    this.dynamicFigureActive = false;
     this.scaledCalibrationCache = {
       set: null,
       width: 0,
@@ -1024,13 +1039,52 @@ export class LevelManager {
   }
 
   setChapter(chapter) {
+    this.persistDynamicFigureCornerHeights();
     this.chapter = chapter;
     this.setupLevel();
   }
 
   setLevel(level) {
+    this.persistDynamicFigureCornerHeights();
     this.level = level;
     this.setupLevel();
+  }
+
+  loadDynamicFigureCornerHeights() {
+    try {
+      const stored = localStorage.getItem('motionai.dynamic-figure-corner-heights');
+      const parsed = stored ? JSON.parse(stored) : {};
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch (error) {
+      return {};
+    }
+  }
+
+  persistDynamicFigureCornerHeights() {
+    if (this.chapter !== 4 || !Number.isInteger(this.level) || this.level < 0 || this.level > 3) {
+      return;
+    }
+
+    this.dynamicFigureCornerHeightsByLevel[this.level] = this.dynamicFigureCornerHeights.slice();
+    try {
+      localStorage.setItem(
+        'motionai.dynamic-figure-corner-heights',
+        JSON.stringify(this.dynamicFigureCornerHeightsByLevel)
+      );
+    } catch (error) {
+      return;
+    }
+  }
+
+  getDynamicFigureCornerHeightsForLevel(level) {
+    const stored = this.dynamicFigureCornerHeightsByLevel[level];
+    const count = Number.isInteger(level) ? (level + 1) * 2 : 0;
+    return Array.from({ length: 8 }, (_, index) => {
+      const value = Array.isArray(stored) ? Number(stored[index]) : 0;
+      return index < count && Number.isFinite(value)
+        ? Math.min(20, Math.max(-20, value))
+        : 0;
+    });
   }
 
   setFigureVariant(variant) {
@@ -1179,20 +1233,259 @@ export class LevelManager {
   }
 
   getFigureDefinitionForLevel(level) {
-    if (!Number.isInteger(level) || level < 0 || level > 3) {
+    if (!Number.isInteger(level) || level < 0 || level > 6) {
       return null;
     }
 
-    const levelNames = ['Einserfigur', 'Zweierfigur', 'Dreierfigur', 'Viererfigur'];
+    const levelNames = [
+      'Einserfigur',
+      'Zweierfigur',
+      'Dreierfigur',
+      'Viererfigur',
+      'Fünferfigur',
+      'Sechserfigur',
+      'Siebenerfigur'
+    ];
     const figureName = levelNames[level] || null;
-    if (!figureName || !basicFigurePaths[figureName]) {
+    const figurePaths = level < 4 ? basicFigurePaths : extendedFigurePaths;
+    if (!figureName || !figurePaths[figureName]) {
       return null;
     }
 
     const numberPlannedSegments = (level + 1) * 2;
     return {
-      ...basicFigurePaths[figureName],
+      ...figurePaths[figureName],
       numberPlannedSegments
+    };
+  }
+
+  getDynamicFigureDefinitionForLevel(level) {
+    if (!Number.isInteger(level) || level < 0 || level > 3) {
+      return null;
+    }
+
+    const figureName = ['Einserfigur', 'Zweierfigur', 'Dreierfigur', 'Viererfigur'][level];
+    const pathData = basicFigurePaths[figureName]?.hardD;
+    if (!pathData) {
+      return null;
+    }
+
+    return {
+      pathData,
+      numberPlannedSegments: (level + 1) * 2
+    };
+  }
+
+  setDynamicFigureVariant(variant) {
+    this.dynamicFigureVariant = variant === 'hard' ? 'hard' : 'soft';
+    this.requestRender();
+  }
+
+  setDynamicFigureScale(value) {
+    const next = Number(value);
+    if (Number.isFinite(next)) {
+      this.dynamicFigureScale = Math.min(1, Math.max(0.2, next));
+      this.requestRender();
+    }
+  }
+
+  setDynamicFigureStrokeWidth(value) {
+    const next = Number(value);
+    if (Number.isFinite(next)) {
+      this.dynamicFigureStrokeWidth = Math.min(0.5, Math.max(0.01, next));
+      this.requestRender();
+    }
+  }
+
+  setDynamicFigureSide(side) {
+    this.dynamicFigureSide = side === 'right' || side === 'both' ? side : 'left';
+    this.requestRender();
+  }
+
+  setDynamicFigureHorizontalOffset(value) {
+    const next = Number(value);
+    if (Number.isFinite(next)) {
+      this.dynamicFigureHorizontalOffset = Math.min(300, Math.max(50, next));
+      this.requestRender();
+    }
+  }
+
+  setDynamicFigureYPosition(value) {
+    const next = Number(value);
+    if (Number.isFinite(next)) {
+      this.dynamicFigureYPosition = Math.min(300, Math.max(-300, next));
+      this.requestRender();
+    }
+  }
+
+  setDynamicFigureTempoBpm(value) {
+    const next = Number(value);
+    if (Number.isFinite(next)) {
+      this.dynamicFigureTempoBpm = Math.min(120, Math.max(30, next));
+      this.requestRender();
+    }
+  }
+
+  setDynamicFigureDynamicsVisible(visible) {
+    this.dynamicFigureDynamicsVisible = Boolean(visible);
+    this.requestRender();
+  }
+
+  setDynamicFigureCountTimesVisible(visible) {
+    this.dynamicFigureCountTimesVisible = Boolean(visible);
+    this.requestRender();
+  }
+
+  setDynamicFigureHardLinearity(value) {
+    const next = Number(value);
+    if (Number.isFinite(next)) {
+      this.dynamicFigureHardLinearity = Math.min(100, Math.max(0, next));
+      this.requestRender();
+    }
+  }
+
+  setDynamicFigureSoftTransitionPercent(value) {
+    const next = Number(value);
+    if (Number.isFinite(next)) {
+      this.dynamicFigureSoftTransitionPercent = Math.min(50, Math.max(0, next));
+      this.requestRender();
+    }
+  }
+
+  setDynamicFigureCornerHeight(index, value) {
+    if (!Number.isInteger(index) || index < 0 || index > 7) {
+      return;
+    }
+    const next = Number(value);
+    if (Number.isFinite(next)) {
+      this.dynamicFigureCornerHeights[index] = Math.min(20, Math.max(-20, next));
+      this.persistDynamicFigureCornerHeights();
+      this.requestRender();
+    }
+  }
+
+  setDynamicFigureCornerHeights(values) {
+    if (!Array.isArray(values)) {
+      return;
+    }
+    this.dynamicFigureCornerHeights = Array.from({ length: 8 }, (_, index) => {
+      const value = Number(values[index]);
+      return Number.isFinite(value) ? Math.min(20, Math.max(-20, value)) : 0;
+    });
+    this.persistDynamicFigureCornerHeights();
+    this.requestRender();
+  }
+
+  applyDynamicFigureCornerHeights(renderSegments, cornerHeights) {
+    const cloneSegment = (segment) => ({
+      ...segment,
+      start: segment.start ? { ...segment.start } : segment.start,
+      end: segment.end ? { ...segment.end } : segment.end,
+      control1: segment.control1 ? { ...segment.control1 } : segment.control1,
+      control2: segment.control2 ? { ...segment.control2 } : segment.control2,
+      segments: Array.isArray(segment.segments)
+        ? segment.segments.map((child) => cloneSegment(child))
+        : segment.segments
+    });
+    const adjustedSegments = renderSegments.map((segment) => cloneSegment(segment));
+
+    const adjustMatchingPoints = (segment, originalAnchor, nextY) => {
+      ['start', 'end'].forEach((pointName) => {
+        const point = segment[pointName];
+        if (point && point.x === originalAnchor.x && point.y === originalAnchor.y) {
+          point.y = nextY;
+        }
+      });
+      if (Array.isArray(segment.segments)) {
+        segment.segments.forEach((child) => {
+          adjustMatchingPoints(child, originalAnchor, nextY);
+        });
+      }
+    };
+
+    const setLastSegmentEndY = (segment, nextY) => {
+      if (Array.isArray(segment.segments) && segment.segments.length > 0) {
+        setLastSegmentEndY(segment.segments[segment.segments.length - 1], nextY);
+        return;
+      }
+      if (segment.end) {
+        segment.end.y = nextY;
+      }
+    };
+
+    for (let cornerIndex = 0; cornerIndex < cornerHeights.length; cornerIndex += 1) {
+      const segment = adjustedSegments[cornerIndex];
+      const originalSegment = renderSegments[cornerIndex];
+      const originalAnchor = originalSegment?.start
+        || originalSegment?.segments?.[0]?.start;
+      if (!segment || !originalAnchor) {
+        continue;
+      }
+
+      const nextY = originalAnchor.y + Number(cornerHeights[cornerIndex] || 0);
+      if (segment.start) {
+        segment.start.y = nextY;
+      }
+      if (Array.isArray(segment.segments) && segment.segments[0]?.start) {
+        segment.segments[0].start.y = nextY;
+      }
+      adjustedSegments.forEach((candidate) => {
+        adjustMatchingPoints(candidate, originalAnchor, nextY);
+      });
+
+      if (cornerIndex === 0 && adjustedSegments.length > 0) {
+        setLastSegmentEndY(adjustedSegments[adjustedSegments.length - 1], nextY);
+      }
+    }
+
+    return adjustedSegments;
+  }
+
+  getCurrentDynamicFigureRenderState() {
+    if (!this.canvas || !this.canvas.width || !this.canvas.height) {
+      return null;
+    }
+
+    const definition = this.getDynamicFigureDefinitionForLevel(this.level);
+    if (!definition) {
+      return null;
+    }
+
+    const originalSegments = this.buildPlannedFigureSegments(
+      definition.pathData,
+      definition.numberPlannedSegments
+    );
+    const renderSegments = this.applyDynamicFigureCornerHeights(
+      originalSegments,
+      this.dynamicFigureCornerHeights.slice(0, (this.level + 1) * 2)
+    );
+    const centerX = this.canvas.width / 2;
+    const centerY = this.canvas.height / 2;
+    const baseScale = Math.min(this.canvas.width, this.canvas.height) / 18;
+    const scaleX = baseScale * this.dynamicFigureScale;
+    const scaleY = baseScale * this.dynamicFigureScale;
+    const effectiveStrokeWidth = this.dynamicFigureStrokeWidth
+      / Math.max(this.dynamicFigureScale, 0.2);
+    const side = this.dynamicFigureSide || 'left';
+    const figureConfigs = side === 'both'
+      ? [
+          { mirrorX: false, offsetX: -this.dynamicFigureHorizontalOffset },
+          { mirrorX: true, offsetX: this.dynamicFigureHorizontalOffset }
+        ]
+      : [{
+          mirrorX: side === 'right',
+          offsetX: side === 'right' ? this.dynamicFigureHorizontalOffset : -this.dynamicFigureHorizontalOffset
+        }];
+
+    return {
+      pathData: definition.pathData,
+      renderSegments,
+      centerX,
+      centerY,
+      scaleX,
+      scaleY,
+      effectiveStrokeWidth,
+      figureConfigs
     };
   }
 
@@ -1334,7 +1627,7 @@ export class LevelManager {
     };
   }
 
-  drawFigurePath(state = this.getCurrentFigureRenderState()) {
+  drawFigurePath(state = this.getCurrentFigureRenderState(), settings = {}) {
     if (!state) {
       return;
     }
@@ -1353,7 +1646,10 @@ export class LevelManager {
 
     const renderSingleFigure = ({ mirrorX, offsetX }) => {
       this.ctx.save();
-      this.ctx.translate(centerX + offsetX, centerY + this.figureYPosition);
+      this.ctx.translate(
+        centerX + offsetX,
+        centerY + (settings.yPosition ?? this.figureYPosition)
+      );
       this.ctx.scale(scaleX, scaleY);
       this.ctx.lineCap = 'round';
       this.ctx.lineJoin = 'round';
@@ -1432,7 +1728,9 @@ export class LevelManager {
         });
       } else {
         const fallbackPath = new Path2D(pathData);
-        this.ctx.strokeStyle = this.figureVariant === 'hard' ? '#7dd3fc' : '#6ee7a8';
+        this.ctx.strokeStyle = (settings.variant || this.figureVariant) === 'hard'
+          ? '#7dd3fc'
+          : '#6ee7a8';
         this.ctx.shadowColor = this.ctx.strokeStyle;
         this.ctx.shadowBlur = 10;
         this.ctx.stroke(fallbackPath);
@@ -1536,8 +1834,8 @@ export class LevelManager {
     return length;
   }
 
-  getHardSegmentProgress(segmentProgress, segmentIndex) {
-    const linearity = Math.min(100, Math.max(0, Number(this.figureHardLinearity) || 0));
+  getHardSegmentProgress(segmentProgress, segmentIndex, hardLinearity = this.figureHardLinearity) {
+    const linearity = Math.min(100, Math.max(0, Number(hardLinearity) || 0));
     const strength = (100 - linearity) / 100;
     const exponent = 1 + strength * 5;
     const progress = Math.min(1, Math.max(0, segmentProgress));
@@ -1649,7 +1947,8 @@ export class LevelManager {
     segmentLengths,
     segmentDurationMs,
     pathDurationMs,
-    transitionProfiles
+    transitionProfiles,
+    settings = {}
   ) {
     const normalizedElapsedMs = ((elapsedMs % pathDurationMs) + pathDurationMs) % pathDurationMs;
     const segmentIndex = Math.min(
@@ -1665,8 +1964,9 @@ export class LevelManager {
     }
 
     const segmentLength = segmentLengths[segmentIndex] || 0;
-    const adjustedProgress = this.figureVariant === 'hard'
-      ? this.getHardSegmentProgress(segmentProgress, segmentIndex)
+    const variant = settings.variant || this.figureVariant;
+    const adjustedProgress = variant === 'hard'
+      ? this.getHardSegmentProgress(segmentProgress, segmentIndex, settings.hardLinearity)
       : this.getSoftSegmentProgress(segmentProgress, segmentIndex, transitionProfiles);
     const completedLength = segmentLengths
       .slice(0, segmentIndex)
@@ -1675,7 +1975,7 @@ export class LevelManager {
     return {
       point: this.getPointAtDistance(points, segmentLength * adjustedProgress),
       pathDistance: completedLength + segmentLength * adjustedProgress,
-      velocity: this.figureVariant === 'hard'
+      velocity: variant === 'hard'
         ? null
         : transitionProfiles?.[segmentIndex]?.velocityAt(segmentProgress) || 0,
       segmentIndex,
@@ -1683,12 +1983,12 @@ export class LevelManager {
     };
   }
 
-  getFigureMotionState(renderSegments, scale = 1) {
+  getFigureMotionState(renderSegments, scale = 1, settings = {}) {
     if (!Array.isArray(renderSegments) || renderSegments.length === 0) {
       return null;
     }
 
-    const bpm = Math.min(120, Math.max(30, Number(this.figureTempoBpm) || 60));
+    const bpm = Math.min(120, Math.max(30, Number(settings.tempoBpm ?? this.figureTempoBpm) || 60));
     const beatDurationMs = 60000 / bpm;
     const segmentDurationMs = beatDurationMs / 2;
     const pathDurationMs = segmentDurationMs * renderSegments.length;
@@ -1696,18 +1996,24 @@ export class LevelManager {
       return null;
     }
 
-    const nowMs = performance.now() - this.figureAnimationStart;
+    const animationStart = settings.animationStart ?? this.figureAnimationStart;
+    const nowMs = performance.now() - animationStart;
     const segmentLengths = renderSegments.map((segment) => this.getSampledSegmentLength(segment));
-    const transitionProfiles = this.figureVariant === 'hard'
+    const variant = settings.variant || this.figureVariant;
+    const transitionProfiles = variant === 'hard'
       ? []
-      : this.computeSoftTransitionProfiles(segmentLengths, this.figureSoftTransitionPercent);
+      : this.computeSoftTransitionProfiles(
+          segmentLengths,
+          settings.softTransitionPercent ?? this.figureSoftTransitionPercent
+        );
     const currentState = this.getFigureMotionPointAtElapsed(
       renderSegments,
       nowMs,
       segmentLengths,
       segmentDurationMs,
       pathDurationMs,
-      transitionProfiles
+      transitionProfiles,
+      settings
     );
     const measurementWindowMs = Math.min(12, segmentDurationMs / 8);
     const previousState = this.getFigureMotionPointAtElapsed(
@@ -1716,7 +2022,8 @@ export class LevelManager {
       segmentLengths,
       segmentDurationMs,
       pathDurationMs,
-      transitionProfiles
+      transitionProfiles,
+      settings
     );
     const nextState = this.getFigureMotionPointAtElapsed(
       renderSegments,
@@ -1724,7 +2031,8 @@ export class LevelManager {
       segmentLengths,
       segmentDurationMs,
       pathDurationMs,
-      transitionProfiles
+      transitionProfiles,
+      settings
     );
     if (!currentState || !previousState || !nextState) {
       return null;
@@ -1752,6 +2060,76 @@ export class LevelManager {
   getFigureMotionPoint(renderSegments) {
     const motionState = this.getFigureMotionState(renderSegments);
     return motionState ? motionState.point : null;
+  }
+
+  drawDynamicFigureMotionPoints(state) {
+    if (!state) {
+      return;
+    }
+
+    const motionState = this.getFigureMotionState(state.renderSegments, state.scaleX, {
+      variant: this.dynamicFigureVariant,
+      tempoBpm: this.dynamicFigureTempoBpm,
+      hardLinearity: this.dynamicFigureHardLinearity,
+      softTransitionPercent: this.dynamicFigureSoftTransitionPercent,
+      animationStart: this.dynamicFigureAnimationStart
+    });
+    if (!motionState) {
+      return;
+    }
+
+    const motionPoint = motionState.point;
+    const pointRadius = Math.max(6, Math.min(this.canvas.width, this.canvas.height) * 0.016);
+    state.figureConfigs.forEach(({ mirrorX, offsetX }) => {
+      const mirroredX = mirrorX ? -motionPoint.x : motionPoint.x;
+      const x = state.centerX + offsetX + mirroredX * state.scaleX;
+      const y = state.centerY + this.dynamicFigureYPosition + motionPoint.y * state.scaleY;
+
+      this.ctx.save();
+      this.ctx.fillStyle = 'rgba(255, 255, 255, 0.96)';
+      this.ctx.strokeStyle = 'rgba(20, 28, 38, 0.55)';
+      this.ctx.lineWidth = 2;
+      this.ctx.shadowColor = 'rgba(255, 255, 255, 0.9)';
+      this.ctx.shadowBlur = 14;
+      this.ctx.beginPath();
+      this.ctx.arc(x, y, pointRadius, 0, Math.PI * 2);
+      this.ctx.fill();
+      this.ctx.shadowBlur = 0;
+      this.ctx.stroke();
+      this.ctx.restore();
+    });
+  }
+
+  drawDynamicFigureCountTimes(state) {
+    if (!this.dynamicFigureCountTimesVisible || !state || state.renderSegments.length === 0) {
+      return;
+    }
+
+    const beatCount = Math.ceil(state.renderSegments.length / 2);
+    state.figureConfigs.forEach(({ mirrorX, offsetX }) => {
+      for (let beatIndex = 0; beatIndex < beatCount; beatIndex += 1) {
+        const anchor = this.getFigureAnchorPoint(state.renderSegments, beatIndex * 2);
+        if (!anchor) {
+          continue;
+        }
+        const anchorX = mirrorX ? -anchor.x : anchor.x;
+        const x = state.centerX + offsetX + anchorX * state.scaleX;
+        const y = state.centerY + this.dynamicFigureYPosition + anchor.y * state.scaleY;
+        const label = String(beatIndex + 1);
+
+        this.ctx.save();
+        this.ctx.font = '400 17px sans-serif';
+        this.ctx.textAlign = 'center';
+        this.ctx.textBaseline = 'middle';
+        this.ctx.fillStyle = 'rgba(8, 18, 30, 0.86)';
+        this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.82)';
+        this.ctx.lineWidth = 3;
+        this.ctx.strokeText(label, x, y - 15);
+        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.98)';
+        this.ctx.fillText(label, x, y - 15);
+        this.ctx.restore();
+      }
+    });
   }
 
   drawFigureMotionPoints(state = this.getCurrentFigureRenderState()) {
@@ -1788,8 +2166,8 @@ export class LevelManager {
     });
   }
 
-  drawFigureDynamics() {
-    if (!this.figureDynamicsVisible) {
+  drawFigureDynamics(visible = this.figureDynamicsVisible) {
+    if (!visible) {
       return;
     }
 
@@ -1861,6 +2239,15 @@ export class LevelManager {
 
     const plannedSegmentCount = state.renderSegments.length;
     const beatCount = Math.ceil(plannedSegmentCount / 2);
+    const hardFigureCountLabels = {
+      4: ['1', '2', '+', '3', '4'],
+      5: ['1', '2', '+', '3', '+', '4'],
+      6: ['1', '2', '+', '3', '+', '4', '+']
+    };
+    const labels = this.figureVariant === 'hard'
+      ? hardFigureCountLabels[this.level]
+        || Array.from({ length: beatCount }, (_, index) => String(index + 1))
+      : Array.from({ length: beatCount }, (_, index) => String(index + 1));
     const beatSegmentStep = 2;
 
     state.figureConfigs.forEach(({ mirrorX, offsetX }) => {
@@ -1884,9 +2271,11 @@ export class LevelManager {
         this.ctx.fillStyle = 'rgba(8, 18, 30, 0.86)';
         this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.82)';
         this.ctx.lineWidth = 3;
-        this.ctx.strokeText(String(beatIndex + 1), x, y - 15);
+        const label = labels[beatIndex] || String(beatIndex + 1);
+        const labelX = label === '+' ? x + 8 : x;
+        this.ctx.strokeText(label, labelX, y - 15);
         this.ctx.fillStyle = 'rgba(255, 255, 255, 0.98)';
-        this.ctx.fillText(String(beatIndex + 1), x, y - 15);
+        this.ctx.fillText(label, labelX, y - 15);
         this.ctx.restore();
       }
     });
@@ -1933,7 +2322,7 @@ export class LevelManager {
     }
 
     if (this.chapter === 3) {
-      this.figureActive = Number.isInteger(this.level) && this.level >= 0 && this.level <= 3;
+      this.figureActive = Number.isInteger(this.level) && this.level >= 0 && this.level <= 6;
       this.figureAnimationStart = performance.now();
       this.active = false;
       this.calibrationActive = false;
@@ -1944,7 +2333,22 @@ export class LevelManager {
       return;
     }
 
+    if (this.chapter === 4) {
+      this.dynamicFigureActive = Number.isInteger(this.level) && this.level >= 0 && this.level <= 3;
+      this.dynamicFigureCornerHeights = this.getDynamicFigureCornerHeightsForLevel(this.level);
+      this.dynamicFigureAnimationStart = performance.now();
+      this.active = false;
+      this.figureActive = false;
+      this.calibrationActive = false;
+      this.consistencyActive = false;
+      this.setCalibrationPanelVisible(false);
+      this.setConsistencyPanelVisible(false);
+      this.render();
+      return;
+    }
+
     this.figureActive = false;
+    this.dynamicFigureActive = false;
     this.calibrationActive = false;
     this.setCalibrationPanelVisible(false);
     this.consistencyActive = false;
@@ -2223,7 +2627,8 @@ export class LevelManager {
     const inPlayableLevel = (
       this.calibrationActive && (this.level === 1 || this.level === 2)
     ) || (
-      this.chapter === 3 && this.figureActive
+      (this.chapter === 3 && this.figureActive)
+      || (this.chapter === 4 && this.dynamicFigureActive)
     ) || (
       !this.calibrationActive && (this.active || this.consistencyActive)
     );
@@ -2263,12 +2668,28 @@ export class LevelManager {
 
     this.setConsistencyPanelVisible(false);
 
-    if (this.chapter === 3 && Number.isInteger(this.level) && this.level >= 0 && this.level <= 3) {
+    if (this.chapter === 3 && Number.isInteger(this.level) && this.level >= 0 && this.level <= 6) {
       const figureState = this.getCurrentFigureRenderState();
       this.drawFigureDynamics();
       this.drawFigurePath(figureState);
       this.drawFigureCountTimes(figureState);
       this.drawFigureMotionPoints(figureState);
+      this.renderPoseAlignmentFeedback();
+      this.requestRender();
+      return;
+    }
+
+    if (this.chapter === 4 && Number.isInteger(this.level) && this.level >= 0 && this.level <= 3) {
+      const dynamicFigureState = this.getCurrentDynamicFigureRenderState();
+      if (this.dynamicFigureDynamicsVisible) {
+        this.drawFigureDynamics(this.dynamicFigureDynamicsVisible);
+      }
+      this.drawFigurePath(dynamicFigureState, {
+        variant: this.dynamicFigureVariant,
+        yPosition: this.dynamicFigureYPosition
+      });
+      this.drawDynamicFigureCountTimes(dynamicFigureState);
+      this.drawDynamicFigureMotionPoints(dynamicFigureState);
       this.renderPoseAlignmentFeedback();
       this.requestRender();
       return;

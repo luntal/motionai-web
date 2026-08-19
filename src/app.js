@@ -11,8 +11,10 @@ import { startTracking, onLandmarksUpdate, onPoseUpdate, setStabilizationEnabled
 import { LevelManager } from './levels.js';
 import { getLevelCountForChapter } from './constants.js';
 
-function createFigureModePanel(initialManager) {
-  const figureSettingsStorageKey = 'motionai.figure-panel-settings';
+function createFigureModePanel(initialManager, options = {}) {
+  const figureSettingsStorageKey = options.settingsKey || 'motionai.figure-panel-settings';
+  const initialTitle = options.initialTitle || 'Grundfigur';
+  const defaultVariant = options.defaultVariant || 'soft';
   let storedFigureSettings = {};
   try {
     const stored = localStorage.getItem(figureSettingsStorageKey);
@@ -26,7 +28,15 @@ function createFigureModePanel(initialManager) {
 
   const title = document.createElement('div');
   title.className = 'figure-side-panel-title';
-  title.textContent = 'Grundfigur';
+  title.textContent = initialTitle;
+
+  function setTitle(nextTitle) {
+    title.textContent = nextTitle === 'extended'
+      ? 'Erweiterte Dirigierfiguren'
+      : nextTitle === 'dynamic'
+        ? 'Dynamikebenen'
+        : 'Grundfigur';
+  }
 
   const radioGroup = document.createElement('div');
   radioGroup.className = 'figure-mode-group';
@@ -34,8 +44,19 @@ function createFigureModePanel(initialManager) {
   const sideGroup = document.createElement('div');
   sideGroup.className = 'figure-side-group';
 
-  const radioDivider = document.createElement('div');
-  radioDivider.className = 'figure-radio-divider';
+  const createPanelDivider = () => {
+    const divider = document.createElement('div');
+    divider.className = 'figure-panel-divider';
+    return divider;
+  };
+
+  const movementTitle = document.createElement('div');
+  movementTitle.className = 'figure-panel-section-title';
+  movementTitle.textContent = 'Bewegungen';
+
+  const arrangementTitle = document.createElement('div');
+  arrangementTitle.className = 'figure-panel-section-title';
+  arrangementTitle.textContent = 'Anordnung';
 
   const sizeWrap = document.createElement('div');
   sizeWrap.className = 'figure-size-wrap';
@@ -76,7 +97,7 @@ function createFigureModePanel(initialManager) {
 
   const offsetLabel = document.createElement('div');
   offsetLabel.className = 'figure-size-label';
-  offsetLabel.textContent = 'Offset';
+  offsetLabel.textContent = 'X';
 
   const offsetSlider = document.createElement('input');
   offsetSlider.type = 'range';
@@ -283,7 +304,11 @@ function createFigureModePanel(initialManager) {
     { value: 'both', label: 'Beidhändig' }
   ];
 
-  let selectedVariant = storedFigureSettings.figureVariant === 'hard' ? 'hard' : 'soft';
+  let selectedVariant = storedFigureSettings.figureVariant === 'hard'
+    ? 'hard'
+    : storedFigureSettings.figureVariant === 'soft'
+      ? 'soft'
+      : defaultVariant;
   let selectedSide = ['left', 'right', 'both'].includes(storedFigureSettings.figureSide)
     ? storedFigureSettings.figureSide
     : 'left';
@@ -390,17 +415,24 @@ function createFigureModePanel(initialManager) {
 
   panel.appendChild(title);
   panel.appendChild(radioGroup);
-  panel.appendChild(radioDivider);
+  panel.appendChild(createPanelDivider());
   panel.appendChild(sideGroup);
+  panel.appendChild(createPanelDivider());
+  panel.appendChild(dynamicsWrap);
+  panel.appendChild(countTimesWrap);
+  panel.appendChild(createPanelDivider());
+  panel.appendChild(arrangementTitle);
   panel.appendChild(sizeWrap);
-  panel.appendChild(strokeWrap);
   panel.appendChild(offsetWrap);
   panel.appendChild(yWrap);
+  panel.appendChild(createPanelDivider());
+  panel.appendChild(movementTitle);
   panel.appendChild(tempoWrap);
   panel.appendChild(hardLinearityWrap);
   panel.appendChild(softTransitionWrap);
-  panel.appendChild(dynamicsWrap);
-  panel.appendChild(countTimesWrap);
+  panel.appendChild(createPanelDivider());
+  panel.appendChild(strokeWrap);
+  panel.appendChild(createPanelDivider());
 
   function updateMotionControlVisibility() {
     const isHard = selectedVariant === 'hard';
@@ -466,7 +498,306 @@ function createFigureModePanel(initialManager) {
     persistFigureSettings();
   }
 
-  return { panel, setVisible, setVariant, setSide, setLevelManager, getVariant: () => selectedVariant, getSide: () => selectedSide };
+  function getSettings() {
+    return {
+      figureVariant: selectedVariant,
+      figureSide: selectedSide,
+      figureScale: Number(sizeSlider.value),
+      figureStrokeWidth: Number(strokeSlider.value),
+      figureHorizontalOffset: Number(offsetSlider.value),
+      figureYPosition: Number(ySlider.value),
+      figureTempoBpm: Number(tempoSlider.value),
+      figureHardLinearity: Number(hardLinearitySlider.value),
+      figureSoftTransitionPercent: Number(softTransitionSlider.value),
+      figureDynamicsVisible: dynamicsToggle.checked,
+      figureCountTimesVisible: countTimesToggle.checked
+    };
+  }
+
+  function setSettings(settings = {}) {
+    const numericControls = [
+      [sizeSlider, sizeValue, settings.figureScale, (value) => `${value.toFixed(2)}x`],
+      [strokeSlider, strokeValue, settings.figureStrokeWidth, (value) => `${value.toFixed(2)}px`],
+      [offsetSlider, offsetValue, settings.figureHorizontalOffset, (value) => `${value.toFixed(0)}px`],
+      [ySlider, yValue, settings.figureYPosition, (value) => `${value.toFixed(0)}px`],
+      [tempoSlider, tempoValue, settings.figureTempoBpm, (value) => `${value.toFixed(0)} bpm`],
+      [hardLinearitySlider, hardLinearityValue, settings.figureHardLinearity, (value) => `${value.toFixed(0)}%`],
+      [softTransitionSlider, softTransitionValue, settings.figureSoftTransitionPercent, (value) => `${value.toFixed(0)}%`]
+    ];
+    numericControls.forEach(([slider, valueElement, next, format]) => {
+      if (Number.isFinite(Number(next))) {
+        const value = Number(next);
+        slider.value = String(value);
+        valueElement.textContent = format(value);
+      }
+    });
+    if (typeof settings.figureDynamicsVisible === 'boolean') {
+      dynamicsToggle.checked = settings.figureDynamicsVisible;
+    }
+    if (typeof settings.figureCountTimesVisible === 'boolean') {
+      countTimesToggle.checked = settings.figureCountTimesVisible;
+    }
+    setVariant(settings.figureVariant || selectedVariant);
+    setSide(settings.figureSide || selectedSide);
+    if (managerRef) {
+      managerRef.setFigureScale(Number(sizeSlider.value));
+      managerRef.setFigureStrokeWidth(Number(strokeSlider.value));
+      managerRef.setFigureHorizontalOffset(Number(offsetSlider.value));
+      managerRef.setFigureYPosition(Number(ySlider.value));
+      managerRef.setFigureTempoBpm(Number(tempoSlider.value));
+      managerRef.setFigureHardLinearity(Number(hardLinearitySlider.value));
+      managerRef.setFigureSoftTransitionPercent(Number(softTransitionSlider.value));
+      managerRef.setFigureDynamicsVisible(dynamicsToggle.checked);
+      managerRef.setFigureCountTimesVisible(countTimesToggle.checked);
+    }
+    persistFigureSettings();
+  }
+
+  return {
+    panel,
+    setVisible,
+    setTitle,
+    setVariant,
+    setSide,
+    getSettings,
+    setSettings,
+    setLevelManager,
+    getVariant: () => selectedVariant,
+    getSide: () => selectedSide
+  };
+}
+
+function createDynamicFigureModePanel() {
+  const basePanel = createFigureModePanel(null, {
+    settingsKey: 'motionai.dynamic-figure-panel-settings',
+    initialTitle: 'Dynamikebenen',
+    defaultVariant: 'hard'
+  });
+  const pointPanel = document.createElement('div');
+  pointPanel.className = 'dynamic-figure-point-controls';
+  const pointTitle = document.createElement('div');
+  pointTitle.className = 'figure-panel-section-title';
+  pointTitle.textContent = 'Eck. Höhen (Dynamikebenen)';
+  pointPanel.appendChild(pointTitle);
+  basePanel.panel.appendChild(pointPanel);
+
+  let managerRef = null;
+  const presetStorageKey = 'motionai.dynamic-figure-presets';
+  const selectedPresetStorageKey = 'motionai.dynamic-figure-selected-presets';
+  const presetCount = 8;
+  let currentLevel = null;
+  let selectedPreset = 0;
+  let presetData = {};
+  let selectedPresetByLevel = {};
+
+  try {
+    const stored = localStorage.getItem(presetStorageKey);
+    presetData = stored ? JSON.parse(stored) : {};
+  } catch (error) {
+    presetData = {};
+  }
+  try {
+    const stored = localStorage.getItem(selectedPresetStorageKey);
+    selectedPresetByLevel = stored ? JSON.parse(stored) : {};
+  } catch (error) {
+    selectedPresetByLevel = {};
+  }
+
+  const presetPanel = document.createElement('div');
+  presetPanel.className = 'dynamic-figure-presets';
+  const presetTitle = document.createElement('div');
+  presetTitle.className = 'figure-size-label';
+  presetTitle.textContent = 'Presets';
+  const presetSlots = document.createElement('div');
+  presetSlots.className = 'dynamic-figure-preset-slots';
+  const presetSaveButton = document.createElement('button');
+  presetSaveButton.type = 'button';
+  presetSaveButton.className = 'dynamic-figure-preset-action';
+  presetSaveButton.textContent = 'Speichern';
+  presetSaveButton.title = 'Aktuelle Panelwerte in einem Preset speichern';
+  const presetResetButton = document.createElement('button');
+  presetResetButton.type = 'button';
+  presetResetButton.className = 'dynamic-figure-preset-action';
+  presetResetButton.textContent = 'Zurücksetzen';
+  presetResetButton.title = 'Alle Presets auf die Werkseinstellungen zurücksetzen';
+  const presetActions = document.createElement('div');
+  presetActions.className = 'dynamic-figure-preset-actions';
+  presetActions.appendChild(presetSaveButton);
+  presetActions.appendChild(presetResetButton);
+  presetPanel.appendChild(presetTitle);
+  presetPanel.appendChild(presetSlots);
+  presetPanel.appendChild(presetActions);
+  const presetDivider = document.createElement('div');
+  presetDivider.className = 'figure-panel-divider';
+  basePanel.panel.appendChild(presetDivider);
+  basePanel.panel.appendChild(presetPanel);
+
+  function persistPresets() {
+    try {
+      localStorage.setItem(presetStorageKey, JSON.stringify(presetData));
+    } catch (error) {
+      return;
+    }
+  }
+
+  function persistSelectedPresets() {
+    try {
+      localStorage.setItem(selectedPresetStorageKey, JSON.stringify(selectedPresetByLevel));
+    } catch (error) {
+      return;
+    }
+  }
+
+  function getPointCount(level = currentLevel) {
+    return Number.isInteger(level) && level >= 0 && level <= 3 ? (level + 1) * 2 : 0;
+  }
+
+  function getFactoryPreset(slot, level) {
+    const ratio = slot / (presetCount - 1);
+    const settings = {
+      ...basePanel.getSettings(),
+      figureScale: 0.2 + ratio * 0.8,
+      figureStrokeWidth: 0.01 + ratio * 0.49,
+      figureHorizontalOffset: 50 + ratio * 250,
+      figureYPosition: -300 + ratio * 600,
+      figureTempoBpm: 30 + ratio * 90,
+      figureHardLinearity: ratio * 100,
+      figureSoftTransitionPercent: ratio * 50,
+      figureDynamicsVisible: false,
+      figureCountTimesVisible: false,
+      dynamicFigureCornerHeights: Array.from({ length: getPointCount(level) }, () => -20 + ratio * 40)
+    };
+    return settings;
+  }
+
+  function getPreset(level, slot) {
+    const levelData = presetData[String(level)] || {};
+    return levelData[String(slot)] || getFactoryPreset(slot, level);
+  }
+
+  function applyPreset(slot) {
+    if (!Number.isInteger(currentLevel)) {
+      return;
+    }
+    selectedPreset = slot;
+    selectedPresetByLevel[String(currentLevel)] = slot;
+    persistSelectedPresets();
+    const preset = getPreset(currentLevel, slot);
+    basePanel.setSettings(preset);
+    managerRef?.setDynamicFigureCornerHeights(preset.dynamicFigureCornerHeights || []);
+    setLevel(currentLevel, false);
+  }
+
+  function renderPresetSlots() {
+    presetSlots.innerHTML = '';
+    for (let slot = 0; slot < presetCount; slot += 1) {
+      const option = document.createElement('label');
+      option.className = 'dynamic-figure-preset-option';
+      const input = document.createElement('input');
+      input.type = 'radio';
+      input.name = 'dynamic-figure-preset';
+      input.value = String(slot);
+      input.checked = slot === selectedPreset;
+      input.addEventListener('change', () => {
+        if (input.checked) {
+          applyPreset(slot);
+        }
+      });
+      const caption = document.createElement('span');
+      caption.textContent = String(slot + 1);
+      option.appendChild(input);
+      option.appendChild(caption);
+      presetSlots.appendChild(option);
+    }
+  }
+
+  presetSaveButton.addEventListener('click', () => {
+    if (!Number.isInteger(currentLevel)) {
+      return;
+    }
+    const requestedSlot = window.prompt('In welchem Preset-Slot soll gespeichert werden? (1-8)', String(selectedPreset + 1));
+    const slot = Number(requestedSlot) - 1;
+    if (!Number.isInteger(slot) || slot < 0 || slot >= presetCount) {
+      return;
+    }
+    presetData[String(currentLevel)] ||= {};
+    presetData[String(currentLevel)][String(slot)] = {
+      ...basePanel.getSettings(),
+      dynamicFigureCornerHeights: managerRef?.dynamicFigureCornerHeights?.slice(0, getPointCount()) || []
+    };
+    selectedPreset = slot;
+    selectedPresetByLevel[String(currentLevel)] = slot;
+    persistPresets();
+    persistSelectedPresets();
+    renderPresetSlots();
+  });
+
+  presetResetButton.addEventListener('click', () => {
+    presetData = {};
+    persistPresets();
+    applyPreset(selectedPreset);
+  });
+
+  function setLevel(level, applySelectedPreset = true) {
+    pointPanel.querySelectorAll('.dynamic-figure-point-wrap').forEach((element) => element.remove());
+    currentLevel = level;
+    if (Number.isInteger(level)) {
+      const storedSlot = Number(selectedPresetByLevel[String(level)]);
+      selectedPreset = Number.isInteger(storedSlot) && storedSlot >= 0 && storedSlot < presetCount
+        ? storedSlot
+        : 0;
+    }
+    const pointCount = getPointCount(level);
+    for (let index = 0; index < pointCount; index += 1) {
+      const wrap = document.createElement('label');
+      wrap.className = 'figure-size-wrap dynamic-figure-point-wrap';
+
+      const label = document.createElement('div');
+      label.className = 'figure-size-label';
+      const isBeatPoint = index % 2 === 0;
+      label.textContent = `${isBeatPoint ? 'Zählzeit' : 'Zwischenpunkt'} ${Math.floor(index / 2) + 1}`;
+      label.classList.add(isBeatPoint ? 'dynamic-figure-beat-label' : 'dynamic-figure-between-label');
+      wrap.classList.add(isBeatPoint ? 'dynamic-figure-beat-point' : 'dynamic-figure-between-point');
+
+      const slider = document.createElement('input');
+      slider.type = 'range';
+      slider.min = '-20';
+      slider.max = '20';
+      slider.step = '0.5';
+      slider.value = String(managerRef?.dynamicFigureCornerHeights?.[index] ?? 0);
+
+      const value = document.createElement('div');
+      value.className = 'figure-size-value';
+      value.textContent = `${Number(slider.value).toFixed(1)}`;
+
+      slider.addEventListener('input', () => {
+        const next = Number(slider.value);
+        value.textContent = next.toFixed(1);
+        managerRef?.setDynamicFigureCornerHeight(index, next);
+      });
+
+      wrap.appendChild(label);
+      wrap.appendChild(slider);
+      wrap.appendChild(value);
+      pointPanel.appendChild(wrap);
+    }
+    if (applySelectedPreset && Number.isInteger(level)) {
+      applyPreset(selectedPreset);
+    }
+  }
+
+  function setLevelManager(manager) {
+    managerRef = manager || null;
+    basePanel.setLevelManager(managerRef);
+    renderPresetSlots();
+  }
+
+  return {
+    ...basePanel,
+    setLevelManager,
+    setLevel,
+    applyPreset
+  };
 }
 
 function createTrackingControls(trackingController) {
@@ -976,7 +1307,9 @@ export function initApp() {
   const trackingController = startTracking(videoElement, canvasElement, { initialModel: 'pose' });
   const controls = createTrackingControls(trackingController);
   const figurePanel = createFigureModePanel(null);
+  const dynamicFigurePanel = createDynamicFigureModePanel();
   document.body.appendChild(figurePanel.panel);
+  document.body.appendChild(dynamicFigurePanel.panel);
 
   const levelCanvas = document.createElement('canvas');
   levelCanvas.className = 'level-overlay';
@@ -990,6 +1323,30 @@ export function initApp() {
 
   const levelManager = new LevelManager(levelCanvas);
   figurePanel.setLevelManager(levelManager);
+  const dynamicFigureManager = {
+    get figureScale() { return levelManager.dynamicFigureScale; },
+    get figureStrokeWidth() { return levelManager.dynamicFigureStrokeWidth; },
+    get figureHorizontalOffset() { return levelManager.dynamicFigureHorizontalOffset; },
+    get figureYPosition() { return levelManager.dynamicFigureYPosition; },
+    get figureTempoBpm() { return levelManager.dynamicFigureTempoBpm; },
+    get figureHardLinearity() { return levelManager.dynamicFigureHardLinearity; },
+    get figureSoftTransitionPercent() { return levelManager.dynamicFigureSoftTransitionPercent; },
+    setFigureScale: (value) => levelManager.setDynamicFigureScale(value),
+    setFigureStrokeWidth: (value) => levelManager.setDynamicFigureStrokeWidth(value),
+    setFigureHorizontalOffset: (value) => levelManager.setDynamicFigureHorizontalOffset(value),
+    setFigureYPosition: (value) => levelManager.setDynamicFigureYPosition(value),
+    setFigureTempoBpm: (value) => levelManager.setDynamicFigureTempoBpm(value),
+    setFigureHardLinearity: (value) => levelManager.setDynamicFigureHardLinearity(value),
+    setFigureSoftTransitionPercent: (value) => levelManager.setDynamicFigureSoftTransitionPercent(value),
+    setFigureDynamicsVisible: (value) => levelManager.setDynamicFigureDynamicsVisible(value),
+    setFigureCountTimesVisible: (value) => levelManager.setDynamicFigureCountTimesVisible(value),
+    setFigureVariant: (value) => levelManager.setDynamicFigureVariant(value),
+    setFigureSide: (value) => levelManager.setDynamicFigureSide(value),
+    setDynamicFigureCornerHeight: (index, value) => levelManager.setDynamicFigureCornerHeight(index, value),
+    setDynamicFigureCornerHeights: (values) => levelManager.setDynamicFigureCornerHeights(values),
+    get dynamicFigureCornerHeights() { return levelManager.dynamicFigureCornerHeights; }
+  };
+  dynamicFigurePanel.setLevelManager(dynamicFigureManager);
   controls.setLevelManager(levelManager);
   controls.setCalibrationPoseSets(levelManager.getCalibrationPoseSets());
   controls.setCalibrationSetChangeHandler((index) => {
@@ -1024,10 +1381,19 @@ export function initApp() {
   onChapterChange((chapter) => {
     levelManager.setChapter(chapter);
     const isFigureChapter = chapter === 3;
+    const isDynamicFigureChapter = chapter === 4;
     figurePanel.setVisible(isFigureChapter);
+    dynamicFigurePanel.setVisible(isDynamicFigureChapter);
+    if (isDynamicFigureChapter) {
+      dynamicFigurePanel.setTitle('dynamic');
+      dynamicFigurePanel.setVariant(levelManager.dynamicFigureVariant || 'hard');
+      dynamicFigurePanel.setLevel(null);
+      return;
+    }
     if (!isFigureChapter) {
       return;
     }
+    figurePanel.setTitle('basic');
     figurePanel.setVariant(levelManager.figureVariant || 'soft');
   });
 
@@ -1042,8 +1408,16 @@ export function initApp() {
 
     if (uiState.activeChapter === 3) {
       figurePanel.setVisible(level !== null);
+      figurePanel.setTitle(level !== null && level >= 4 ? 'extended' : 'basic');
+      dynamicFigurePanel.setVisible(false);
+    } else if (uiState.activeChapter === 4) {
+      figurePanel.setVisible(false);
+      dynamicFigurePanel.setVisible(level !== null);
+      dynamicFigurePanel.setTitle('dynamic');
+      dynamicFigurePanel.setLevel(level);
     } else {
       figurePanel.setVisible(false);
+      dynamicFigurePanel.setVisible(false);
     }
   });
 

@@ -103,6 +103,16 @@ function renderLevelButtons(levelRow) {
   }
 
   for (let index = 0; index < levelCount; index += 1) {
+    if (uiState.activeChapter === 3 && index === 4) {
+      const divider = document.createElement('div');
+      divider.className = 'level-subsection-divider';
+      levelRow.appendChild(divider);
+
+      const extendedTitle = document.createElement('div');
+      extendedTitle.className = 'level-section-title';
+      extendedTitle.textContent = 'Erweiterte Dirigierfiguren';
+      levelRow.appendChild(extendedTitle);
+    }
     const isActive = uiState.activeLevel === index;
     const label = hasActiveChapter && levelTitles[uiState.activeChapter]
       ? levelTitles[uiState.activeChapter][index] || `Level ${index + 1}`
