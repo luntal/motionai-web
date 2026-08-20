@@ -1,4 +1,4 @@
-import { basicFigurePaths, extendedFigurePaths } from './constants.js';
+import { basicFigurePaths, basicFigurePathsStyle2, extendedFigurePaths } from './constants.js';
 
 export class LevelManager {
   constructor(overlayCanvas) {
@@ -91,6 +91,32 @@ export class LevelManager {
     this.dynamicFigureCornerHeightsByLevel = this.loadDynamicFigureCornerHeights();
     this.dynamicFigureAnimationStart = performance.now();
     this.dynamicFigureActive = false;
+    this.handIndependenceActive = false;
+    this.handIndependenceVariant = 'hard';
+    this.handIndependenceReverse = false;
+    this.handIndependenceDynamicsVisible = false;
+    this.handIndependenceCountTimesVisible = false;
+    this.handIndependenceFigureScale = 1 / 3;
+    this.handIndependenceFigureStrokeWidth = 0.4;
+    this.handIndependenceFigureHardLinearity = 10;
+    this.handIndependenceFigureSoftTransitionPercent = 0;
+    this.handIndependenceFigureTempoBpm = 60;
+    this.handIndependenceSharedTempoBpm = 60;
+    this.handIndependenceTempoRatio = '1:1';
+    this.handIndependenceFigureX = 0;
+    this.handIndependenceFigureY = 0;
+    this.handIndependenceFigureLevel = 0;
+    this.handIndependenceFigureCornerHeights = Array(8).fill(0);
+    this.handIndependenceShape = 'line';
+    this.handIndependenceShapeLength = 12;
+    this.handIndependenceShapeWidth = 8;
+    this.handIndependenceShapeHeight = 8;
+    this.handIndependenceShapeRotation = 0;
+    this.handIndependenceShapeX = 0;
+    this.handIndependenceShapeY = 0;
+    this.handIndependenceShapeTempoBpm = 60;
+    this.handIndependenceShapeLinearity = 0;
+    this.handIndependenceAnimationStart = performance.now();
     this.scaledCalibrationCache = {
       set: null,
       width: 0,
@@ -1082,7 +1108,7 @@ export class LevelManager {
     return Array.from({ length: 8 }, (_, index) => {
       const value = Array.isArray(stored) ? Number(stored[index]) : 0;
       return index < count && Number.isFinite(value)
-        ? Math.min(20, Math.max(-20, value))
+        ? Math.min(25, Math.max(-25, value))
         : 0;
     });
   }
@@ -1265,7 +1291,8 @@ export class LevelManager {
     }
 
     const figureName = ['Einserfigur', 'Zweierfigur', 'Dreierfigur', 'Viererfigur'][level];
-    const pathData = basicFigurePaths[figureName]?.hardD;
+    const variant = this.dynamicFigureVariant === 'soft' ? 'softD' : 'hardD';
+    const pathData = basicFigurePaths[figureName]?.[variant];
     if (!pathData) {
       return null;
     }
@@ -1274,6 +1301,238 @@ export class LevelManager {
       pathData,
       numberPlannedSegments: (level + 1) * 2
     };
+  }
+
+  getHandIndependenceFigureDefinition(level) {
+    const figureNames = [
+      'Einserfigur',
+      'Zweierfigur',
+      'Dreierfigur',
+      'Viererfigur',
+      'Vierviertel',
+      'Dreiviertel',
+      'Zweiviertel'
+    ];
+    const beatCounts = [1, 2, 3, 4, 4, 3, 2];
+    const figureIndex = Number(level);
+    if (!Number.isInteger(figureIndex) || figureIndex < 0 || figureIndex >= figureNames.length) {
+      return null;
+    }
+
+    const figureName = figureNames[figureIndex];
+    const figureSet = figureIndex <= 3 ? basicFigurePaths : basicFigurePathsStyle2;
+    const variantKey = this.handIndependenceVariant === 'soft' ? 'softD' : 'hardD';
+    const pathData = figureSet[figureName]?.[variantKey] || null;
+    const beatCount = beatCounts[figureIndex] || 1;
+
+    return {
+      figureName,
+      beatCount,
+      pathData,
+      numberPlannedSegments: beatCount * 2
+    };
+  }
+
+  setHandIndependenceVariant(variant) {
+    this.handIndependenceVariant = variant === 'soft' ? 'soft' : 'hard';
+    this.requestRender();
+  }
+
+  setHandIndependenceFigureLevel(level) {
+    const next = Number(level);
+    if (Number.isInteger(next) && next >= 0 && next <= 6) {
+      this.handIndependenceFigureLevel = next;
+      this.requestRender();
+    }
+  }
+
+  setHandIndependenceReverse(reverse) {
+    this.handIndependenceReverse = Boolean(reverse);
+    this.requestRender();
+  }
+
+  setHandIndependenceDynamicsVisible(visible) {
+    this.handIndependenceDynamicsVisible = Boolean(visible);
+    this.requestRender();
+  }
+
+  setHandIndependenceCountTimesVisible(visible) {
+    this.handIndependenceCountTimesVisible = Boolean(visible);
+    this.requestRender();
+  }
+
+  drawHandIndependenceCountTimes(state) {
+    if (!this.handIndependenceCountTimesVisible || !state) return;
+    const count = Math.ceil(state.renderSegments.length / 2);
+    const config = state.figureConfigs[0];
+    for (let index = 0; index < count; index += 1) {
+      const anchor = this.getFigureAnchorPoint(state.renderSegments, index * 2);
+      if (!anchor) continue;
+      const anchorX = config.mirrorX ? -anchor.x : anchor.x;
+      const x = state.centerX + config.offsetX + anchorX * state.scaleX;
+      const y = state.centerY + this.handIndependenceFigureY + anchor.y * state.scaleY;
+      this.ctx.save();
+      this.ctx.font = '400 17px sans-serif';
+      this.ctx.textAlign = 'center';
+      this.ctx.fillStyle = 'white';
+      this.ctx.fillText(String(index + 1), x, y - 15);
+      this.ctx.restore();
+    }
+  }
+
+  setHandIndependenceFigureParameter(name, value) {
+    const setters = {
+      scale: (next) => { this.handIndependenceFigureScale = Math.min(1, Math.max(0.2, next)); },
+      strokeWidth: (next) => { this.handIndependenceFigureStrokeWidth = Math.min(0.5, Math.max(0.01, next)); },
+      figureHardLinearity: (next) => { this.handIndependenceFigureHardLinearity = Math.min(100, Math.max(0, next)); },
+      figureSoftTransitionPercent: (next) => { this.handIndependenceFigureSoftTransitionPercent = Math.min(50, Math.max(0, next)); },
+      tempoBpm: (next) => { this.handIndependenceSharedTempoBpm = Math.min(120, Math.max(30, next)); },
+      sharedTempoBpm: (next) => { this.handIndependenceSharedTempoBpm = Math.min(120, Math.max(30, next)); },
+      figureX: (next) => { this.handIndependenceFigureX = Math.min(100, Math.max(-100, next)); },
+      figureY: (next) => { this.handIndependenceFigureY = Math.min(200, Math.max(-200, next)); },
+      sharedX: (next) => { this.handIndependenceFigureX = Math.min(100, Math.max(-100, next)); },
+      sharedY: (next) => { this.handIndependenceFigureY = Math.min(200, Math.max(-200, next)); }
+    };
+    const next = Number(value);
+    if (Number.isFinite(next) && setters[name]) {
+      setters[name](next);
+      this.requestRender();
+    }
+  }
+
+  setHandIndependenceTempoRatio(ratio) {
+    const allowed = ['1:1', '2:1', '3:1', '1:2', '1:3', '0.5:1', '1:0.5'];
+    this.handIndependenceTempoRatio = allowed.includes(ratio) ? ratio : '1:1';
+    this.requestRender();
+  }
+
+  getHandIndependenceTempoPair() {
+    const [first, second] = this.handIndependenceTempoRatio.split(':').map(Number);
+    const base = this.handIndependenceSharedTempoBpm;
+    return { figure: base * second, shape: base * first };
+  }
+
+  setHandIndependenceFigureCornerHeight(index, value) {
+    const next = Number(value);
+    if (Number.isInteger(index) && index >= 0 && index < 8 && Number.isFinite(next)) {
+      this.handIndependenceFigureCornerHeights[index] = Math.min(25, Math.max(-25, next));
+      this.requestRender();
+    }
+  }
+
+  setHandIndependenceShapeParameter(name, value) {
+    const numeric = Number(value);
+    if (name === 'shape' && ['line', 'circle', 'square', 'L'].includes(value)) {
+      this.handIndependenceShape = value;
+    } else if (Number.isFinite(numeric)) {
+      const limits = {
+        length: [1, 50], width: [1, 50], height: [1, 50], rotation: [-180, 180], x: [-200, 200], y: [-200, 200], shapeTempoBpm: [30, 120], linearity: [0, 100]
+      };
+      const [min, max] = limits[name] || [0, 100];
+      const property = `handIndependenceShape${name[0].toUpperCase()}${name.slice(1)}`;
+      if (property in this) this[property] = Math.min(max, Math.max(min, numeric));
+    }
+    this.requestRender();
+  }
+
+  getHandIndependenceDynamicState() {
+    const figureDefinition = this.getHandIndependenceFigureDefinition(this.handIndependenceFigureLevel);
+    if (!figureDefinition || !figureDefinition.pathData) return null;
+
+    const { pathData, numberPlannedSegments } = figureDefinition;
+    const originalSegments = this.buildPlannedFigureSegments(pathData, numberPlannedSegments);
+    const renderSegments = this.applyDynamicFigureCornerHeights(
+      originalSegments,
+      this.handIndependenceFigureCornerHeights.slice(0, numberPlannedSegments)
+    );
+    const baseScale = Math.min(this.canvas.width, this.canvas.height) / 18;
+    const rightConfig = { mirrorX: true, offsetX: 110 + this.handIndependenceFigureX };
+    const leftConfig = { mirrorX: false, offsetX: -110 - this.handIndependenceFigureX };
+    return {
+      pathData,
+      renderSegments,
+      centerX: this.canvas.width / 2,
+      centerY: this.canvas.height / 2,
+      scaleX: baseScale * this.handIndependenceFigureScale,
+      scaleY: baseScale * this.handIndependenceFigureScale,
+      effectiveStrokeWidth: this.handIndependenceFigureStrokeWidth / Math.max(this.handIndependenceFigureScale, 0.2),
+      figureConfigs: [this.handIndependenceReverse ? leftConfig : rightConfig],
+        handIndependenceSettings: {
+          variant: this.handIndependenceVariant,
+          xPosition: 0,
+          yPosition: this.handIndependenceFigureY,
+          rotation: 0
+        }
+    };
+  }
+
+  getHandIndependenceShapeState() {
+    const length = this.handIndependenceShapeLength;
+    const width = this.handIndependenceShapeWidth;
+    const height = this.handIndependenceShapeHeight;
+    let pathData = `M 0 0 L ${length} 0 L 0 0 Z`;
+    if (this.handIndependenceShape === 'circle') {
+      pathData = `M 0 0 C ${width} 0 ${width} ${height} 0 ${height} C -${width} ${height} -${width} 0 0 0 Z`;
+    } else if (this.handIndependenceShape === 'square') {
+      pathData = `M 0 0 L ${width} 0 L ${width} ${height} L 0 ${height} L 0 0 Z`;
+    } else if (this.handIndependenceShape === 'L') {
+      pathData = `M 0 0 L 0 -${height} L ${width} -${height} L ${width} -${height - 2} L 2 -${height - 2} L 2 0 Z`;
+    }
+    const renderSegments = this.buildPlannedFigureSegments(pathData, 2);
+    const baseScale = Math.min(this.canvas.width, this.canvas.height) / 18;
+    const scale = baseScale * 0.25;
+    const shapeConfig = this.handIndependenceReverse
+      ? { mirrorX: true, offsetX: 110 + this.handIndependenceFigureX }
+      : { mirrorX: false, offsetX: -110 - this.handIndependenceFigureX };
+    return {
+      pathData, renderSegments, centerX: this.canvas.width / 2, centerY: this.canvas.height / 2,
+      scaleX: scale, scaleY: scale,
+      effectiveStrokeWidth: this.handIndependenceFigureStrokeWidth / 0.25,
+      figureConfigs: [shapeConfig],
+      handIndependenceSettings: {
+        variant: 'soft',
+        xPosition: 0,
+        yPosition: this.handIndependenceFigureY,
+        rotation: this.handIndependenceShapeRotation,
+        linearity: 100
+      }
+    };
+  }
+
+  drawHandIndependenceMotionPoint(state, settings) {
+    const motionState = this.getFigureMotionState(state.renderSegments, state.scaleX, {
+      variant: settings.variant,
+      tempoBpm: settings.tempoBpm,
+      hardLinearity: this.handIndependenceFigureHardLinearity,
+      softTransitionPercent: this.handIndependenceFigureSoftTransitionPercent,
+      linearity: 0,
+      animationStart: this.handIndependenceAnimationStart
+    });
+    if (!motionState) return;
+    const point = motionState.point;
+    const angle = (Number(settings.rotation) || 0) * Math.PI / 180;
+    const shapeOffsetX = Number(settings.xPosition) || 0;
+    const offsetY = Number(settings.yPosition) || 0;
+    state.figureConfigs.forEach(({ mirrorX, offsetX: figureOffsetX }) => {
+      const localX = point.x * state.scaleX;
+      const localY = point.y * state.scaleY;
+      const rotatedX = Math.cos(angle) * localX - Math.sin(angle) * localY;
+      const rotatedY = Math.sin(angle) * localX + Math.cos(angle) * localY;
+      const mirroredX = mirrorX ? -rotatedX : rotatedX;
+      const x = state.centerX
+        + figureOffsetX
+        + (mirrorX ? -shapeOffsetX : shapeOffsetX)
+        + mirroredX;
+      const y = state.centerY + offsetY + rotatedY;
+      this.ctx.save();
+      this.ctx.fillStyle = 'rgba(255, 255, 255, 0.96)';
+      this.ctx.shadowColor = 'rgba(255, 255, 255, 0.9)';
+      this.ctx.shadowBlur = 14;
+      this.ctx.beginPath();
+      this.ctx.arc(x, y, Math.max(6, Math.min(this.canvas.width, this.canvas.height) * 0.016), 0, Math.PI * 2);
+      this.ctx.fill();
+      this.ctx.restore();
+    });
   }
 
   setDynamicFigureVariant(variant) {
@@ -1358,7 +1617,7 @@ export class LevelManager {
     }
     const next = Number(value);
     if (Number.isFinite(next)) {
-      this.dynamicFigureCornerHeights[index] = Math.min(20, Math.max(-20, next));
+      this.dynamicFigureCornerHeights[index] = Math.min(25, Math.max(-25, next));
       this.persistDynamicFigureCornerHeights();
       this.requestRender();
     }
@@ -1370,7 +1629,7 @@ export class LevelManager {
     }
     this.dynamicFigureCornerHeights = Array.from({ length: 8 }, (_, index) => {
       const value = Number(values[index]);
-      return Number.isFinite(value) ? Math.min(20, Math.max(-20, value)) : 0;
+      return Number.isFinite(value) ? Math.min(25, Math.max(-25, value)) : 0;
     });
     this.persistDynamicFigureCornerHeights();
     this.requestRender();
@@ -1390,12 +1649,22 @@ export class LevelManager {
     const adjustedSegments = renderSegments.map((segment) => cloneSegment(segment));
 
     const adjustMatchingPoints = (segment, originalAnchor, nextY) => {
-      ['start', 'end'].forEach((pointName) => {
-        const point = segment[pointName];
-        if (point && point.x === originalAnchor.x && point.y === originalAnchor.y) {
-          point.y = nextY;
+      if (segment.start
+        && segment.start.x === originalAnchor.x
+        && segment.start.y === originalAnchor.y) {
+        segment.start.y = nextY;
+        if (segment.control1) {
+          segment.control1.y += nextY - originalAnchor.y;
         }
-      });
+      }
+      if (segment.end
+        && segment.end.x === originalAnchor.x
+        && segment.end.y === originalAnchor.y) {
+        segment.end.y = nextY;
+        if (segment.control2) {
+          segment.control2.y += nextY - originalAnchor.y;
+        }
+      }
       if (Array.isArray(segment.segments)) {
         segment.segments.forEach((child) => {
           adjustMatchingPoints(child, originalAnchor, nextY);
@@ -1410,6 +1679,9 @@ export class LevelManager {
       }
       if (segment.end) {
         segment.end.y = nextY;
+        if (segment.control2) {
+          segment.control2.y = nextY;
+        }
       }
     };
 
@@ -1423,15 +1695,15 @@ export class LevelManager {
       }
 
       const nextY = originalAnchor.y + Number(cornerHeights[cornerIndex] || 0);
+      adjustedSegments.forEach((candidate) => {
+        adjustMatchingPoints(candidate, originalAnchor, nextY);
+      });
       if (segment.start) {
         segment.start.y = nextY;
       }
       if (Array.isArray(segment.segments) && segment.segments[0]?.start) {
         segment.segments[0].start.y = nextY;
       }
-      adjustedSegments.forEach((candidate) => {
-        adjustMatchingPoints(candidate, originalAnchor, nextY);
-      });
 
       if (cornerIndex === 0 && adjustedSegments.length > 0) {
         setLastSegmentEndY(adjustedSegments[adjustedSegments.length - 1], nextY);
@@ -1647,9 +1919,13 @@ export class LevelManager {
     const renderSingleFigure = ({ mirrorX, offsetX }) => {
       this.ctx.save();
       this.ctx.translate(
-        centerX + offsetX,
+        centerX + offsetX + (mirrorX ? -(settings.xPosition ?? 0) : (settings.xPosition ?? 0)),
         centerY + (settings.yPosition ?? this.figureYPosition)
       );
+      if (settings.rotation) {
+        const rotationRadians = (Number(settings.rotation) * Math.PI) / 180;
+        this.ctx.rotate(mirrorX ? -rotationRadians : rotationRadians);
+      }
       this.ctx.scale(scaleX, scaleY);
       this.ctx.lineCap = 'round';
       this.ctx.lineJoin = 'round';
@@ -1965,9 +2241,13 @@ export class LevelManager {
 
     const segmentLength = segmentLengths[segmentIndex] || 0;
     const variant = settings.variant || this.figureVariant;
-    const adjustedProgress = variant === 'hard'
+    const baseProgress = variant === 'hard'
       ? this.getHardSegmentProgress(segmentProgress, segmentIndex, settings.hardLinearity)
       : this.getSoftSegmentProgress(segmentProgress, segmentIndex, transitionProfiles);
+    const linearity = Number.isFinite(Number(settings.linearity))
+      ? Math.min(100, Math.max(0, Number(settings.linearity))) / 100
+      : 0;
+    const adjustedProgress = baseProgress + (segmentProgress - baseProgress) * linearity;
     const completedLength = segmentLengths
       .slice(0, segmentIndex)
       .reduce((total, length) => total + length, 0);
@@ -1975,7 +2255,7 @@ export class LevelManager {
     return {
       point: this.getPointAtDistance(points, segmentLength * adjustedProgress),
       pathDistance: completedLength + segmentLength * adjustedProgress,
-      velocity: variant === 'hard'
+      velocity: variant === 'hard' || linearity >= 1
         ? null
         : transitionProfiles?.[segmentIndex]?.velocityAt(segmentProgress) || 0,
       segmentIndex,
@@ -1988,7 +2268,7 @@ export class LevelManager {
       return null;
     }
 
-    const bpm = Math.min(120, Math.max(30, Number(settings.tempoBpm ?? this.figureTempoBpm) || 60));
+    const bpm = Math.min(360, Math.max(30, Number(settings.tempoBpm ?? this.figureTempoBpm) || 60));
     const beatDurationMs = 60000 / bpm;
     const segmentDurationMs = beatDurationMs / 2;
     const pathDurationMs = segmentDurationMs * renderSegments.length;
@@ -2347,8 +2627,23 @@ export class LevelManager {
       return;
     }
 
+    if (this.chapter === 5) {
+      this.handIndependenceActive = Number.isInteger(this.level) && this.level >= 0 && this.level <= 7;
+      this.handIndependenceAnimationStart = performance.now();
+      this.active = false;
+      this.figureActive = false;
+      this.dynamicFigureActive = false;
+      this.calibrationActive = false;
+      this.consistencyActive = false;
+      this.setCalibrationPanelVisible(false);
+      this.setConsistencyPanelVisible(false);
+      this.render();
+      return;
+    }
+
     this.figureActive = false;
     this.dynamicFigureActive = false;
+    this.handIndependenceActive = false;
     this.calibrationActive = false;
     this.setCalibrationPanelVisible(false);
     this.consistencyActive = false;
@@ -2629,6 +2924,7 @@ export class LevelManager {
     ) || (
       (this.chapter === 3 && this.figureActive)
       || (this.chapter === 4 && this.dynamicFigureActive)
+      || (this.chapter === 5 && this.handIndependenceActive)
     ) || (
       !this.calibrationActive && (this.active || this.consistencyActive)
     );
@@ -2690,6 +2986,37 @@ export class LevelManager {
       });
       this.drawDynamicFigureCountTimes(dynamicFigureState);
       this.drawDynamicFigureMotionPoints(dynamicFigureState);
+      this.renderPoseAlignmentFeedback();
+      this.requestRender();
+      return;
+    }
+
+    if (this.chapter === 5 && Number.isInteger(this.level) && this.level >= 0 && this.level <= 7) {
+      const dynamicState = this.getHandIndependenceDynamicState();
+      const shapeState = this.getHandIndependenceShapeState();
+      const tempoPair = this.getHandIndependenceTempoPair();
+      if (dynamicState) {
+        if (this.handIndependenceDynamicsVisible) this.drawFigureDynamics();
+        this.drawFigurePath(dynamicState, dynamicState.handIndependenceSettings);
+        this.drawHandIndependenceCountTimes(dynamicState);
+        this.drawHandIndependenceMotionPoint(dynamicState, {
+          variant: this.handIndependenceVariant,
+          tempoBpm: tempoPair.figure,
+          xPosition: 0,
+          yPosition: this.handIndependenceFigureY
+        });
+      }
+      if (shapeState) {
+        this.drawFigurePath(shapeState, shapeState.handIndependenceSettings);
+        this.drawHandIndependenceMotionPoint(shapeState, {
+          variant: 'soft',
+          tempoBpm: tempoPair.shape,
+          linearity: 100,
+          xPosition: 0,
+          yPosition: this.handIndependenceFigureY,
+          rotation: this.handIndependenceShapeRotation
+        });
+      }
       this.renderPoseAlignmentFeedback();
       this.requestRender();
       return;

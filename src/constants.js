@@ -1,6 +1,6 @@
-export const CHAPTER_COUNT = 7;
+export const CHAPTER_COUNT = 8;
 export const LEVEL_COUNT = 5;
-export const chapterLevelCounts = [3, 5, 6, 7, 4, 5, 5];
+export const chapterLevelCounts = [3, 5, 6, 7, 4, 8, 5, 5];
 
 export function getLevelCountForChapter(chapter) {
   if (!Number.isInteger(chapter) || chapter < 0 || chapter >= chapterLevelCounts.length) {
@@ -15,6 +15,7 @@ export const chapterTitles = [
   'Gleichmäßigkeit',
   'Grundfiguren',
   'Dynamikebenen',
+  'Handunabhängigkeit',
   'Einsätze geben',
   'Prüfungen'
 ];
@@ -25,6 +26,7 @@ export const chapterDescriptions = [
   'Gleichmäßigkeit: Übe deine Bewegungen gleichmäßig auszuführen.',
   'Grundfiguren: Übe grundlegende Dirigierschläge und Bewegungsmuster.',
   'Dynamikebenen: Platzhalter für zukünftige Übungen zu dynamischen Bewegungsstufen.',
+  'Handunabhängigkeit: Übe die Unabhängigkeit deiner Hände durch unterschiedliche Bewegungsmuster in der linken und rechten Hand.',
   'Einsätze geben: Platzhalter für zukünftige Einsatzübungen.',
   'Prüfungen: Platzhalter für die Prüfungsstruktur und spätere Aufgaben.'
 ];
@@ -34,7 +36,8 @@ export const levelTitles = [
   ['Rechts', 'Links', 'Symmetrisch', 'Alternierend', 'Parallele Linien'],
   ['Rechte Linie', 'Linke Linie', 'Synchron', 'Versetzt', '2:1 Tempo', 'Ellipsen'],
   ['Einserfigur', 'Zweierfigur', 'Dreierfigur', 'Viererfigur', 'Fünferfigur', 'Sechserfigur', 'Siebenerfigur'],
-  ['Lehrübung 1', 'Lehrübung 2', 'Lehrübung 3', 'Lehrübung 4'],
+  ['Einsertakt', 'Zweiertakt', 'Dreiertakt', 'Vierertakt'],
+  ['Preset 1', 'Preset 2', 'Preset 3', 'Preset 4', 'Preset 5', 'Preset 6', 'Preset 7', 'Preset 8'],
   ['Lehrübung 1', 'Lehrübung 2', 'Lehrübung 3', 'Lehrübung 4', 'Lehrübung 5'],
   ['Lehrübung 1', 'Lehrübung 2', 'Lehrübung 3', 'Lehrübung 4', 'Lehrübung 5']
 ];
@@ -75,6 +78,7 @@ export const levelDescriptions = [
     'Dynamikebene 3: Platzhalter für zukünftige Übungen zu dynamischen Bewegungsstufen.',
     'Dynamikebene 4: Platzhalter für zukünftige Übungen zu dynamischen Bewegungsstufen.'
   ],
+  ['Preset 1', 'Preset 2', 'Preset 3', 'Preset 4', 'Preset 5', 'Preset 6', 'Preset 7', 'Preset 8'],
   [
     'Lehrübung 1: Platzhalter für Einsatzübungen ohne Zuordnung zu Grundfiguren.',
     'Lehrübung 2: Platzhalter für Einsatzübungen ohne Zuordnung zu Grundfiguren.',
@@ -124,3 +128,18 @@ export const extendedFigurePaths = {
     hardD:'M 0 0 L 8.163 -7.455 L -3.163 -4.287 L 8.163 -7.455 L -3.163 -4.287 L -5.651 -11.108 L 4.173 -8.32 L -5.651 -11.108 L 4.173 -8.32 L 6.146 -13.467 L 2.028 -12.438 L 0 -16.441 L 0 0 L 0 -16.441 L 0 0 Z'
   }
 };
+
+export const basicFigurePathsStyle2 = {
+  'Vierviertel': {
+    softD: 'M 0 0 C 1.951 -0.02 1.951 -3.107 0.001 -2.978 C -1.043 -2.807 -1.803 0.003 -4.453 0.001 C -7.1 0.003 -6.018 -3.245 -4.058 -3.222 C -2.402 -3.199 1.859 -0.02 5.092 0.001 C 7.363 0.003 7.363 -3.084 5.166 -3.111 C 2.78 -3.084 2.297 0.003 1.375 0.026 C -0.651 -0.066 -0.168 -12.872 -0.905 -15.728 C -1.0123 -10.991 -1.1197 -6.254 -1.227 -1.517 C -1.204 -0.688 -1.066 -0.089 -0.007 -0.02 Z',
+    hardD: 'M 0 0 C 0.185 -1.716 0.39 -2.418 -1.161 -2.447 C -2.272 -2.506 -2.594 -1.336 -2.565 0 C -2.682 -1.921 -3.618 -3.12 0.536 -3.12 C 4.369 -3.032 3.432 -2.126 3.725 0 C 4.047 -1.921 4.486 -2.389 2.994 -2.418 C 2.028 -2.389 1.414 -2.506 1.385 0 C 0.916 -0.838 0.419 -13.067 -0.4 -15.554 C -0.371 -13.243 -0.751 -1.511 0 0 Z'
+  },
+  'Dreiviertel': {
+    softD: 'M -3 0 C -6.068 0.009 -5.2 -3.336 -2.959 -3.468 C 0.57 -3.821 4.63 0.009 6.904 0.08 C 9.558 -0.016 10.011 -3.273 6.571 -3.273 C 4.043 -3.182 3.507 0.009 1.926 0.034 C -0.579 -0.042 0.723 -14.341 -0.102 -16.925 C -0.194 -11.165 -0.17 -4.587 -0.196 -3.182 C -0.221 -1.267 -0.936 -0.042 -3 0 Z',
+    hardD: 'M 0 0 C -0.408 -2.662 -0.869 -3.295 1.722 -3.295 C 4.341 -3.324 3.564 -2.201 4.11 -0.014 C 4.398 -1.971 4.485 -2.604 3.276 -2.662 C 2.211 -2.604 2.355 -1.626 2.067 0.015 C 1.75 -1.712 1.204 -14.922 0.455 -16.591 C 0.398 -11.267 0.513 -5.05 0.484 -3.784 C 0.369 -1.367 0.196 -0.849 0 0 Z'
+  },
+  'Zweiviertel': {
+    softD: 'M 3 0 C 6.178 -0.004 6.882 -3.642 6.694 -4.228 C 5.779 -3.102 4.618 -1.952 3.177 -1.927 C -0.668 -2.053 0.748 -14.423 -0.006 -16.032 C 0.0113 -11.679 0.0287 -7.326 0.046 -2.973 C 0.123 -1.6 0.968 -0.004 3 0 Z',
+    hardD: 'M 1 0 C 1.693 -0.034 1.885 -4.215 1.621 -4.239 C 1.38 -3.614 1.308 -1.644 0.852 -1.644 C 0.227 -1.62 0.748 -14.423 -0.006 -16.032 C 0.0113 -11.679 0.0287 -7.326 0.046 -2.973 C 0.123 -1.6 0.395 -0.058 1 0 Z'
+  }
+}

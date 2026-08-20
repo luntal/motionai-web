@@ -137,6 +137,101 @@ canvas {
   margin-top: 0.4rem;
 }
 
+.hand-independence-navigation-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin-top: 0.4rem;
+}
+
+.hand-independence-preset-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.hand-independence-shape-control-hidden {
+  display: none !important;
+}
+
+.hand-independence-figure-motion-control-hidden {
+  display: none !important;
+}
+
+.hand-independence-preset-header .figure-panel-section-title {
+  margin-top: 0;
+}
+
+.hand-independence-preset-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0.5rem 0 0.2rem;
+}
+
+.hand-independence-preset-select,
+.hand-independence-tempo-ratio,
+.hand-independence-panel select,
+.hand-independence-preset-row .dynamic-figure-preset-action {
+  min-width: 0;
+  min-height: 2rem;
+  box-sizing: border-box;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.07);
+  color: #edf2ff;
+  font-family: var(--ui-font-family);
+  font-size: 0.72rem;
+}
+
+.hand-independence-panel select {
+  width: 100%;
+  min-height: 2rem;
+  padding: 0.35rem 0.45rem;
+  margin-top: 0.45rem;
+  margin-bottom: 0.45rem;
+}
+
+.hand-independence-panel .figure-mode-group {
+  flex-direction: row;
+  gap: 0.35rem;
+}
+
+.hand-independence-panel .figure-mode-option {
+  flex: 1;
+  padding: 0.45rem 0.5rem;
+  justify-content: center;
+}
+
+.hand-independence-preset-select {
+  padding: 0.35rem 0.45rem;
+}
+
+.hand-independence-preset-row .dynamic-figure-preset-action {
+  padding: 0.35rem 0.55rem;
+  font-size: 0.72rem;
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hand-independence-reset-button {
+  flex: 0 0 auto;
+  width: 1.65rem;
+  min-width: 1.65rem;
+  min-height: 1.65rem;
+  padding: 0.1rem;
+  font-size: 0.85rem;
+}
+
+.hand-independence-preset-row .dynamic-figure-preset-action:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
 .dynamic-figure-preset-action {
   flex: 1;
   padding: 0.4rem 0.5rem;

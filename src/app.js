@@ -656,6 +656,7 @@ function createDynamicFigureModePanel() {
     const ratio = slot / (presetCount - 1);
     const settings = {
       ...basePanel.getSettings(),
+      figureVariant: 'hard',
       figureScale: 0.2 + ratio * 0.8,
       figureStrokeWidth: 0.01 + ratio * 0.49,
       figureHorizontalOffset: 50 + ratio * 250,
@@ -665,7 +666,7 @@ function createDynamicFigureModePanel() {
       figureSoftTransitionPercent: ratio * 50,
       figureDynamicsVisible: false,
       figureCountTimesVisible: false,
-      dynamicFigureCornerHeights: Array.from({ length: getPointCount(level) }, () => -20 + ratio * 40)
+      dynamicFigureCornerHeights: Array.from({ length: getPointCount(level) }, () => -25 + ratio * 50)
     };
     return settings;
   }
@@ -683,7 +684,9 @@ function createDynamicFigureModePanel() {
     selectedPresetByLevel[String(currentLevel)] = slot;
     persistSelectedPresets();
     const preset = getPreset(currentLevel, slot);
+    const variant = preset.figureVariant === 'soft' ? 'soft' : 'hard';
     basePanel.setSettings(preset);
+    basePanel.setVariant(variant);
     managerRef?.setDynamicFigureCornerHeights(preset.dynamicFigureCornerHeights || []);
     setLevel(currentLevel, false);
   }
@@ -721,8 +724,10 @@ function createDynamicFigureModePanel() {
       return;
     }
     presetData[String(currentLevel)] ||= {};
+    const panelSettings = basePanel.getSettings();
     presetData[String(currentLevel)][String(slot)] = {
-      ...basePanel.getSettings(),
+      ...panelSettings,
+      figureVariant: panelSettings.figureVariant === 'soft' ? 'soft' : 'hard',
       dynamicFigureCornerHeights: managerRef?.dynamicFigureCornerHeights?.slice(0, getPointCount()) || []
     };
     selectedPreset = slot;
@@ -761,9 +766,9 @@ function createDynamicFigureModePanel() {
 
       const slider = document.createElement('input');
       slider.type = 'range';
-      slider.min = '-20';
-      slider.max = '20';
-      slider.step = '0.5';
+      slider.min = '-25';
+      slider.max = '25';
+      slider.step = '0.1';
       slider.value = String(managerRef?.dynamicFigureCornerHeights?.[index] ?? 0);
 
       const value = document.createElement('div');
@@ -797,6 +802,316 @@ function createDynamicFigureModePanel() {
     setLevelManager,
     setLevel,
     applyPreset
+  };
+}
+
+function createHandIndependencePanel() {
+  const panel = document.createElement('aside');
+  panel.className = 'figure-side-panel hidden hand-independence-panel';
+  const storageKey = 'motionai.hand-independence-panel-settings';
+  const presetKey = 'motionai.hand-independence-presets';
+  let managerRef = null;
+  let settings = {};
+  let presets = {};
+  try {
+    const storedSettings = JSON.parse(localStorage.getItem(storageKey) || '{}');
+    settings = storedSettings && typeof storedSettings === 'object' ? storedSettings : {};
+  } catch (error) { settings = {}; }
+  try {
+    const storedPresets = JSON.parse(localStorage.getItem(presetKey) || '{}');
+    presets = storedPresets && typeof storedPresets === 'object' ? storedPresets : {};
+  } catch (error) { presets = {}; }
+
+  const title = document.createElement('div');
+  title.className = 'figure-side-panel-title';
+  title.textContent = 'Handunabhängigkeit';
+  panel.appendChild(title);
+
+  let selectedPresetSlot = 0;
+
+  const createSection = (label) => {
+    const heading = document.createElement('div');
+    heading.className = 'figure-panel-section-title';
+    heading.textContent = label;
+    panel.appendChild(heading);
+  };
+  const addDivider = () => {
+    const divider = document.createElement('div');
+    divider.className = 'figure-panel-divider';
+    panel.appendChild(divider);
+  };
+  const controls = {};
+  const controlWraps = {};
+  const addRange = (key, label, min, max, step, group, target = panel) => {
+    const wrap = document.createElement('label');
+    wrap.className = 'figure-size-wrap';
+    const caption = document.createElement('div');
+    caption.className = 'figure-size-label';
+    caption.textContent = label;
+    const input = document.createElement('input');
+    input.type = 'range'; input.min = String(min); input.max = String(max); input.step = String(step);
+    input.value = String(settings[key] ?? (min + max) / 2);
+    const value = document.createElement('div');
+    value.className = 'figure-size-value'; value.textContent = input.value;
+    input.addEventListener('input', () => {
+      settings[key] = Number(input.value); value.textContent = input.value;
+      managerRef?.setHandIndependenceFigureParameter(key, Number(input.value));
+      managerRef?.setHandIndependenceShapeParameter(key, Number(input.value));
+      persist();
+    });
+    wrap.append(caption, input, value); target.appendChild(wrap); controls[key] = input; controlWraps[key] = wrap;
+    return group;
+  };
+  const addToggle = (key, label) => {
+    const wrap = document.createElement('label'); wrap.className = 'figure-dynamics-toggle';
+    const input = document.createElement('input'); input.type = 'checkbox'; input.checked = Boolean(settings[key]);
+    input.addEventListener('change', () => { settings[key] = input.checked; managerRef?.setHandIndependenceReverse(input.checked); persist(); });
+    wrap.append(input, document.createTextNode(label)); panel.appendChild(wrap); controls[key] = input;
+  };
+
+  addToggle('reverse', 'Umkehren');
+  const dynamicsToggle = document.createElement('label');
+  dynamicsToggle.className = 'figure-dynamics-toggle';
+  const dynamicsInput = document.createElement('input');
+  dynamicsInput.type = 'checkbox';
+  dynamicsInput.checked = Boolean(settings.dynamicsVisible);
+  dynamicsInput.addEventListener('change', () => {
+    settings.dynamicsVisible = dynamicsInput.checked;
+    managerRef?.setHandIndependenceDynamicsVisible(dynamicsInput.checked);
+    persist();
+  });
+  dynamicsToggle.append(dynamicsInput, document.createTextNode('Dynamiklinien'));
+  panel.appendChild(dynamicsToggle);
+  addRange('strokeWidth', 'Stroke', 0.01, 0.5, 0.01);
+  addRange('sharedY', 'Y', -200, 200, 0.1);
+  addRange('sharedX', 'X', -100, 100, 0.1);
+  addDivider();
+  const tempoRatioTitle = document.createElement('div');
+  tempoRatioTitle.className = 'figure-panel-section-title';
+  tempoRatioTitle.textContent = 'Tempo';
+  panel.appendChild(tempoRatioTitle);
+  addRange('sharedTempoBpm', 'BPM', 30, 120, 1);
+  const ratioSelect = document.createElement('select');
+  ratioSelect.className = 'hand-independence-tempo-ratio';
+  ['1:1', '2:1', '3:1', '1:2', '1:3', '0.5:1', '1:0.5'].forEach((ratio) => {
+    const option = document.createElement('option');
+    option.value = ratio;
+    option.textContent = ratio;
+    ratioSelect.appendChild(option);
+  });
+  ratioSelect.value = settings.tempoRatio || '1:1';
+  ratioSelect.addEventListener('change', () => {
+    settings.tempoRatio = ratioSelect.value;
+    managerRef?.setHandIndependenceTempoRatio(ratioSelect.value);
+    persist();
+  });
+  panel.appendChild(ratioSelect);
+  controls.tempoRatio = ratioSelect;
+  addDivider();
+  createSection('Taktgebung');
+  const figureSelect = document.createElement('select');
+  figureSelect.className = 'hand-independence-figure-select';
+  ['Einserfigur', 'Zweierfigur', 'Dreierfigur', 'Viererfigur', 'Vierviertel', 'Dreiviertel', 'Zweiviertel'].forEach((figureName, index) => {
+    const option = document.createElement('option');
+    option.value = String(index);
+    option.textContent = figureName;
+    figureSelect.appendChild(option);
+  });
+  figureSelect.value = String(Number(settings.figureLevel ?? 0));
+  figureSelect.addEventListener('change', () => {
+    settings.figureLevel = Number(figureSelect.value);
+    managerRef?.setHandIndependenceFigureLevel(settings.figureLevel);
+    rebuildCornerControls(settings.figureLevel);
+    persist();
+  });
+  panel.appendChild(figureSelect);
+  controls.figureLevel = figureSelect;
+  const variantGroup = document.createElement('div'); variantGroup.className = 'figure-mode-group';
+  const variantInputs = {};
+  ['soft', 'hard'].forEach((variant) => {
+    const label = document.createElement('label'); label.className = 'figure-mode-option';
+    const input = document.createElement('input'); input.type = 'radio'; input.name = 'hand-independence-variant'; input.value = variant;
+    input.checked = (settings.variant || 'hard') === variant;
+    variantInputs[variant] = input;
+    input.addEventListener('change', () => { if (input.checked) { settings.variant = variant; managerRef?.setHandIndependenceVariant(variant); persist(); } });
+    label.append(input, document.createTextNode(variant === 'soft' ? 'Weich' : 'Hart')); variantGroup.appendChild(label);
+  });
+  panel.appendChild(variantGroup);
+  const countToggle = document.createElement('label');
+  countToggle.className = 'figure-dynamics-toggle';
+  const countInput = document.createElement('input');
+  countInput.type = 'checkbox';
+  countInput.checked = Boolean(settings.countTimesVisible);
+  countInput.addEventListener('change', () => {
+    settings.countTimesVisible = countInput.checked;
+    managerRef?.setHandIndependenceCountTimesVisible(countInput.checked);
+    persist();
+  });
+  countToggle.append(countInput, document.createTextNode('Zählzeiten'));
+  panel.appendChild(countToggle);
+  addRange('scale', 'Größe', 0.2, 1, 0.01);
+  const updateFigureMotionControlVisibility = () => {
+    if (controlWraps.figureHardLinearity) {
+      controlWraps.figureHardLinearity.classList.toggle(
+        'hand-independence-figure-motion-control-hidden',
+        settings.variant !== 'hard'
+      );
+    }
+    if (controlWraps.figureSoftTransitionPercent) {
+      controlWraps.figureSoftTransitionPercent.classList.toggle(
+        'hand-independence-figure-motion-control-hidden',
+        settings.variant === 'hard'
+      );
+    }
+  };
+  addRange('figureHardLinearity', 'Linearität', 0, 100, 1);
+  addRange('figureSoftTransitionPercent', 'Übergangslänge', 0, 50, 1);
+  variantGroup.addEventListener('change', () => {
+    updateFigureMotionControlVisibility();
+    persist();
+  });
+  const cornerPanel = document.createElement('div');
+  cornerPanel.className = 'dynamic-figure-point-controls';
+  panel.appendChild(cornerPanel);
+  updateFigureMotionControlVisibility();
+
+  addDivider();
+  createSection('Gegensatz');
+  const select = document.createElement('select');
+  [['line', 'Linie'], ['circle', 'Kreis'], ['square', 'Viereck'], ['L', 'L']].forEach(([value, label]) => {
+    const option = document.createElement('option'); option.value = value; option.textContent = label; select.appendChild(option);
+  });
+  select.value = settings.shape || 'line';
+  const updateShapeControlVisibility = () => {
+    const shape = select.value;
+    const visibleControls = shape === 'line'
+      ? ['length', 'rotation']
+      : ['width', 'height', 'rotation'];
+    ['length', 'width', 'height', 'rotation'].forEach((key) => {
+      if (controlWraps[key]) {
+        controlWraps[key].classList.toggle(
+          'hand-independence-shape-control-hidden',
+          !visibleControls.includes(key)
+        );
+      }
+    });
+  };
+  select.addEventListener('change', () => {
+    settings.shape = select.value;
+    managerRef?.setHandIndependenceShapeParameter('shape', select.value);
+    updateShapeControlVisibility();
+    updateFigureMotionControlVisibility();
+    persist();
+  });
+  panel.appendChild(select); controls.shape = select;
+  addRange('length', 'Länge', 1, 50, 0.1);
+  addRange('width', 'Breite', 1, 50, 0.1);
+  addRange('height', 'Höhe', 1, 50, 0.1);
+  addRange('rotation', 'Rotation', -180, 180, 1);
+  updateShapeControlVisibility();
+
+  function persist() { try { localStorage.setItem(storageKey, JSON.stringify(settings)); } catch (error) { return; } }
+  function apply(next) {
+    const safeNext = next && typeof next === 'object' ? next : {};
+    settings = { ...settings, ...safeNext };
+    const selectedVariant = safeNext.variant === 'hard' || settings.variant === 'hard'
+      ? 'hard'
+      : 'soft';
+    settings.variant = selectedVariant;
+    Object.entries(variantInputs).forEach(([variant, input]) => {
+      input.checked = variant === selectedVariant;
+    });
+    if (Number.isInteger(Number(safeNext.figureLevel))) {
+      const figureLevel = Math.max(0, Math.min(6, Number(safeNext.figureLevel)));
+      settings.figureLevel = figureLevel;
+      figureSelect.value = String(figureLevel);
+    }
+    Object.entries(safeNext).forEach(([key, value]) => {
+      const control = controls[key];
+      if (control && control.type === 'range') control.value = String(value);
+      if (control && control.type === 'checkbox') control.checked = Boolean(value);
+      if (control && control.tagName === 'SELECT') control.value = String(value);
+    });
+    if (safeNext.variant) managerRef?.setHandIndependenceVariant(safeNext.variant);
+    if (Number.isInteger(Number(safeNext.figureLevel))) {
+      managerRef?.setHandIndependenceFigureLevel(Number(safeNext.figureLevel));
+    }
+    if (typeof safeNext.reverse === 'boolean') managerRef?.setHandIndependenceReverse(safeNext.reverse);
+    if (typeof safeNext.dynamicsVisible === 'boolean') managerRef?.setHandIndependenceDynamicsVisible(safeNext.dynamicsVisible);
+    if (typeof safeNext.countTimesVisible === 'boolean') managerRef?.setHandIndependenceCountTimesVisible(safeNext.countTimesVisible);
+    if (safeNext.tempoRatio) managerRef?.setHandIndependenceTempoRatio(safeNext.tempoRatio);
+    Object.entries(safeNext).forEach(([key, value]) => {
+      if (key !== 'variant' && key !== 'reverse') {
+        managerRef?.setHandIndependenceFigureParameter(key, value);
+        managerRef?.setHandIndependenceShapeParameter(key, value);
+      }
+    });
+    updateShapeControlVisibility();
+    updateFigureMotionControlVisibility();
+    rebuildCornerControls(settings.figureLevel);
+    persist();
+  }
+  function savePresetFromPrompt() {
+    const requestedSlot = window.prompt('In welchen Preset-Slot sollen die aktuellen Einstellungen gespeichert werden? (1-8)');
+    const slot = Number(requestedSlot) - 1;
+    if (!Number.isInteger(slot) || slot < 0 || slot >= 8) {
+      return null;
+    }
+    presets[String(slot)] = { ...settings };
+    selectedPresetSlot = slot;
+    localStorage.setItem(presetKey, JSON.stringify(presets));
+    return slot;
+  }
+  function resetPresets() {
+    presets = {};
+    localStorage.setItem(presetKey, '{}');
+  }
+  function rebuildCornerControls(figureLevelOverride = settings.figureLevel) {
+    cornerPanel.replaceChildren();
+    Object.keys(controls)
+      .filter((key) => key.startsWith('corner'))
+      .forEach((key) => delete controls[key]);
+
+    const figureLevel = Number.isInteger(Number(figureLevelOverride))
+      ? Math.max(0, Math.min(6, Number(figureLevelOverride)))
+      : 0;
+    const handIndependenceBeatCounts = [1, 2, 3, 4, 4, 3, 2];
+    const beatCount = handIndependenceBeatCounts[figureLevel] || 1;
+    const count = beatCount * 2;
+    for (let displayIndex = 0; displayIndex < count; displayIndex += 1) {
+      const isBeat = displayIndex < beatCount;
+      const pointIndex = isBeat
+        ? displayIndex * 2
+        : (displayIndex - beatCount) * 2 + 1;
+      addRange(
+        `corner${pointIndex}`,
+        `${isBeat ? 'Zählzeit' : 'Zwischenpunkt'} ${isBeat ? displayIndex + 1 : displayIndex - beatCount + 1}`,
+        -25,
+        25,
+        0.1,
+        null,
+        cornerPanel
+      );
+      const input = controls[`corner${pointIndex}`];
+      input.addEventListener('input', () => {
+        managerRef?.setHandIndependenceFigureCornerHeight(pointIndex, Number(input.value));
+      });
+    }
+  }
+
+  return {
+    panel,
+    setVisible: (visible) => panel.classList.toggle('hidden', !visible),
+    setLevelManager: (manager) => { managerRef = manager || null; apply(settings); },
+    setLevel: rebuildCornerControls,
+    applyPreset: (slot) => {
+      selectedPresetSlot = Math.max(0, Math.min(7, Number(slot) || 0));
+      if (presets[String(selectedPresetSlot)]) {
+        apply(presets[String(selectedPresetSlot)]);
+      }
+    },
+    savePresetFromPrompt,
+    resetPresets
   };
 }
 
@@ -1308,8 +1623,10 @@ export function initApp() {
   const controls = createTrackingControls(trackingController);
   const figurePanel = createFigureModePanel(null);
   const dynamicFigurePanel = createDynamicFigureModePanel();
+  const handIndependencePanel = createHandIndependencePanel();
   document.body.appendChild(figurePanel.panel);
   document.body.appendChild(dynamicFigurePanel.panel);
+  document.body.appendChild(handIndependencePanel.panel);
 
   const levelCanvas = document.createElement('canvas');
   levelCanvas.className = 'level-overlay';
@@ -1347,6 +1664,17 @@ export function initApp() {
     get dynamicFigureCornerHeights() { return levelManager.dynamicFigureCornerHeights; }
   };
   dynamicFigurePanel.setLevelManager(dynamicFigureManager);
+  handIndependencePanel.setLevelManager({
+    setHandIndependenceVariant: (value) => levelManager.setHandIndependenceVariant(value),
+    setHandIndependenceFigureLevel: (value) => levelManager.setHandIndependenceFigureLevel(value),
+    setHandIndependenceReverse: (value) => levelManager.setHandIndependenceReverse(value),
+    setHandIndependenceDynamicsVisible: (value) => levelManager.setHandIndependenceDynamicsVisible(value),
+    setHandIndependenceCountTimesVisible: (value) => levelManager.setHandIndependenceCountTimesVisible(value),
+    setHandIndependenceTempoRatio: (value) => levelManager.setHandIndependenceTempoRatio(value),
+    setHandIndependenceFigureParameter: (name, value) => levelManager.setHandIndependenceFigureParameter(name, value),
+    setHandIndependenceFigureCornerHeight: (index, value) => levelManager.setHandIndependenceFigureCornerHeight(index, value),
+    setHandIndependenceShapeParameter: (name, value) => levelManager.setHandIndependenceShapeParameter(name, value)
+  });
   controls.setLevelManager(levelManager);
   controls.setCalibrationPoseSets(levelManager.getCalibrationPoseSets());
   controls.setCalibrationSetChangeHandler((index) => {
@@ -1382,8 +1710,10 @@ export function initApp() {
     levelManager.setChapter(chapter);
     const isFigureChapter = chapter === 3;
     const isDynamicFigureChapter = chapter === 4;
+    const isHandIndependenceChapter = chapter === 5;
     figurePanel.setVisible(isFigureChapter);
     dynamicFigurePanel.setVisible(isDynamicFigureChapter);
+    handIndependencePanel.setVisible(isHandIndependenceChapter);
     if (isDynamicFigureChapter) {
       dynamicFigurePanel.setTitle('dynamic');
       dynamicFigurePanel.setVariant(levelManager.dynamicFigureVariant || 'hard');
@@ -1415,10 +1745,28 @@ export function initApp() {
       dynamicFigurePanel.setVisible(level !== null);
       dynamicFigurePanel.setTitle('dynamic');
       dynamicFigurePanel.setLevel(level);
+      handIndependencePanel.setVisible(false);
+    } else if (uiState.activeChapter === 5) {
+      figurePanel.setVisible(false);
+      dynamicFigurePanel.setVisible(false);
+      handIndependencePanel.setVisible(level !== null);
+      handIndependencePanel.applyPreset(level);
+      handIndependencePanel.setLevel();
     } else {
       figurePanel.setVisible(false);
       dynamicFigurePanel.setVisible(false);
+      handIndependencePanel.setVisible(false);
     }
+  });
+
+  document.addEventListener('hand-independence-save-preset', () => {
+    const savedSlot = handIndependencePanel.savePresetFromPrompt();
+    if (Number.isInteger(savedSlot)) {
+      setActiveLevel(savedSlot);
+    }
+  });
+  document.addEventListener('hand-independence-reset-presets', () => {
+    handIndependencePanel.resetPresets();
   });
 
   levelManager.setCompletionCallback((chapter, level) => {
