@@ -805,6 +805,284 @@ function createDynamicFigureModePanel() {
   };
 }
 
+function createSquareExercisePanel() {
+  const panel = document.createElement('aside');
+  panel.className = 'figure-side-panel hidden square-exercise-panel';
+  let managerRef = null;
+  let selectedHandMode = 'right';
+  let selectedResolution = 1.0;
+  let selectedGridResolution = 1.0;
+  let selectedShape = 'square';
+
+  const title = document.createElement('div');
+  title.className = 'figure-side-panel-title';
+  title.textContent = 'Asynchron';
+  panel.appendChild(title);
+
+  const shapeTitle = document.createElement('div');
+  shapeTitle.className = 'figure-panel-section-title';
+  shapeTitle.textContent = 'Form';
+  panel.appendChild(shapeTitle);
+
+  const shapeGroup = document.createElement('div');
+  shapeGroup.className = 'figure-mode-group';
+
+  const shapeOptions = [
+    { value: 'square', label: 'Quadrat' },
+    { value: 'circle', label: 'Kreis' }
+  ];
+
+  shapeOptions.forEach(({ value, label }) => {
+    const option = document.createElement('label');
+    option.className = 'figure-side-option';
+
+    const input = document.createElement('input');
+    input.type = 'radio';
+    input.name = 'square-exercise-shape';
+    input.value = value;
+    input.checked = value === selectedShape;
+
+    input.addEventListener('change', () => {
+      if (!input.checked) {
+        return;
+      }
+      selectedShape = value;
+      managerRef?.setSquareExerciseShape(selectedShape);
+    });
+
+    const caption = document.createElement('span');
+    caption.textContent = label;
+    option.appendChild(input);
+    option.appendChild(caption);
+    shapeGroup.appendChild(option);
+  });
+  panel.appendChild(shapeGroup);
+
+  const handTitle = document.createElement('div');
+  handTitle.className = 'figure-panel-section-title';
+  handTitle.textContent = 'Hand';
+  panel.appendChild(handTitle);
+
+  const handGroup = document.createElement('div');
+  handGroup.className = 'figure-mode-group';
+
+  const handOptions = [
+    { value: 'right', label: 'Rechte Hand' },
+    { value: 'left', label: 'Linke Hand' },
+    { value: 'both', label: 'Beide Hände' }
+  ];
+
+  handOptions.forEach(({ value, label }) => {
+    const option = document.createElement('label');
+    option.className = 'figure-side-option';
+
+    const input = document.createElement('input');
+    input.type = 'radio';
+    input.name = 'square-exercise-hand';
+    input.value = value;
+    input.checked = value === selectedHandMode;
+
+    input.addEventListener('change', () => {
+      if (!input.checked) {
+        return;
+      }
+      selectedHandMode = value;
+      managerRef?.setSquareExerciseHandMode(selectedHandMode);
+    });
+
+    const caption = document.createElement('span');
+    caption.textContent = label;
+    option.appendChild(input);
+    option.appendChild(caption);
+    handGroup.appendChild(option);
+  });
+  panel.appendChild(handGroup);
+
+  const divider = document.createElement('div');
+  divider.className = 'figure-panel-divider';
+  panel.appendChild(divider);
+
+  const resolutionWrap = document.createElement('label');
+  resolutionWrap.className = 'figure-size-wrap';
+
+  const resolutionLabel = document.createElement('div');
+  resolutionLabel.className = 'figure-size-label';
+  resolutionLabel.textContent = 'Kreisdurchmesser';
+
+  const resolutionSlider = document.createElement('input');
+  resolutionSlider.type = 'range';
+  resolutionSlider.min = '0.55';
+  resolutionSlider.max = '1.0';
+  resolutionSlider.step = '0.05';
+  resolutionSlider.value = String(selectedResolution);
+
+  const resolutionValue = document.createElement('div');
+  resolutionValue.className = 'figure-size-value';
+  resolutionValue.textContent = `${Number(resolutionSlider.value).toFixed(2)}x`;
+
+  resolutionSlider.addEventListener('input', () => {
+    const next = Number(resolutionSlider.value);
+    selectedResolution = next;
+    resolutionValue.textContent = `${next.toFixed(2)}x`;
+    managerRef?.setSquareExerciseResolution(next);
+  });
+
+  resolutionWrap.appendChild(resolutionLabel);
+  resolutionWrap.appendChild(resolutionSlider);
+  resolutionWrap.appendChild(resolutionValue);
+  panel.appendChild(resolutionWrap);
+
+  const gridResolutionWrap = document.createElement('label');
+  gridResolutionWrap.className = 'figure-size-wrap';
+
+  const gridResolutionLabel = document.createElement('div');
+  gridResolutionLabel.className = 'figure-size-label';
+  gridResolutionLabel.textContent = 'Grid-Auflösung';
+
+  const gridResolutionSlider = document.createElement('input');
+  gridResolutionSlider.type = 'range';
+  gridResolutionSlider.min = '8';
+  gridResolutionSlider.max = '24';
+  gridResolutionSlider.step = '2';
+  gridResolutionSlider.value = String(selectedGridResolution);
+
+  const gridResolutionValue = document.createElement('div');
+  gridResolutionValue.className = 'figure-size-value';
+  gridResolutionValue.textContent = `${Number(gridResolutionSlider.value)}x`;
+
+  gridResolutionSlider.addEventListener('input', () => {
+    const next = Number(gridResolutionSlider.value);
+    selectedGridResolution = next;
+    gridResolutionValue.textContent = `${next}x`;
+    managerRef?.setSquareExerciseGridResolution(next);
+  });
+
+  gridResolutionWrap.appendChild(gridResolutionLabel);
+  gridResolutionWrap.appendChild(gridResolutionSlider);
+  gridResolutionWrap.appendChild(gridResolutionValue);
+  panel.appendChild(gridResolutionWrap);
+
+  return {
+    panel,
+    setVisible: (visible) => panel.classList.toggle('hidden', !visible),
+    setTitle: (nextTitle) => {
+      if (typeof nextTitle === 'string' && nextTitle.trim()) {
+        title.textContent = nextTitle.trim();
+      }
+    },
+    setLevelManager: (manager) => {
+      managerRef = manager || null;
+      if (managerRef) {
+        managerRef.setSquareExerciseShape(selectedShape);
+        managerRef.setSquareExerciseHandMode(selectedHandMode);
+        managerRef.setSquareExerciseResolution(selectedResolution);
+        managerRef.setSquareExerciseGridResolution(selectedGridResolution);
+      }
+    }
+  };
+}
+
+function createSymmetricExercisePanel() {
+  const panel = document.createElement('aside');
+  panel.className = 'figure-side-panel hidden symmetric-exercise-panel';
+  let managerRef = null;
+  let selectedResolution = 1.0;
+  let selectedOrientation = 'vertical';
+
+  const title = document.createElement('div');
+  title.className = 'figure-side-panel-title';
+  title.textContent = 'Symmetrisch';
+  panel.appendChild(title);
+
+  const orientationTitle = document.createElement('div');
+  orientationTitle.className = 'figure-panel-section-title';
+  orientationTitle.textContent = 'Linienform';
+  panel.appendChild(orientationTitle);
+
+  const orientationGroup = document.createElement('div');
+  orientationGroup.className = 'figure-mode-group';
+
+  const orientationOptions = [
+    { value: 'vertical', label: 'Vertikal' },
+    { value: 'horizontal', label: 'Horizontal' },
+    { value: 'square', label: 'Raute' },
+    { value: 'circle', label: 'Kreis' },
+    { value: 'diagonal', label: 'Diagonale' }
+  ];
+
+  orientationOptions.forEach(({ value, label }) => {
+    const option = document.createElement('label');
+    option.className = 'figure-side-option';
+
+    const input = document.createElement('input');
+    input.type = 'radio';
+    input.name = 'symmetric-exercise-orientation';
+    input.value = value;
+    input.checked = value === selectedOrientation;
+
+    input.addEventListener('change', () => {
+      if (!input.checked) {
+        return;
+      }
+      selectedOrientation = value;
+      managerRef?.setSymmetricExerciseOrientation(selectedOrientation);
+    });
+
+    const caption = document.createElement('span');
+    caption.textContent = label;
+    option.appendChild(input);
+    option.appendChild(caption);
+    orientationGroup.appendChild(option);
+  });
+  panel.appendChild(orientationGroup);
+
+  const divider = document.createElement('div');
+  divider.className = 'figure-panel-divider';
+  panel.appendChild(divider);
+
+  const resolutionWrap = document.createElement('label');
+  resolutionWrap.className = 'figure-size-wrap';
+
+  const resolutionLabel = document.createElement('div');
+  resolutionLabel.className = 'figure-size-label';
+  resolutionLabel.textContent = 'Kreisdurchmesser';
+
+  const resolutionSlider = document.createElement('input');
+  resolutionSlider.type = 'range';
+  resolutionSlider.min = '0.55';
+  resolutionSlider.max = '1.0';
+  resolutionSlider.step = '0.05';
+  resolutionSlider.value = String(selectedResolution);
+
+  const resolutionValue = document.createElement('div');
+  resolutionValue.className = 'figure-size-value';
+  resolutionValue.textContent = `${Number(resolutionSlider.value).toFixed(2)}x`;
+
+  resolutionSlider.addEventListener('input', () => {
+    const next = Number(resolutionSlider.value);
+    selectedResolution = next;
+    resolutionValue.textContent = `${next.toFixed(2)}x`;
+    managerRef?.setSymmetricExerciseResolution(next);
+  });
+
+  resolutionWrap.appendChild(resolutionLabel);
+  resolutionWrap.appendChild(resolutionSlider);
+  resolutionWrap.appendChild(resolutionValue);
+  panel.appendChild(resolutionWrap);
+
+  return {
+    panel,
+    setVisible: (visible) => panel.classList.toggle('hidden', !visible),
+    setLevelManager: (manager) => {
+      managerRef = manager || null;
+      if (managerRef) {
+        managerRef.setSymmetricExerciseOrientation(selectedOrientation);
+        managerRef.setSymmetricExerciseResolution(selectedResolution);
+      }
+    }
+  };
+}
+
 function createHandIndependencePanel() {
   const panel = document.createElement('aside');
   panel.className = 'figure-side-panel hidden hand-independence-panel';
@@ -1691,9 +1969,13 @@ export function initApp() {
   const figurePanel = createFigureModePanel(null);
   const dynamicFigurePanel = createDynamicFigureModePanel();
   const handIndependencePanel = createHandIndependencePanel();
+  const squareExercisePanel = createSquareExercisePanel();
+  const symmetricExercisePanel = createSymmetricExercisePanel();
   document.body.appendChild(figurePanel.panel);
   document.body.appendChild(dynamicFigurePanel.panel);
   document.body.appendChild(handIndependencePanel.panel);
+  document.body.appendChild(squareExercisePanel.panel);
+  document.body.appendChild(symmetricExercisePanel.panel);
 
   const levelCanvas = document.createElement('canvas');
   levelCanvas.className = 'level-overlay';
@@ -1707,6 +1989,16 @@ export function initApp() {
 
   const levelManager = new LevelManager(levelCanvas);
   figurePanel.setLevelManager(levelManager);
+  squareExercisePanel.setLevelManager({
+    setSquareExerciseShape: (value) => levelManager.setSquareExerciseShape(value),
+    setSquareExerciseHandMode: (value) => levelManager.setSquareExerciseHandMode(value),
+    setSquareExerciseResolution: (value) => levelManager.setSquareExerciseResolution(value),
+    setSquareExerciseGridResolution: (value) => levelManager.setSquareExerciseGridResolution(value)
+  });
+  symmetricExercisePanel.setLevelManager({
+    setSymmetricExerciseResolution: (value) => levelManager.setSymmetricExerciseResolution(value),
+    setSymmetricExerciseOrientation: (value) => levelManager.setSymmetricExerciseOrientation(value)
+  });
   const dynamicFigureManager = {
     get figureScale() { return levelManager.dynamicFigureScale; },
     get figureStrokeWidth() { return levelManager.dynamicFigureStrokeWidth; },
@@ -1778,9 +2070,13 @@ export function initApp() {
     const isFigureChapter = chapter === 3;
     const isDynamicFigureChapter = chapter === 4;
     const isHandIndependenceChapter = chapter === 5;
+    const showSquareExercisePanel = chapter === 1 && uiState.activeLevel !== null && uiState.activeLevel === 0;
+    const showSymmetricExercisePanel = chapter === 1 && uiState.activeLevel !== null && uiState.activeLevel === 1;
     figurePanel.setVisible(isFigureChapter);
     dynamicFigurePanel.setVisible(isDynamicFigureChapter);
     handIndependencePanel.setVisible(isHandIndependenceChapter);
+    squareExercisePanel.setVisible(showSquareExercisePanel);
+    symmetricExercisePanel.setVisible(showSymmetricExercisePanel);
     if (isDynamicFigureChapter) {
       dynamicFigurePanel.setTitle('dynamic');
       dynamicFigurePanel.setVariant(levelManager.dynamicFigureVariant || 'hard');
@@ -1803,26 +2099,45 @@ export function initApp() {
       setLevelActive(false);
     }
 
+    const showSquareExercisePanel = uiState.activeChapter === 1 && level !== null && level === 0;
+    const showSymmetricExercisePanel = uiState.activeChapter === 1 && level !== null && level === 1;
+    const squareExerciseTitle = 'Asynchron';
+    if (uiState.activeChapter === 1) {
+      squareExercisePanel.setTitle(squareExerciseTitle);
+    }
+
     if (uiState.activeChapter === 3) {
       figurePanel.setVisible(level !== null);
       figurePanel.setTitle(level !== null && level >= 4 ? 'extended' : 'basic');
       dynamicFigurePanel.setVisible(false);
+      handIndependencePanel.setVisible(false);
+      squareExercisePanel.setVisible(false);
     } else if (uiState.activeChapter === 4) {
       figurePanel.setVisible(false);
       dynamicFigurePanel.setVisible(level !== null);
       dynamicFigurePanel.setTitle('dynamic');
       dynamicFigurePanel.setLevel(level);
       handIndependencePanel.setVisible(false);
+      squareExercisePanel.setVisible(false);
     } else if (uiState.activeChapter === 5) {
       figurePanel.setVisible(false);
       dynamicFigurePanel.setVisible(false);
       handIndependencePanel.setVisible(level !== null);
       handIndependencePanel.applyPreset(level);
       handIndependencePanel.setLevel();
+      squareExercisePanel.setVisible(false);
+    } else if (uiState.activeChapter === 1) {
+      figurePanel.setVisible(false);
+      dynamicFigurePanel.setVisible(false);
+      handIndependencePanel.setVisible(false);
+      squareExercisePanel.setVisible(showSquareExercisePanel);
+      symmetricExercisePanel.setVisible(showSymmetricExercisePanel);
     } else {
       figurePanel.setVisible(false);
       dynamicFigurePanel.setVisible(false);
       handIndependencePanel.setVisible(false);
+      squareExercisePanel.setVisible(false);
+      symmetricExercisePanel.setVisible(false);
     }
   });
 

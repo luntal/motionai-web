@@ -33,7 +33,7 @@ export const chapterDescriptions = [
 
 export const levelTitles = [
   ['Oberkörper', 'forte', 'piano'],
-  ['Rechts', 'Links', 'Symmetrisch', 'Alternierend', 'Parallele Linien'],
+  ['Asynchron', 'Symmetrisch', 'Alternierend', 'Parallele Linien', 'Kreis'],
   ['Rechte Linie', 'Linke Linie', 'Synchron', 'Versetzt', '2:1 Tempo', 'Ellipsen'],
   ['Einserfigur', 'Zweierfigur', 'Dreierfigur', 'Viererfigur', 'Fünferfigur', 'Sechserfigur', 'Siebenerfigur'],
   ['Einsertakt', 'Zweiertakt', 'Dreiertakt', 'Vierertakt'],
@@ -49,11 +49,11 @@ export const levelDescriptions = [
     'piano: Kleinere, zentrierte Handbewegung entlang der Referenzpfade.'
   ],
   [
-    'Rechts: Rechte Hand entlang einer vertikalen Linie am rechten Rand führen.',
-    'Links: Linke Hand entlang einer vertikalen Linie am linken Rand führen.',
+    'Asynchron: Führe das Muster mit der rechten, linken oder beiden Händen entlang eines Quadrats oder Kreises und passe dabei die Parameter im Seitenpanel an.',
     'Symmetrisch: Beide Hände gleichzeitig spiegelbildlich von oben nach unten.',
     'Alternierend: Beide Hände wechseln sich ab – links/rechts im Wechsel.',
-    'Parallele Linien: Beide Hände gleichzeitig zwei innere vertikale Linien von oben nach unten durchlaufen.'
+    'Parallele Linien: Beide Hände gleichzeitig zwei innere vertikale Linien von oben nach unten durchlaufen.',
+    'Kreis: Führe das Muster mit der rechten, linken oder beiden Händen entlang eines Kreises und passe dabei die Parameter im Seitenpanel an.'
   ],
   [
     'Rechte Linie: Folge mit der rechten Hand einem Punkt auf einer vertikalen Linie von oben nach unten.',

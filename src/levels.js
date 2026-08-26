@@ -9,6 +9,7 @@ export class LevelManager {
     this.active = false;
     this.targets = [];
     this.nextTarget = 0;
+    this.nextTargetByHand = { left: 0, right: 0 };
     this.rightTip = null;
     this.leftTip = null;
     this.completed = false;
@@ -117,6 +118,12 @@ export class LevelManager {
     this.handIndependenceShapeTempoBpm = 60;
     this.handIndependenceShapeLinearity = 0;
     this.handIndependenceAnimationStart = performance.now();
+    this.squareExerciseHandMode = 'right';
+    this.squareExerciseResolution = 1;
+    this.squareExerciseGridResolution = 1;
+    this.squareExerciseShape = 'square';
+    this.symmetricExerciseResolution = 1;
+    this.symmetricExerciseOrientation = 'vertical';
     this.scaledCalibrationCache = {
       set: null,
       width: 0,
@@ -968,6 +975,75 @@ export class LevelManager {
     this.render();
   }
 
+  setSquareExerciseHandMode(mode) {
+    const next = ['right', 'left', 'both'].includes(mode) ? mode : 'right';
+    if (this.squareExerciseHandMode === next) {
+      return;
+    }
+    this.squareExerciseHandMode = next;
+    if (this.chapter === 1 && Number.isInteger(this.level) && [0, 1].includes(this.level)) {
+      this.setupLevel();
+    }
+    this.requestRender();
+  }
+
+  setSquareExerciseResolution(value) {
+    const next = Number(value);
+    if (!Number.isFinite(next)) {
+      return;
+    }
+    this.squareExerciseResolution = Math.min(1.0, Math.max(0.55, next));
+    this.buildGrid();
+    this.requestRender();
+  }
+
+  setSquareExerciseGridResolution(value) {
+    const next = Number(value);
+    if (!Number.isFinite(next)) {
+      return;
+    }
+    const evenValue = Math.max(8, Math.min(24, Math.round(next / 2) * 2));
+    this.squareExerciseGridResolution = evenValue;
+    if (this.chapter === 1 && Number.isInteger(this.level) && [0, 1].includes(this.level)) {
+      this.setupLevel();
+    }
+    this.requestRender();
+  }
+
+  setSquareExerciseShape(mode) {
+    const next = ['square', 'circle'].includes(mode) ? mode : 'square';
+    if (this.squareExerciseShape === next) {
+      return;
+    }
+    this.squareExerciseShape = next;
+    if (this.chapter === 1 && Number.isInteger(this.level) && [0, 1].includes(this.level)) {
+      this.setupLevel();
+    }
+    this.requestRender();
+  }
+
+  setSymmetricExerciseResolution(value) {
+    const next = Number(value);
+    if (!Number.isFinite(next)) {
+      return;
+    }
+    this.symmetricExerciseResolution = Math.min(1.0, Math.max(0.55, next));
+    this.buildGrid();
+    this.requestRender();
+  }
+
+  setSymmetricExerciseOrientation(mode) {
+    const next = ['vertical', 'horizontal', 'square', 'circle', 'diagonal'].includes(mode) ? mode : 'vertical';
+    if (this.symmetricExerciseOrientation === next) {
+      return;
+    }
+    this.symmetricExerciseOrientation = next;
+    if (this.chapter === 1 && Number.isInteger(this.level) && this.level === 1) {
+      this.setupLevel();
+    }
+    this.requestRender();
+  }
+
   buildGrid() {
     const rows = this.gridRows;
     const cols = this.gridCols;
@@ -977,8 +1053,15 @@ export class LevelManager {
     const h = this.canvas.height;
     const spacingX = w / cols;
     const spacingY = h / rows;
-    const radiusX = spacingX / 2 * 0.98;
-    const radiusY = spacingY / 2 * 0.98;
+    const resolutionFactor = this.chapter === 1 && Number.isInteger(this.level)
+      ? (this.level === 0 || this.level === 4
+        ? this.squareExerciseResolution
+        : this.level === 1
+          ? this.symmetricExerciseResolution
+          : 1)
+      : 1;
+    const radiusX = spacingX / 2 * 0.98 * resolutionFactor;
+    const radiusY = spacingY / 2 * 0.98 * resolutionFactor;
 
     for (let row = 0; row < rows; row += 1) {
       for (let col = 0; col < cols; col += 1) {
@@ -995,6 +1078,7 @@ export class LevelManager {
     }
 
     this.rebuildTargetIndexLookup();
+    this.updateTargetHandProgress();
   }
 
   rebuildTargetIndexLookup() {
@@ -1018,11 +1102,58 @@ export class LevelManager {
       }
 
       circleIndices.forEach((circleIndex) => {
-        if (!this.targetIndexByCircle.has(circleIndex)) {
-          this.targetIndexByCircle.set(circleIndex, targetIndex);
-        }
+        const existing = this.targetIndexByCircle.get(circleIndex) || [];
+        existing.push(targetIndex);
+        this.targetIndexByCircle.set(circleIndex, existing);
       });
     }
+  }
+
+  updateTargetHandProgress() {
+    const counts = { left: 0, right: 0 };
+    for (const target of this.targets) {
+      if (!target || !target.hand || !['left', 'right'].includes(target.hand)) {
+        continue;
+      }
+      target.handProgress = counts[target.hand];
+      counts[target.hand] += 1;
+    }
+  }
+
+  getCurrentTargetForHand(hand) {
+    if (!['left', 'right'].includes(hand)) {
+      return null;
+    }
+
+    const targetProgress = this.nextTargetByHand[hand] ?? 0;
+    for (let i = 0; i < this.targets.length; i += 1) {
+      const target = this.targets[i];
+      if (!target || target.hand !== hand) {
+        continue;
+      }
+      if (target.handProgress === targetProgress) {
+        return target;
+      }
+    }
+
+    for (let i = this.targets.length - 1; i >= 0; i -= 1) {
+      const target = this.targets[i];
+      if (target && target.hand === hand) {
+        return target;
+      }
+    }
+
+    return null;
+  }
+
+  advanceTargetForHand(hand) {
+    if (!['left', 'right'].includes(hand)) {
+      return;
+    }
+
+    const current = this.nextTargetByHand[hand] ?? 0;
+    const total = this.targets.filter((target) => target && target.hand === hand).length;
+    this.nextTargetByHand[hand] = total > 0 ? ((current + 1) % total) : 0;
   }
 
   requestRender() {
@@ -2565,6 +2696,7 @@ export class LevelManager {
     this.targets = [];
     this.targetIndexByCircle.clear();
     this.nextTarget = 0;
+    this.nextTargetByHand = { left: 0, right: 0 };
     this.completed = false;
 
     if (!(this.chapter === 0 && this.level === 0)) {
@@ -2664,8 +2796,17 @@ export class LevelManager {
       { rows: 16, cols: 20 }
     ];
     const gs = gridSettings[this.level] || gridSettings[0];
-    this.gridRows = gs.rows;
-    this.gridCols = gs.cols;
+    if (this.chapter === 1 && Number.isInteger(this.level) && [0, 1].includes(this.level)) {
+      const resolution = Math.max(8, Math.min(24, this.squareExerciseGridResolution || gs.rows));
+      const snapEven = (value) => (value % 2 === 0 ? value : value + 1);
+      const rowsTarget = Math.max(8, Math.min(24, resolution));
+      const colsTarget = Math.max(12, Math.min(32, Math.round((gs.cols / gs.rows) * rowsTarget)));
+      this.gridRows = snapEven(rowsTarget);
+      this.gridCols = snapEven(colsTarget);
+    } else {
+      this.gridRows = gs.rows;
+      this.gridCols = gs.cols;
+    }
     this.buildGrid();
 
     this.active = true;
@@ -2676,65 +2817,193 @@ export class LevelManager {
     const { outerRightCol, outerLeftCol, innerRightCol, innerLeftCol } = this.getEingewoehnungColumns();
 
     if (this.level === 0) {
-      // right-hand rectangle: down → inward → up → outward
-      const col = outerRightCol;
-      const targetCount = Math.floor(rows * 0.55);
-      const endRow = Math.min(rows - 2, startRow + targetCount - 1);
-      const hSpan = 4;
-      const vUp = endRow - startRow;
-      const innerCol = Math.min(cols - 1, col + hSpan);
-      const topRow = Math.max(0, endRow - vUp);
-      // 1. vertical down
-      for (let row = startRow; row <= endRow; row += 1) {
-        this.targets.push({ index: row * cols + col, hand: 'right' });
-      }
-      // 2. horizontal inward (toward center = increasing col in mirrored grid)
-      for (let h = 1; h <= hSpan; h += 1) {
-        this.targets.push({ index: endRow * cols + Math.min(cols - 1, col + h), hand: 'right' });
-      }
-      // 3. vertical up
-      for (let v = 1; v <= vUp; v += 1) {
-        this.targets.push({ index: Math.max(0, endRow - v) * cols + innerCol, hand: 'right' });
-      }
-      // 4. horizontal outward (back toward original col = decreasing col, stop 1 short to avoid duplicate)
-      for (let h = hSpan - 1; h >= 1; h -= 1) {
-        this.targets.push({ index: topRow * cols + Math.min(cols - 1, col + h), hand: 'right' });
-      }
+      const isBoth = this.squareExerciseHandMode === 'both';
+      const selectedHands = isBoth ? ['left', 'right'] : [this.squareExerciseHandMode || 'right'];
+      const isCircle = this.squareExerciseShape === 'circle';
+
+      const pushTarget = (side, cx, cy, radius, steps) => {
+        for (let step = 0; step < steps; step += 1) {
+          const theta = (step / steps) * Math.PI * 2;
+          const localX = cx + Math.cos(theta) * radius;
+          const localY = cy + Math.sin(theta) * radius;
+          const row = Math.max(0, Math.min(rows - 1, Math.round((localY / this.canvas.height) * rows - 0.5)));
+          const col = this.getGridColumnForX(localX);
+          this.targets.push({ index: row * cols + col, hand: side });
+        }
+      };
+
+      const buildSquarePath = (side) => {
+        const leftCol = outerLeftCol;
+        const rightCol = Math.max(0, outerRightCol - 1);
+        const col = side === 'left' ? leftCol : rightCol;
+        const targetCount = Math.floor(rows * 0.6);
+        const endRow = Math.min(rows - 2, startRow + targetCount - 1);
+        const hSpan = 4;
+        const vUp = endRow - startRow;
+        const rightInnerCol = Math.min(cols - 1, rightCol + hSpan);
+        const leftInnerCol = Math.max(0, leftCol - hSpan);
+        const topRow = Math.max(0, endRow - vUp);
+        const innerCol = side === 'left' ? leftInnerCol : rightInnerCol;
+
+        for (let row = startRow; row <= endRow; row += 1) {
+          this.targets.push({ index: row * cols + col, hand: side });
+        }
+        for (let h = 1; h <= hSpan; h += 1) {
+          const nextCol = side === 'left' ? Math.max(0, col - h) : Math.min(cols - 1, col + h);
+          this.targets.push({ index: endRow * cols + nextCol, hand: side });
+        }
+        for (let v = 1; v <= vUp; v += 1) {
+          this.targets.push({ index: Math.max(0, endRow - v) * cols + innerCol, hand: side });
+        }
+        for (let h = hSpan - 1; h >= 1; h -= 1) {
+          const nextCol = side === 'left' ? Math.max(0, col - h) : Math.min(cols - 1, col + h);
+          this.targets.push({ index: topRow * cols + nextCol, hand: side });
+        }
+      };
+
+      selectedHands.forEach((side) => {
+        if (isCircle) {
+          const cx = side === 'left' ? this.canvas.width * 0.35 : this.canvas.width * 0.65;
+          const cy = this.canvas.height * 0.5;
+          const radius = Math.min(this.canvas.width, this.canvas.height) * 0.17;
+          pushTarget(side, cx, cy, radius, 26);
+        } else {
+          buildSquarePath(side);
+        }
+      });
     } else if (this.level === 1) {
-      // left-hand rectangle: down → inward → up → outward
-      const col = outerLeftCol;
-      const targetCount = Math.floor(rows * 0.55);
-      const endRow = Math.min(rows - 2, startRow + targetCount - 1);
-      const hSpan = 4;
-      const vUp = endRow - startRow;
-      const innerCol = Math.max(0, col - hSpan);
-      const topRow = Math.max(0, endRow - vUp);
-      // 1. vertical down
-      for (let row = startRow; row <= endRow; row += 1) {
-        this.targets.push({ index: row * cols + col, hand: 'left' });
-      }
-      // 2. horizontal inward (toward center = decreasing col in mirrored grid)
-      for (let h = 1; h <= hSpan; h += 1) {
-        this.targets.push({ index: endRow * cols + Math.max(0, col - h), hand: 'left' });
-      }
-      // 3. vertical up
-      for (let v = 1; v <= vUp; v += 1) {
-        this.targets.push({ index: Math.max(0, endRow - v) * cols + innerCol, hand: 'left' });
-      }
-      // 4. horizontal outward (back toward original col = increasing col, stop 1 short to avoid duplicate)
-      for (let h = hSpan - 1; h >= 1; h -= 1) {
-        this.targets.push({ index: topRow * cols + Math.max(0, col - h), hand: 'left' });
-      }
-    } else if (this.level === 2) {
-      // both sides symmetric
       const leftCol = outerLeftCol;
       const rightCol = outerRightCol;
       const targetCount = Math.floor(rows * 0.5);
       const endRow = Math.min(rows - 1, startRow + targetCount - 1);
-      for (let row = startRow; row <= endRow; row += 1) {
-        this.targets.push({ leftIndex: row * cols + leftCol, rightIndex: row * cols + rightCol, hand: 'both' });
+
+      if (this.symmetricExerciseOrientation === 'horizontal') {
+        const centerRow = Math.floor((startRow + endRow) / 2);
+        const centerCol = (cols - 1) / 2;
+        const startOffset = 2;
+        const helperCount = 6;
+        const horizontalSequence = [];
+
+        for (let offset = startOffset; offset <= helperCount; offset += 1) {
+          const visualLeftCol = Math.min(cols - 1, Math.ceil(centerCol + offset));
+          const visualRightCol = Math.max(0, Math.floor(centerCol - offset));
+          horizontalSequence.push({ left: visualLeftCol, right: visualRightCol });
+        }
+        for (let offset = helperCount - 1; offset >= startOffset; offset -= 1) {
+          const visualLeftCol = Math.min(cols - 1, Math.ceil(centerCol + offset));
+          const visualRightCol = Math.max(0, Math.floor(centerCol - offset));
+          horizontalSequence.push({ left: visualLeftCol, right: visualRightCol });
+        }
+
+        const repeatCycles = 8;
+        for (let cycle = 0; cycle < repeatCycles; cycle += 1) {
+          horizontalSequence.forEach(({ left, right }) => {
+            this.targets.push({
+              leftIndex: centerRow * cols + left,
+              rightIndex: centerRow * cols + right,
+              hand: 'both'
+            });
+          });
+        }
+      } else if (this.symmetricExerciseOrientation === 'square') {
+        const centerRow = Math.floor((startRow + endRow) / 2);
+        const centerCol = (cols - 1) / 2;
+        const squareSpan = 4;
+        const squareCycle = [];
+
+        for (let row = startRow; row <= endRow; row += 1) {
+          const distanceFromCenter = Math.abs(row - centerRow);
+          const offset = Math.max(0, squareSpan - distanceFromCenter);
+          const leftCol = Math.min(cols - 1, Math.ceil(centerCol + offset));
+          const rightCol = Math.max(0, Math.floor(centerCol - offset));
+          squareCycle.push({ left: row * cols + leftCol, right: row * cols + rightCol });
+        }
+        for (let row = endRow - 1; row >= startRow; row -= 1) {
+          const distanceFromCenter = Math.abs(row - centerRow);
+          const offset = Math.max(0, squareSpan - distanceFromCenter);
+          const leftCol = Math.min(cols - 1, Math.ceil(centerCol + offset));
+          const rightCol = Math.max(0, Math.floor(centerCol - offset));
+          squareCycle.push({ left: row * cols + leftCol, right: row * cols + rightCol });
+        }
+
+        const repeatCycles = 10;
+        for (let cycle = 0; cycle < repeatCycles; cycle += 1) {
+          squareCycle.forEach(({ left, right }) => {
+            this.targets.push({ leftIndex: left, rightIndex: right, hand: 'both' });
+          });
+        }
+      } else if (this.symmetricExerciseOrientation === 'circle') {
+        const centerRow = Math.floor((startRow + endRow) / 2);
+        const leftCenterCol = leftCol;
+        const rightCenterCol = rightCol;
+        const radius = Math.max(2, Math.min(5, Math.floor(cols * 0.08)));
+        const circleCycle = [];
+        const sampleSteps = 20;
+
+        for (let step = 0; step < sampleSteps; step += 1) {
+          const angle = (step / sampleSteps) * Math.PI * 2;
+          const rowOffset = Math.round(Math.sin(angle) * radius);
+          const leftColOffset = Math.round(Math.cos(angle) * radius);
+          const rightColOffset = Math.round(Math.cos(angle) * radius);
+          const row = Math.max(startRow, Math.min(endRow, centerRow + rowOffset));
+          const leftIndex = row * cols + Math.max(0, Math.min(cols - 1, leftCenterCol + leftColOffset));
+          const rightIndex = row * cols + Math.max(0, Math.min(cols - 1, rightCenterCol - rightColOffset));
+          circleCycle.push({ left: leftIndex, right: rightIndex });
+        }
+
+        const repeatCycles = 10;
+        for (let cycle = 0; cycle < repeatCycles; cycle += 1) {
+          circleCycle.forEach(({ left, right }) => {
+            this.targets.push({ leftIndex: left, rightIndex: right, hand: 'both' });
+          });
+        }
+      } else if (this.symmetricExerciseOrientation === 'diagonal') {
+        const diagonalCycle = [];
+        const maxLength = 5;
+        const leftStart = Math.max(0, leftCol - 2);
+        const rightStart = Math.min(cols - 1, rightCol + 2);
+
+        for (let step = 0; step < maxLength; step += 1) {
+          const row = startRow + step;
+          const offset = step;
+          diagonalCycle.push({
+            left: row * cols + Math.max(0, leftStart + offset),
+            right: row * cols + Math.min(cols - 1, rightStart - offset)
+          });
+        }
+        for (let step = maxLength - 2; step >= 0; step -= 1) {
+          const row = startRow + step;
+          const offset = step;
+          diagonalCycle.push({
+            left: row * cols + Math.max(0, leftStart + offset),
+            right: row * cols + Math.min(cols - 1, rightStart - offset)
+          });
+        }
+
+        const repeatCycles = 10;
+        for (let cycle = 0; cycle < repeatCycles; cycle += 1) {
+          diagonalCycle.forEach(({ left, right }) => {
+            this.targets.push({ leftIndex: left, rightIndex: right, hand: 'both' });
+          });
+        }
+      } else {
+        // both sides symmetric, endless up/down motion with repeated cycles
+        const cycleRows = [];
+        for (let row = startRow; row <= endRow; row += 1) {
+          cycleRows.push(row);
+        }
+        for (let row = endRow - 1; row >= startRow; row -= 1) {
+          cycleRows.push(row);
+        }
+
+        const repeatCycles = 10;
+        for (let cycle = 0; cycle < repeatCycles; cycle += 1) {
+          cycleRows.forEach((row) => {
+            this.targets.push({ leftIndex: row * cols + leftCol, rightIndex: row * cols + rightCol, hand: 'both' });
+          });
+        }
       }
-    } else if (this.level === 3) {
+    } else if (this.level === 2) {
       // asynchronous alternating path
       const halfRows = Math.floor(rows * 0.55);
       for (let i = 0; i < halfRows; i += 1) {
@@ -2747,7 +3016,7 @@ export class LevelManager {
         const index = row * cols + col;
         this.targets.push({ index, hand: isRight ? 'right' : 'left' });
       }
-    } else if (this.level === 4) {
+    } else if (this.level === 3) {
       // parallel vertical lines: both hands descend on inner columns derived from the same wrist reference
       const rightCol = innerRightCol;
       const leftCol = innerLeftCol;
@@ -2758,9 +3027,27 @@ export class LevelManager {
           hand: 'both'
         });
       }
+    } else if (this.level === 4) {
+      const isBoth = this.squareExerciseHandMode === 'both';
+      const selectedHands = isBoth ? ['left', 'right'] : [this.squareExerciseHandMode || 'right'];
+      selectedHands.forEach((side) => {
+        const cx = side === 'left' ? this.canvas.width * 0.35 : this.canvas.width * 0.65;
+        const cy = this.canvas.height * 0.5;
+        const radius = Math.min(this.canvas.width, this.canvas.height) * 0.17;
+        const steps = 26;
+        for (let step = 0; step < steps; step += 1) {
+          const theta = (step / steps) * Math.PI * 2;
+          const localX = cx + Math.cos(theta) * radius;
+          const localY = cy + Math.sin(theta) * radius;
+          const row = Math.max(0, Math.min(rows - 1, Math.round((localY / this.canvas.height) * rows - 0.5)));
+          const col = this.getGridColumnForX(localX);
+          this.targets.push({ index: row * cols + col, hand: side });
+        }
+      });
     }
 
     this.rebuildTargetIndexLookup();
+    this.updateTargetHandProgress();
     this.render();
   }
 
@@ -2769,9 +3056,25 @@ export class LevelManager {
   }
 
   getTargetBubbleColors(target, circleIndex, isCurrentTarget, isCompletedTarget) {
-    const side = target.hand === 'both'
-      ? (circleIndex === target.leftIndex ? 'left' : 'right')
-      : target.hand;
+    const getBothSide = () => {
+      if (circleIndex === target.leftIndex) {
+        return 'left';
+      }
+      if (circleIndex === target.rightIndex) {
+        return 'right';
+      }
+      if (Number.isInteger(target.leftIndex) && Number.isInteger(target.rightIndex) && this.grid[circleIndex]) {
+        const leftCircle = this.grid[target.leftIndex];
+        const rightCircle = this.grid[target.rightIndex];
+        const currentCircle = this.grid[circleIndex];
+        const leftDistance = this.distance(currentCircle, leftCircle);
+        const rightDistance = this.distance(currentCircle, rightCircle);
+        return leftDistance <= rightDistance ? 'left' : 'right';
+      }
+      return 'left';
+    };
+
+    const side = target.hand === 'both' ? getBothSide() : target.hand;
 
     const palettes = {
       left: {
@@ -3036,18 +3339,50 @@ export class LevelManager {
       let fill = 'rgba(255, 255, 255, 0.08)';
       let stroke = 'rgba(255, 255, 255, 0.16)';
 
-      // check if target
-      const targetIndex = this.targetIndexByCircle.has(i) ? this.targetIndexByCircle.get(i) : -1;
-      if (targetIndex !== -1) {
-        const t = this.targets[targetIndex];
-        const targetColors = this.getTargetBubbleColors(
-          t,
-          i,
-          targetIndex === this.nextTarget,
-          targetIndex < this.nextTarget
-        );
-        fill = targetColors.fill;
-        stroke = targetColors.stroke;
+      const targetIndexes = this.targetIndexByCircle.get(i) || [];
+      if (targetIndexes.length > 0) {
+        const targetCandidates = targetIndexes
+          .map((targetIndex) => this.targets[targetIndex])
+          .filter(Boolean);
+
+        if (this.level === 2 && targetCandidates.some((target) => target.hand === 'both')) {
+          const symmetricTarget = this.targets[this.nextTarget] || targetCandidates[0];
+          const isCurrentTarget = symmetricTarget && symmetricTarget.hand === 'both'
+            ? (i === symmetricTarget.leftIndex || i === symmetricTarget.rightIndex)
+            : false;
+          const targetColors = this.getTargetBubbleColors(
+            symmetricTarget || targetCandidates[0],
+            i,
+            isCurrentTarget,
+            false
+          );
+          fill = targetColors.fill;
+          stroke = targetColors.stroke;
+        } else {
+          const candidate = targetCandidates.find((target) => {
+            if (this.squareExerciseHandMode === 'both' && target && ['left', 'right'].includes(target.hand)) {
+              return this.getCurrentTargetForHand(target.hand) === target;
+            }
+            return targetIndexes.includes(this.nextTarget);
+          }) || targetCandidates[0];
+
+          if (candidate) {
+            const isCurrentTarget = this.squareExerciseHandMode === 'both' && candidate && ['left', 'right'].includes(candidate.hand)
+              ? this.getCurrentTargetForHand(candidate.hand) === candidate
+              : targetIndexes.includes(this.nextTarget);
+            const isCompletedTarget = this.squareExerciseHandMode === 'both' && candidate && ['left', 'right'].includes(candidate.hand)
+              ? (this.nextTargetByHand[candidate.hand] ?? 0) > (candidate.handProgress ?? 0)
+              : targetIndexes.some((targetIndex) => targetIndex < this.nextTarget);
+            const targetColors = this.getTargetBubbleColors(
+              candidate,
+              i,
+              isCurrentTarget,
+              isCompletedTarget
+            );
+            fill = targetColors.fill;
+            stroke = targetColors.stroke;
+          }
+        }
       }
 
       this.ctx.beginPath();
@@ -4401,33 +4736,54 @@ export class LevelManager {
       this.circleScales[i] += (targetScales[i] - this.circleScales[i]) * 0.1;
     }
 
-    const target = this.targets[this.nextTarget];
-    if (!target) return;
+    const currentTarget = this.targets[this.nextTarget];
+    const activeTargets = this.squareExerciseHandMode === 'both' && currentTarget && currentTarget.hand !== 'both'
+      ? ['left', 'right']
+          .map((hand) => this.getCurrentTargetForHand(hand))
+          .filter(Boolean)
+      : [currentTarget].filter(Boolean);
 
-    let touched = false;
-    if (target.hand === 'left') {
-      const tip = this.leftTip || this.rightTip;
-      if (tip) touched = this.getCircleIndex(tip) === target.index;
-    } else if (target.hand === 'right') {
-      const tip = this.rightTip || this.leftTip;
-      if (tip) touched = this.getCircleIndex(tip) === target.index;
-    } else if (target.hand === 'both' && this.leftTip && this.rightTip) {
-      const leftIdx = this.getCircleIndex(this.leftTip);
-      const rightIdx = this.getCircleIndex(this.rightTip);
-      touched = leftIdx === target.leftIndex && rightIdx === target.rightIndex;
+    if (activeTargets.length === 0) {
+      this.requestRender();
+      return;
     }
 
-    if (touched) {
-      this.nextTarget += 1;
-      if (this.nextTarget >= this.targets.length) {
-        this.completed = true;
-        this.active = false;
-        if (this.completionCallback) this.completionCallback(this.chapter, this.level);
+    for (const target of activeTargets) {
+      let touched = false;
+      if (target.hand === 'left') {
+        const tip = this.leftTip;
+        if (tip) touched = this.getCircleIndex(tip) === target.index;
+      } else if (target.hand === 'right') {
+        const tip = this.rightTip;
+        if (tip) touched = this.getCircleIndex(tip) === target.index;
+      } else if (target.hand === 'both') {
+        const leftIdx = this.leftTip ? this.getCircleIndex(this.leftTip) : -1;
+        const rightIdx = this.rightTip ? this.getCircleIndex(this.rightTip) : -1;
+        const leftMatch = leftIdx !== -1 && leftIdx === target.leftIndex;
+        const rightMatch = rightIdx !== -1 && rightIdx === target.rightIndex;
+        touched = leftMatch && rightMatch;
       }
-      this.requestRender();
-    } else {
-      this.requestRender();
+
+      if (touched) {
+        if (target.hand === 'both') {
+          this.nextTarget += 1;
+          if (this.nextTarget >= this.targets.length) {
+            this.nextTarget = 0;
+            this.completed = false;
+          }
+        } else if (this.squareExerciseHandMode === 'both') {
+          this.advanceTargetForHand(target.hand);
+        } else {
+          this.nextTarget += 1;
+          if (this.nextTarget >= this.targets.length) {
+            this.nextTarget = 0;
+            this.completed = false;
+          }
+        }
+      }
     }
+
+    this.requestRender();
   }
 
   getCircleIndex(point) {
