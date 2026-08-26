@@ -1586,18 +1586,58 @@ export function initApp() {
 
   const loadingOverlay = document.createElement('div');
   loadingOverlay.className = 'video-loading-overlay';
-  loadingOverlay.innerHTML = `
-    <div class="video-loading-title">Video lädt...</div>
-    <div class="video-loading-subtitle">Bitte kurz warten...</div>
-  `;
+  const loadingOverlayTitle = document.createElement('div');
+  loadingOverlayTitle.className = 'video-loading-title';
+  const loadingOverlaySubtitle = document.createElement('div');
+  loadingOverlaySubtitle.className = 'video-loading-subtitle';
+  loadingOverlay.appendChild(loadingOverlayTitle);
+  loadingOverlay.appendChild(loadingOverlaySubtitle);
   stageFrame.appendChild(loadingOverlay);
 
   let hasReceivedInitialLandmarks = false;
 
+  function setLoadingOverlayState(state) {
+    const states = {
+      loading: {
+        title: 'Video lädt...',
+        subtitle: 'Bitte kurz warten...'
+      },
+      paused: {
+        title: 'Video pausiert',
+        subtitle: 'Die App hat keinen Fokus mehr. Beim Wiederkommen wird das Video erneut geladen.'
+      }
+    };
+
+    const config = states[state] || states.loading;
+    loadingOverlayTitle.textContent = config.title;
+    loadingOverlaySubtitle.textContent = config.subtitle;
+    loadingOverlay.style.display = 'flex';
+  }
+
   function updateLoadingOverlay() {
-    const streamReady = Boolean(videoElement.srcObject) && videoElement.readyState >= 2;
-    const shouldShow = !streamReady || !hasReceivedInitialLandmarks;
-    loadingOverlay.style.display = shouldShow ? 'flex' : 'none';
+    const pageHidden = document.visibilityState === 'hidden';
+    const streamExists = Boolean(videoElement.srcObject);
+    const streamReady = streamExists && videoElement.readyState >= 2;
+    const videoPaused = !streamReady && streamExists && videoElement.paused;
+    const focusLost = !document.hasFocus() && !pageHidden;
+    const shouldShow = pageHidden || focusLost || videoPaused || !streamReady || !hasReceivedInitialLandmarks;
+
+    if (pageHidden || focusLost) {
+      setLoadingOverlayState('paused');
+      return;
+    }
+
+    if (videoPaused) {
+      setLoadingOverlayState('paused');
+      return;
+    }
+
+    if (shouldShow) {
+      setLoadingOverlayState('loading');
+      return;
+    }
+
+    loadingOverlay.style.display = 'none';
   }
 
   onPoseUpdate((poseLandmarks) => {
@@ -1615,6 +1655,33 @@ export function initApp() {
   });
 
   videoElement.addEventListener('loadeddata', updateLoadingOverlay);
+  videoElement.addEventListener('canplay', updateLoadingOverlay);
+  videoElement.addEventListener('playing', updateLoadingOverlay);
+  videoElement.addEventListener('pause', () => {
+    if (document.visibilityState !== 'hidden') {
+      setLoadingOverlayState('paused');
+    }
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+      setLoadingOverlayState('paused');
+    } else if (!document.hasFocus()) {
+      setLoadingOverlayState('paused');
+    } else {
+      setLoadingOverlayState('loading');
+    }
+    updateLoadingOverlay();
+  });
+
+  document.addEventListener('focus', () => {
+    setLoadingOverlayState('loading');
+    updateLoadingOverlay();
+  });
+
+  document.addEventListener('blur', () => {
+    setLoadingOverlayState('paused');
+    updateLoadingOverlay();
+  });
   videoElement.addEventListener('canplay', updateLoadingOverlay);
   videoElement.addEventListener('playing', updateLoadingOverlay);
   updateLoadingOverlay();

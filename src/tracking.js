@@ -411,6 +411,29 @@ export function startTracking(videoElement, canvasElement, options = {}) {
     emitCameraChanged(null);
   }
 
+  function closeTrackingModels() {
+    if (poseModel && typeof poseModel.close === 'function') {
+      try {
+        poseModel.close();
+      } catch (error) {
+        // ignore close errors during background tear-down
+      }
+      poseModel = null;
+    }
+
+    if (handsModel && typeof handsModel.close === 'function') {
+      try {
+        handsModel.close();
+      } catch (error) {
+        // ignore close errors during background tear-down
+      }
+      handsModel = null;
+    }
+
+    smoothedHandLandmarks = [];
+    smoothedPoseLandmarks = null;
+  }
+
   async function startStream(deviceId = null) {
     cameraEnabled = true;
     stopStream();
@@ -472,7 +495,6 @@ export function startTracking(videoElement, canvasElement, options = {}) {
       await new Promise((resolve) => requestAnimationFrame(resolve));
     }
   }
-
   async function setModel(modelName) {
     if (modelName !== 'hands' && modelName !== 'pose') {
       return;
@@ -558,6 +580,67 @@ export function startTracking(videoElement, canvasElement, options = {}) {
     stopStream();
   }
 
+  function pauseForBackground() {
+    processing = false;
+    closeTrackingModels();
+    if (cameraEnabled) {
+      stopStream();
+    }
+    if (videoElement && !videoElement.paused) {
+      videoElement.pause();
+    }
+  }
+
+  async function resumeFromBackground() {
+    if (!cameraEnabled || document.visibilityState === 'hidden' || !document.hasFocus()) {
+      return;
+    }
+
+    if (!activeStream) {
+      await enqueueOperation(async () => {
+        await startStream(selectedDeviceId || null);
+        if (!processing) {
+          processFrames();
+        }
+      });
+      return;
+    }
+
+    if (!processing) {
+      processFrames();
+    }
+  }
+
+  if (document && typeof document.addEventListener === 'function') {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden' || !document.hasFocus()) {
+        pauseForBackground();
+        return;
+      }
+
+      resumeFromBackground();
+    });
+    document.addEventListener('blur', () => {
+      pauseForBackground();
+    });
+    document.addEventListener('focus', () => {
+      if (document.visibilityState !== 'hidden' && document.hasFocus()) {
+        resumeFromBackground();
+      }
+    });
+  }
+
+  if (typeof window !== 'undefined') {
+    window.addEventListener('blur', () => {
+      pauseForBackground();
+    });
+    window.addEventListener('focus', () => {
+      if (document.visibilityState !== 'hidden' && document.hasFocus()) {
+        resumeFromBackground();
+      }
+    });
+  }
+
   if (navigator.mediaDevices && typeof navigator.mediaDevices.addEventListener === 'function') {
     navigator.mediaDevices.addEventListener('devicechange', async () => {
       if (typeof options.onCamerasChanged === 'function') {
@@ -590,6 +673,8 @@ export function startTracking(videoElement, canvasElement, options = {}) {
     getResolutionPreset,
     onModelChange,
     onCameraChange,
-    stop
+    stop,
+    pauseForBackground,
+    resumeFromBackground
   };
 }
