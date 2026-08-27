@@ -734,6 +734,196 @@ canvas {
   accent-color: #5bd89c;
 }
 
+.figure-point-slot-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.45rem;
+  margin-top: 0.75rem;
+}
+
+.figure-point-hand-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+  margin-top: 0.7rem;
+}
+
+.figure-point-hand-option {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.7rem;
+  min-height: 3rem;
+  padding: 0.7rem 0.8rem;
+  border-radius: 12px;
+  border: 1.5px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.04);
+  color: #edf7ff;
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1.1;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.figure-point-hand-option input {
+  width: 1.05rem;
+  height: 1.05rem;
+  margin: 0;
+  flex-shrink: 0;
+  accent-color: #5bd89c;
+}
+
+.figure-point-hand-option span {
+  display: inline-block;
+  min-width: 3.2rem;
+  text-align: center;
+  white-space: nowrap;
+  position: relative;
+  z-index: 1;
+}
+
+.figure-point-slot-option {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.25rem;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.04);
+  color: #edf7ff;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.figure-point-slot-option[hidden] {
+  display: none !important;
+}
+
+.figure-point-slot-option input {
+  accent-color: #5bd89c;
+}
+
+.figure-point-slot-dialog {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  background: rgba(5, 13, 22, 0.65);
+  z-index: 2000;
+}
+
+.figure-point-slot-dialog.hidden {
+  display: none;
+}
+
+.figure-point-slot-dialog-card {
+  width: min(100%, 23rem);
+  padding: 1rem 1.05rem 0.95rem;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-left: 3px solid rgba(79, 182, 127, 0.9);
+  background: rgba(8, 17, 29, 0.96);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.35);
+  box-sizing: border-box;
+}
+
+.figure-point-slot-dialog-title {
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #d9e7f7;
+  opacity: 0.8;
+}
+
+.figure-point-slot-dialog-text {
+  margin-top: 0.8rem;
+  color: rgba(237, 247, 255, 0.9);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.figure-point-slot-dialog-input {
+  width: 100%;
+  margin-top: 0.8rem;
+  padding: 0.7rem 0.8rem;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.05);
+  color: #edf7ff;
+  font: inherit;
+  font-size: 0.85rem;
+  box-sizing: border-box;
+}
+
+.figure-point-slot-dialog-actions {
+  display: flex;
+  gap: 0.6rem;
+  margin-top: 0.95rem;
+}
+
+.figure-point-slot-dialog-actions .figure-point-action {
+  flex: 1;
+}
+
+.figure-point-action-row {
+  display: flex;
+  gap: 0.6rem;
+  margin-top: 0.8rem;
+}
+
+.figure-point-action {
+  flex: 1;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #edf7ff;
+  padding: 0.58rem 0.7rem;
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+.figure-point-action.primary {
+  background: rgba(91, 216, 156, 0.16);
+  border-color: rgba(91, 216, 156, 0.4);
+}
+
+.figure-point-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.36rem;
+  margin-top: 0.8rem;
+}
+
+.figure-point-item,
+.figure-point-empty {
+  padding: 0.5rem 0.6rem;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(237, 247, 255, 0.85);
+  font-size: 0.74rem;
+}
+
+.figure-point-item.is-active {
+  background: rgba(91, 216, 156, 0.14);
+  border-color: rgba(91, 216, 156, 0.6);
+  color: #effff7;
+  box-shadow: inset 0 0 0 1px rgba(91, 216, 156, 0.2);
+}
+
+.figure-point-empty {
+  color: rgba(215, 228, 241, 0.7);
+}
+
 .figure-size-wrap {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

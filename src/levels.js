@@ -63,6 +63,18 @@ export class LevelManager {
     this.gridRows = 12;
     this.gridCols = 16;
     this.targetIndexByCircle = new Map();
+    this.audioContext = null;
+    this.audioMasterGain = null;
+    this.audioVoices = [];
+    this.audioVoiceCount = 8;
+    this.audioTriggerCooldownMs = 90;
+    this.alternatingExerciseVolume = 0;
+    this.alternatingExerciseStartNote = 36;
+    this.alternatingScaleMode = 'chromatic';
+    this.alternatingExerciseFrequencyModulation = false;
+    this.alternatingExerciseAxisSwap = false;
+    this.lastAudioTriggerAtByCircle = new Map();
+    this.activeTouchCircleByHand = { left: new Set(), right: new Set() };
     this.renderQueued = false;
     this.figureVariant = 'soft';
     this.figureScale = 1 / 3;
@@ -118,6 +130,13 @@ export class LevelManager {
     this.handIndependenceShapeTempoBpm = 60;
     this.handIndependenceShapeLinearity = 0;
     this.handIndependenceAnimationStart = performance.now();
+    this.pointExerciseEditMode = false;
+    this.pointExerciseSelectedSlot = 0;
+    this.pointExerciseHand = 'right';
+    this.pointExerciseSequence = [];
+    this.pointExerciseSequentialMode = true;
+    this.pointExerciseCurrentIndex = 0;
+    this.pointExerciseSavedSlots = {};
     this.squareExerciseHandMode = 'right';
     this.squareExerciseSyncMode = 'asynchronous';
     this.squareExerciseResolution = 1;
@@ -1273,6 +1292,170 @@ export class LevelManager {
     return this.orderDigitTargetsByNearestNeighbor(points, numericDigit, side);
   }
 
+  setPointExerciseEditMode(value) {
+    const next = Boolean(value);
+    if (this.pointExerciseEditMode === next) {
+      return;
+    }
+    this.pointExerciseEditMode = next;
+    if (this.chapter === 1 && Number.isInteger(this.level) && this.level === 1) {
+      this.setupLevel();
+    }
+    this.requestRender();
+  }
+
+  setPointExerciseSelectedSlot(value) {
+    const next = Number(value);
+    if (!Number.isInteger(next) || next < 1 || next > 8) {
+      return;
+    }
+    this.pointExerciseSelectedSlot = next;
+    const saved = this.pointExerciseSavedSlots[next];
+    const savedSequence = Array.isArray(saved)
+      ? saved
+      : (saved && typeof saved === 'object' && Array.isArray(saved.sequence) ? saved.sequence : []);
+    if (savedSequence.length > 0 && !this.pointExerciseEditMode) {
+      this.pointExerciseSequence = this.sanitizePointSequence(savedSequence);
+      if (this.chapter === 1 && Number.isInteger(this.level) && this.level === 1) {
+        this.setupLevel();
+      }
+    }
+    this.requestRender();
+  }
+
+  setPointExerciseHand(value) {
+    const next = ['left', 'right'].includes(value) ? value : 'right';
+    if (this.pointExerciseHand === next) {
+      return;
+    }
+    this.pointExerciseHand = next;
+    if (this.chapter === 1 && Number.isInteger(this.level) && this.level === 1) {
+      this.setupLevel();
+    }
+    this.requestRender();
+  }
+
+  setPointExerciseSequentialMode(value) {
+    const next = Boolean(value);
+    if (this.pointExerciseSequentialMode === next) {
+      return;
+    }
+    this.pointExerciseSequentialMode = next;
+    this.nextTarget = 0;
+    this.nextTargetByHand = { left: 0, right: 0 };
+    this.pointExerciseCurrentIndex = 0;
+    this.requestRender();
+  }
+
+  sanitizePointSequence(sequence) {
+    if (!Array.isArray(sequence)) {
+      return [];
+    }
+
+    const normalized = [];
+    const seen = new Set();
+    const maxRow = Math.max(1, this.gridRows || 12) - 1;
+    const maxCol = Math.max(1, this.gridCols || 16) - 1;
+
+    sequence.forEach((point) => {
+      if (!point || !Number.isFinite(Number(point.row)) || !Number.isFinite(Number(point.col))) {
+        return;
+      }
+      const row = Math.max(0, Math.min(maxRow, Math.round(Number(point.row))));
+      const col = Math.max(0, Math.min(maxCol, Math.round(Number(point.col))));
+      const hand = ['left', 'right'].includes(point.hand) ? point.hand : this.pointExerciseHand;
+      const key = `${row}:${col}:${hand}`;
+      if (seen.has(key)) {
+        return;
+      }
+      seen.add(key);
+      normalized.push({ row, col, hand });
+    });
+
+    return normalized;
+  }
+
+  setPointExerciseSequence(value) {
+    this.pointExerciseSequence = this.sanitizePointSequence(value);
+    this.pointExerciseCurrentIndex = 0;
+    this.nextTarget = 0;
+    this.nextTargetByHand = { left: 0, right: 0 };
+    if (!this.pointExerciseSequence.some((point) => ['left', 'right'].includes(point.hand))) {
+      this.pointExerciseSequence = this.pointExerciseSequence.map((point) => ({ ...point, hand: this.pointExerciseHand }));
+    }
+    if (this.chapter === 1 && Number.isInteger(this.level) && this.level === 1) {
+      this.setupLevel();
+    }
+    this.requestRender();
+  }
+
+  setPointExerciseSavedSlots(value) {
+    if (!value || typeof value !== 'object') {
+      return;
+    }
+    const sanitized = {};
+    Object.entries(value).forEach(([key, slot]) => {
+      const normalizedKey = Number(key);
+      const resolvedKey = Number.isInteger(normalizedKey) && normalizedKey >= 1 && normalizedKey <= 8
+        ? normalizedKey
+        : (Number.isInteger(normalizedKey) && normalizedKey >= 0 && normalizedKey <= 7 ? normalizedKey + 1 : null);
+      if (resolvedKey === null) {
+        return;
+      }
+      if (Array.isArray(slot)) {
+        sanitized[resolvedKey] = {
+          sequence: this.sanitizePointSequence(slot),
+          gridResolution: this.chapter1GridResolution || this.squareExerciseGridResolution || 8,
+          resolution: this.chapter1CircleDiameter || this.squareExerciseResolution || 1,
+          hand: this.pointExerciseHand,
+          sequentialMode: this.pointExerciseSequentialMode
+        };
+        return;
+      }
+      if (slot && typeof slot === 'object') {
+        const sequence = Array.isArray(slot.sequence) ? this.sanitizePointSequence(slot.sequence) : [];
+        const gridResolution = Number.isFinite(Number(slot.gridResolution))
+          ? Math.max(8, Math.min(24, Math.round(Number(slot.gridResolution) / 2) * 2))
+          : (this.chapter1GridResolution || this.squareExerciseGridResolution || 8);
+        const resolution = Number.isFinite(Number(slot.resolution))
+          ? Math.min(1.0, Math.max(0.55, Number(slot.resolution)))
+          : (this.chapter1CircleDiameter || this.squareExerciseResolution || 1);
+        const hand = ['left', 'right'].includes(slot.hand) ? slot.hand : this.pointExerciseHand;
+        const sequentialMode = typeof slot.sequentialMode === 'boolean'
+          ? slot.sequentialMode
+          : (typeof slot.sequenceMode === 'boolean' ? slot.sequenceMode : this.pointExerciseSequentialMode);
+        sanitized[resolvedKey] = { sequence, gridResolution, resolution, hand, sequentialMode };
+      }
+    });
+    this.pointExerciseSavedSlots = sanitized;
+    this.requestRender();
+  }
+
+  addPointToSequenceAtPosition(x, y) {
+    const canvasX = Number(x);
+    const canvasY = Number(y);
+    if (!Number.isFinite(canvasX) || !Number.isFinite(canvasY)) {
+      return false;
+    }
+    const row = Math.max(0, Math.min(this.gridRows - 1, Math.round((canvasY / this.canvas.height) * this.gridRows - 0.5)));
+    const col = this.getGridColumnForX(canvasX);
+    const point = {
+      row,
+      col,
+      hand: ['left', 'right'].includes(this.pointExerciseHand) ? this.pointExerciseHand : 'right'
+    };
+    const existing = this.pointExerciseSequence.some((candidate) => candidate.row === point.row && candidate.col === point.col && candidate.hand === point.hand);
+    if (existing) {
+      return false;
+    }
+    this.pointExerciseSequence.push(point);
+    if (this.chapter === 1 && Number.isInteger(this.level) && this.level === 1) {
+      this.setupLevel();
+    }
+    this.requestRender();
+    return true;
+  }
+
   setSquareExerciseCenterDistance(value) {
     const next = Number(value);
     if (!Number.isFinite(next)) {
@@ -1450,6 +1633,17 @@ export class LevelManager {
     }
 
     const targetIndexes = this.targetIndexByCircle.get(circleIndex) || [];
+    if (this.chapter === 1 && Number.isInteger(this.level) && this.level === 1 && this.pointExerciseSequentialMode) {
+      const currentTarget = this.targets[this.nextTarget] || null;
+      if (!currentTarget || !Number.isInteger(currentTarget.index)) {
+        return null;
+      }
+      if (targetIndexes.includes(this.nextTarget)) {
+        return currentTarget;
+      }
+      return null;
+    }
+
     if (this.squareExerciseHandMode === 'both') {
       for (const hand of ['left', 'right']) {
         const target = this.getCurrentTargetForHand(hand);
@@ -1491,6 +1685,218 @@ export class LevelManager {
       this.renderQueued = false;
       this.render();
     });
+  }
+
+  ensureAudioEngine() {
+    if (typeof window === 'undefined') {
+      return null;
+    }
+
+    const AudioCtor = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtor) {
+      return null;
+    }
+
+    if (!this.audioContext) {
+      this.audioContext = new AudioCtor();
+      this.audioMasterGain = this.audioContext.createGain();
+      this.audioMasterGain.gain.value = 0.35 * this.alternatingExerciseVolume;
+      this.audioMasterGain.connect(this.audioContext.destination);
+
+      this.audioVoices = Array.from({ length: this.audioVoiceCount }, () => ({
+        active: false,
+        lastUsedAt: 0
+      }));
+    }
+
+    if (this.audioContext.state === 'suspended') {
+      this.audioContext.resume().catch(() => {});
+    }
+
+    return this.audioContext;
+  }
+
+  setAlternatingExerciseVolume(value) {
+    const next = Number(value);
+    if (!Number.isFinite(next)) {
+      return;
+    }
+    this.alternatingExerciseVolume = Math.max(0, Math.min(1, next));
+    if (this.audioMasterGain) {
+      this.audioMasterGain.gain.value = 0.35 * this.alternatingExerciseVolume;
+    }
+  }
+
+  setAlternatingExerciseScaleMode(value) {
+    const normalized = typeof value === 'string' ? value.toLowerCase() : '';
+    if (normalized === 'major' || normalized === 'dur') {
+      this.alternatingScaleMode = 'major';
+      return;
+    }
+    if (normalized === 'pentatonic' || normalized === 'pentatonik') {
+      this.alternatingScaleMode = 'pentatonic';
+      return;
+    }
+    this.alternatingScaleMode = 'chromatic';
+  }
+
+  setAlternatingExerciseStartNote(value) {
+    const next = Number(value);
+    if (!Number.isFinite(next)) {
+      return;
+    }
+    this.alternatingExerciseStartNote = Math.max(36, Math.min(60, Math.round(next)));
+  }
+
+  setAlternatingExerciseFrequencyModulation(enabled) {
+    this.alternatingExerciseFrequencyModulation = Boolean(enabled);
+  }
+
+  setAlternatingExerciseAxisSwap(enabled) {
+    this.alternatingExerciseAxisSwap = Boolean(enabled);
+  }
+
+  getAlternatingScaleMidiOffset(columnIndex) {
+    const safeColumn = Math.max(0, Number(columnIndex) || 0);
+    const chromatic = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+    const major = [0, 2, 4, 5, 7, 9, 11];
+    const pentatonic = [0, 2, 4, 7, 9];
+    const selected = this.alternatingScaleMode === 'major' ? major : this.alternatingScaleMode === 'pentatonic' ? pentatonic : chromatic;
+    const octave = Math.floor(safeColumn / selected.length);
+    const scaleIndex = safeColumn % selected.length;
+    return octave * 12 + selected[scaleIndex];
+  }
+
+  triggerTouchToneForCircleIndex(circleIndex, hand) {
+    if (!Number.isInteger(circleIndex) || circleIndex < 0 || circleIndex >= this.grid.length) {
+      return;
+    }
+
+    const activeSet = this.activeTouchCircleByHand[hand] || new Set();
+    if (activeSet.has(circleIndex)) {
+      return;
+    }
+    activeSet.add(circleIndex);
+    this.activeTouchCircleByHand[hand] = activeSet;
+
+    const ctx = this.ensureAudioEngine();
+    if (!ctx || !this.audioMasterGain || !this.grid[circleIndex]) {
+      return;
+    }
+
+    const nowMs = performance.now();
+    const lastAt = this.lastAudioTriggerAtByCircle.get(circleIndex) || -Infinity;
+    if (nowMs - lastAt < this.audioTriggerCooldownMs) {
+      return;
+    }
+    this.lastAudioTriggerAtByCircle.set(circleIndex, nowMs);
+
+    const circle = this.grid[circleIndex];
+    const leftToRightColumn = Math.max(0, Math.min(this.gridCols - 1, this.gridCols - 1 - circle.col));
+    const yFactor = Math.max(0, Math.min(1, circle.y / Math.max(1, this.canvas.height)));
+    const xFactor = Math.max(0, Math.min(1, circle.x / Math.max(1, this.canvas.width)));
+    const verticalIndex = Math.max(0, Math.min(this.gridRows - 1, Math.round((1 - yFactor) * Math.max(this.gridRows - 1, 0))));
+    const pitchIndex = this.alternatingExerciseAxisSwap ? verticalIndex : leftToRightColumn;
+    const scaleOffset = this.getAlternatingScaleMidiOffset(pitchIndex);
+    const midiPitch = this.alternatingExerciseStartNote + scaleOffset;
+    const frequency = 440 * Math.pow(2, (midiPitch - 69) / 12);
+    const volume = this.alternatingExerciseAxisSwap
+      ? 0.02 + xFactor * 0.22
+      : 0.03 + yFactor * 0.18;
+    const attack = this.alternatingExerciseAxisSwap
+      ? 0.01 + (1 - xFactor) * 0.05
+      : 0.015 + (1 - yFactor) * 0.04;
+    const decay = this.alternatingExerciseAxisSwap
+      ? 0.18 + (1 - xFactor) * 1.8
+      : 0.18 + yFactor * 1.6;
+    const noteDuration = attack + decay + 0.09;
+
+    const voiceSlot = this.audioVoices.find((voice) => !voice.active)
+      || this.audioVoices.reduce((current, candidate) => (candidate.lastUsedAt < current.lastUsedAt ? candidate : current), this.audioVoices[0]);
+    if (!voiceSlot) {
+      return;
+    }
+    voiceSlot.active = true;
+    voiceSlot.lastUsedAt = nowMs;
+
+    const oscillator = ctx.createOscillator();
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(frequency, ctx.currentTime);
+
+    const mainGain = ctx.createGain();
+    mainGain.gain.setValueAtTime(0.0001, ctx.currentTime);
+    mainGain.gain.linearRampToValueAtTime(volume, ctx.currentTime + attack);
+    mainGain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + noteDuration);
+
+    const noiseBuffer = ctx.createBuffer(1, Math.max(1, Math.floor(ctx.sampleRate * 0.12)), ctx.sampleRate);
+    const noiseData = noiseBuffer.getChannelData(0);
+    for (let i = 0; i < noiseData.length; i += 1) {
+      noiseData[i] = (Math.random() * 2 - 1) * 0.35;
+    }
+
+    const noiseSource = ctx.createBufferSource();
+    noiseSource.buffer = noiseBuffer;
+
+    const noiseFilter = ctx.createBiquadFilter();
+    noiseFilter.type = 'highpass';
+    noiseFilter.frequency.value = 1600;
+
+    const noiseGain = ctx.createGain();
+    noiseGain.gain.setValueAtTime(volume * 0.08, ctx.currentTime);
+    noiseGain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + noteDuration);
+
+    const startAt = ctx.currentTime;
+
+    let modulatorOscillator = null;
+    let modulatorGain = null;
+    if (this.alternatingExerciseFrequencyModulation) {
+      const harmonicRatios = [0.5, 2 / 3, 1, 4 / 3, 3 / 2, 2];
+      const rowCluster = Math.max(0, Math.min(harmonicRatios.length - 1, Math.round(circle.row / Math.max(1, this.gridRows / harmonicRatios.length))));
+      const yBias = 0.5 + yFactor * 0.9;
+      const ratioIndex = (rowCluster + Math.floor(yFactor * harmonicRatios.length)) % harmonicRatios.length;
+      const ratio = harmonicRatios[ratioIndex];
+      const modulatorFrequency = Math.max(2, frequency * ratio * (0.8 + yBias * 0.3));
+      const modulationDepth = 5 + yFactor * 18;
+
+      modulatorOscillator = ctx.createOscillator();
+      modulatorOscillator.type = 'sine';
+      modulatorOscillator.frequency.setValueAtTime(modulatorFrequency, startAt);
+
+      modulatorGain = ctx.createGain();
+      modulatorGain.gain.setValueAtTime(modulationDepth, startAt);
+
+      modulatorOscillator.connect(modulatorGain);
+      modulatorGain.connect(oscillator.frequency);
+
+      modulatorOscillator.start(startAt);
+      modulatorOscillator.stop(startAt + noteDuration + 0.03);
+    }
+
+    oscillator.connect(mainGain);
+    mainGain.connect(this.audioMasterGain);
+
+    noiseSource.connect(noiseFilter);
+    noiseFilter.connect(noiseGain);
+    noiseGain.connect(this.audioMasterGain);
+
+    oscillator.start(startAt);
+    oscillator.stop(startAt + noteDuration + 0.03);
+    noiseSource.start(startAt);
+    noiseSource.stop(startAt + noteDuration + 0.03);
+
+    setTimeout(() => {
+      voiceSlot.active = false;
+      if (modulatorOscillator) {
+        modulatorOscillator.disconnect();
+      }
+      if (modulatorGain) {
+        modulatorGain.disconnect();
+      }
+    }, noteDuration * 1000 + 50);
+
+    if (hand === 'left') {
+      // left hand is intentionally mapped with the same position-dependent tone logic; no extra offset applied.
+    }
   }
 
   getGridColumnForX(x) {
@@ -3112,6 +3518,18 @@ export class LevelManager {
       return;
     }
 
+    if ([3, 4].includes(this.level)) {
+      this.targets = [];
+      this.targetIndexByCircle.clear();
+      this.nextTarget = 0;
+      this.nextTargetByHand = { left: 0, right: 0 };
+      this.pointExerciseCurrentIndex = 0;
+      this.completed = false;
+      this.active = false;
+      this.render();
+      return;
+    }
+
     // grid density increases with each level
     const gridSettings = [
       { rows: 12, cols: 16 },
@@ -3146,8 +3564,18 @@ export class LevelManager {
       this.targets = [];
       this.nextTarget = 0;
       this.nextTargetByHand = { left: 0, right: 0 };
+      this.pointExerciseCurrentIndex = 0;
       this.completed = false;
       this.targetIndexByCircle.clear();
+      this.pointExerciseSequence = this.sanitizePointSequence(this.pointExerciseSequence);
+      this.pointExerciseSequence.forEach(({ row, col, hand }) => {
+        const safeRow = Math.max(0, Math.min(rows - 1, Number(row) || 0));
+        const safeCol = Math.max(0, Math.min(cols - 1, Number(col) || 0));
+        const targetHand = ['left', 'right'].includes(hand) ? hand : this.pointExerciseHand;
+        this.targets.push({ index: safeRow * cols + safeCol, hand: targetHand });
+      });
+      this.rebuildTargetIndexLookup();
+      this.updateTargetHandProgress();
       this.buildGrid();
       this.render();
       return;
@@ -3347,18 +3775,16 @@ export class LevelManager {
         }
       }
     } else if (this.level === 2) {
-      // asynchronous alternating path
-      const halfRows = Math.floor(rows * 0.55);
-      for (let i = 0; i < halfRows; i += 1) {
-        const row = startRow + i;
-        if (row >= rows) {
-          break;
-        }
-        const isRight = i % 2 === 0;
-        const col = isRight ? outerRightCol : outerLeftCol;
-        const index = row * cols + col;
-        this.targets.push({ index, hand: isRight ? 'right' : 'left' });
-      }
+      this.targets = [];
+      this.nextTarget = 0;
+      this.nextTargetByHand = { left: 0, right: 0 };
+      this.pointExerciseCurrentIndex = 0;
+      this.completed = false;
+      this.targetIndexByCircle.clear();
+      this.rebuildTargetIndexLookup();
+      this.updateTargetHandProgress();
+      this.render();
+      return;
     } else if (this.level === 3) {
       // parallel vertical lines: both hands descend on inner columns derived from the same wrist reference
       const rightCol = innerRightCol;
@@ -5032,6 +5458,49 @@ export class LevelManager {
       return;
     }
 
+    if (this.chapter === 1 && Number.isInteger(this.level) && this.level === 2) {
+      const targetScales = new Array(this.grid.length).fill(1.0);
+      const leftIdx = this.leftTip ? this.getCircleIndex(this.leftTip) : -1;
+      const rightIdx = this.rightTip ? this.getCircleIndex(this.rightTip) : -1;
+
+      const leftPrevious = this.activeTouchCircleByHand.left || new Set();
+      const rightPrevious = this.activeTouchCircleByHand.right || new Set();
+
+      if (leftIdx !== -1) {
+        targetScales[leftIdx] = 1.5;
+        if (!leftPrevious.has(leftIdx)) {
+          this.triggerTouchToneForCircleIndex(leftIdx, 'left');
+        }
+      }
+      if (rightIdx !== -1) {
+        targetScales[rightIdx] = 1.5;
+        if (!rightPrevious.has(rightIdx)) {
+          this.triggerTouchToneForCircleIndex(rightIdx, 'right');
+        }
+      }
+
+      for (const hand of ['left', 'right']) {
+        const previousSet = this.activeTouchCircleByHand[hand] || new Set();
+        const currentIndex = hand === 'left' ? leftIdx : rightIdx;
+        const nextSet = new Set();
+        if (currentIndex !== -1) {
+          nextSet.add(currentIndex);
+        }
+        this.activeTouchCircleByHand[hand] = nextSet;
+        previousSet.forEach((index) => {
+          if (index !== currentIndex) {
+            this.activeTouchCircleByHand[hand].delete(index);
+          }
+        });
+      }
+
+      for (let i = 0; i < this.circleScales.length; i += 1) {
+        this.circleScales[i] += (targetScales[i] - this.circleScales[i]) * 0.1;
+      }
+      this.requestRender();
+      return;
+    }
+
     if (!this.active || this.completed || this.targets.length === 0) return;
 
     // update scales for interactivity
@@ -5048,6 +5517,38 @@ export class LevelManager {
     // smooth lerp
     for (let i = 0; i < this.circleScales.length; i += 1) {
       this.circleScales[i] += (targetScales[i] - this.circleScales[i]) * 0.1;
+    }
+
+    if (this.chapter === 1 && Number.isInteger(this.level) && this.level === 1 && this.pointExerciseSequentialMode) {
+      const currentTarget = this.targets[this.nextTarget] || null;
+      this.pointExerciseCurrentIndex = this.nextTarget;
+
+      if (!currentTarget) {
+        this.requestRender();
+        return;
+      }
+
+      let currentTargetTouched = false;
+      if (currentTarget.hand === 'left' && this.leftTip) {
+        currentTargetTouched = this.getCircleIndex(this.leftTip) === currentTarget.index;
+      } else if (currentTarget.hand === 'right' && this.rightTip) {
+        currentTargetTouched = this.getCircleIndex(this.rightTip) === currentTarget.index;
+      } else if (currentTarget.hand === 'both' && this.leftTip && this.rightTip) {
+        currentTargetTouched = this.getCircleIndex(this.leftTip) === currentTarget.leftIndex && this.getCircleIndex(this.rightTip) === currentTarget.rightIndex;
+      }
+
+      if (currentTargetTouched) {
+        this.nextTarget += 1;
+        this.pointExerciseCurrentIndex = this.nextTarget;
+        if (this.nextTarget >= this.targets.length) {
+          this.nextTarget = 0;
+          this.completed = false;
+        }
+        this.pointExerciseCurrentIndex = this.nextTarget;
+      }
+
+      this.requestRender();
+      return;
     }
 
     const currentTarget = this.targets[this.nextTarget];
