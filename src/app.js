@@ -808,15 +808,48 @@ function createDynamicFigureModePanel() {
 function createSquareExercisePanel() {
   const panel = document.createElement('aside');
   panel.className = 'figure-side-panel hidden square-exercise-panel';
+  const storageKey = 'motionai.square-exercise-panel-settings';
   let managerRef = null;
-  let selectedHandMode = 'right';
-  let selectedResolution = 1.0;
-  let selectedGridResolution = 1.0;
-  let selectedShape = 'square';
+  let settings = {};
+  try {
+    const stored = JSON.parse(localStorage.getItem(storageKey) || '{}');
+    settings = stored && typeof stored === 'object' ? stored : {};
+  } catch (error) {
+    settings = {};
+  }
+
+  let selectedHandMode = ['right', 'left', 'both'].includes(settings.handMode) ? settings.handMode : 'right';
+  let selectedResolution = Number.isFinite(Number(settings.resolution))
+    ? Math.min(1.0, Math.max(0.55, Number(settings.resolution)))
+    : 1.0;
+  let selectedGridResolution = Number.isFinite(Number(settings.gridResolution))
+    ? Math.max(8, Math.min(24, Math.round(Number(settings.gridResolution) / 2) * 2))
+    : 8;
+  let selectedCenterDistance = Number.isFinite(Number(settings.centerDistance))
+    ? Math.min(1.0, Math.max(0.1, Number(settings.centerDistance)))
+    : 0.5;
+  let selectedShape = ['0', '1', '2', '3', '4', '5'].includes(settings.shape) ? settings.shape : '0';
+  let selectedSyncMode = ['asynchronous', 'synchronous'].includes(settings.syncMode) ? settings.syncMode : 'asynchronous';
+
+  const persistSettings = () => {
+    const snapshot = {
+      shape: selectedShape,
+      handMode: selectedHandMode,
+      syncMode: selectedSyncMode,
+      resolution: selectedResolution,
+      gridResolution: selectedGridResolution,
+      centerDistance: selectedCenterDistance
+    };
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(snapshot));
+    } catch (error) {
+      // Ignore storage failures for local settings.
+    }
+  };
 
   const title = document.createElement('div');
   title.className = 'figure-side-panel-title';
-  title.textContent = 'Asynchron';
+  title.textContent = 'Ziffern';
   panel.appendChild(title);
 
   const shapeTitle = document.createElement('div');
@@ -827,10 +860,10 @@ function createSquareExercisePanel() {
   const shapeGroup = document.createElement('div');
   shapeGroup.className = 'figure-mode-group';
 
-  const shapeOptions = [
-    { value: 'square', label: 'Quadrat' },
-    { value: 'circle', label: 'Kreis' }
-  ];
+  const shapeOptions = Array.from({ length: 6 }, (_, index) => ({
+    value: String(index),
+    label: String(index)
+  }));
 
   shapeOptions.forEach(({ value, label }) => {
     const option = document.createElement('label');
@@ -847,6 +880,7 @@ function createSquareExercisePanel() {
         return;
       }
       selectedShape = value;
+      persistSettings();
       managerRef?.setSquareExerciseShape(selectedShape);
     });
 
@@ -858,19 +892,71 @@ function createSquareExercisePanel() {
   });
   panel.appendChild(shapeGroup);
 
+  const handSection = document.createElement('div');
+  handSection.className = 'figure-panel-section';
+
   const handTitle = document.createElement('div');
   handTitle.className = 'figure-panel-section-title';
   handTitle.textContent = 'Hand';
-  panel.appendChild(handTitle);
 
   const handGroup = document.createElement('div');
   handGroup.className = 'figure-mode-group';
+
+  handSection.appendChild(handTitle);
+  handSection.appendChild(handGroup);
+  panel.appendChild(handSection);
 
   const handOptions = [
     { value: 'right', label: 'Rechte Hand' },
     { value: 'left', label: 'Linke Hand' },
     { value: 'both', label: 'Beide Hände' }
   ];
+
+  const syncSection = document.createElement('div');
+  syncSection.className = 'figure-panel-section';
+
+  const syncTitle = document.createElement('div');
+  syncTitle.className = 'figure-panel-section-title';
+  syncTitle.textContent = 'Synchronität';
+  syncTitle.hidden = true;
+
+  const syncGroup = document.createElement('div');
+  syncGroup.className = 'figure-mode-group';
+  syncGroup.hidden = true;
+
+  syncSection.appendChild(syncTitle);
+  syncSection.appendChild(syncGroup);
+
+  const syncOptions = [
+    { value: 'asynchronous', label: 'Asynchron' },
+    { value: 'synchronous', label: 'Synchron' }
+  ];
+
+  syncOptions.forEach(({ value, label }) => {
+    const option = document.createElement('label');
+    option.className = 'figure-side-option';
+
+    const input = document.createElement('input');
+    input.type = 'radio';
+    input.name = 'square-exercise-sync-mode';
+    input.value = value;
+    input.checked = value === selectedSyncMode;
+
+    input.addEventListener('change', () => {
+      if (!input.checked) {
+        return;
+      }
+      selectedSyncMode = value;
+      persistSettings();
+      managerRef?.setSquareExerciseSyncMode(selectedSyncMode);
+    });
+
+    const caption = document.createElement('span');
+    caption.textContent = label;
+    option.appendChild(input);
+    option.appendChild(caption);
+    syncGroup.appendChild(option);
+  });
 
   handOptions.forEach(({ value, label }) => {
     const option = document.createElement('label');
@@ -887,7 +973,13 @@ function createSquareExercisePanel() {
         return;
       }
       selectedHandMode = value;
+      if (selectedHandMode !== 'both') {
+        selectedSyncMode = 'asynchronous';
+      }
+      updateSyncVisibility();
+      persistSettings();
       managerRef?.setSquareExerciseHandMode(selectedHandMode);
+      managerRef?.setSquareExerciseSyncMode(selectedSyncMode);
     });
 
     const caption = document.createElement('span');
@@ -896,7 +988,25 @@ function createSquareExercisePanel() {
     option.appendChild(caption);
     handGroup.appendChild(option);
   });
-  panel.appendChild(handGroup);
+
+  const updateSyncVisibility = () => {
+    const isBoth = selectedHandMode === 'both';
+    syncTitle.hidden = !isBoth;
+    syncGroup.hidden = !isBoth;
+    syncSection.hidden = !isBoth;
+
+    handTitle.hidden = false;
+    handGroup.hidden = false;
+
+    if (!isBoth && selectedSyncMode !== 'asynchronous') {
+      selectedSyncMode = 'asynchronous';
+      syncGroup.querySelectorAll('input[name="square-exercise-sync-mode"]').forEach((radio) => {
+        radio.checked = radio.value === 'asynchronous';
+      });
+    }
+  };
+
+  panel.appendChild(syncSection);
 
   const divider = document.createElement('div');
   divider.className = 'figure-panel-divider';
@@ -920,10 +1030,17 @@ function createSquareExercisePanel() {
   resolutionValue.className = 'figure-size-value';
   resolutionValue.textContent = `${Number(resolutionSlider.value).toFixed(2)}x`;
 
+  const setResolution = (value) => {
+    const next = Math.min(1.0, Math.max(0.55, Number(value)));
+    selectedResolution = next;
+    resolutionSlider.value = String(next);
+    resolutionValue.textContent = `${next.toFixed(2)}x`;
+  };
+
   resolutionSlider.addEventListener('input', () => {
     const next = Number(resolutionSlider.value);
-    selectedResolution = next;
-    resolutionValue.textContent = `${next.toFixed(2)}x`;
+    setResolution(next);
+    persistSettings();
     managerRef?.setSquareExerciseResolution(next);
   });
 
@@ -950,10 +1067,17 @@ function createSquareExercisePanel() {
   gridResolutionValue.className = 'figure-size-value';
   gridResolutionValue.textContent = `${Number(gridResolutionSlider.value)}x`;
 
+  const setGridResolution = (value) => {
+    const next = Math.max(8, Math.min(24, Math.round(Number(value) / 2) * 2));
+    selectedGridResolution = next;
+    gridResolutionSlider.value = String(next);
+    gridResolutionValue.textContent = `${next}x`;
+  };
+
   gridResolutionSlider.addEventListener('input', () => {
     const next = Number(gridResolutionSlider.value);
-    selectedGridResolution = next;
-    gridResolutionValue.textContent = `${next}x`;
+    setGridResolution(next);
+    persistSettings();
     managerRef?.setSquareExerciseGridResolution(next);
   });
 
@@ -962,9 +1086,80 @@ function createSquareExercisePanel() {
   gridResolutionWrap.appendChild(gridResolutionValue);
   panel.appendChild(gridResolutionWrap);
 
+  const centerDistanceWrap = document.createElement('label');
+  centerDistanceWrap.className = 'figure-size-wrap';
+
+  const centerDistanceLabel = document.createElement('div');
+  centerDistanceLabel.className = 'figure-size-label';
+  centerDistanceLabel.textContent = 'Abstand zum Mittelpunkt';
+
+  const centerDistanceSlider = document.createElement('input');
+  centerDistanceSlider.type = 'range';
+  centerDistanceSlider.min = '0.1';
+  centerDistanceSlider.max = '1.0';
+  centerDistanceSlider.step = '0.05';
+  centerDistanceSlider.value = String(selectedCenterDistance);
+
+  const centerDistanceValue = document.createElement('div');
+  centerDistanceValue.className = 'figure-size-value';
+  centerDistanceValue.textContent = Number(centerDistanceSlider.value).toFixed(2);
+
+  const setCenterDistance = (value) => {
+    const next = Math.min(1.0, Math.max(0.1, Number(value)));
+    selectedCenterDistance = next;
+    centerDistanceSlider.value = String(next);
+    centerDistanceValue.textContent = next.toFixed(2);
+  };
+
+  centerDistanceSlider.addEventListener('input', () => {
+    const next = Number(centerDistanceSlider.value);
+    setCenterDistance(next);
+    persistSettings();
+    managerRef?.setSquareExerciseCenterDistance(next);
+  });
+
+  centerDistanceWrap.appendChild(centerDistanceLabel);
+  centerDistanceWrap.appendChild(centerDistanceSlider);
+  centerDistanceWrap.appendChild(centerDistanceValue);
+  panel.appendChild(centerDistanceWrap);
+
+  const sharedChapter1Controls = [
+    resolutionWrap,
+    gridResolutionWrap,
+    centerDistanceWrap
+  ];
+  const squareOnlyChapter1Controls = [
+    shapeTitle,
+    shapeGroup,
+    handSection,
+    syncSection
+  ];
+
+  const setChapter1ExerciseMode = (mode) => {
+    const isSymmetric = mode === 'symmetric';
+    squareOnlyChapter1Controls.forEach((element) => {
+      if (element) {
+        element.hidden = isSymmetric;
+      }
+    });
+    sharedChapter1Controls.forEach((element) => {
+      if (element) {
+        element.hidden = false;
+      }
+    });
+    title.textContent = isSymmetric ? 'Symmetrisch' : 'Ziffern';
+  };
+
+  setChapter1ExerciseMode('square');
+
   return {
     panel,
     setVisible: (visible) => panel.classList.toggle('hidden', !visible),
+    setResolution,
+    setGridResolution,
+    setExerciseMode: (mode) => {
+      setChapter1ExerciseMode(mode);
+    },
     setTitle: (nextTitle) => {
       if (typeof nextTitle === 'string' && nextTitle.trim()) {
         title.textContent = nextTitle.trim();
@@ -973,111 +1168,41 @@ function createSquareExercisePanel() {
     setLevelManager: (manager) => {
       managerRef = manager || null;
       if (managerRef) {
+        const activeShape = managerRef.squareExerciseShape || selectedShape;
+        const activeDistance = Number.isFinite(managerRef.squareExerciseCenterDistance)
+          ? managerRef.squareExerciseCenterDistance
+          : selectedCenterDistance;
+        const activeHandMode = ['right', 'left', 'both'].includes(settings.handMode)
+          ? settings.handMode
+          : selectedHandMode;
+        const activeSyncMode = ['asynchronous', 'synchronous'].includes(settings.syncMode)
+          ? settings.syncMode
+          : selectedSyncMode;
+        selectedShape = activeShape;
+        selectedCenterDistance = activeDistance;
+        selectedHandMode = activeHandMode;
+        selectedSyncMode = activeSyncMode;
+
+        shapeOptions.forEach(({ value }) => {
+          const radio = panel.querySelector(`input[name="square-exercise-shape"][value="${value}"]`);
+          if (radio) {
+            radio.checked = value === activeShape;
+          }
+        });
+        panel.querySelectorAll('input[name="square-exercise-hand"]').forEach((radio) => {
+          radio.checked = radio.value === selectedHandMode;
+        });
+        panel.querySelectorAll('input[name="square-exercise-sync-mode"]').forEach((radio) => {
+          radio.checked = radio.value === selectedSyncMode;
+        });
+        setCenterDistance(selectedCenterDistance);
+        updateSyncVisibility();
         managerRef.setSquareExerciseShape(selectedShape);
         managerRef.setSquareExerciseHandMode(selectedHandMode);
+        managerRef.setSquareExerciseSyncMode(selectedSyncMode);
         managerRef.setSquareExerciseResolution(selectedResolution);
         managerRef.setSquareExerciseGridResolution(selectedGridResolution);
-      }
-    }
-  };
-}
-
-function createSymmetricExercisePanel() {
-  const panel = document.createElement('aside');
-  panel.className = 'figure-side-panel hidden symmetric-exercise-panel';
-  let managerRef = null;
-  let selectedResolution = 1.0;
-  let selectedOrientation = 'vertical';
-
-  const title = document.createElement('div');
-  title.className = 'figure-side-panel-title';
-  title.textContent = 'Symmetrisch';
-  panel.appendChild(title);
-
-  const orientationTitle = document.createElement('div');
-  orientationTitle.className = 'figure-panel-section-title';
-  orientationTitle.textContent = 'Linienform';
-  panel.appendChild(orientationTitle);
-
-  const orientationGroup = document.createElement('div');
-  orientationGroup.className = 'figure-mode-group';
-
-  const orientationOptions = [
-    { value: 'vertical', label: 'Vertikal' },
-    { value: 'horizontal', label: 'Horizontal' },
-    { value: 'square', label: 'Raute' },
-    { value: 'circle', label: 'Kreis' },
-    { value: 'diagonal', label: 'Diagonale' }
-  ];
-
-  orientationOptions.forEach(({ value, label }) => {
-    const option = document.createElement('label');
-    option.className = 'figure-side-option';
-
-    const input = document.createElement('input');
-    input.type = 'radio';
-    input.name = 'symmetric-exercise-orientation';
-    input.value = value;
-    input.checked = value === selectedOrientation;
-
-    input.addEventListener('change', () => {
-      if (!input.checked) {
-        return;
-      }
-      selectedOrientation = value;
-      managerRef?.setSymmetricExerciseOrientation(selectedOrientation);
-    });
-
-    const caption = document.createElement('span');
-    caption.textContent = label;
-    option.appendChild(input);
-    option.appendChild(caption);
-    orientationGroup.appendChild(option);
-  });
-  panel.appendChild(orientationGroup);
-
-  const divider = document.createElement('div');
-  divider.className = 'figure-panel-divider';
-  panel.appendChild(divider);
-
-  const resolutionWrap = document.createElement('label');
-  resolutionWrap.className = 'figure-size-wrap';
-
-  const resolutionLabel = document.createElement('div');
-  resolutionLabel.className = 'figure-size-label';
-  resolutionLabel.textContent = 'Kreisdurchmesser';
-
-  const resolutionSlider = document.createElement('input');
-  resolutionSlider.type = 'range';
-  resolutionSlider.min = '0.55';
-  resolutionSlider.max = '1.0';
-  resolutionSlider.step = '0.05';
-  resolutionSlider.value = String(selectedResolution);
-
-  const resolutionValue = document.createElement('div');
-  resolutionValue.className = 'figure-size-value';
-  resolutionValue.textContent = `${Number(resolutionSlider.value).toFixed(2)}x`;
-
-  resolutionSlider.addEventListener('input', () => {
-    const next = Number(resolutionSlider.value);
-    selectedResolution = next;
-    resolutionValue.textContent = `${next.toFixed(2)}x`;
-    managerRef?.setSymmetricExerciseResolution(next);
-  });
-
-  resolutionWrap.appendChild(resolutionLabel);
-  resolutionWrap.appendChild(resolutionSlider);
-  resolutionWrap.appendChild(resolutionValue);
-  panel.appendChild(resolutionWrap);
-
-  return {
-    panel,
-    setVisible: (visible) => panel.classList.toggle('hidden', !visible),
-    setLevelManager: (manager) => {
-      managerRef = manager || null;
-      if (managerRef) {
-        managerRef.setSymmetricExerciseOrientation(selectedOrientation);
-        managerRef.setSymmetricExerciseResolution(selectedResolution);
+        managerRef.setSquareExerciseCenterDistance(selectedCenterDistance);
       }
     }
   };
@@ -1970,12 +2095,10 @@ export function initApp() {
   const dynamicFigurePanel = createDynamicFigureModePanel();
   const handIndependencePanel = createHandIndependencePanel();
   const squareExercisePanel = createSquareExercisePanel();
-  const symmetricExercisePanel = createSymmetricExercisePanel();
   document.body.appendChild(figurePanel.panel);
   document.body.appendChild(dynamicFigurePanel.panel);
   document.body.appendChild(handIndependencePanel.panel);
   document.body.appendChild(squareExercisePanel.panel);
-  document.body.appendChild(symmetricExercisePanel.panel);
 
   const levelCanvas = document.createElement('canvas');
   levelCanvas.className = 'level-overlay';
@@ -1988,16 +2111,33 @@ export function initApp() {
   stageFrame.appendChild(levelCanvas);
 
   const levelManager = new LevelManager(levelCanvas);
+  const syncChapter1GridResolution = (value) => {
+    const next = Math.max(8, Math.min(24, Math.round(Number(value) / 2) * 2));
+    squareExercisePanel.setGridResolution(next);
+    levelManager.setSquareExerciseGridResolution(next);
+    levelManager.setSymmetricExerciseGridResolution(next);
+  };
+  const syncChapter1Resolution = (value) => {
+    const next = Math.min(1.0, Math.max(0.55, Number(value)));
+    squareExercisePanel.setResolution(next);
+    levelManager.setSquareExerciseResolution(next);
+    levelManager.setSymmetricExerciseResolution(next);
+  };
+
   figurePanel.setLevelManager(levelManager);
   squareExercisePanel.setLevelManager({
     setSquareExerciseShape: (value) => levelManager.setSquareExerciseShape(value),
     setSquareExerciseHandMode: (value) => levelManager.setSquareExerciseHandMode(value),
-    setSquareExerciseResolution: (value) => levelManager.setSquareExerciseResolution(value),
-    setSquareExerciseGridResolution: (value) => levelManager.setSquareExerciseGridResolution(value)
-  });
-  symmetricExercisePanel.setLevelManager({
-    setSymmetricExerciseResolution: (value) => levelManager.setSymmetricExerciseResolution(value),
-    setSymmetricExerciseOrientation: (value) => levelManager.setSymmetricExerciseOrientation(value)
+    setSquareExerciseSyncMode: (value) => levelManager.setSquareExerciseSyncMode(value),
+    setSquareExerciseResolution: (value) => {
+      syncChapter1Resolution(value);
+    },
+    setSquareExerciseGridResolution: (value) => {
+      syncChapter1GridResolution(value);
+    },
+    setSquareExerciseCenterDistance: (value) => {
+      levelManager.setSquareExerciseCenterDistance(value);
+    }
   });
   const dynamicFigureManager = {
     get figureScale() { return levelManager.dynamicFigureScale; },
@@ -2065,18 +2205,37 @@ export function initApp() {
 
   resizeOverlays();
 
+  const chapter1ExerciseTitles = ['Ziffern', 'Symmetrisch', 'Alternierend', 'Parallele Linien', 'Kreis'];
+
+  const getChapter1ExercisePanelVisibility = (level) => {
+    if (!Number.isInteger(level) || uiState.activeChapter !== 1) {
+      return { square: false, symmetric: false };
+    }
+
+    if (level === 1) {
+      return { square: false, symmetric: true };
+    }
+
+    if ([0, 2, 3, 4].includes(level)) {
+      return { square: true, symmetric: false };
+    }
+
+    return { square: true, symmetric: false };
+  };
+
   onChapterChange((chapter) => {
     levelManager.setChapter(chapter);
     const isFigureChapter = chapter === 3;
     const isDynamicFigureChapter = chapter === 4;
     const isHandIndependenceChapter = chapter === 5;
-    const showSquareExercisePanel = chapter === 1 && uiState.activeLevel !== null && uiState.activeLevel === 0;
-    const showSymmetricExercisePanel = chapter === 1 && uiState.activeLevel !== null && uiState.activeLevel === 1;
+    const exerciseVisibility = getChapter1ExercisePanelVisibility(uiState.activeLevel);
+    const showSquareExercisePanel = chapter === 1 && exerciseVisibility.square;
+    const showSymmetricExercisePanel = chapter === 1 && exerciseVisibility.symmetric;
     figurePanel.setVisible(isFigureChapter);
     dynamicFigurePanel.setVisible(isDynamicFigureChapter);
     handIndependencePanel.setVisible(isHandIndependenceChapter);
-    squareExercisePanel.setVisible(showSquareExercisePanel);
-    symmetricExercisePanel.setVisible(showSymmetricExercisePanel);
+    squareExercisePanel.setVisible(showSquareExercisePanel || showSymmetricExercisePanel || chapter === 1 && uiState.activeLevel !== null);
+    squareExercisePanel.setExerciseMode(showSymmetricExercisePanel ? 'symmetric' : 'square');
     if (isDynamicFigureChapter) {
       dynamicFigurePanel.setTitle('dynamic');
       dynamicFigurePanel.setVariant(levelManager.dynamicFigureVariant || 'hard');
@@ -2099,9 +2258,12 @@ export function initApp() {
       setLevelActive(false);
     }
 
-    const showSquareExercisePanel = uiState.activeChapter === 1 && level !== null && level === 0;
-    const showSymmetricExercisePanel = uiState.activeChapter === 1 && level !== null && level === 1;
-    const squareExerciseTitle = 'Asynchron';
+    const exerciseVisibility = getChapter1ExercisePanelVisibility(level);
+    const showSquareExercisePanel = uiState.activeChapter === 1 && exerciseVisibility.square;
+    const showSymmetricExercisePanel = uiState.activeChapter === 1 && exerciseVisibility.symmetric;
+    const squareExerciseTitle = uiState.activeChapter === 1 && Number.isInteger(level) && level >= 0 && level < chapter1ExerciseTitles.length
+      ? chapter1ExerciseTitles[level]
+      : 'Ziffern';
     if (uiState.activeChapter === 1) {
       squareExercisePanel.setTitle(squareExerciseTitle);
     }
@@ -2130,14 +2292,13 @@ export function initApp() {
       figurePanel.setVisible(false);
       dynamicFigurePanel.setVisible(false);
       handIndependencePanel.setVisible(false);
-      squareExercisePanel.setVisible(showSquareExercisePanel);
-      symmetricExercisePanel.setVisible(showSymmetricExercisePanel);
+      squareExercisePanel.setVisible(showSquareExercisePanel || showSymmetricExercisePanel || !!level);
+      squareExercisePanel.setExerciseMode(showSymmetricExercisePanel ? 'symmetric' : 'square');
     } else {
       figurePanel.setVisible(false);
       dynamicFigurePanel.setVisible(false);
       handIndependencePanel.setVisible(false);
       squareExercisePanel.setVisible(false);
-      symmetricExercisePanel.setVisible(false);
     }
   });
 

@@ -119,10 +119,16 @@ export class LevelManager {
     this.handIndependenceShapeLinearity = 0;
     this.handIndependenceAnimationStart = performance.now();
     this.squareExerciseHandMode = 'right';
+    this.squareExerciseSyncMode = 'asynchronous';
     this.squareExerciseResolution = 1;
-    this.squareExerciseGridResolution = 1;
-    this.squareExerciseShape = 'square';
+    this.squareExerciseGridResolution = 8;
+    this.squareExerciseShape = '0';
+    this.squareExerciseCenterDistance = 0.5;
     this.symmetricExerciseResolution = 1;
+    this.symmetricExerciseGridResolution = 8;
+    this.symmetricExerciseCenterDistance = 0.5;
+    this.chapter1GridResolution = 8;
+    this.chapter1CircleDiameter = 1;
     this.symmetricExerciseOrientation = 'vertical';
     this.scaledCalibrationCache = {
       set: null,
@@ -981,8 +987,30 @@ export class LevelManager {
       return;
     }
     this.squareExerciseHandMode = next;
-    if (this.chapter === 1 && Number.isInteger(this.level) && [0, 1].includes(this.level)) {
+    if (this.squareExerciseHandMode === 'both') {
+      this.nextTarget = 0;
+      this.nextTargetByHand = { left: 0, right: 0 };
+      this.completed = false;
+    }
+    if (this.squareExerciseHandMode !== 'both') {
+      this.squareExerciseSyncMode = 'asynchronous';
+    }
+    if (this.chapter === 1 && Number.isInteger(this.level) && [0, 2, 3, 4].includes(this.level)) {
       this.setupLevel();
+    }
+    this.requestRender();
+  }
+
+  setSquareExerciseSyncMode(mode) {
+    const next = ['asynchronous', 'synchronous'].includes(mode) ? mode : 'asynchronous';
+    this.squareExerciseSyncMode = next;
+    if (this.squareExerciseHandMode !== 'both') {
+      this.squareExerciseSyncMode = 'asynchronous';
+    }
+    if (this.squareExerciseHandMode === 'both' && this.squareExerciseSyncMode === 'synchronous') {
+      this.nextTarget = 0;
+      this.nextTargetByHand = { left: 0, right: 0 };
+      this.completed = false;
     }
     this.requestRender();
   }
@@ -992,7 +1020,13 @@ export class LevelManager {
     if (!Number.isFinite(next)) {
       return;
     }
-    this.squareExerciseResolution = Math.min(1.0, Math.max(0.55, next));
+    const clamped = Math.min(1.0, Math.max(0.55, next));
+    this.squareExerciseResolution = clamped;
+    this.symmetricExerciseResolution = clamped;
+    this.chapter1CircleDiameter = clamped;
+    if (this.chapter === 1 && Number.isInteger(this.level) && [0, 1, 2, 3, 4].includes(this.level)) {
+      this.setupLevel();
+    }
     this.buildGrid();
     this.requestRender();
   }
@@ -1004,19 +1038,249 @@ export class LevelManager {
     }
     const evenValue = Math.max(8, Math.min(24, Math.round(next / 2) * 2));
     this.squareExerciseGridResolution = evenValue;
-    if (this.chapter === 1 && Number.isInteger(this.level) && [0, 1].includes(this.level)) {
+    this.symmetricExerciseGridResolution = evenValue;
+    this.chapter1GridResolution = evenValue;
+    if (this.chapter === 1 && Number.isInteger(this.level) && [0, 1, 2, 3, 4].includes(this.level)) {
       this.setupLevel();
     }
     this.requestRender();
   }
 
   setSquareExerciseShape(mode) {
-    const next = ['square', 'circle'].includes(mode) ? mode : 'square';
+    const next = ['square', 'circle', '0', '1', '2', '3', '4', '5'].includes(mode) ? mode : '0';
     if (this.squareExerciseShape === next) {
       return;
     }
     this.squareExerciseShape = next;
-    if (this.chapter === 1 && Number.isInteger(this.level) && [0, 1].includes(this.level)) {
+    if (this.chapter === 1 && Number.isInteger(this.level) && [0, 2, 3, 4].includes(this.level)) {
+      this.setupLevel();
+    }
+    this.requestRender();
+  }
+
+  buildDigitSegments(digitValue) {
+    const segmentDefinitions = {
+      a: { x1: 1.2, y1: 1, x2: 6.8, y2: 1 },
+      b: { x1: 6.8, y1: 1, x2: 6.8, y2: 5 },
+      c: { x1: 6.8, y1: 5, x2: 6.8, y2: 9 },
+      d: { x1: 1.2, y1: 9, x2: 6.8, y2: 9 },
+      e: { x1: 1.2, y1: 5, x2: 1.2, y2: 9 },
+      f: { x1: 1.2, y1: 1, x2: 1.2, y2: 5 },
+      g: { x1: 1.2, y1: 5, x2: 6.8, y2: 5 }
+    };
+
+    const digitSegments = {
+      0: ['a', 'b', 'c', 'd', 'e', 'f'],
+      1: ['b', 'c'],
+      2: ['a', 'b', 'g', 'e', 'd'],
+      3: ['a', 'b', 'g', 'c', 'd'],
+      4: ['f', 'g', 'b', 'c'],
+      5: ['a', 'f', 'g', 'c', 'd']
+    };
+
+    const selected = digitSegments[Number(digitValue)] || [];
+    return selected.map((segmentKey) => segmentDefinitions[segmentKey]).filter(Boolean);
+  }
+
+  orderDigitTargetsByNearestNeighbor(points, digitValue = null, side = null) {
+    if (!Array.isArray(points) || points.length === 0) {
+      return [];
+    }
+
+    const uniquePoints = [];
+    const seen = new Set();
+    for (const point of points) {
+      if (!point || !Number.isInteger(point.row) || !Number.isInteger(point.col)) {
+        continue;
+      }
+      const key = `${point.row}:${point.col}`;
+      if (seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+      uniquePoints.push({ row: point.row, col: point.col });
+    }
+
+    if (uniquePoints.length === 0) {
+      return [];
+    }
+
+    const getNeighborCount = (point) => {
+      let count = 0;
+      for (const candidate of uniquePoints) {
+        if (candidate === point) {
+          continue;
+        }
+        const rowDelta = Math.abs(candidate.row - point.row);
+        const colDelta = Math.abs(candidate.col - point.col);
+        if (rowDelta <= 1 && colDelta <= 1) {
+          count += 1;
+        }
+      }
+      return count;
+    };
+
+    const getStartCandidate = () => {
+      const digit = Number(digitValue);
+      const openCornerCandidates = uniquePoints.filter((point) => getNeighborCount(point) === 1);
+
+      if (digit === 0) {
+        const topRow = Math.min(...uniquePoints.map((point) => point.row));
+        const topCandidates = uniquePoints.filter((point) => point.row === topRow);
+        if (topCandidates.length > 0) {
+          if (side === 'left') {
+            return topCandidates.reduce((best, point) => (point.col < best.col ? point : best), topCandidates[0]);
+          }
+          if (side === 'right') {
+            return topCandidates.reduce((best, point) => (point.col > best.col ? point : best), topCandidates[0]);
+          }
+        }
+      }
+
+      if ([2, 3, 4, 5].includes(digit) && openCornerCandidates.length > 0) {
+        const minCol = Math.min(...uniquePoints.map((point) => point.col));
+        const maxCol = Math.max(...uniquePoints.map((point) => point.col));
+        const centerColumn = (minCol + maxCol) / 2;
+
+        const sideFilteredCandidates = (() => {
+          if (digit === 4 && side === 'left') {
+            return openCornerCandidates.filter((point) => point.col <= centerColumn);
+          }
+          if (digit === 4 && side === 'right') {
+            return openCornerCandidates.filter((point) => point.col >= centerColumn);
+          }
+          return openCornerCandidates;
+        })();
+
+        const candidates = sideFilteredCandidates.length > 0 ? sideFilteredCandidates : openCornerCandidates;
+
+        return candidates.reduce((best, point) => {
+          const edgePriority = (point.row === 0 ? 0 : 1) + (point.col === 0 ? 0 : 1);
+          const bestPriority = (best.row === 0 ? 0 : 1) + (best.col === 0 ? 0 : 1);
+          const distanceToCenter = Math.abs(point.col - centerColumn);
+          const bestDistanceToCenter = Math.abs(best.col - centerColumn);
+
+          if (edgePriority < bestPriority) {
+            return point;
+          }
+
+          if (edgePriority === bestPriority) {
+            if (distanceToCenter < bestDistanceToCenter - 1e-9) {
+              return point;
+            }
+
+            if (Math.abs(distanceToCenter - bestDistanceToCenter) <= 1e-9) {
+              if (point.row < best.row || (point.row === best.row && point.col < best.col)) {
+                return point;
+              }
+            }
+          }
+
+          return best;
+        }, candidates[0]);
+      }
+
+      return uniquePoints.reduce((best, point) => {
+        if (point.row < best.row || (point.row === best.row && point.col < best.col)) {
+          return point;
+        }
+        return best;
+      }, uniquePoints[0]);
+    };
+
+    const start = getStartCandidate();
+
+    const ordered = [start];
+    const remaining = uniquePoints.filter((point) => point !== start);
+    let current = start;
+
+    while (remaining.length > 0) {
+      let bestCandidate = null;
+      let bestDistance = Infinity;
+      let bestTieBreak = Infinity;
+
+      for (const candidate of remaining) {
+        const dx = candidate.col - current.col;
+        const dy = candidate.row - current.row;
+        const distance = Math.hypot(dx, dy);
+        const tieBreak = Math.abs(candidate.row - current.row) + Math.abs(candidate.col - current.col);
+
+        if (distance < bestDistance - 1e-9 || (Math.abs(distance - bestDistance) <= 1e-9 && tieBreak < bestTieBreak)) {
+          bestCandidate = candidate;
+          bestDistance = distance;
+          bestTieBreak = tieBreak;
+        }
+      }
+
+      if (!bestCandidate) {
+        break;
+      }
+
+      ordered.push(bestCandidate);
+      current = bestCandidate;
+      const index = remaining.indexOf(bestCandidate);
+      if (index >= 0) {
+        remaining.splice(index, 1);
+      }
+    }
+
+    return ordered;
+  }
+
+  buildDigitTargets(digitValue, side, rows, cols) {
+    const numericDigit = Number(digitValue);
+    if (!Number.isInteger(numericDigit) || numericDigit < 0 || numericDigit > 5) {
+      return [];
+    }
+
+    const centerX = this.canvas.width * 0.5;
+    const centerY = this.canvas.height * 0.5;
+    const digitWidth = 7.2;
+    const digitHeight = 10;
+    const distanceFactor = Math.min(1.0, Math.max(0.1, Number(this.squareExerciseCenterDistance) || 0.5));
+    const sideOffset = this.canvas.width * (0.08 + distanceFactor * 0.18);
+    const scale = Math.min(
+      (this.canvas.width * 0.44) / digitWidth,
+      (this.canvas.height * 0.6) / digitHeight
+    );
+
+    const points = [];
+    const appendPoint = (x, y) => {
+      const offsetX = (x - 3.6) * scale;
+      const localX = side === 'left'
+        ? centerX - sideOffset - offsetX
+        : centerX + sideOffset + offsetX;
+      const localY = centerY + (y - 5) * scale;
+      const normalizedRow = (localY / this.canvas.height) * rows;
+      const row = Math.max(0, Math.min(rows - 1, Math.round(normalizedRow - 0.5)));
+      const col = this.getGridColumnForX(localX);
+      if (Number.isFinite(row) && Number.isFinite(col)) {
+        points.push({ row, col });
+      }
+    };
+
+    this.buildDigitSegments(numericDigit).forEach(({ x1, y1, x2, y2 }) => {
+      const distance = Math.hypot(x2 - x1, y2 - y1);
+      const steps = Math.max(8, Math.ceil(distance * 2.2));
+      for (let step = 0; step <= steps; step += 1) {
+        const t = step / steps;
+        const x = x1 + (x2 - x1) * t;
+        const y = y1 + (y2 - y1) * t;
+        appendPoint(x, y);
+      }
+    });
+
+    return this.orderDigitTargetsByNearestNeighbor(points, numericDigit, side);
+  }
+
+  setSquareExerciseCenterDistance(value) {
+    const next = Number(value);
+    if (!Number.isFinite(next)) {
+      return;
+    }
+    const clamped = Math.min(1.0, Math.max(0.1, next));
+    this.squareExerciseCenterDistance = clamped;
+    if (this.chapter === 1 && Number.isInteger(this.level) && [0, 2, 3, 4].includes(this.level)) {
       this.setupLevel();
     }
     this.requestRender();
@@ -1027,8 +1291,43 @@ export class LevelManager {
     if (!Number.isFinite(next)) {
       return;
     }
-    this.symmetricExerciseResolution = Math.min(1.0, Math.max(0.55, next));
+    const clamped = Math.min(1.0, Math.max(0.55, next));
+    this.symmetricExerciseResolution = clamped;
+    this.squareExerciseResolution = clamped;
+    this.chapter1CircleDiameter = clamped;
+    if (this.chapter === 1 && Number.isInteger(this.level) && [0, 1, 2, 3, 4].includes(this.level)) {
+      this.setupLevel();
+    }
     this.buildGrid();
+    this.requestRender();
+  }
+
+  setSymmetricExerciseGridResolution(value) {
+    const next = Number(value);
+    if (!Number.isFinite(next)) {
+      return;
+    }
+    const evenValue = Math.max(8, Math.min(24, Math.round(next / 2) * 2));
+    this.symmetricExerciseGridResolution = evenValue;
+    this.squareExerciseGridResolution = evenValue;
+    this.chapter1GridResolution = evenValue;
+    if (this.chapter === 1 && Number.isInteger(this.level) && [0, 1, 2, 3, 4].includes(this.level)) {
+      this.setupLevel();
+    }
+    this.requestRender();
+  }
+
+  setSymmetricExerciseCenterDistance(value) {
+    const next = Number(value);
+    if (!Number.isFinite(next)) {
+      return;
+    }
+    const clamped = Math.min(1.0, Math.max(0.1, next));
+    this.symmetricExerciseCenterDistance = clamped;
+    this.squareExerciseCenterDistance = clamped;
+    if (this.chapter === 1 && Number.isInteger(this.level) && [0, 1, 2, 3, 4].includes(this.level)) {
+      this.setupLevel();
+    }
     this.requestRender();
   }
 
@@ -1053,13 +1352,12 @@ export class LevelManager {
     const h = this.canvas.height;
     const spacingX = w / cols;
     const spacingY = h / rows;
-    const resolutionFactor = this.chapter === 1 && Number.isInteger(this.level)
-      ? (this.level === 0 || this.level === 4
-        ? this.squareExerciseResolution
-        : this.level === 1
-          ? this.symmetricExerciseResolution
-          : 1)
+    const chapter1ResolutionFactor = this.chapter === 1 && Number.isInteger(this.level)
+      ? ([0, 1, 2, 3, 4].includes(this.level)
+        ? (this.chapter1CircleDiameter ?? this.squareExerciseResolution ?? this.symmetricExerciseResolution ?? 1)
+        : 1)
       : 1;
+    const resolutionFactor = chapter1ResolutionFactor;
     const radiusX = spacingX / 2 * 0.98 * resolutionFactor;
     const radiusY = spacingY / 2 * 0.98 * resolutionFactor;
 
@@ -1144,6 +1442,33 @@ export class LevelManager {
     }
 
     return null;
+  }
+
+  getCurrentTargetForCircle(circleIndex) {
+    if (!Number.isInteger(circleIndex) || circleIndex < 0) {
+      return null;
+    }
+
+    const targetIndexes = this.targetIndexByCircle.get(circleIndex) || [];
+    if (this.squareExerciseHandMode === 'both') {
+      for (const hand of ['left', 'right']) {
+        const target = this.getCurrentTargetForHand(hand);
+        if (!target) {
+          continue;
+        }
+        const targetIndex = this.targets.indexOf(target);
+        if (targetIndex !== -1 && targetIndexes.includes(targetIndex)) {
+          return target;
+        }
+      }
+      return null;
+    }
+
+    const currentTarget = this.targets[this.nextTarget] || null;
+    if (!currentTarget || !targetIndexes.includes(this.nextTarget)) {
+      return null;
+    }
+    return currentTarget;
   }
 
   advanceTargetForHand(hand) {
@@ -2796,8 +3121,8 @@ export class LevelManager {
       { rows: 16, cols: 20 }
     ];
     const gs = gridSettings[this.level] || gridSettings[0];
-    if (this.chapter === 1 && Number.isInteger(this.level) && [0, 1].includes(this.level)) {
-      const resolution = Math.max(8, Math.min(24, this.squareExerciseGridResolution || gs.rows));
+    if (this.chapter === 1 && Number.isInteger(this.level) && [0, 1, 2, 3, 4].includes(this.level)) {
+      const resolution = Math.max(8, Math.min(24, this.chapter1GridResolution || this.squareExerciseGridResolution || this.symmetricExerciseGridResolution || gs.rows));
       const snapEven = (value) => (value % 2 === 0 ? value : value + 1);
       const rowsTarget = Math.max(8, Math.min(24, resolution));
       const colsTarget = Math.max(12, Math.min(32, Math.round((gs.cols / gs.rows) * rowsTarget)));
@@ -2816,9 +3141,22 @@ export class LevelManager {
     const startRow = Math.max(2, Math.floor(rows * 0.16)) + 2;
     const { outerRightCol, outerLeftCol, innerRightCol, innerLeftCol } = this.getEingewoehnungColumns();
 
+    if (this.level === 1) {
+      this.active = true;
+      this.targets = [];
+      this.nextTarget = 0;
+      this.nextTargetByHand = { left: 0, right: 0 };
+      this.completed = false;
+      this.targetIndexByCircle.clear();
+      this.buildGrid();
+      this.render();
+      return;
+    }
+
     if (this.level === 0) {
       const isBoth = this.squareExerciseHandMode === 'both';
       const selectedHands = isBoth ? ['left', 'right'] : [this.squareExerciseHandMode || 'right'];
+      const isDigitShape = /^\d$/.test(String(this.squareExerciseShape));
       const isCircle = this.squareExerciseShape === 'circle';
 
       const pushTarget = (side, cx, cy, radius, steps) => {
@@ -2862,7 +3200,12 @@ export class LevelManager {
       };
 
       selectedHands.forEach((side) => {
-        if (isCircle) {
+        if (isDigitShape) {
+          const digitPoints = this.buildDigitTargets(this.squareExerciseShape, side, rows, cols);
+          digitPoints.forEach(({ row, col }) => {
+            this.targets.push({ index: row * cols + col, hand: side });
+          });
+        } else if (isCircle) {
           const cx = side === 'left' ? this.canvas.width * 0.35 : this.canvas.width * 0.65;
           const cy = this.canvas.height * 0.5;
           const radius = Math.min(this.canvas.width, this.canvas.height) * 0.17;
@@ -3345,48 +3688,19 @@ export class LevelManager {
           .map((targetIndex) => this.targets[targetIndex])
           .filter(Boolean);
 
-        if (this.level === 2 && targetCandidates.some((target) => target.hand === 'both')) {
-          const symmetricTarget = this.targets[this.nextTarget] || targetCandidates[0];
-          const isCurrentTarget = symmetricTarget && symmetricTarget.hand === 'both'
-            ? (i === symmetricTarget.leftIndex || i === symmetricTarget.rightIndex)
-            : false;
-          const targetColors = this.getTargetBubbleColors(
-            symmetricTarget || targetCandidates[0],
-            i,
-            isCurrentTarget,
-            false
-          );
+        const currentTarget = this.getCurrentTargetForCircle(i);
+        const activeTarget = currentTarget || targetCandidates[0];
+        if (activeTarget) {
+          const isCurrentTarget = currentTarget !== null && activeTarget === currentTarget;
+          const isCompletedTarget = false;
+          const targetColors = this.getTargetBubbleColors(activeTarget, i, isCurrentTarget, isCompletedTarget);
           fill = targetColors.fill;
           stroke = targetColors.stroke;
-        } else {
-          const candidate = targetCandidates.find((target) => {
-            if (this.squareExerciseHandMode === 'both' && target && ['left', 'right'].includes(target.hand)) {
-              return this.getCurrentTargetForHand(target.hand) === target;
-            }
-            return targetIndexes.includes(this.nextTarget);
-          }) || targetCandidates[0];
-
-          if (candidate) {
-            const isCurrentTarget = this.squareExerciseHandMode === 'both' && candidate && ['left', 'right'].includes(candidate.hand)
-              ? this.getCurrentTargetForHand(candidate.hand) === candidate
-              : targetIndexes.includes(this.nextTarget);
-            const isCompletedTarget = this.squareExerciseHandMode === 'both' && candidate && ['left', 'right'].includes(candidate.hand)
-              ? (this.nextTargetByHand[candidate.hand] ?? 0) > (candidate.handProgress ?? 0)
-              : targetIndexes.some((targetIndex) => targetIndex < this.nextTarget);
-            const targetColors = this.getTargetBubbleColors(
-              candidate,
-              i,
-              isCurrentTarget,
-              isCompletedTarget
-            );
-            fill = targetColors.fill;
-            stroke = targetColors.stroke;
-          }
         }
       }
 
       this.ctx.beginPath();
-  this.ctx.ellipse(circle.x, circle.y, radiusX, radiusY, 0, 0, Math.PI * 2);
+      this.ctx.ellipse(circle.x, circle.y, radiusX, radiusY, 0, 0, Math.PI * 2);
       this.ctx.fillStyle = fill;
       this.ctx.fill();
       this.ctx.strokeStyle = stroke;
@@ -4744,6 +5058,20 @@ export class LevelManager {
       : [currentTarget].filter(Boolean);
 
     if (activeTargets.length === 0) {
+      this.requestRender();
+      return;
+    }
+
+    const leftCurrentTarget = this.squareExerciseHandMode === 'both' ? this.getCurrentTargetForHand('left') : null;
+    const rightCurrentTarget = this.squareExerciseHandMode === 'both' ? this.getCurrentTargetForHand('right') : null;
+    const leftTouched = leftCurrentTarget && this.leftTip ? this.getCircleIndex(this.leftTip) === leftCurrentTarget.index : false;
+    const rightTouched = rightCurrentTarget && this.rightTip ? this.getCircleIndex(this.rightTip) === rightCurrentTarget.index : false;
+
+    if (this.squareExerciseHandMode === 'both' && this.squareExerciseSyncMode === 'synchronous') {
+      if (leftTouched && rightTouched) {
+        this.advanceTargetForHand('left');
+        this.advanceTargetForHand('right');
+      }
       this.requestRender();
       return;
     }
