@@ -834,6 +834,12 @@ function createSquareExercisePanel() {
   let selectedAlternatingStartNote = Number.isFinite(Number(settings.alternatingStartNote))
     ? Math.max(36, Math.min(60, Math.round(Number(settings.alternatingStartNote))))
     : 36;
+  let selectedAlternatingVolume = Number.isFinite(Number(settings.alternatingVolume))
+    ? Math.max(0, Math.min(1, Number(settings.alternatingVolume)))
+    : 0;
+  let selectedActiveTouchFadeEnabled = typeof settings.activeTouchFadeEnabled === 'boolean'
+    ? settings.activeTouchFadeEnabled
+    : true;
   let selectedAlternatingFrequencyModulation = Boolean(settings.alternatingFrequencyModulation);
   let selectedAlternatingAxisSwap = Boolean(settings.alternatingAxisSwap);
   let pointEditMode = Boolean(settings.pointEditMode);
@@ -988,6 +994,8 @@ function createSquareExercisePanel() {
       centerDistance: selectedCenterDistance,
       alternatingScale: selectedAlternatingScale,
       alternatingStartNote: selectedAlternatingStartNote,
+      alternatingVolume: selectedAlternatingVolume,
+      activeTouchFadeEnabled: selectedActiveTouchFadeEnabled,
       alternatingFrequencyModulation: selectedAlternatingFrequencyModulation,
       alternatingAxisSwap: selectedAlternatingAxisSwap
     };
@@ -1774,8 +1782,10 @@ function createSquareExercisePanel() {
 
   const setAlternatingVolume = (value) => {
     const next = Math.max(0, Math.min(1, Number(value) || 0));
+    selectedAlternatingVolume = next;
     alternatingVolumeSlider.value = String(next);
     alternatingVolumeValue.textContent = next.toFixed(2);
+    persistSettings();
     managerRef?.setAlternatingExerciseVolume?.(next);
   };
 
@@ -1787,6 +1797,40 @@ function createSquareExercisePanel() {
   alternatingVolumeWrap.appendChild(alternatingVolumeSlider);
   alternatingVolumeWrap.appendChild(alternatingVolumeValue);
   panel.appendChild(alternatingVolumeWrap);
+
+  const activeTouchFadeWrap = document.createElement('label');
+  activeTouchFadeWrap.className = 'figure-size-wrap';
+  activeTouchFadeWrap.hidden = true;
+
+  const activeTouchFadeLabel = document.createElement('div');
+  activeTouchFadeLabel.className = 'figure-size-label';
+  activeTouchFadeLabel.textContent = 'Kontakt-Fade';
+
+  const activeTouchFadeCheckbox = document.createElement('input');
+  activeTouchFadeCheckbox.type = 'checkbox';
+  activeTouchFadeCheckbox.checked = selectedActiveTouchFadeEnabled;
+
+  const activeTouchFadeValue = document.createElement('div');
+  activeTouchFadeValue.className = 'figure-size-value';
+  activeTouchFadeValue.textContent = selectedActiveTouchFadeEnabled ? 'An' : 'Aus';
+
+  const setActiveTouchFadeEnabled = (value) => {
+    const next = Boolean(value);
+    selectedActiveTouchFadeEnabled = next;
+    activeTouchFadeCheckbox.checked = next;
+    activeTouchFadeValue.textContent = next ? 'An' : 'Aus';
+    persistSettings();
+    managerRef?.setActiveTouchFadeEnabled?.(next);
+  };
+
+  activeTouchFadeCheckbox.addEventListener('change', () => {
+    setActiveTouchFadeEnabled(activeTouchFadeCheckbox.checked);
+  });
+
+  activeTouchFadeWrap.appendChild(activeTouchFadeLabel);
+  activeTouchFadeWrap.appendChild(activeTouchFadeCheckbox);
+  activeTouchFadeWrap.appendChild(activeTouchFadeValue);
+  panel.appendChild(activeTouchFadeWrap);
 
   const sharedChapter1Controls = [
     resolutionWrap,
@@ -1806,16 +1850,19 @@ function createSquareExercisePanel() {
     const isSymmetric = mode === 'symmetric';
     const isAlternating = mode === 'alternating';
     const isBlank = mode === 'blank';
-    const hideUnusedSquareControls = isSymmetric || isPoints || isAlternating || isBlank;
+    const isFreeMovement = mode === 'free-movement';
+    const isFreeMovementExercise = isFreeMovement || (uiState.activeChapter === 1 && Number.isInteger(uiState.activeLevel) && uiState.activeLevel === 2);
+    const hideUnusedSquareControls = isSymmetric || isPoints || isAlternating || isBlank || isFreeMovement;
     const sharedControlsForMode = isAlternating
       ? [resolutionWrap, gridResolutionWrap, alternatingScaleWrap, alternatingFmWrap, alternatingAxisSwapWrap, alternatingStartNoteWrap, alternatingVolumeWrap]
       : isBlank
         ? []
-        : [resolutionWrap, gridResolutionWrap, centerDistanceWrap];
+        : [resolutionWrap, gridResolutionWrap, centerDistanceWrap, ...(isFreeMovementExercise ? [activeTouchFadeWrap] : [])];
 
     if (centerDistanceWrap) {
-      centerDistanceWrap.hidden = isAlternating || isBlank;
-      centerDistanceWrap.style.display = isAlternating || isBlank ? 'none' : '';
+      const shouldShowCenterDistance = !isAlternating && !isBlank && !isFreeMovement;
+      centerDistanceWrap.hidden = !shouldShowCenterDistance;
+      centerDistanceWrap.style.display = shouldShowCenterDistance ? '' : 'none';
     }
     if (alternatingScaleWrap) {
       alternatingScaleWrap.hidden = !isAlternating;
@@ -1836,6 +1883,11 @@ function createSquareExercisePanel() {
     if (alternatingVolumeWrap) {
       alternatingVolumeWrap.hidden = !isAlternating;
       alternatingVolumeWrap.style.display = isAlternating ? '' : 'none';
+    }
+    if (activeTouchFadeWrap) {
+      const shouldShowFadeToggle = isFreeMovement && !isAlternating && !isBlank && !isSymmetric && !isPoints;
+      activeTouchFadeWrap.hidden = !shouldShowFadeToggle;
+      activeTouchFadeWrap.style.display = shouldShowFadeToggle ? '' : 'none';
     }
     if (resolutionWrap) {
       resolutionWrap.hidden = isBlank;
@@ -1879,7 +1931,43 @@ function createSquareExercisePanel() {
       syncSection.style.display = hideUnusedSquareControls ? 'none' : '';
     }
 
+    const handTitleNode = handSection?.querySelector('.figure-panel-section-title');
+    const handGroupNode = handSection?.querySelector('.figure-mode-group');
+    const syncTitleNode = syncSection?.querySelector('.figure-panel-section-title');
+    const syncGroupNode = syncSection?.querySelector('.figure-mode-group');
+
+    if (handTitleNode) {
+      handTitleNode.hidden = hideUnusedSquareControls;
+      handTitleNode.style.display = hideUnusedSquareControls ? 'none' : '';
+    }
+    if (handGroupNode) {
+      handGroupNode.hidden = hideUnusedSquareControls;
+      handGroupNode.style.display = hideUnusedSquareControls ? 'none' : 'flex';
+    }
+    if (syncTitleNode) {
+      syncTitleNode.hidden = hideUnusedSquareControls;
+      syncTitleNode.style.display = hideUnusedSquareControls ? 'none' : '';
+    }
+    if (syncGroupNode) {
+      syncGroupNode.hidden = hideUnusedSquareControls;
+      syncGroupNode.style.display = hideUnusedSquareControls ? 'none' : 'flex';
+    }
+
     panel.querySelectorAll('input[name="square-exercise-shape"]').forEach((input) => {
+      const option = input.closest('label');
+      if (option) {
+        option.hidden = hideUnusedSquareControls;
+        option.style.display = hideUnusedSquareControls ? 'none' : 'flex';
+      }
+    });
+    panel.querySelectorAll('input[name="square-exercise-hand"]').forEach((input) => {
+      const option = input.closest('label');
+      if (option) {
+        option.hidden = hideUnusedSquareControls;
+        option.style.display = hideUnusedSquareControls ? 'none' : 'flex';
+      }
+    });
+    panel.querySelectorAll('input[name="square-exercise-sync-mode"]').forEach((input) => {
       const option = input.closest('label');
       if (option) {
         option.hidden = hideUnusedSquareControls;
@@ -1890,7 +1978,7 @@ function createSquareExercisePanel() {
     if (title) {
       title.hidden = false;
       title.style.display = '';
-      title.textContent = isPoints ? 'Punkte' : isSymmetric ? 'Symmetrisch' : isAlternating ? 'Alternierend' : 'Ziffern';
+      title.textContent = isFreeMovement ? 'Freie Bewegung' : isPoints ? 'Punkte' : isSymmetric ? 'Symmetrisch' : isAlternating ? 'Alternierend' : 'Ziffern';
     }
   };
 
@@ -1954,6 +2042,12 @@ function createSquareExercisePanel() {
         const activeAlternatingStartNote = Number.isFinite(Number(managerRef.alternatingExerciseStartNote))
           ? Math.max(36, Math.min(60, Math.round(Number(managerRef.alternatingExerciseStartNote))))
           : selectedAlternatingStartNote;
+        const activeAlternatingVolume = Number.isFinite(Number(managerRef.alternatingExerciseVolume))
+          ? Math.max(0, Math.min(1, Number(managerRef.alternatingExerciseVolume)))
+          : selectedAlternatingVolume;
+        const activeTouchFadeEnabled = typeof managerRef.activeTouchFadeEnabled === 'boolean'
+          ? managerRef.activeTouchFadeEnabled
+          : selectedActiveTouchFadeEnabled;
         const activeAlternatingFrequencyModulation = typeof managerRef.alternatingExerciseFrequencyModulation === 'boolean'
           ? managerRef.alternatingExerciseFrequencyModulation
           : Boolean(settings.alternatingFrequencyModulation ?? selectedAlternatingFrequencyModulation);
@@ -1966,6 +2060,8 @@ function createSquareExercisePanel() {
         selectedSyncMode = activeSyncMode;
         selectedAlternatingScale = activeAlternatingScale;
         selectedAlternatingStartNote = activeAlternatingStartNote;
+        selectedAlternatingVolume = activeAlternatingVolume;
+        selectedActiveTouchFadeEnabled = activeTouchFadeEnabled;
         selectedAlternatingFrequencyModulation = activeAlternatingFrequencyModulation;
         selectedAlternatingAxisSwap = activeAlternatingAxisSwap;
         pointEditMode = Boolean(managerRef.pointExerciseEditMode || pointEditMode);
@@ -2011,10 +2107,14 @@ function createSquareExercisePanel() {
           input.checked = input.value === selectedAlternatingScale;
         });
         setAlternatingStartNote(selectedAlternatingStartNote);
+        setAlternatingVolume(selectedAlternatingVolume);
+        setActiveTouchFadeEnabled(selectedActiveTouchFadeEnabled);
         alternatingFmCheckbox.checked = selectedAlternatingFrequencyModulation;
         alternatingFmValue.textContent = selectedAlternatingFrequencyModulation ? 'An' : 'Aus';
         alternatingAxisSwapCheckbox.checked = selectedAlternatingAxisSwap;
         alternatingAxisSwapValue.textContent = selectedAlternatingAxisSwap ? 'Y=Ton' : 'X=Ton';
+        managerRef?.setAlternatingExerciseVolume?.(selectedAlternatingVolume);
+        managerRef?.setActiveTouchFadeEnabled?.(selectedActiveTouchFadeEnabled);
         managerRef?.setAlternatingExerciseFrequencyModulation?.(selectedAlternatingFrequencyModulation);
         managerRef?.setAlternatingExerciseAxisSwap?.(selectedAlternatingAxisSwap);
         updatePointPanelVisibility();
@@ -3017,10 +3117,14 @@ export function initApp() {
     setAlternatingExerciseVolume: (value) => {
       levelManager.setAlternatingExerciseVolume(value);
     },
+    setActiveTouchFadeEnabled: (value) => {
+      levelManager.setActiveTouchFadeEnabled(value);
+    },
     alternatingExerciseScaleMode: levelManager.alternatingScaleMode,
     alternatingExerciseStartNote: levelManager.alternatingExerciseStartNote,
     alternatingExerciseFrequencyModulation: levelManager.alternatingExerciseFrequencyModulation,
     alternatingExerciseAxisSwap: levelManager.alternatingExerciseAxisSwap,
+    activeTouchFadeEnabled: levelManager.activeTouchFadeEnabled,
     pointExerciseEditMode: levelManager.pointExerciseEditMode,
     pointExerciseSelectedSlot: levelManager.pointExerciseSelectedSlot,
     pointExerciseSequence: levelManager.pointExerciseSequence,
@@ -3134,7 +3238,7 @@ export function initApp() {
       : showSymmetricExercisePanel
         ? 'symmetric'
         : (chapter === 1 && Number.isInteger(uiState.activeLevel) && uiState.activeLevel === 2)
-          ? 'alternating'
+          ? 'free-movement'
           : 'square';
     figurePanel.setVisible(isFigureChapter);
     dynamicFigurePanel.setVisible(isDynamicFigureChapter);
@@ -3168,7 +3272,8 @@ export function initApp() {
     const showSymmetricExercisePanel = uiState.activeChapter === 1 && exerciseVisibility.symmetric;
     const showPointsExercisePanel = uiState.activeChapter === 1 && exerciseVisibility.points;
     const blankChapter1ExercisePanel = uiState.activeChapter === 1 && Number.isInteger(level) && [3, 4].includes(level);
-    const alternatingExercisePanel = uiState.activeChapter === 1 && Number.isInteger(level) && level === 2;
+    const freeMovementExercisePanel = uiState.activeChapter === 1 && Number.isInteger(level) && level === 2;
+    const alternatingExercisePanel = uiState.activeChapter === 1 && Number.isInteger(level) && level === 2 && false;
     const squareExerciseTitle = uiState.activeChapter === 1 && Number.isInteger(level) && level >= 0 && level < chapter1ExerciseTitles.length
       ? chapter1ExerciseTitles[level]
       : 'Ziffern';
@@ -3208,9 +3313,11 @@ export function initApp() {
             ? 'points'
             : showSymmetricExercisePanel
               ? 'symmetric'
-              : alternatingExercisePanel
-                ? 'alternating'
-                : 'square'
+              : freeMovementExercisePanel
+                ? 'free-movement'
+                : alternatingExercisePanel
+                  ? 'alternating'
+                  : 'square'
       );
     } else {
       figurePanel.setVisible(false);

@@ -75,6 +75,9 @@ export class LevelManager {
     this.alternatingExerciseAxisSwap = false;
     this.lastAudioTriggerAtByCircle = new Map();
     this.activeTouchCircleByHand = { left: new Set(), right: new Set() };
+    this.activeTouchFadeByHand = { left: new Map(), right: new Map() };
+    this.activeTouchFadeEnabled = true;
+    this.activeTouchFadeDurationMs = 2000;
     this.renderQueued = false;
     this.figureVariant = 'soft';
     this.figureScale = 1 / 3;
@@ -1725,6 +1728,17 @@ export class LevelManager {
     if (this.audioMasterGain) {
       this.audioMasterGain.gain.value = 0.35 * this.alternatingExerciseVolume;
     }
+  }
+
+  setActiveTouchFadeEnabled(enabled) {
+    this.activeTouchFadeEnabled = Boolean(enabled);
+    if (!this.activeTouchFadeEnabled) {
+      this.activeTouchFadeByHand.left.clear();
+      this.activeTouchFadeByHand.right.clear();
+      this.activeTouchCircleByHand.left.clear();
+      this.activeTouchCircleByHand.right.clear();
+    }
+    this.requestRender();
   }
 
   setAlternatingExerciseScaleMode(value) {
@@ -4100,6 +4114,8 @@ export class LevelManager {
     }
 
     // draw grid
+    const nowMs = performance.now();
+    const freeMovementTouchFeedbackActive = this.chapter === 1 && Number.isInteger(this.level) && this.level === 2;
     for (let i = 0; i < this.grid.length; i += 1) {
       const circle = this.grid[i];
       const scale = this.circleScales[i];
@@ -4108,20 +4124,63 @@ export class LevelManager {
       let fill = 'rgba(255, 255, 255, 0.08)';
       let stroke = 'rgba(255, 255, 255, 0.16)';
 
-      const targetIndexes = this.targetIndexByCircle.get(i) || [];
-      if (targetIndexes.length > 0) {
-        const targetCandidates = targetIndexes
-          .map((targetIndex) => this.targets[targetIndex])
-          .filter(Boolean);
+      const leftTouch = freeMovementTouchFeedbackActive && (this.activeTouchCircleByHand.left?.has(i) ?? false);
+      const rightTouch = freeMovementTouchFeedbackActive && (this.activeTouchCircleByHand.right?.has(i) ?? false);
 
-        const currentTarget = this.getCurrentTargetForCircle(i);
-        const activeTarget = currentTarget || targetCandidates[0];
-        if (activeTarget) {
-          const isCurrentTarget = currentTarget !== null && activeTarget === currentTarget;
-          const isCompletedTarget = false;
-          const targetColors = this.getTargetBubbleColors(activeTarget, i, isCurrentTarget, isCompletedTarget);
-          fill = targetColors.fill;
-          stroke = targetColors.stroke;
+      const getFadeColor = (hand) => {
+        if (!this.activeTouchFadeEnabled) {
+          return null;
+        }
+        const fadeEntry = this.activeTouchFadeByHand[hand]?.get(i);
+        if (!fadeEntry) {
+          return null;
+        }
+        if (nowMs >= fadeEntry.endAt) {
+          this.activeTouchFadeByHand[hand].delete(i);
+          return null;
+        }
+        const lifePercent = 1 - (nowMs - fadeEntry.startedAt) / Math.max(1, this.activeTouchFadeDurationMs);
+        const alpha = Math.max(0, Math.min(1, lifePercent * 0.82));
+        return {
+          fill: hand === 'left' ? `rgba(96, 160, 255, ${alpha})` : `rgba(255, 160, 92, ${alpha})`,
+          stroke: hand === 'left' ? `rgba(220, 236, 255, ${Math.min(1, alpha + 0.18)})` : `rgba(255, 236, 216, ${Math.min(1, alpha + 0.18)})`
+        };
+      };
+
+      const leftFade = leftTouch ? null : getFadeColor('left');
+      const rightFade = rightTouch ? null : getFadeColor('right');
+
+      if (leftTouch || rightTouch) {
+        if (leftTouch && rightTouch) {
+          fill = 'rgba(120, 150, 255, 0.82)';
+          stroke = 'rgba(255, 232, 182, 0.98)';
+        } else if (leftTouch) {
+          fill = 'rgba(96, 160, 255, 0.82)';
+          stroke = 'rgba(220, 236, 255, 0.98)';
+        } else {
+          fill = 'rgba(255, 160, 92, 0.82)';
+          stroke = 'rgba(255, 236, 216, 0.98)';
+        }
+      } else if (leftFade || rightFade) {
+        const fadeColor = leftFade || rightFade;
+        fill = fadeColor.fill;
+        stroke = fadeColor.stroke;
+      } else {
+        const targetIndexes = this.targetIndexByCircle.get(i) || [];
+        if (targetIndexes.length > 0) {
+          const targetCandidates = targetIndexes
+            .map((targetIndex) => this.targets[targetIndex])
+            .filter(Boolean);
+
+          const currentTarget = this.getCurrentTargetForCircle(i);
+          const activeTarget = currentTarget || targetCandidates[0];
+          if (activeTarget) {
+            const isCurrentTarget = currentTarget !== null && activeTarget === currentTarget;
+            const isCompletedTarget = false;
+            const targetColors = this.getTargetBubbleColors(activeTarget, i, isCurrentTarget, isCompletedTarget);
+            fill = targetColors.fill;
+            stroke = targetColors.stroke;
+          }
         }
       }
 
@@ -5439,13 +5498,57 @@ export class LevelManager {
       if (!hand || hand.length < 9) continue;
       const tip = hand[8];
       if (!tip) continue;
-      if (tip.x < this.canvas.width * 0.5) {
+
+      const explicitSide = hand.side === 'left' || hand.side === 'right' ? hand.side : null;
+      const side = explicitSide || (tip.x < this.canvas.width * 0.5 ? 'left' : 'right');
+
+      if (side === 'left') {
         this.leftTip = tip;
-        // console.log(`Left tip: (${tip.x.toFixed(1)}, ${tip.y.toFixed(1)})`);
       } else {
         this.rightTip = tip;
-        // console.log(`Right tip: (${tip.x.toFixed(1)}, ${tip.y.toFixed(1)})`);
       }
+    }
+
+    const freeMovementActive = this.chapter === 1 && Number.isInteger(this.level) && this.level === 2;
+    const leftIdx = this.leftTip ? this.getCircleIndex(this.leftTip) : -1;
+    const rightIdx = this.rightTip ? this.getCircleIndex(this.rightTip) : -1;
+    const nowMs = performance.now();
+
+    for (const hand of ['left', 'right']) {
+      if (!freeMovementActive) {
+        this.activeTouchCircleByHand[hand].clear();
+        this.activeTouchFadeByHand[hand].clear();
+        continue;
+      }
+
+      if (!this.activeTouchFadeEnabled) {
+        this.activeTouchFadeByHand[hand].clear();
+      }
+      const currentIndex = hand === 'left' ? leftIdx : rightIdx;
+      const previousSet = this.activeTouchCircleByHand[hand] || new Set();
+      const nextSet = new Set();
+      if (currentIndex >= 0) {
+        nextSet.add(currentIndex);
+      }
+
+      previousSet.forEach((index) => {
+        if (index !== currentIndex) {
+          if (this.activeTouchFadeEnabled) {
+            this.activeTouchFadeByHand[hand].set(index, {
+              startedAt: nowMs,
+              endAt: nowMs + this.activeTouchFadeDurationMs
+            });
+          } else {
+            this.activeTouchFadeByHand[hand].delete(index);
+          }
+        }
+      });
+
+      if (currentIndex >= 0) {
+        this.activeTouchFadeByHand[hand].delete(currentIndex);
+      }
+
+      this.activeTouchCircleByHand[hand] = nextSet;
     }
 
     if (this.calibrationActive && (this.level === 1 || this.level === 2)) {

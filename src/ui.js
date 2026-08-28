@@ -9,7 +9,8 @@ import {
 
 export const uiState = {
   activeChapter: null,
-  activeLevel: null
+  activeLevel: null,
+  hoverHelpEnabled: true
 };
 
 let isLevelActive = false;
@@ -40,9 +41,27 @@ function emitLevelChange(level) {
 
 let hoverDescriptionEl = null;
 
-function setHoverDescription(text) {
-  if (!hoverDescriptionEl || isLevelActive) return;
+function setHoverDescription(text, position = null) {
+  if (!hoverDescriptionEl || !uiState.hoverHelpEnabled) return;
+  if (isLevelActive && !position) return;
   hoverDescriptionEl.textContent = text;
+  hoverDescriptionEl.classList.remove('panel-help');
+
+  if (position) {
+    hoverDescriptionEl.classList.add('panel-help');
+    hoverDescriptionEl.style.left = `${position.left}px`;
+    hoverDescriptionEl.style.top = `${position.top}px`;
+    hoverDescriptionEl.style.maxWidth = '260px';
+    hoverDescriptionEl.style.textAlign = 'left';
+    hoverDescriptionEl.style.transform = 'none';
+  } else {
+    hoverDescriptionEl.style.left = '';
+    hoverDescriptionEl.style.top = '';
+    hoverDescriptionEl.style.transform = 'none';
+    hoverDescriptionEl.style.maxWidth = '';
+    hoverDescriptionEl.style.textAlign = '';
+  }
+
   hoverDescriptionEl.classList.add('visible');
 }
 
@@ -50,6 +69,90 @@ export function clearHoverDescription() {
   if (!hoverDescriptionEl) return;
   hoverDescriptionEl.textContent = '';
   hoverDescriptionEl.classList.remove('visible');
+  hoverDescriptionEl.classList.remove('panel-help');
+  hoverDescriptionEl.style.left = '';
+  hoverDescriptionEl.style.top = '';
+  hoverDescriptionEl.style.transform = 'none';
+  hoverDescriptionEl.style.maxWidth = '';
+  hoverDescriptionEl.style.textAlign = '';
+}
+
+export function setHoverHelpEnabled(enabled) {
+  uiState.hoverHelpEnabled = Boolean(enabled);
+  if (!uiState.hoverHelpEnabled) {
+    clearHoverDescription();
+  }
+}
+
+export function registerHoverHelp(element, description) {
+  if (!(element instanceof Element) || !description) {
+    return element;
+  }
+
+  if (element.dataset.hoverHelpBound === 'true') {
+    return element;
+  }
+
+  const showDescription = () => {
+    if (!uiState.hoverHelpEnabled) {
+      return;
+    }
+
+    const rect = element.getBoundingClientRect();
+    const panel = element.closest('.figure-side-panel');
+    const panelRect = panel ? panel.getBoundingClientRect() : null;
+    const tooltipWidth = hoverDescriptionEl ? hoverDescriptionEl.offsetWidth || 220 : 220;
+    const left = panelRect
+      ? Math.max(16, panelRect.left - tooltipWidth - 18)
+      : Math.max(16, rect.left - tooltipWidth - 18);
+    const top = Math.min(window.innerHeight - 26, Math.max(26, rect.top + rect.height / 2));
+
+    setHoverDescription(description, { left, top });
+  };
+
+  element.addEventListener('mouseenter', showDescription);
+  element.addEventListener('mouseover', showDescription);
+  element.addEventListener('pointerenter', showDescription);
+  element.addEventListener('focus', showDescription);
+  element.addEventListener('mouseleave', clearHoverDescription);
+  element.addEventListener('mouseout', clearHoverDescription);
+  element.addEventListener('pointerleave', clearHoverDescription);
+  element.addEventListener('blur', clearHoverDescription);
+  element.setAttribute('aria-label', description);
+  element.dataset.hoverHelpBound = 'true';
+
+  return element;
+}
+
+export function attachPanelHoverHelp(panel) {
+  if (!(panel instanceof Element)) {
+    return panel;
+  }
+
+  if (panel.dataset.hoverHelpAttached === 'true') {
+    return panel;
+  }
+
+  const candidates = panel.querySelectorAll('button, input, select, textarea, label');
+  candidates.forEach((element) => {
+    if (element.dataset.hoverHelpBound === 'true') {
+      return;
+    }
+
+    const explicitDescription = element.dataset.help || element.getAttribute('title') || element.getAttribute('aria-label');
+    if (explicitDescription) {
+      registerHoverHelp(element, explicitDescription);
+      return;
+    }
+
+    const textNode = element.textContent ? element.textContent.replace(/\s+/g, ' ').trim() : '';
+    if (textNode && element.tagName !== 'INPUT' && element.tagName !== 'SELECT' && element.tagName !== 'TEXTAREA') {
+      registerHoverHelp(element, textNode);
+    }
+  });
+
+  panel.dataset.hoverHelpAttached = 'true';
+  return panel;
 }
 function createButton(label, isActive, onClick, description) {
   const button = document.createElement('button');
