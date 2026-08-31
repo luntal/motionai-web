@@ -143,3 +143,80 @@ export const basicFigurePathsStyle2 = {
     hardD: 'M 1 0 C 1.693 -0.034 1.885 -4.215 1.621 -4.239 C 1.38 -3.614 1.308 -1.644 0.852 -1.644 C 0.227 -1.62 0.748 -14.423 -0.006 -16.032 C 0.0113 -11.679 0.0287 -7.326 0.046 -2.973 C 0.123 -1.6 0.395 -0.058 1 0 Z'
   }
 }
+
+
+export const uiElementDescriptions = {
+  'Calibration': {
+
+  },
+  'Eingewöhnung': {
+    Form: 'Wähle die Form der Bewegung aus, die du üben möchtest.',
+    Hand: 'Übe die Bewegung mit der ausgewählten Hand oder mit beiden Händen gleichzeitig.',
+    Synchronität: 'Führe die bewegung gleichzeitig mit beiden Händen aus oder unabhängig voneinander.',
+    Kreisdurchmesser: 'Bestimme die Genauigkeit der Bewegung, indem du die Durchmesser der Kreise einstellst, die du berühren musst.',
+    GridAuflösung: 'Bestimme die Genauigkeit der Bewegung, indem du die Auflösung des Gitters einstellst, indem die Kreise angezeigt werden.',
+    AbstandZumMittelpunkt: 'Stelle den Abstand der Kreise zum Mittelpunkt ein.',
+    Bearbeiten: 'Stelle den Bearbeitungsmodus ein, um verschiedene Formen zu erstellen und diese zu speichern. Klicke dazu nacheinander auf die Kreise im Bild, in der Reihenfolge, in der du die Bewegung ausführen möchtest.',
+    Presets: 'Wähle aus den vordefinierten Bewegungsmustern aus, um die Übung zu starten.',
+    Nacheinander: 'Nacheinander bezieht sich auf die Reihenfolge für die Hände. Aktiviert müssen Kreise für die linke und rechte Hand nacheinander berührt werden, so wie sie beim Erstellen des Presets angeklickt wurden. Deaktiviert können die Kreise für die linke und rechte Hand unabhängig voneinander berührt werden.',
+    Reset: 'Lösche die aktuelle Auswahl an Kreisen. Es werden keine bereits gespeicherten Presets gelöscht.',
+    Speichern: 'Speichere die aktuelle Konfiguration. Die gespeicherte Konfiguration kann später über die Presets wieder aufgerufen werden. Beim Speichern in einen Slot wird der vorherige Inhalt des Slots überschrieben.',
+    KontaktFade: 'Stelle den Kontakt-Fade-Effekt ein oder aus. Der Effekt bewirkt, dass die Kreise nach dem Berühren langsam ausblenden, anstatt sofort zu verschwinden. So kannst du besser nachvollziehen, was für eine Bewegung ausgeführt wurde.',
+  },
+  'Gleichmäßigkeit': {
+    Tempo: 'Stelle das Tempo der Bewegung ein.',
+    Strenge: 'Es wird ein Score angezeigt, der die Ausführungsgenauigkeit der Bewegung bewertet. Hier kannst du seine Strenge einstellen.',
+    Kurve: 'Höhere Werte bremsen die Bewegung an den Eckpunkten ab, während niedrigere Werte die Bewegungsgeschwindigkeit überall gleichmäßig halten.',
+  },
+  'Grundfiguren': {
+    weichHart: 'Wähle die Art der Bewegung aus, die du üben möchtest. Weiche Bewegungen sind fließend und rund, während harte Bewegungen kantig und abrupt sind.',
+    Hand: 'Wählt die Hand aus, mit der du die Bewegung üben möchtest. Du kannst entweder die linke Hand, die rechte Hand oder beide gleichzeitig auswählen.',
+    Dynamiklinien: 'Blendet die Dynamiklinien ein oder aus.',
+    Zählzeiten: 'Blendet die Zählzeiten ein oder aus, die an der Grundfigur angezeigt werden.',
+    Groesse: 'Stelle die Größe der Grundfigur ein, um die Bewegungsreichweite und damit die Dynamik zu bestimmen.',
+    x: 'Stellt den Abstand zur Mitte in horizontaler Richtung ein.',
+    y: 'Stellt Position in vertikaler Richtung ein.',
+    BPM: 'Stellt die Bewegungsgeschwindigkeit in Beats pro Minute ein.',
+    Linearität: 'Stellt die Linearität der Bewegung ein. Linearität = 100 hält das Bewegungsgeschwindigkeit konstant, während Linearität = 0 die Geschwindigkeit an den Zählzeit-Eckpunkten der Bewegung beschleunigt, um ein abfedern der Bewegung zu erzeugen.',
+    Übergangslänge: 'Stellt die Übergangslänge für die Bewegungsgeschwindigkeit zwischen den farblich markierten Segmanten ein. Da jedes Segment unterschiedlich lang ist, aber die Zeit, in der es durchlaufen wird, gleich bleibt, braucht jedes Segment eine eigene Bewegungsgeschwindigkeit. Damit es keine Geschwindigkeitssprünge gibt, kann mit der Übergangslänge die Geschwindigkeit sanft von einem Segment auf das nächste abgeändert/angepasst werden. Die Übergangslänge bestimmt, wie lange es dauert, bis die Bewegungsgeschwindigkeit von einem Segment auf das nächste übergeht.',
+    Stroke: 'Bestimmmt die Strichstärke der Grundfigur.',
+  },
+  'Dynamikebenen': {
+    weichHart: 'Wähle die Art der Bewegung aus, die du üben möchtest. Weiche Bewegungen sind fließend und rund, während harte Bewegungen kantig und abrupt sind.',
+    Hand: 'Wähle die Hand aus, mit der du die Bewegung üben möchtest. Du kannst entweder die linke Hand, die rechte Hand oder beide gleichzeitig auswählen.',
+    Dynamiklinien: 'Blendet die Dynamiklinien ein oder aus.',
+    Zählzeiten: 'Blendet die Zählzeiten ein oder aus, die an der Grundfigur angezeigt werden.',
+    Groesse: 'Stellt die Größe der Grundfigur ein, um die Bewegungsreichweite und damit die Dynamik zu bestimmen.',
+    x: 'Stellt den Abstand zur Mitte in horizontaler Richtung ein.',
+    y: 'Stellt die Position in vertikaler Richtung ein.',
+    BPM: 'Stellt die Bewegungsgeschwindigkeit in Beats pro Minute ein.',
+    Linearität: 'Stellt die Linearität der Bewegung ein. Linearität = 100 hält das Bewegungsgeschwindigkeit konstant, während Linearität = 0 die Geschwindigkeit an den Zählzeit-Eckpunkten der Bewegung beschleunigt, um ein abfedern der Bewegung zu erzeugen.',
+    Übergangslänge: 'Stellt die Übergangslänge für die Bewegungsgeschwindigkeit zwischen den farblich markierten Segmanten ein. Da jedes Segment unterschiedlich lang ist, aber die Zeit, in der es durchlaufen wird, gleich bleibt, braucht jedes Segment eine eigene Bewegungsgeschwindigkeit. Damit es keine Geschwindigkeitssprünge gibt, kann mit der Übergangslänge die Geschwindigkeit sanft von einem Segment auf das nächste abgeändert/angepasst werden. Die Übergangslänge bestimmt, wie lange es dauert, bis die Bewegungsgeschwindigkeit von einem Segment auf das nächste übergeht.',
+    Stroke: 'Bestimmmt die Strichstärke der Grundfigur.',
+    ZählzeitSlider: 'Kontrolliert die genauere Form der Figur. Bestimme auf welcher Dynamikebene diese Zählzeit erscheinen soll.',
+    ZwischenpunktSlider: 'Kontolliert die genauere Form der Figur. Bestimme auf welcher Dynamikebene dieser Zwischenpunkt erscheinen soll.',
+    Presets: 'Wählt ein vorgegebenes Preset aus.',
+    Speichern: 'Speichert die aktuelle Konfiguration.',
+    Zurücksetzen: 'Setzt die Konfiguration auf den Standard zurück.',
+  },
+  'Handunabhängigkeit': {
+    Umkehren: 'Vertauscht die Formen der linken und rechten Hand. Eine Form ist immer die Taktgebung (Grundfigur im vorgegebenen Takt), die andere Form ist die Handunabhängigkeit (freie Form, die in der Handunabhängigkeit geübt wird).',
+    Dynamiklinien: 'Blendet die Dynamiklinien ein oder aus.',
+    Stroke: 'Stellt die Strichstärke der Grundfigur ein.',
+    x: 'Stellt den Abstand zur Mitte in horizontaler Richtung ein.',
+    y: 'Stellt die Position in vertikaler Richtung ein.',
+    BPM: 'Stellt die Bewegungsgeschwindigkeit in Beats pro Minute ein.',
+    Geschwindigkeitsverhältnis: 'Stellt das Verhältnis der Geschwindigkeit zwischen den beiden Händen ein.',
+    Taktgebung: 'Stellt die Form derTaktgebung ein.',
+    weichHart: 'Stellt die Art der Bewegung ein. Weiche Bewegungen sind fließend und rund, während harte Bewegungen kantig und abrupt sind.',
+    Zählzeiten: 'Blendet die Zählzeiten ein oder aus, die an der Grundfigur angezeigt werden.',
+    Grösse: 'Stellt die Größe der Grundfigur ein, um die Bewegungsreichweite und damit die Dynamik zu bestimmen.',
+    Übergangslänge: 'Stellt die Übergangslänge für die Bewegungsgeschwindigkeit zwischen den farblich markierten Segmanten ein. Da jedes Segment unterschiedlich lang ist, aber die Zeit, in der es durchlaufen wird, gleich bleibt, braucht jedes Segment eine eigene Bewegungsgeschwindigkeit. Damit es keine Geschwindigkeitssprünge gibt, kann mit der Übergangslänge die Geschwindigkeit sanft von einem Segment auf das nächste abgeändert/angepasst werden. Die Übergangslänge bestimmt, wie lange es dauert, bis die Bewegungsgeschwindigkeit von einem Segment auf das nächste übergeht.',
+    ZählzeitSlider: 'Kontrolliert die genauere Form der Figur. Bestimme auf welcher Dynamikebene diese Zählzeit erscheinen soll.',
+    ZwischenpunktSlider: 'Kontolliert die genauere Form der Figur. Bestimme auf welcher Dynamikebene dieser Zwischenpunkt erscheinen soll.',
+    Gegensatz: 'Stellt die Form für die zweite Hand ein, die eine gegensätzliche Form zur ersten Hand darstellt. Die erste Hand ist die Taktgebung, die zweite Hand ist die Handunabhängigkeit.',
+    Länge: 'Stellt die Länge der Gegensatzfigur ein.',
+    Rotation: 'Stellt die Rotation der Gegensatzfigur ein.',
+  }
+
+}
