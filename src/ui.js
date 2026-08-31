@@ -44,22 +44,24 @@ let hoverDescriptionEl = null;
 function setHoverDescription(text, position = null) {
   if (!hoverDescriptionEl || !uiState.hoverHelpEnabled) return;
   if (isLevelActive && !position) return;
+
   hoverDescriptionEl.textContent = text;
   hoverDescriptionEl.classList.remove('panel-help');
 
   if (position) {
     hoverDescriptionEl.classList.add('panel-help');
-    hoverDescriptionEl.style.left = `${position.left}px`;
+    const usingCenteredTopHover = position.left === '50%' || position.left === window.innerWidth / 2;
+    hoverDescriptionEl.style.left = usingCenteredTopHover ? '50%' : `${position.left}px`;
     hoverDescriptionEl.style.top = `${position.top}px`;
     hoverDescriptionEl.style.maxWidth = '260px';
-    hoverDescriptionEl.style.textAlign = 'left';
-    hoverDescriptionEl.style.transform = 'none';
+    hoverDescriptionEl.style.textAlign = 'center';
+    hoverDescriptionEl.style.transform = 'translateX(-50%)';
   } else {
-    hoverDescriptionEl.style.left = '';
-    hoverDescriptionEl.style.top = '';
-    hoverDescriptionEl.style.transform = 'none';
-    hoverDescriptionEl.style.maxWidth = '';
-    hoverDescriptionEl.style.textAlign = '';
+    hoverDescriptionEl.style.left = '50%';
+    hoverDescriptionEl.style.top = '18px';
+    hoverDescriptionEl.style.transform = 'translateX(-50%)';
+    hoverDescriptionEl.style.maxWidth = '260px';
+    hoverDescriptionEl.style.textAlign = 'center';
   }
 
   hoverDescriptionEl.classList.add('visible');
@@ -67,14 +69,15 @@ function setHoverDescription(text, position = null) {
 
 export function clearHoverDescription() {
   if (!hoverDescriptionEl) return;
+
   hoverDescriptionEl.textContent = '';
   hoverDescriptionEl.classList.remove('visible');
   hoverDescriptionEl.classList.remove('panel-help');
-  hoverDescriptionEl.style.left = '';
-  hoverDescriptionEl.style.top = '';
-  hoverDescriptionEl.style.transform = 'none';
-  hoverDescriptionEl.style.maxWidth = '';
-  hoverDescriptionEl.style.textAlign = '';
+  hoverDescriptionEl.style.left = '50%';
+  hoverDescriptionEl.style.top = '18px';
+  hoverDescriptionEl.style.transform = 'translateX(-50%)';
+  hoverDescriptionEl.style.maxWidth = '260px';
+  hoverDescriptionEl.style.textAlign = 'center';
 }
 
 export function setHoverHelpEnabled(enabled) {
@@ -102,10 +105,13 @@ export function registerHoverHelp(element, description) {
     const panel = element.closest('.figure-side-panel');
     const panelRect = panel ? panel.getBoundingClientRect() : null;
     const tooltipWidth = hoverDescriptionEl ? hoverDescriptionEl.offsetWidth || 220 : 220;
+    const navOrLevelButton = element.closest('.left-navigation, .level-row');
     const left = panelRect
-      ? Math.max(16, panelRect.left - tooltipWidth - 18)
-      : Math.max(16, rect.left - tooltipWidth - 18);
-    const top = Math.min(window.innerHeight - 26, Math.max(26, rect.top + rect.height / 2));
+      ? Math.max(18, panelRect.left - tooltipWidth / 2 - 18)
+      : navOrLevelButton
+        ? '50%'
+        : Math.max(18, rect.left - tooltipWidth / 2 - 18);
+    const top = 18;
 
     setHoverDescription(description, { left, top });
   };

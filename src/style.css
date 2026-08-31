@@ -377,8 +377,8 @@ canvas {
 .hover-description {
   position: fixed;
   top: 18px;
-  left: calc(var(--left-nav-width) + (100vw - var(--left-nav-width) - var(--right-panel-width)) / 2);
-  transform: translateX(-50%) translateY(-4px);
+  left: 50%;
+  transform: translateX(-50%) translateY(0);
   width: min(88vw, 560px);
   padding: 0.75rem 1rem;
   background: rgba(6, 10, 20, 0.92);
@@ -392,7 +392,7 @@ canvas {
   text-align: center;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.18s ease, transform 0.18s ease;
+  transition: opacity 0.18s ease;
   z-index: 25;
 }
 
