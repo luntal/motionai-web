@@ -196,6 +196,17 @@ function createFigureModePanel(initialManager, options = {}) {
   strokeLabel.className = 'figure-size-label';
   strokeLabel.textContent = 'Stroke';
 
+  const normalizeFigureXValue = (value) => {
+    const next = Number(value);
+    if (!Number.isFinite(next)) {
+      return 0.25;
+    }
+    if (next >= 0 && next <= 1) {
+      return Math.min(1, Math.max(0, next));
+    }
+    return Math.min(1, Math.max(0, Math.abs(next) / 300));
+  };
+
   const offsetWrap = document.createElement('div');
   offsetWrap.className = 'figure-size-wrap';
 
@@ -205,18 +216,19 @@ function createFigureModePanel(initialManager, options = {}) {
 
   const offsetSlider = document.createElement('input');
   offsetSlider.type = 'range';
-  offsetSlider.min = '50';
-  offsetSlider.max = '300';
-  offsetSlider.step = '5';
-  offsetSlider.value = String(storedFigureSettings.figureHorizontalOffset ?? initialManager?.figureHorizontalOffset ?? 50);
+  offsetSlider.min = '0';
+  offsetSlider.max = '1';
+  offsetSlider.step = '0.01';
+  offsetSlider.value = String(normalizeFigureXValue(storedFigureSettings.figureHorizontalOffset ?? initialManager?.figureHorizontalOffset ?? 0.25));
 
   const offsetValue = document.createElement('div');
   offsetValue.className = 'figure-size-value';
-  offsetValue.textContent = `${Number(offsetSlider.value).toFixed(0)}px`;
+  offsetValue.textContent = `${Number(offsetSlider.value).toFixed(2)}`;
 
   offsetSlider.addEventListener('input', () => {
-    const next = Number(offsetSlider.value);
-    offsetValue.textContent = `${next.toFixed(0)}px`;
+    const next = Math.min(1, Math.max(0, Number(offsetSlider.value)));
+    offsetSlider.value = String(next);
+    offsetValue.textContent = `${next.toFixed(2)}`;
     if (managerRef) {
       managerRef.setFigureHorizontalOffset(next);
     }
@@ -230,20 +242,32 @@ function createFigureModePanel(initialManager, options = {}) {
   yLabel.className = 'figure-size-label';
   yLabel.textContent = 'Y';
 
+  const normalizeFigureYValue = (value) => {
+    const next = Number(value);
+    if (!Number.isFinite(next)) {
+      return 0.5;
+    }
+    if (next >= 0 && next <= 1) {
+      return Math.min(1, Math.max(0, next));
+    }
+    return Math.min(1, Math.max(0, (next + 300) / 600));
+  };
+
   const ySlider = document.createElement('input');
   ySlider.type = 'range';
-  ySlider.min = '-300';
-  ySlider.max = '300';
-  ySlider.step = '5';
-  ySlider.value = String(storedFigureSettings.figureYPosition ?? initialManager?.figureYPosition ?? 0);
+  ySlider.min = '0';
+  ySlider.max = '1';
+  ySlider.step = '0.01';
+  ySlider.value = String(normalizeFigureYValue(storedFigureSettings.figureYPosition ?? initialManager?.figureYPosition ?? 0.5));
 
   const yValue = document.createElement('div');
   yValue.className = 'figure-size-value';
-  yValue.textContent = `${Number(ySlider.value).toFixed(0)}px`;
+  yValue.textContent = `${Number(ySlider.value).toFixed(2)}`;
 
   ySlider.addEventListener('input', () => {
-    const next = Number(ySlider.value);
-    yValue.textContent = `${next.toFixed(0)}px`;
+    const next = Math.min(1, Math.max(0, Number(ySlider.value)));
+    ySlider.value = String(next);
+    yValue.textContent = `${next.toFixed(2)}`;
     if (managerRef) {
       managerRef.setFigureYPosition(next);
     }
@@ -579,8 +603,8 @@ function createFigureModePanel(initialManager, options = {}) {
       sizeValue.textContent = `${Number(sizeSlider.value).toFixed(2)}x`;
       strokeSlider.value = String(managerRef.figureStrokeWidth ?? 0.5);
       strokeValue.textContent = `${Number(strokeSlider.value).toFixed(2)}px`;
-      offsetValue.textContent = `${Number(offsetSlider.value).toFixed(0)}px`;
-      yValue.textContent = `${Number(ySlider.value).toFixed(0)}px`;
+      offsetValue.textContent = `${Number(offsetSlider.value).toFixed(2)}`;
+      yValue.textContent = `${Number(ySlider.value).toFixed(2)}`;
       tempoValue.textContent = `${Number(tempoSlider.value).toFixed(0)} bpm`;
       hardLinearityValue.textContent = `${Number(hardLinearitySlider.value).toFixed(0)}%`;
       softTransitionValue.textContent = `${Number(softTransitionSlider.value).toFixed(0)}%`;
@@ -637,8 +661,8 @@ function createFigureModePanel(initialManager, options = {}) {
     const numericControls = [
       [sizeSlider, sizeValue, settings.figureScale, (value) => `${value.toFixed(2)}x`],
       [strokeSlider, strokeValue, settings.figureStrokeWidth, (value) => `${value.toFixed(2)}px`],
-      [offsetSlider, offsetValue, settings.figureHorizontalOffset, (value) => `${value.toFixed(0)}px`],
-      [ySlider, yValue, settings.figureYPosition, (value) => `${value.toFixed(0)}px`],
+      [offsetSlider, offsetValue, normalizeFigureXValue(settings.figureHorizontalOffset), (value) => `${value.toFixed(2)}`],
+      [ySlider, yValue, normalizeFigureYValue(settings.figureYPosition), (value) => `${value.toFixed(2)}`],
       [tempoSlider, tempoValue, settings.figureTempoBpm, (value) => `${value.toFixed(0)} bpm`],
       [hardLinearitySlider, hardLinearityValue, settings.figureHardLinearity, (value) => `${value.toFixed(0)}%`],
       [softTransitionSlider, softTransitionValue, settings.figureSoftTransitionPercent, (value) => `${value.toFixed(0)}%`]
@@ -672,6 +696,196 @@ function createFigureModePanel(initialManager, options = {}) {
     persistFigureSettings();
   }
 
+  const presetStorageKey = 'motionai.figure-presets';
+  const selectedPresetStorageKey = 'motionai.figure-selected-presets';
+  const presetCount = 8;
+  let currentLevel = null;
+  let selectedPreset = 0;
+  let presetData = {};
+  let selectedPresetByLevel = {};
+
+  try {
+    const stored = localStorage.getItem(presetStorageKey);
+    presetData = stored ? JSON.parse(stored) : {};
+  } catch (error) {
+    presetData = {};
+  }
+
+  try {
+    const stored = localStorage.getItem(selectedPresetStorageKey);
+    selectedPresetByLevel = stored ? JSON.parse(stored) : {};
+  } catch (error) {
+    selectedPresetByLevel = {};
+  }
+
+  function persistPresets() {
+    try {
+      localStorage.setItem(presetStorageKey, JSON.stringify(presetData));
+    } catch (error) {
+      return;
+    }
+  }
+
+  function persistSelectedPresets() {
+    try {
+      localStorage.setItem(selectedPresetStorageKey, JSON.stringify(selectedPresetByLevel));
+    } catch (error) {
+      return;
+    }
+  }
+
+  function getFactoryPreset(slot) {
+    const ratio = slot / (presetCount - 1);
+    return {
+      ...getSettings(),
+      figureScale: 0.2 + ratio * 0.8,
+      figureStrokeWidth: 0.01 + ratio * 0.49,
+      figureHorizontalOffset: 0.08 + ratio * 0.6,
+      figureYPosition: 0.15 + ratio * 0.7,
+      figureTempoBpm: 30 + ratio * 90,
+      figureHardLinearity: ratio * 100,
+      figureSoftTransitionPercent: ratio * 50,
+      figureDynamicsVisible: false,
+      figureCountTimesVisible: false,
+      figureVariant: selectedVariant || 'soft',
+      figureSide: selectedSide || 'left'
+    };
+  }
+
+  function getPreset(level, slot) {
+    if (!Number.isInteger(level)) {
+      return getFactoryPreset(slot);
+    }
+    const levelData = presetData[String(level)] || {};
+    return levelData[String(slot)] || getFactoryPreset(slot);
+  }
+
+  function applyPreset(slot) {
+    if (!Number.isInteger(currentLevel)) {
+      return;
+    }
+
+    selectedPreset = Number.isInteger(slot) && slot >= 0 && slot < presetCount ? slot : 0;
+    selectedPresetByLevel[String(currentLevel)] = selectedPreset;
+    persistSelectedPresets();
+
+    const preset = getPreset(currentLevel, selectedPreset);
+    setSettings(preset);
+    setVariant(preset.figureVariant || selectedVariant);
+  }
+
+  function renderPresetSlots() {
+    const presetSlots = panel.querySelector('.figure-preset-slots');
+    if (!presetSlots) {
+      return;
+    }
+
+    presetSlots.innerHTML = '';
+    for (let slot = 0; slot < presetCount; slot += 1) {
+      const option = document.createElement('label');
+      option.className = 'dynamic-figure-preset-option';
+      const input = document.createElement('input');
+      input.type = 'radio';
+      input.name = 'figure-preset';
+      input.value = String(slot);
+      input.checked = slot === selectedPreset;
+      input.addEventListener('change', () => {
+        if (input.checked) {
+          applyPreset(slot);
+        }
+      });
+      const caption = document.createElement('span');
+      caption.textContent = String(slot + 1);
+      option.appendChild(input);
+      option.appendChild(caption);
+      presetSlots.appendChild(option);
+    }
+  }
+
+  const presetPanel = document.createElement('div');
+  presetPanel.className = 'dynamic-figure-presets';
+  const presetTitle = document.createElement('div');
+  presetTitle.className = 'figure-size-label';
+  presetTitle.textContent = 'Presets';
+  const presetSlots = document.createElement('div');
+  presetSlots.className = 'figure-preset-slots dynamic-figure-preset-slots';
+  const presetSaveButton = document.createElement('button');
+  presetSaveButton.type = 'button';
+  presetSaveButton.className = 'dynamic-figure-preset-action';
+  presetSaveButton.textContent = 'Speichern';
+  presetSaveButton.title = 'Aktuelle Parameter in einem Preset-Slot speichern';
+  const presetResetButton = document.createElement('button');
+  presetResetButton.type = 'button';
+  presetResetButton.className = 'dynamic-figure-preset-action';
+  presetResetButton.textContent = 'Zurücksetzen';
+  presetResetButton.title = 'Aktuelle Übung auf die Werkseinstellungen zurücksetzen';
+  const presetActions = document.createElement('div');
+  presetActions.className = 'dynamic-figure-preset-actions';
+  presetActions.appendChild(presetSaveButton);
+  presetActions.appendChild(presetResetButton);
+  presetPanel.appendChild(presetTitle);
+  presetPanel.appendChild(presetSlots);
+  presetPanel.appendChild(presetActions);
+  const presetDivider = document.createElement('div');
+  presetDivider.className = 'figure-panel-divider';
+  panel.appendChild(presetDivider);
+  panel.appendChild(presetPanel);
+
+  presetSaveButton.addEventListener('click', () => {
+    if (!Number.isInteger(currentLevel)) {
+      return;
+    }
+
+    const requestedSlot = window.prompt(
+      'In welchem Preset-Slot sollen die aktuellen Parameterwerte für diese Übung gespeichert werden? (1-8)',
+      String(selectedPreset + 1)
+    );
+    const slot = Number(requestedSlot) - 1;
+    if (!Number.isInteger(slot) || slot < 0 || slot >= presetCount) {
+      return;
+    }
+
+    presetData[String(currentLevel)] ||= {};
+    presetData[String(currentLevel)][String(slot)] = {
+      ...getSettings(),
+      figureVariant: selectedVariant,
+      figureSide: selectedSide
+    };
+    selectedPreset = slot;
+    selectedPresetByLevel[String(currentLevel)] = slot;
+    persistPresets();
+    persistSelectedPresets();
+    renderPresetSlots();
+  });
+
+  presetResetButton.addEventListener('click', () => {
+    if (!Number.isInteger(currentLevel)) {
+      return;
+    }
+
+    delete presetData[String(currentLevel)];
+    selectedPreset = 0;
+    selectedPresetByLevel[String(currentLevel)] = 0;
+    persistPresets();
+    persistSelectedPresets();
+    renderPresetSlots();
+    setSettings(getFactoryPreset(0));
+  });
+
+  function setLevel(level) {
+    currentLevel = Number.isInteger(level) ? level : null;
+    if (currentLevel !== null) {
+      const storedSlot = Number(selectedPresetByLevel[String(currentLevel)]);
+      selectedPreset = Number.isInteger(storedSlot) && storedSlot >= 0 && storedSlot < presetCount
+        ? storedSlot
+        : 0;
+    }
+    renderPresetSlots();
+    if (currentLevel !== null) {
+      applyPreset(selectedPreset);
+    }
+  }
+
   return {
     panel,
     setVisible,
@@ -681,6 +895,7 @@ function createFigureModePanel(initialManager, options = {}) {
     getSettings,
     setSettings,
     setLevelManager,
+    setLevel,
     getVariant: () => selectedVariant,
     getSide: () => selectedSide
   };
@@ -779,7 +994,7 @@ function createDynamicFigureModePanel() {
       figureScale: 0.2 + ratio * 0.8,
       figureStrokeWidth: 0.01 + ratio * 0.49,
       figureHorizontalOffset: 50 + ratio * 250,
-      figureYPosition: -300 + ratio * 600,
+      figureYPosition: ratio,
       figureTempoBpm: 30 + ratio * 90,
       figureHardLinearity: ratio * 100,
       figureSoftTransitionPercent: ratio * 50,
@@ -2300,6 +2515,7 @@ function createHandIndependencePanel() {
     const storedSettings = JSON.parse(localStorage.getItem(storageKey) || '{}');
     settings = storedSettings && typeof storedSettings === 'object' ? storedSettings : {};
   } catch (error) { settings = {}; }
+  settings.sharedX = settings.sharedX ?? 0;
   try {
     const storedPresets = JSON.parse(localStorage.getItem(presetKey) || '{}');
     presets = storedPresets && typeof storedPresets === 'object' ? storedPresets : {};
@@ -2366,8 +2582,8 @@ function createHandIndependencePanel() {
   dynamicsToggle.append(dynamicsInput, document.createTextNode('Dynamiklinien'));
   panel.appendChild(dynamicsToggle);
   addRange('strokeWidth', 'Stroke', 0.01, 0.5, 0.01);
-  addRange('sharedY', 'Y', -200, 200, 0.1);
-  addRange('sharedX', 'X', -100, 100, 0.1);
+  addRange('sharedY', 'Y', 0, 1, 0.01);
+  addRange('sharedX', 'X', 0, 1, 0.01);
   addDivider();
   const tempoRatioTitle = document.createElement('div');
   tempoRatioTitle.className = 'figure-panel-section-title';
@@ -2409,6 +2625,7 @@ function createHandIndependencePanel() {
   });
   panel.appendChild(figureSelect);
   controls.figureLevel = figureSelect;
+  bindUiGroupDescription([figureSelect], 'Handunabhängigkeit', 'Taktgebung');
   const variantGroup = document.createElement('div'); variantGroup.className = 'figure-mode-group';
   const variantInputs = {};
   ['soft', 'hard'].forEach((variant) => {
@@ -3465,6 +3682,7 @@ export function initApp() {
     if (uiState.activeChapter === 3) {
       figurePanel.setVisible(level !== null);
       figurePanel.setTitle(level !== null && level >= 4 ? 'extended' : 'basic');
+      figurePanel.setLevel(level);
       dynamicFigurePanel.setVisible(false);
       handIndependencePanel.setVisible(false);
       squareExercisePanel.setVisible(false);

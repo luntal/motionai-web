@@ -25,10 +25,10 @@ export const chapterDescriptions = [
   'Eingewöhnung: Einfache Übungen zur Gewöhnung an die Bewegungserkennung und das Feedback.',
   'Gleichmäßigkeit: Übe deine Bewegungen gleichmäßig auszuführen.',
   'Grundfiguren: Übe grundlegende Dirigierschläge und Bewegungsmuster.',
-  'Dynamikebenen: Platzhalter für zukünftige Übungen zu dynamischen Bewegungsstufen.',
+  'Dynamikebenen: Hier können die Grundfiguren mit verschiedenen Dynamikstufen für einzelne Zählzeiten geübt werden.',
   'Handunabhängigkeit: Übe die Unabhängigkeit deiner Hände durch unterschiedliche Bewegungsmuster in der linken und rechten Hand.',
   'Einsätze geben: Platzhalter für zukünftige Einsatzübungen.',
-  'Prüfungen: Platzhalter für die Prüfungsstruktur und spätere Aufgaben.'
+  'Prüfungen: Hier werden deine Fortschritte geprüft und bewertet.'
 ];
 
 export const levelTitles = [
@@ -50,8 +50,8 @@ export const levelDescriptions = [
   ],
   [
     'Ziffern: Malen nach Zahlen. Berühre die orangenen Kreise mit der rechten Hand und die blauen Kreise mit der linken.',
-    'Punkte: Berühre den aktiven Punkt.',
-    'Freie Bewegung: Führe freie Bewegungen mit beiden Händen aus.',
+    'Punkte: Berühre den aktiven Punkt. Die aktiven Punkte erscheinen nacheinander und müssen in der richtigen Reihenfolge berührt werden. Außerdem können in dieser Übung eigene Formen und Abläufe erstellt werden, die dann in den Presets gespeichert werden können.',
+    'Freie Bewegung: Führe freie Bewegungen mit beiden Händen aus. Tipp: Durch das langsame Ausblenden der Kreise nach dem Berühren kann die Bewegung besser nachvollzogen werden. Versuche beipielsweise eine gerade Linie zu zeichnen und verfolge live die Bewegungsgenauigkeit mit.',
     'Leer 1: Berühre den aktiven Punkt.',
     'Leer 2: Berühre den aktiven Punkt.'
   ],
@@ -73,10 +73,10 @@ export const levelDescriptions = [
     'Siebenerfigur: Viererfigur mit Verdopplung der ersten, zweiten und dritten Zählzeit.'
   ],
   [
-    'Dynamikebene 1: Platzhalter für zukünftige Übungen zu dynamischen Bewegungsstufen.',
-    'Dynamikebene 2: Platzhalter für zukünftige Übungen zu dynamischen Bewegungsstufen.',
-    'Dynamikebene 3: Platzhalter für zukünftige Übungen zu dynamischen Bewegungsstufen.',
-    'Dynamikebene 4: Platzhalter für zukünftige Übungen zu dynamischen Bewegungsstufen.'
+    'Einsertakt: Einserfigur mit spezifischer Dynamik.',
+    'Zweierfigur: Zweierfigur mit spezifischer Dynamik für einzelne Zählzeiten.',
+    'Dreierfigur: Dreierfigur mit spezifischer Dynamik für einzelne Zählzeiten.',
+    'Viererfigur: Viererfigur mit spezifischer Dynamik für einzelne Zählzeiten.'
   ],
   ['Preset 1', 'Preset 2', 'Preset 3', 'Preset 4', 'Preset 5', 'Preset 6', 'Preset 7', 'Preset 8'],
   [
@@ -223,7 +223,7 @@ export const uiElementDescriptions = {
     y: 'Stellt die Position in vertikaler Richtung ein.',
     BPM: 'Stellt die Bewegungsgeschwindigkeit in Beats pro Minute ein.',
     Geschwindigkeitsverhältnis: 'Stellt das Verhältnis der Geschwindigkeit zwischen den beiden Händen ein.',
-    Taktgebung: 'Stellt die Form derTaktgebung ein.',
+    Taktgebung: 'Stellt die Form der Taktgebung ein. Dafür kann eine der Grundfiguren ausgewählt werden, zum Beispiel Einserfigur, Zweierfigur oder eine andere Figur, die als rhythmischer Leitpfad für die Bewegung dient.',
     weichHart: 'Stellt die Art der Bewegung ein. Weiche Bewegungen sind fließend und rund, während harte Bewegungen kantig und abrupt sind.',
     Zählzeiten: 'Blendet die Zählzeiten ein oder aus, die an der Grundfigur angezeigt werden.',
     Grösse: 'Stellt die Größe der Grundfigur ein, um die Bewegungsreichweite und damit die Dynamik zu bestimmen.',
