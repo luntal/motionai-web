@@ -5,11 +5,115 @@ import {
   clearHoverDescription,
   setLevelActive,
   setActiveLevel,
-  uiState
+  setHoverHelpEnabled,
+  uiState,
+  attachPanelHoverHelp,
+  registerHoverHelp
 } from './ui.js';
 import { startTracking, onLandmarksUpdate, onPoseUpdate, setStabilizationEnabled, setLandmarkDrawingEnabled, onCanvasResize } from './tracking.js';
 import { LevelManager } from './levels.js';
-import { getLevelCountForChapter } from './constants.js';
+import { getLevelCountForChapter, uiElementDescriptions } from './constants.js';
+
+function normalizeHelpKey(value) {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/ß/g, 'ss')
+    .replace(/[^a-zA-Z0-9]/g, '')
+    .toLowerCase();
+}
+
+function getUiDescriptionForSection(sectionName, key) {
+  const section = uiElementDescriptions[sectionName];
+  if (!section) {
+    return undefined;
+  }
+
+  if (section[key]) {
+    return section[key];
+  }
+
+  const normalizedKey = normalizeHelpKey(key);
+  const matchingKey = Object.keys(section).find((candidate) => normalizeHelpKey(candidate) === normalizedKey);
+  return matchingKey ? section[matchingKey] : undefined;
+}
+
+function bindUiDescription(element, sectionName, key) {
+  if (!(element instanceof Element)) {
+    return element;
+  }
+
+  const description = getUiDescriptionForSection(sectionName, key);
+  if (!description) {
+    return element;
+  }
+
+  element.dataset.help = description;
+  element.setAttribute('aria-label', description);
+  element.setAttribute('title', description);
+  return element;
+}
+
+function bindUiGroupDescription(elements, sectionName, key) {
+  const description = getUiDescriptionForSection(sectionName, key);
+  if (!description) {
+    return;
+  }
+
+  elements.forEach((element) => {
+    if (!(element instanceof Element)) {
+      return;
+    }
+    element.dataset.help = description;
+    element.setAttribute('aria-label', description);
+    element.setAttribute('title', description);
+  });
+}
+
+function bindFigurePanelDescriptions(panel, sectionName) {
+  if (!panel || !sectionName) {
+    return;
+  }
+
+  const controls = [
+    ['Groesse', panel.querySelector('.figure-size-label')],
+    ['Dynamiklinien', panel.querySelectorAll('.figure-dynamics-toggle')[0]],
+    ['Zählzeiten', panel.querySelectorAll('.figure-dynamics-toggle')[1]],
+    ['x', panel.querySelectorAll('.figure-size-wrap')[1]],
+    ['y', panel.querySelectorAll('.figure-size-wrap')[2]],
+    ['BPM', panel.querySelectorAll('.figure-size-wrap')[3]],
+    ['Linearität', panel.querySelectorAll('.figure-size-wrap')[4]],
+    ['Übergangslänge', panel.querySelectorAll('.figure-size-wrap')[5]],
+    ['Stroke', panel.querySelectorAll('.figure-size-wrap')[6]],
+    ['weichHart', panel.querySelectorAll('.figure-mode-option')],
+    ['Hand', panel.querySelectorAll('.figure-side-option')]
+  ];
+
+  controls.forEach(([key, target]) => {
+    if (!target) {
+      return;
+    }
+    if (target instanceof NodeList) {
+      bindUiGroupDescription([...target], sectionName, key);
+      return;
+    }
+    bindUiDescription(target, sectionName, key);
+  });
+
+  const radioGroup = panel.querySelector('.figure-mode-group');
+  if (radioGroup) {
+    const radioInputs = radioGroup.querySelectorAll('input');
+    bindUiGroupDescription([...radioInputs], sectionName, 'weichHart');
+  }
+
+  const sideGroup = panel.querySelector('.figure-side-group');
+  if (sideGroup) {
+    const sideInputs = sideGroup.querySelectorAll('input');
+    bindUiGroupDescription([...sideInputs], sectionName, 'Hand');
+  }
+
+  attachPanelHoverHelp(panel);
+}
 
 function createFigureModePanel(initialManager, options = {}) {
   const figureSettingsStorageKey = options.settingsKey || 'motionai.figure-panel-settings';
@@ -428,6 +532,21 @@ function createFigureModePanel(initialManager, options = {}) {
   panel.appendChild(createPanelDivider());
   panel.appendChild(movementTitle);
   panel.appendChild(tempoWrap);
+
+  bindUiGroupDescription([dynamicsWrap, dynamicsToggle], 'Grundfiguren', 'Dynamiklinien');
+  bindUiGroupDescription([countTimesWrap, countTimesToggle], 'Grundfiguren', 'Zählzeiten');
+  bindUiGroupDescription([sizeWrap, sizeLabel, sizeSlider], 'Grundfiguren', 'Groesse');
+  bindUiGroupDescription([offsetWrap, offsetLabel, offsetSlider], 'Grundfiguren', 'x');
+  bindUiGroupDescription([yWrap, yLabel, ySlider], 'Grundfiguren', 'y');
+  bindUiGroupDescription([tempoWrap, tempoLabel, tempoSlider], 'Grundfiguren', 'BPM');
+  bindUiGroupDescription([hardLinearityWrap, hardLinearityLabel, hardLinearitySlider], 'Grundfiguren', 'Linearität');
+  bindUiGroupDescription([softTransitionWrap, softTransitionLabel, softTransitionSlider], 'Grundfiguren', 'Übergangslänge');
+  bindUiGroupDescription([strokeWrap, strokeLabel, strokeSlider], 'Grundfiguren', 'Stroke');
+  const variantOptions = [...radioGroup.querySelectorAll('label, input')];
+  bindUiGroupDescription(variantOptions, 'Grundfiguren', 'weichHart');
+  const sideOptions = [...sideGroup.querySelectorAll('label, input')];
+  bindUiGroupDescription(sideOptions, 'Grundfiguren', 'Hand');
+  attachPanelHoverHelp(panel);
   panel.appendChild(hardLinearityWrap);
   panel.appendChild(softTransitionWrap);
   panel.appendChild(createPanelDivider());
@@ -1051,6 +1170,8 @@ function createSquareExercisePanel() {
   });
   panel.appendChild(shapeGroup);
 
+  bindUiGroupDescription([...shapeGroup.querySelectorAll('label, input')], 'Eingewöhnung', 'Form');
+
   const handSection = document.createElement('div');
   handSection.className = 'figure-panel-section';
 
@@ -1064,6 +1185,7 @@ function createSquareExercisePanel() {
   handSection.appendChild(handTitle);
   handSection.appendChild(handGroup);
   panel.appendChild(handSection);
+  bindUiGroupDescription([handTitle, ...handGroup.querySelectorAll('label, input')], 'Eingewöhnung', 'Hand');
 
   const handOptions = [
     { value: 'right', label: 'Rechte Hand' },
@@ -1085,6 +1207,7 @@ function createSquareExercisePanel() {
 
   syncSection.appendChild(syncTitle);
   syncSection.appendChild(syncGroup);
+  bindUiGroupDescription([syncTitle, ...syncGroup.querySelectorAll('label, input')], 'Eingewöhnung', 'Synchronität');
 
   const syncOptions = [
     { value: 'asynchronous', label: 'Asynchron' },
@@ -1179,6 +1302,7 @@ function createSquareExercisePanel() {
   pointToggleWrap.appendChild(pointToggleInput);
   pointToggleWrap.appendChild(document.createTextNode('Bearbeiten'));
   pointSection.appendChild(pointToggleWrap);
+  bindUiGroupDescription([pointToggleWrap], 'Eingewöhnung', 'Bearbeiten');
 
   const pointSequenceModeWrap = document.createElement('label');
   pointSequenceModeWrap.className = 'figure-dynamics-toggle';
@@ -1189,6 +1313,7 @@ function createSquareExercisePanel() {
   pointSequenceModeWrap.appendChild(document.createTextNode('Nacheinander'));
   pointSequenceModeWrap.hidden = !pointEditMode;
   pointSection.appendChild(pointSequenceModeWrap);
+  bindUiGroupDescription([pointSequenceModeWrap, pointSequenceModeInput], 'Eingewöhnung', 'Nacheinander');
   pointSequenceModeInput.addEventListener('change', () => {
     pointSequenceMode = pointSequenceModeInput.checked;
     persistPointState();
@@ -1236,6 +1361,7 @@ function createSquareExercisePanel() {
   pointPresetTitle.textContent = 'Presets';
   pointPresetTitle.hidden = pointEditMode;
   pointSection.appendChild(pointPresetTitle);
+  bindUiGroupDescription([pointPresetTitle], 'Eingewöhnung', 'Presets');
 
   const pointSlotRow = document.createElement('div');
   pointSlotRow.className = 'figure-point-slot-grid';
@@ -1294,6 +1420,7 @@ function createSquareExercisePanel() {
     return input;
   });
   pointSection.appendChild(pointSlotRow);
+  bindUiGroupDescription([...pointSlotRow.querySelectorAll('label, input')], 'Eingewöhnung', 'Presets');
 
   const pointActions = document.createElement('div');
   pointActions.className = 'figure-point-action-row';
@@ -1414,11 +1541,14 @@ function createSquareExercisePanel() {
   pointActions.appendChild(pointResetButton);
   pointActions.appendChild(pointSaveButton);
   pointSection.appendChild(pointActions);
+  bindUiGroupDescription([pointResetButton], 'Eingewöhnung', 'Reset');
+  bindUiGroupDescription([pointSaveButton], 'Eingewöhnung', 'Speichern');
 
   const pointListWrap = document.createElement('div');
   pointListWrap.className = 'figure-point-list';
   pointListWrap.hidden = !pointEditMode;
   pointSection.appendChild(pointListWrap);
+  bindUiGroupDescription([pointListWrap], 'Eingewöhnung', 'Bearbeiten');
 
   const updatePointPanelVisibility = () => {
     const showPresetRow = !pointEditMode;
@@ -1542,6 +1672,7 @@ function createSquareExercisePanel() {
   resolutionWrap.appendChild(resolutionLabel);
   resolutionWrap.appendChild(resolutionSlider);
   resolutionWrap.appendChild(resolutionValue);
+  bindUiGroupDescription([resolutionLabel, resolutionSlider, resolutionValue], 'Eingewöhnung', 'Kreisdurchmesser');
   panel.appendChild(resolutionWrap);
 
   const gridResolutionWrap = document.createElement('label');
@@ -1579,6 +1710,7 @@ function createSquareExercisePanel() {
   gridResolutionWrap.appendChild(gridResolutionLabel);
   gridResolutionWrap.appendChild(gridResolutionSlider);
   gridResolutionWrap.appendChild(gridResolutionValue);
+  bindUiGroupDescription([gridResolutionLabel, gridResolutionSlider, gridResolutionValue], 'Eingewöhnung', 'GridAuflösung');
   panel.appendChild(gridResolutionWrap);
 
   const alternatingScaleWrap = document.createElement('div');
@@ -1759,6 +1891,7 @@ function createSquareExercisePanel() {
   centerDistanceWrap.appendChild(centerDistanceLabel);
   centerDistanceWrap.appendChild(centerDistanceSlider);
   centerDistanceWrap.appendChild(centerDistanceValue);
+  bindUiGroupDescription([centerDistanceLabel, centerDistanceSlider, centerDistanceValue], 'Eingewöhnung', 'AbstandZumMittelpunkt');
   panel.appendChild(centerDistanceWrap);
 
   const alternatingVolumeWrap = document.createElement('label');
@@ -1830,6 +1963,7 @@ function createSquareExercisePanel() {
   activeTouchFadeWrap.appendChild(activeTouchFadeLabel);
   activeTouchFadeWrap.appendChild(activeTouchFadeCheckbox);
   activeTouchFadeWrap.appendChild(activeTouchFadeValue);
+  bindUiGroupDescription([activeTouchFadeLabel, activeTouchFadeCheckbox, activeTouchFadeValue], 'Eingewöhnung', 'KontaktFade');
   panel.appendChild(activeTouchFadeWrap);
 
   const sharedChapter1Controls = [
@@ -1983,6 +2117,7 @@ function createSquareExercisePanel() {
   };
 
   setChapter1ExerciseMode('square');
+  attachPanelHoverHelp(panel);
 
   return {
     panel,
@@ -2285,6 +2420,7 @@ function createHandIndependencePanel() {
     label.append(input, document.createTextNode(variant === 'soft' ? 'Weich' : 'Hart')); variantGroup.appendChild(label);
   });
   panel.appendChild(variantGroup);
+  bindUiGroupDescription([...variantGroup.querySelectorAll('label, input')], 'Handunabhängigkeit', 'weichHart');
   const countToggle = document.createElement('label');
   countToggle.className = 'figure-dynamics-toggle';
   const countInput = document.createElement('input');
@@ -2297,7 +2433,9 @@ function createHandIndependencePanel() {
   });
   countToggle.append(countInput, document.createTextNode('Zählzeiten'));
   panel.appendChild(countToggle);
+  bindUiGroupDescription([countToggle, countInput], 'Handunabhängigkeit', 'Zählzeiten');
   addRange('scale', 'Größe', 0.2, 1, 0.01);
+  bindUiGroupDescription([controlWraps.scale], 'Handunabhängigkeit', 'Größe');
   const updateFigureMotionControlVisibility = () => {
     if (controlWraps.figureHardLinearity) {
       controlWraps.figureHardLinearity.classList.toggle(
@@ -2313,7 +2451,9 @@ function createHandIndependencePanel() {
     }
   };
   addRange('figureHardLinearity', 'Linearität', 0, 100, 1);
+  bindUiGroupDescription([controlWraps.figureHardLinearity], 'Handunabhängigkeit', 'Linearität');
   addRange('figureSoftTransitionPercent', 'Übergangslänge', 0, 50, 1);
+  bindUiGroupDescription([controlWraps.figureSoftTransitionPercent], 'Handunabhängigkeit', 'Übergangslänge');
   variantGroup.addEventListener('change', () => {
     updateFigureMotionControlVisibility();
     persist();
@@ -2352,11 +2492,21 @@ function createHandIndependencePanel() {
     persist();
   });
   panel.appendChild(select); controls.shape = select;
+  bindUiGroupDescription([select], 'Handunabhängigkeit', 'Gegensatz');
   addRange('length', 'Länge', 1, 50, 0.1);
+  bindUiGroupDescription([controlWraps.length], 'Handunabhängigkeit', 'Länge');
   addRange('width', 'Breite', 1, 50, 0.1);
+  bindUiGroupDescription([controlWraps.width], 'Handunabhängigkeit', 'Breite');
   addRange('height', 'Höhe', 1, 50, 0.1);
+  bindUiGroupDescription([controlWraps.height], 'Handunabhängigkeit', 'Höhe');
   addRange('rotation', 'Rotation', -180, 180, 1);
+  bindUiGroupDescription([controlWraps.rotation], 'Handunabhängigkeit', 'Rotation');
   updateShapeControlVisibility();
+
+  bindUiGroupDescription([title], 'Handunabhängigkeit', 'Taktgebung');
+  bindUiGroupDescription([tempoRatioTitle], 'Handunabhängigkeit', 'Geschwindigkeitsverhältnis');
+  bindUiGroupDescription([ratioSelect], 'Handunabhängigkeit', 'Geschwindigkeitsverhältnis');
+  attachPanelHoverHelp(panel);
 
   function persist() { try { localStorage.setItem(storageKey, JSON.stringify(settings)); } catch (error) { return; } }
   function apply(next) {
@@ -2478,6 +2628,7 @@ function createTrackingControls(trackingController) {
 
   visibilityToggle.setAttribute('aria-label', 'Einstellungen');
   visibilityToggle.title = 'Einstellungen';
+  registerHoverHelp(visibilityToggle, uiElementDescriptions.Einstellungen['Einstellungen']);
   let setupMenuVisible = false;
 
   function updateToggleLabel() {
@@ -2540,6 +2691,10 @@ function createTrackingControls(trackingController) {
   resolutionToggleButton.className = 'tracking-controls-button';
   let resolutionPreset = trackingController.getResolutionPreset() === 'low' ? 'low' : 'high';
 
+  const hoverHelpToggleButton = document.createElement('button');
+  hoverHelpToggleButton.type = 'button';
+  hoverHelpToggleButton.className = 'tracking-controls-button';
+
   function updateCameraToggleLabel() {
     cameraToggleButton.textContent = cameraEnabled ? 'Camera: ON' : 'Camera: OFF';
     cameraToggleButton.setAttribute('aria-pressed', String(cameraEnabled));
@@ -2548,6 +2703,11 @@ function createTrackingControls(trackingController) {
   function updateResolutionToggleLabel() {
     resolutionToggleButton.textContent = `Resolution: ${resolutionPreset.toUpperCase()}`;
     resolutionToggleButton.setAttribute('aria-pressed', String(resolutionPreset === 'high'));
+  }
+
+  function updateHoverHelpToggleLabel() {
+    hoverHelpToggleButton.textContent = uiState.hoverHelpEnabled ? 'Info Box: ON' : 'Info Box: OFF';
+    hoverHelpToggleButton.setAttribute('aria-pressed', String(uiState.hoverHelpEnabled));
   }
 
   const calibrationSetLabel = document.createElement('label');
@@ -2785,6 +2945,11 @@ function createTrackingControls(trackingController) {
     resolutionToggleButton.disabled = false;
   });
 
+  hoverHelpToggleButton.addEventListener('click', () => {
+    setHoverHelpEnabled(!uiState.hoverHelpEnabled);
+    updateHoverHelpToggleLabel();
+  });
+
   calibrationSetSelect.addEventListener('change', () => {
     const value = Number(calibrationSetSelect.value);
     selectedCalibrationSetIndex = Number.isInteger(value) ? value : null;
@@ -2843,6 +3008,7 @@ function createTrackingControls(trackingController) {
   updatePoseWarningLandmarksLabel();
   updateCameraToggleLabel();
   updateResolutionToggleLabel();
+  updateHoverHelpToggleLabel();
   updateToggleLabel();
 
   visibilityToggle.addEventListener('click', () => {
@@ -2855,6 +3021,19 @@ function createTrackingControls(trackingController) {
 
   settingsHeader.appendChild(settingsTitle);
   settingsHeader.appendChild(settingsCloseButton);
+
+  bindUiGroupDescription([modelLabel, modelSelect], 'Einstellungen', 'Model');
+  bindUiGroupDescription([cameraLabel, cameraSelect], 'Einstellungen', 'Camera');
+  bindUiGroupDescription([cameraToggleButton], 'Einstellungen', 'Camera: ON');
+  bindUiGroupDescription([resolutionToggleButton], 'Einstellungen', 'Resolution');
+  bindUiGroupDescription([hoverHelpToggleButton], 'Einstellungen', 'Info Box');
+  bindUiGroupDescription([calibrationSetLabel, calibrationSetSelect], 'Einstellungen', 'Calibration Sets');
+  bindUiGroupDescription([calibrationStrictnessLabel, calibrationStrictnessSlider], 'Einstellungen', 'Calibration Strictness');
+  bindUiGroupDescription([modeLabel, ...modeGroup.querySelectorAll('label, input')], 'Einstellungen', 'Playback');
+  bindUiGroupDescription([stabilizationButton], 'Einstellungen', 'Stabilization');
+  bindUiGroupDescription([landmarkDrawingButton], 'Einstellungen', 'Landmarks');
+  bindUiGroupDescription([poseWarningLandmarksButton], 'Einstellungen', 'Pose Warning Landmarks');
+
   container.appendChild(settingsHeader);
   container.appendChild(modelLabel);
   container.appendChild(modelSelect);
@@ -2862,6 +3041,7 @@ function createTrackingControls(trackingController) {
   container.appendChild(cameraSelect);
   container.appendChild(cameraToggleButton);
   container.appendChild(resolutionToggleButton);
+  container.appendChild(hoverHelpToggleButton);
   container.appendChild(calibrationSetLabel);
   container.appendChild(calibrationSetSelect);
   container.appendChild(calibrationStrictnessLabel);
@@ -2874,6 +3054,7 @@ function createTrackingControls(trackingController) {
   container.appendChild(poseWarningLandmarksButton);
 
   settingsSection.appendChild(container);
+  attachPanelHoverHelp(container);
 
   const sidebar = document.querySelector('.left-navigation');
   const headerActions = document.querySelector('.nav-header-actions');

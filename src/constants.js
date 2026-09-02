@@ -149,6 +149,22 @@ export const uiElementDescriptions = {
   'Calibration': {
 
   },
+  'Einstellungen': {
+    'Einstellungen': 'Öffnet oder schließt das Einstellungsmenü.',
+    'Einstellungen schließen': 'Schließt das Einstellungsmenü.',
+    'Model': 'Wähle das verwendete Erkennungsmodell für Hand- oder Pose-Erkennung aus.',
+    'Camera': 'Wähle die Kamera aus, mit der die Bewegungserkennung arbeitet.',
+    'Calibration Sets': 'Wähle einen gespeicherten Kalibrierungs-Set aus.',
+    'Calibration Strictness': 'Bestimmt, wie streng die Kalibrierung auf Abweichungen reagiert.',
+    'Playback': 'Legt fest, wie die Übung nach der Ausführung weiterläuft.',
+    'Resolution': 'Wechselt zwischen der normalen und der reduzierten Auflösung für eine schnelle oder leichtere Verarbeitung.',
+    'Info Box': 'Aktiviert oder deaktiviert die individuelle Info-Box in der Mitte oben im Fenster beim Hover.',
+    'Camera: ON': 'Aktiviert die Kamera für die Live-Erkennung.',
+    'Camera: OFF': 'Deaktiviert die Kamera und pausiert die Erkennung.',
+    'Stabilization': 'Aktiviert oder deaktiviert die Stabilisierung der Bewegungserkennung.',
+    'Landmarks': 'Blendet die Landmarken im Video für die Verifikation der Erkennung ein oder aus.',
+    'Pose Warning Landmarks': 'Blendet zusätzliche Warnhinweise für die Pose-Erkennung ein oder aus.'
+  },
   'Eingewöhnung': {
     Form: 'Wähle die Form der Bewegung aus, die du üben möchtest.',
     Hand: 'Übe die Bewegung mit der ausgewählten Hand oder mit beiden Händen gleichzeitig.',

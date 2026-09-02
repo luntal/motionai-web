@@ -297,8 +297,10 @@ canvas {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding-left: calc(var(--left-nav-width) + 1.25rem);
-  padding-right: calc(var(--right-panel-width) + 1.25rem);
+  padding-left: calc(var(--left-nav-width) + 1.5rem);
+  padding-right: calc(var(--right-panel-width) + 1.5rem);
+  padding-top: 1rem;
+  padding-bottom: 1rem;
   box-sizing: border-box;
   z-index: 5;
 }
@@ -308,10 +310,10 @@ canvas {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: min(100%, 1280px);
-  aspect-ratio: var(--video-aspect-ratio, 16 / 9);
+  width: calc(100vw - var(--left-nav-width) - var(--right-panel-width) - 3rem);
   max-width: 100%;
   max-height: calc(100vh - 2rem);
+  aspect-ratio: var(--video-aspect-ratio, 16 / 9);
   overflow: hidden;
   border-radius: 18px;
   background: rgba(4, 8, 15, 0.65);

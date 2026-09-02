@@ -1,4 +1,5 @@
 import { basicFigurePaths, basicFigurePathsStyle2, extendedFigurePaths } from './constants.js';
+import { registerHoverHelp } from './ui.js';
 
 export class LevelManager {
   constructor(overlayCanvas) {
@@ -944,6 +945,12 @@ export class LevelManager {
       const speedSlider = this.consistencyInfoEl.querySelector('#consistency-speed-slider');
       const strictnessSlider = this.consistencyInfoEl.querySelector('#consistency-strictness-slider');
       const motionSlider = this.consistencyInfoEl.querySelector('#consistency-motion-slider');
+      const speedLabel = this.consistencyInfoEl.querySelector('label[for="consistency-speed-slider"]');
+      const strictnessLabel = this.consistencyInfoEl.querySelector('label[for="consistency-strictness-slider"]');
+      const motionLabel = this.consistencyInfoEl.querySelector('label[for="consistency-motion-slider"]');
+      const speedValue = this.consistencyInfoEl.querySelector('.consistency-speed-value');
+      const strictnessValue = this.consistencyInfoEl.querySelector('.consistency-strictness-value');
+      const motionValue = this.consistencyInfoEl.querySelector('.consistency-motion-value');
       if (speedSlider) {
         speedSlider.value = String(this.consistencyTempoBpm);
         speedSlider.addEventListener('input', (event) => {
@@ -965,6 +972,21 @@ export class LevelManager {
           this.consistencyMotionBlendPercent = Number.isFinite(next) ? next : 0;
         });
       }
+      const consistencyDescriptions = {
+        Tempo: 'Stelle das Tempo der Bewegung ein.',
+        Strenge: 'Es wird ein Score angezeigt, der die Ausführungsgenauigkeit der Bewegung bewertet. Hier kannst du seine Strenge einstellen.',
+        Kurve: 'Höhere Werte bremsen die Bewegung an den Eckpunkten ab, während niedrigere Werte die Bewegungsgeschwindigkeit überall gleichmäßig halten.'
+      };
+
+      if (speedLabel && speedSlider) registerHoverHelp(speedLabel, consistencyDescriptions.Tempo);
+      if (strictnessLabel && strictnessSlider) registerHoverHelp(strictnessLabel, consistencyDescriptions.Strenge);
+      if (motionLabel && motionSlider) registerHoverHelp(motionLabel, consistencyDescriptions.Kurve);
+      if (speedSlider) registerHoverHelp(speedSlider, consistencyDescriptions.Tempo);
+      if (strictnessSlider) registerHoverHelp(strictnessSlider, consistencyDescriptions.Strenge);
+      if (motionSlider) registerHoverHelp(motionSlider, consistencyDescriptions.Kurve);
+      if (speedValue) registerHoverHelp(speedValue, consistencyDescriptions.Tempo);
+      if (strictnessValue) registerHoverHelp(strictnessValue, consistencyDescriptions.Strenge);
+      if (motionValue) registerHoverHelp(motionValue, consistencyDescriptions.Kurve);
     }
 
     const titleEl = this.consistencyInfoEl.querySelector('.consistency-title');

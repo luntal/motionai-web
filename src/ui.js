@@ -10,7 +10,7 @@ import {
 export const uiState = {
   activeChapter: null,
   activeLevel: null,
-  hoverHelpEnabled: true
+  hoverHelpEnabled: false
 };
 
 let isLevelActive = false;
@@ -43,25 +43,21 @@ let hoverDescriptionEl = null;
 
 function setHoverDescription(text, position = null) {
   if (!hoverDescriptionEl || !uiState.hoverHelpEnabled) return;
-  if (isLevelActive && !position) return;
 
   hoverDescriptionEl.textContent = text;
   hoverDescriptionEl.classList.remove('panel-help');
 
+  const nextPosition = position || { left: '50%', top: 18 };
+  const isCenteredTopHover = nextPosition.left === '50%' || nextPosition.left === window.innerWidth / 2;
+
+  hoverDescriptionEl.style.left = isCenteredTopHover ? '50%' : `${nextPosition.left}px`;
+  hoverDescriptionEl.style.top = `${nextPosition.top}px`;
+  hoverDescriptionEl.style.maxWidth = '260px';
+  hoverDescriptionEl.style.textAlign = 'center';
+  hoverDescriptionEl.style.transform = 'translateX(-50%)';
+
   if (position) {
     hoverDescriptionEl.classList.add('panel-help');
-    const usingCenteredTopHover = position.left === '50%' || position.left === window.innerWidth / 2;
-    hoverDescriptionEl.style.left = usingCenteredTopHover ? '50%' : `${position.left}px`;
-    hoverDescriptionEl.style.top = `${position.top}px`;
-    hoverDescriptionEl.style.maxWidth = '260px';
-    hoverDescriptionEl.style.textAlign = 'center';
-    hoverDescriptionEl.style.transform = 'translateX(-50%)';
-  } else {
-    hoverDescriptionEl.style.left = '50%';
-    hoverDescriptionEl.style.top = '18px';
-    hoverDescriptionEl.style.transform = 'translateX(-50%)';
-    hoverDescriptionEl.style.maxWidth = '260px';
-    hoverDescriptionEl.style.textAlign = 'center';
   }
 
   hoverDescriptionEl.classList.add('visible');
@@ -101,19 +97,7 @@ export function registerHoverHelp(element, description) {
       return;
     }
 
-    const rect = element.getBoundingClientRect();
-    const panel = element.closest('.figure-side-panel');
-    const panelRect = panel ? panel.getBoundingClientRect() : null;
-    const tooltipWidth = hoverDescriptionEl ? hoverDescriptionEl.offsetWidth || 220 : 220;
-    const navOrLevelButton = element.closest('.left-navigation, .level-row');
-    const left = panelRect
-      ? Math.max(18, panelRect.left - tooltipWidth / 2 - 18)
-      : navOrLevelButton
-        ? '50%'
-        : Math.max(18, rect.left - tooltipWidth / 2 - 18);
-    const top = 18;
-
-    setHoverDescription(description, { left, top });
+    setHoverDescription(description, { left: '50%', top: 18 });
   };
 
   element.addEventListener('mouseenter', showDescription);
@@ -125,6 +109,7 @@ export function registerHoverHelp(element, description) {
   element.addEventListener('pointerleave', clearHoverDescription);
   element.addEventListener('blur', clearHoverDescription);
   element.setAttribute('aria-label', description);
+  element.setAttribute('title', description);
   element.dataset.hoverHelpBound = 'true';
 
   return element;
@@ -172,6 +157,7 @@ function createButton(label, isActive, onClick, description) {
     button.addEventListener('mouseenter', () => setHoverDescription(description));
     button.addEventListener('mouseleave', clearHoverDescription);
     button.setAttribute('aria-label', description);
+    button.setAttribute('title', description);
   }
   return button;
 }
