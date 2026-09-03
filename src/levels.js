@@ -138,9 +138,16 @@ export class LevelManager {
     this.pointExerciseEditMode = false;
     this.pointExerciseSelectedSlot = 0;
     this.pointExerciseHand = 'right';
+    this.pointExerciseSymmetryMode = false;
+    this.pointExercisePalindromMode = false;
+    this.pointExerciseTraversalDirection = 1;
+    this.pointExercisePalindromeIndex = 0;
+    this.pointExercisePalindromeDirection = 1;
     this.pointExerciseSequence = [];
-    this.pointExerciseSequentialMode = true;
+    this.pointExerciseSequentialMode = 'sequential';
     this.pointExerciseCurrentIndex = 0;
+    this.pointExerciseTraversalCursor = 0;
+    this.pointExerciseTraversalSequence = [];
     this.pointExerciseSavedSlots = {};
     this.squareExerciseHandMode = 'right';
     this.squareExerciseSyncMode = 'asynchronous';
@@ -1414,8 +1421,16 @@ export class LevelManager {
     this.requestRender();
   }
 
+  resolvePointHandForColumn(col, fallbackHand = this.pointExerciseHand) {
+    if (['left', 'right'].includes(fallbackHand)) {
+      return fallbackHand;
+    }
+    const midpoint = Math.max(1, this.gridCols || 16) / 2;
+    return Number(col) >= midpoint ? 'left' : 'right';
+  }
+
   setPointExerciseHand(value) {
-    const next = ['left', 'right'].includes(value) ? value : 'right';
+    const next = ['left', 'right', 'auto'].includes(value) ? value : 'right';
     if (this.pointExerciseHand === next) {
       return;
     }
@@ -1426,15 +1441,143 @@ export class LevelManager {
     this.requestRender();
   }
 
-  setPointExerciseSequentialMode(value) {
+  applySymmetryToPointSequence() {
+    if (!this.pointExerciseSymmetryMode) {
+      return this.pointExerciseSequence;
+    }
+
+    const seen = new Set();
+    const nextSequence = [];
+    this.pointExerciseSequence.forEach((point) => {
+      if (!point || !Number.isFinite(Number(point.row)) || !Number.isFinite(Number(point.col))) {
+        return;
+      }
+      const row = Math.max(0, Math.min(this.gridRows - 1, Number(point.row)));
+      const col = Math.max(0, Math.min(this.gridCols - 1, Number(point.col)));
+      const hand = ['left', 'right'].includes(point.hand)
+        ? point.hand
+        : this.resolvePointHandForColumn(col, this.pointExerciseHand);
+      const key = `${row}:${col}:${hand}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        nextSequence.push({ row, col, hand });
+      }
+      if (['left', 'right'].includes(hand)) {
+        const mirroredCol = Math.max(0, Math.min(this.gridCols - 1, this.gridCols - 1 - col));
+        const mirroredHand = hand === 'left' ? 'right' : 'left';
+        const mirroredKey = `${row}:${mirroredCol}:${mirroredHand}`;
+        if (!seen.has(mirroredKey)) {
+          seen.add(mirroredKey);
+          nextSequence.push({ row, col: mirroredCol, hand: mirroredHand });
+        }
+      }
+    });
+
+    this.pointExerciseSequence = this.sanitizePointSequence(nextSequence);
+    return this.pointExerciseSequence;
+  }
+
+  setPointExerciseSymmetryMode(value) {
     const next = Boolean(value);
+    if (this.pointExerciseSymmetryMode === next) {
+      return;
+    }
+
+    this.pointExerciseSymmetryMode = next;
+    if (this.chapter === 1 && Number.isInteger(this.level) && this.level === 1) {
+      this.setupLevel();
+    }
+    this.requestRender();
+  }
+
+  getPalindromeTraversalSequence(length) {
+    const targetCount = Math.max(1, Number(length) || 0);
+    const sequence = [];
+    for (let index = 0; index < targetCount; index += 1) {
+      sequence.push(index);
+    }
+    for (let index = targetCount - 2; index >= 1; index -= 1) {
+      sequence.push(index);
+    }
+    return sequence.length > 0 ? sequence : [0];
+  }
+
+  resetPointExerciseTraversalState() {
+    this.nextTargetByHand = { left: 0, right: 0 };
+    const targetCount = Math.max(
+      1,
+      Number(this.targets?.length || this.pointExerciseSequence?.length || 0)
+    );
+    const nextSequence = this.pointExercisePalindromMode
+      ? this.getPalindromeTraversalSequence(targetCount)
+      : Array.from({ length: targetCount }, (_, index) => index);
+
+    this.pointExerciseTraversalSequence = nextSequence;
+    this.pointExerciseTraversalCursor = 0;
+    this.nextTarget = nextSequence[0] ?? 0;
+    this.pointExerciseCurrentIndex = this.nextTarget;
+    this.pointExerciseTraversalDirection = 1;
+    this.pointExercisePalindromeIndex = this.nextTarget;
+    this.pointExercisePalindromeDirection = 1;
+  }
+
+  advancePointExerciseTarget(stepTargets) {
+    if (!Array.isArray(stepTargets) || stepTargets.length === 0) {
+      return;
+    }
+
+    if (!this.pointExercisePalindromMode) {
+      this.nextTarget += stepTargets.length;
+      if (this.nextTarget >= this.targets.length) {
+        this.nextTarget = 0;
+      }
+      this.pointExerciseCurrentIndex = this.nextTarget;
+      this.pointExercisePalindromeIndex = this.nextTarget;
+      this.pointExercisePalindromeDirection = this.pointExerciseTraversalDirection;
+      return;
+    }
+
+    const targetCount = Math.max(1, (this.targets && this.targets.length) || 0);
+    const sequence = this.pointExerciseTraversalSequence && Array.isArray(this.pointExerciseTraversalSequence)
+      ? this.pointExerciseTraversalSequence
+      : this.getPalindromeTraversalSequence(targetCount);
+
+    if (!Array.isArray(sequence) || sequence.length === 0) {
+      this.resetPointExerciseTraversalState();
+      return;
+    }
+
+    this.pointExerciseTraversalSequence = sequence;
+    const stepSize = Math.max(1, stepTargets.length);
+    this.pointExerciseTraversalCursor = (this.pointExerciseTraversalCursor + stepSize) % sequence.length;
+    this.nextTarget = sequence[this.pointExerciseTraversalCursor] ?? 0;
+    this.pointExerciseCurrentIndex = this.nextTarget;
+    this.pointExercisePalindromeIndex = this.nextTarget;
+    this.pointExerciseTraversalDirection = this.pointExerciseTraversalCursor === 0 ? 1 : this.pointExerciseTraversalDirection;
+    this.pointExercisePalindromeDirection = this.pointExerciseTraversalDirection;
+  }
+
+  setPointExercisePalindromMode(value) {
+    this.pointExercisePalindromMode = Boolean(value);
+    this.nextTargetByHand = { left: 0, right: 0 };
+    this.resetPointExerciseTraversalState();
+    if (this.chapter === 1 && Number.isInteger(this.level) && this.level === 1 && this.targets.length > 0) {
+      this.pointExerciseCurrentIndex = this.nextTarget;
+      this.pointExercisePalindromeIndex = this.nextTarget;
+    }
+    this.requestRender();
+  }
+
+  setPointExerciseSequentialMode(value) {
+    const next = ['independent', 'sequential', 'simultaneous'].includes(value)
+      ? value
+      : (typeof value === 'boolean' ? (value ? 'sequential' : 'independent') : 'sequential');
     if (this.pointExerciseSequentialMode === next) {
       return;
     }
     this.pointExerciseSequentialMode = next;
-    this.nextTarget = 0;
     this.nextTargetByHand = { left: 0, right: 0 };
-    this.pointExerciseCurrentIndex = 0;
+    this.resetPointExerciseTraversalState();
     this.requestRender();
   }
 
@@ -1454,7 +1597,9 @@ export class LevelManager {
       }
       const row = Math.max(0, Math.min(maxRow, Math.round(Number(point.row))));
       const col = Math.max(0, Math.min(maxCol, Math.round(Number(point.col))));
-      const hand = ['left', 'right'].includes(point.hand) ? point.hand : this.pointExerciseHand;
+      const hand = ['left', 'right'].includes(point.hand)
+        ? point.hand
+        : this.resolvePointHandForColumn(col, this.pointExerciseHand);
       const key = `${row}:${col}:${hand}`;
       if (seen.has(key)) {
         return;
@@ -1468,8 +1613,7 @@ export class LevelManager {
 
   setPointExerciseSequence(value) {
     this.pointExerciseSequence = this.sanitizePointSequence(value);
-    this.pointExerciseCurrentIndex = 0;
-    this.nextTarget = 0;
+    this.resetPointExerciseTraversalState();
     this.nextTargetByHand = { left: 0, right: 0 };
     if (!this.pointExerciseSequence.some((point) => ['left', 'right'].includes(point.hand))) {
       this.pointExerciseSequence = this.pointExerciseSequence.map((point) => ({ ...point, hand: this.pointExerciseHand }));
@@ -1499,7 +1643,8 @@ export class LevelManager {
           gridResolution: this.chapter1GridResolution || this.squareExerciseGridResolution || 8,
           resolution: this.chapter1CircleDiameter || this.squareExerciseResolution || 1,
           hand: this.pointExerciseHand,
-          sequentialMode: this.pointExerciseSequentialMode
+          sequentialMode: this.pointExerciseSequentialMode,
+          palindromMode: Boolean(this.pointExercisePalindromMode)
         };
         return;
       }
@@ -1512,10 +1657,17 @@ export class LevelManager {
           ? Math.min(1.0, Math.max(0.55, Number(slot.resolution)))
           : (this.chapter1CircleDiameter || this.squareExerciseResolution || 1);
         const hand = ['left', 'right'].includes(slot.hand) ? slot.hand : this.pointExerciseHand;
-        const sequentialMode = typeof slot.sequentialMode === 'boolean'
+        const sequentialMode = ['independent', 'sequential', 'simultaneous'].includes(slot.sequentialMode)
           ? slot.sequentialMode
-          : (typeof slot.sequenceMode === 'boolean' ? slot.sequenceMode : this.pointExerciseSequentialMode);
-        sanitized[resolvedKey] = { sequence, gridResolution, resolution, hand, sequentialMode };
+          : (['independent', 'sequential', 'simultaneous'].includes(slot.sequenceMode)
+            ? slot.sequenceMode
+            : (typeof slot.sequentialMode === 'boolean'
+              ? (slot.sequentialMode ? 'sequential' : 'independent')
+              : (typeof slot.sequenceMode === 'boolean' ? (slot.sequenceMode ? 'sequential' : 'independent') : this.pointExerciseSequentialMode)));
+        const palindromMode = typeof slot.palindromMode === 'boolean'
+          ? slot.palindromMode
+          : (typeof slot.palindromeMode === 'boolean' ? slot.palindromeMode : Boolean(this.pointExercisePalindromMode));
+        sanitized[resolvedKey] = { sequence, gridResolution, resolution, hand, sequentialMode, palindromMode };
       }
     });
     this.pointExerciseSavedSlots = sanitized;
@@ -1529,17 +1681,41 @@ export class LevelManager {
       return false;
     }
     const row = Math.max(0, Math.min(this.gridRows - 1, Math.round((canvasY / this.canvas.height) * this.gridRows - 0.5)));
-    const col = this.getGridColumnForX(canvasX);
-    const point = {
-      row,
-      col,
-      hand: ['left', 'right'].includes(this.pointExerciseHand) ? this.pointExerciseHand : 'right'
+    const baseCol = this.getGridColumnForX(canvasX);
+    const resolvedHand = this.resolvePointHandForColumn(baseCol, this.pointExerciseHand);
+    const addPoint = (hand, col) => {
+      const point = { row, col, hand };
+      const existing = this.pointExerciseSequence.some((candidate) => candidate.row === point.row && candidate.col === point.col && candidate.hand === point.hand);
+      if (!existing) {
+        this.pointExerciseSequence.push(point);
+      }
+      return !existing;
     };
-    const existing = this.pointExerciseSequence.some((candidate) => candidate.row === point.row && candidate.col === point.col && candidate.hand === point.hand);
-    if (existing) {
+
+    const addMirroredPoint = (sourceHand, sourceCol) => {
+      if (!['left', 'right'].includes(sourceHand)) {
+        return false;
+      }
+      const mirroredCol = Math.max(0, Math.min(this.gridCols - 1, this.gridCols - 1 - sourceCol));
+      const mirroredHand = sourceHand === 'left' ? 'right' : 'left';
+      const mirrorPoint = { row, col: mirroredCol, hand: mirroredHand };
+      const existingMirror = this.pointExerciseSequence.some((candidate) => candidate.row === mirrorPoint.row && candidate.col === mirrorPoint.col && candidate.hand === mirrorPoint.hand);
+      if (!existingMirror) {
+        this.pointExerciseSequence.push(mirrorPoint);
+        return true;
+      }
+      return false;
+    };
+
+    const addedFirst = addPoint(resolvedHand, baseCol);
+    let addedMirror = false;
+    if (this.pointExerciseSymmetryMode && ['left', 'right'].includes(resolvedHand)) {
+      addedMirror = addMirroredPoint(resolvedHand, baseCol);
+    }
+
+    if (!addedFirst && !addedMirror) {
       return false;
     }
-    this.pointExerciseSequence.push(point);
     if (this.chapter === 1 && Number.isInteger(this.level) && this.level === 1) {
       this.setupLevel();
     }
@@ -1692,9 +1868,49 @@ export class LevelManager {
     }
   }
 
+  getIndependentHandTraversalSequence(hand) {
+    if (!['left', 'right'].includes(hand)) {
+      return [];
+    }
+
+    const handTargetIndexes = this.targets.reduce((indexes, target, index) => {
+      if (target && target.hand === hand) {
+        indexes.push(index);
+      }
+      return indexes;
+    }, []);
+
+    if (handTargetIndexes.length === 0) {
+      return [];
+    }
+
+    if (!this.pointExercisePalindromMode) {
+      return handTargetIndexes;
+    }
+
+    const sequence = [...handTargetIndexes];
+    for (let index = handTargetIndexes.length - 2; index >= 1; index -= 1) {
+      sequence.push(handTargetIndexes[index]);
+    }
+    return sequence;
+  }
+
   getCurrentTargetForHand(hand) {
     if (!['left', 'right'].includes(hand)) {
       return null;
+    }
+
+    if (this.pointExerciseSequentialMode === 'independent') {
+      const sequence = this.getIndependentHandTraversalSequence(hand);
+      if (sequence.length === 0) {
+        return null;
+      }
+      const cursor = Math.max(0, Math.min(sequence.length - 1, this.nextTargetByHand[hand] ?? 0));
+      const targetIndex = sequence[cursor];
+      if (!Number.isInteger(targetIndex) || targetIndex < 0 || targetIndex >= this.targets.length) {
+        return null;
+      }
+      return this.targets[targetIndex] || null;
     }
 
     const targetProgress = this.nextTargetByHand[hand] ?? 0;
@@ -1724,12 +1940,50 @@ export class LevelManager {
     }
 
     const targetIndexes = this.targetIndexByCircle.get(circleIndex) || [];
-    if (this.chapter === 1 && Number.isInteger(this.level) && this.level === 1 && this.pointExerciseSequentialMode) {
-      const currentTarget = this.targets[this.nextTarget] || null;
-      if (!currentTarget || !Number.isInteger(currentTarget.index)) {
-        return null;
+    if (this.chapter === 1 && Number.isInteger(this.level) && this.level === 1 && ['independent', 'sequential', 'simultaneous'].includes(this.pointExerciseSequentialMode)) {
+      if (this.pointExerciseSequentialMode === 'independent') {
+        const candidates = ['left', 'right']
+          .map((hand) => this.getCurrentTargetForHand(hand))
+          .filter((target) => target && (target.index === circleIndex || target.leftIndex === circleIndex || target.rightIndex === circleIndex));
+        return candidates[0] ?? null;
       }
-      if (targetIndexes.includes(this.nextTarget)) {
+
+      const activeTargetIndexes = new Set();
+      if (this.pointExerciseSequentialMode === 'simultaneous') {
+        const currentTarget = this.targets[this.nextTarget] || null;
+        [this.nextTarget].filter((index) => Number.isInteger(index) && index >= 0 && index < this.targets.length).forEach((index) => {
+          activeTargetIndexes.add(index);
+        });
+        for (let offset = 1; offset < this.targets.length; offset += 1) {
+          const candidateIndex = this.nextTarget + offset;
+          const candidateTarget = this.targets[candidateIndex];
+          if (!candidateTarget || !currentTarget || !currentTarget.hand || !candidateTarget.hand || currentTarget.hand === 'both' || candidateTarget.hand === 'both') {
+            continue;
+          }
+          if (candidateTarget.hand !== currentTarget.hand && currentTarget.hand !== candidateTarget.hand) {
+            if (Number.isInteger(candidateIndex) && candidateIndex >= 0 && candidateIndex < this.targets.length) {
+              activeTargetIndexes.add(candidateIndex);
+              break;
+            }
+          }
+        }
+      } else {
+        if (Number.isInteger(this.nextTarget) && this.nextTarget >= 0 && this.nextTarget < this.targets.length) {
+          activeTargetIndexes.add(this.nextTarget);
+        }
+      }
+
+      const candidates = Array.from(activeTargetIndexes)
+        .map((index) => this.targets[index])
+        .filter((target) => target && Number.isInteger(target.index));
+
+      const exactMatch = candidates.find((target) => target.index === circleIndex || target.leftIndex === circleIndex || target.rightIndex === circleIndex);
+      if (exactMatch) {
+        return exactMatch;
+      }
+
+      const currentTarget = this.targets[this.nextTarget] || null;
+      if (currentTarget && targetIndexes.includes(this.nextTarget) && (currentTarget.index === circleIndex || currentTarget.leftIndex === circleIndex || currentTarget.rightIndex === circleIndex)) {
         return currentTarget;
       }
       return null;
@@ -1758,6 +2012,22 @@ export class LevelManager {
 
   advanceTargetForHand(hand) {
     if (!['left', 'right'].includes(hand)) {
+      return;
+    }
+
+    if (this.pointExerciseSequentialMode === 'independent') {
+      const sequence = this.getIndependentHandTraversalSequence(hand);
+      if (sequence.length === 0) {
+        this.nextTargetByHand[hand] = 0;
+        return;
+      }
+      const current = this.nextTargetByHand[hand] ?? 0;
+      const nextCursor = (current + 1) % sequence.length;
+      this.nextTargetByHand[hand] = nextCursor;
+      const nextTarget = this.targets[sequence[nextCursor]] || null;
+      if (nextTarget) {
+        this.pointExerciseCurrentIndex = nextTarget.index ?? nextTarget.leftIndex ?? nextTarget.rightIndex ?? this.pointExerciseCurrentIndex;
+      }
       return;
     }
 
@@ -3862,11 +4132,14 @@ export class LevelManager {
       this.pointExerciseSequence.forEach(({ row, col, hand }) => {
         const safeRow = Math.max(0, Math.min(rows - 1, Number(row) || 0));
         const safeCol = Math.max(0, Math.min(cols - 1, Number(col) || 0));
-        const targetHand = ['left', 'right'].includes(hand) ? hand : this.pointExerciseHand;
+        const targetHand = ['left', 'right'].includes(hand)
+          ? hand
+          : this.resolvePointHandForColumn(safeCol, this.pointExerciseHand);
         this.targets.push({ index: safeRow * cols + safeCol, hand: targetHand });
       });
       this.rebuildTargetIndexLookup();
       this.updateTargetHandProgress();
+      this.resetPointExerciseTraversalState();
       this.buildGrid();
       this.render();
       return;
@@ -5899,7 +6172,27 @@ export class LevelManager {
       this.circleScales[i] += (targetScales[i] - this.circleScales[i]) * 0.1;
     }
 
-    if (this.chapter === 1 && Number.isInteger(this.level) && this.level === 1 && this.pointExerciseSequentialMode) {
+    if (this.chapter === 1 && Number.isInteger(this.level) && this.level === 1 && this.pointExerciseSequentialMode === 'independent') {
+      const leftCurrentTarget = this.getCurrentTargetForHand('left');
+      const rightCurrentTarget = this.getCurrentTargetForHand('right');
+
+      const leftTouched = leftCurrentTarget && this.leftTip && this.getCircleIndex(this.leftTip) === leftCurrentTarget.index;
+      const rightTouched = rightCurrentTarget && this.rightTip && this.getCircleIndex(this.rightTip) === rightCurrentTarget.index;
+
+      if (leftTouched) {
+        this.pointExerciseCurrentIndex = leftCurrentTarget.index;
+        this.advanceTargetForHand('left');
+      }
+      if (rightTouched) {
+        this.pointExerciseCurrentIndex = rightCurrentTarget.index;
+        this.advanceTargetForHand('right');
+      }
+
+      this.requestRender();
+      return;
+    }
+
+    if (this.chapter === 1 && Number.isInteger(this.level) && this.level === 1 && ['sequential', 'simultaneous'].includes(this.pointExerciseSequentialMode)) {
       const currentTarget = this.targets[this.nextTarget] || null;
       this.pointExerciseCurrentIndex = this.nextTarget;
 
@@ -5908,23 +6201,40 @@ export class LevelManager {
         return;
       }
 
-      let currentTargetTouched = false;
-      if (currentTarget.hand === 'left' && this.leftTip) {
-        currentTargetTouched = this.getCircleIndex(this.leftTip) === currentTarget.index;
-      } else if (currentTarget.hand === 'right' && this.rightTip) {
-        currentTargetTouched = this.getCircleIndex(this.rightTip) === currentTarget.index;
-      } else if (currentTarget.hand === 'both' && this.leftTip && this.rightTip) {
-        currentTargetTouched = this.getCircleIndex(this.leftTip) === currentTarget.leftIndex && this.getCircleIndex(this.rightTip) === currentTarget.rightIndex;
+      let stepTargets = [currentTarget];
+      if (this.pointExerciseSequentialMode === 'simultaneous') {
+        let pairedTarget = null;
+        for (let offset = 1; offset < this.targets.length; offset += 1) {
+          const candidateTarget = this.targets[this.nextTarget + offset] || null;
+          if (!candidateTarget || !currentTarget || !currentTarget.hand || !candidateTarget.hand || currentTarget.hand === 'both' || candidateTarget.hand === 'both') {
+            continue;
+          }
+          if (currentTarget.hand !== candidateTarget.hand) {
+            pairedTarget = candidateTarget;
+            break;
+          }
+        }
+        if (pairedTarget) {
+          stepTargets = [currentTarget, pairedTarget];
+        }
       }
 
-      if (currentTargetTouched) {
-        this.nextTarget += 1;
-        this.pointExerciseCurrentIndex = this.nextTarget;
-        if (this.nextTarget >= this.targets.length) {
-          this.nextTarget = 0;
-          this.completed = false;
+      const stepComplete = stepTargets.every((target) => {
+        if (!target || !target.hand || !['left', 'right'].includes(target.hand)) {
+          return false;
         }
-        this.pointExerciseCurrentIndex = this.nextTarget;
+
+        if (target.hand === 'left' && this.leftTip) {
+          return this.getCircleIndex(this.leftTip) === target.index;
+        }
+        if (target.hand === 'right' && this.rightTip) {
+          return this.getCircleIndex(this.rightTip) === target.index;
+        }
+        return false;
+      });
+
+      if (stepComplete) {
+        this.advancePointExerciseTarget(stepTargets);
       }
 
       this.requestRender();
@@ -5974,7 +6284,9 @@ export class LevelManager {
       }
 
       if (touched) {
-        if (target.hand === 'both') {
+        if (this.pointExercisePalindromMode) {
+          this.advancePointExerciseTarget([target]);
+        } else if (target.hand === 'both') {
           this.nextTarget += 1;
           if (this.nextTarget >= this.targets.length) {
             this.nextTarget = 0;

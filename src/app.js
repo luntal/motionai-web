@@ -1178,7 +1178,21 @@ function createSquareExercisePanel() {
   let selectedAlternatingAxisSwap = Boolean(settings.alternatingAxisSwap);
   let pointEditMode = Boolean(settings.pointEditMode);
   let pointSequence = Array.isArray(settings.pointSequence) ? settings.pointSequence : [];
-  let pointSequenceMode = settings.pointSequenceMode !== false;
+  let pointSequenceMode = ['independent', 'sequential', 'simultaneous'].includes(settings.pointSequenceMode)
+    ? settings.pointSequenceMode
+    : (typeof settings.pointSequenceMode === 'boolean' ? (settings.pointSequenceMode ? 'sequential' : 'independent') : 'sequential');
+  let pointSymmetryMode = Boolean(settings.pointSymmetryMode);
+  let pointPalindromMode = Boolean(settings.pointPalindromMode || settings.pointPalindromeMode);
+
+  const normalizePointSequenceMode = (value) => {
+    if (['independent', 'sequential', 'simultaneous'].includes(value)) {
+      return value;
+    }
+    if (typeof value === 'boolean') {
+      return value ? 'sequential' : 'independent';
+    }
+    return 'sequential';
+  };
 
   const normalizePointSlot = (value) => {
     const next = Number(value);
@@ -1195,7 +1209,7 @@ function createSquareExercisePanel() {
   };
 
   let pointSelectedSlot = normalizePointSlot(settings.pointSelectedSlot);
-  let pointSelectedHand = ['left', 'right'].includes(settings.pointHand) ? settings.pointHand : 'right';
+  let pointSelectedHand = ['left', 'right', 'auto'].includes(settings.pointHand) ? settings.pointHand : 'right';
   let pointSavedSlots = {};
 
   const pointStorageKey = 'motionai.point-exercise-saved-slots';
@@ -1213,7 +1227,7 @@ function createSquareExercisePanel() {
       }
       const row = Number(point.row);
       const col = Number(point.col);
-      const hand = ['left', 'right'].includes(point.hand) ? point.hand : pointSelectedHand;
+      const hand = ['left', 'right'].includes(point.hand) ? point.hand : (pointSelectedHand === 'auto' ? 'right' : pointSelectedHand);
       const key = `${row}:${col}:${hand}`;
       if (seen.has(key)) {
         return;
@@ -1231,7 +1245,8 @@ function createSquareExercisePanel() {
         gridResolution: selectedGridResolution,
         resolution: selectedResolution,
         hand: pointSelectedHand,
-        sequentialMode: pointSequenceMode
+        sequentialMode: pointSequenceMode,
+        palindromMode: pointPalindromMode
       };
     }
     if (value && typeof value === 'object') {
@@ -1242,13 +1257,14 @@ function createSquareExercisePanel() {
       const resolution = Number.isFinite(Number(value.resolution))
         ? Math.min(1.0, Math.max(0.55, Number(value.resolution)))
         : selectedResolution;
-      const hand = ['left', 'right'].includes(value.hand) ? value.hand : pointSelectedHand;
-      const sequentialMode = typeof value.sequentialMode === 'boolean'
-        ? value.sequentialMode
-        : (typeof value.sequenceMode === 'boolean' ? value.sequenceMode : pointSequenceMode);
-      return { sequence, gridResolution, resolution, hand, sequentialMode };
+      const hand = ['left', 'right', 'auto'].includes(value.hand) ? value.hand : pointSelectedHand;
+      const sequentialMode = normalizePointSequenceMode(typeof value.sequentialMode === 'boolean' || typeof value.sequentialMode === 'string' ? value.sequentialMode : (typeof value.sequenceMode === 'boolean' || typeof value.sequenceMode === 'string' ? value.sequenceMode : pointSequenceMode));
+      const palindromMode = typeof value.palindromMode === 'boolean'
+        ? value.palindromMode
+        : (typeof value.palindromeMode === 'boolean' ? value.palindromeMode : pointPalindromMode);
+      return { sequence, gridResolution, resolution, hand, sequentialMode, palindromMode };
     }
-    return { sequence: [], gridResolution: selectedGridResolution, resolution: selectedResolution, hand: pointSelectedHand, sequentialMode: pointSequenceMode };
+    return { sequence: [], gridResolution: selectedGridResolution, resolution: selectedResolution, hand: pointSelectedHand, sequentialMode: pointSequenceMode, palindromMode: pointPalindromMode };
   };
 
   const readStoredPointSlots = () => {
@@ -1285,14 +1301,20 @@ function createSquareExercisePanel() {
   if (typeof storedPointPanelState.pointEditMode === 'boolean') {
     pointEditMode = storedPointPanelState.pointEditMode;
   }
-  if (['left', 'right'].includes(storedPointPanelState.pointSelectedHand)) {
+  if (['left', 'right', 'auto'].includes(storedPointPanelState.pointSelectedHand)) {
     pointSelectedHand = storedPointPanelState.pointSelectedHand;
   }
   if (Array.isArray(storedPointPanelState.pointSequence)) {
     pointSequence = sanitizePointSequence(storedPointPanelState.pointSequence);
   }
-  if (typeof storedPointPanelState.pointSequenceMode === 'boolean') {
-    pointSequenceMode = storedPointPanelState.pointSequenceMode;
+  if (typeof storedPointPanelState.pointSequenceMode === 'boolean' || typeof storedPointPanelState.pointSequenceMode === 'string') {
+    pointSequenceMode = normalizePointSequenceMode(storedPointPanelState.pointSequenceMode);
+  }
+  if (typeof storedPointPanelState.pointSymmetryMode === 'boolean') {
+    pointSymmetryMode = storedPointPanelState.pointSymmetryMode;
+  }
+  if (typeof storedPointPanelState.pointPalindromMode === 'boolean' || typeof storedPointPanelState.pointPalindromeMode === 'boolean') {
+    pointPalindromMode = Boolean(storedPointPanelState.pointPalindromMode ?? storedPointPanelState.pointPalindromeMode);
   }
   const savedSelectedSequence = Array.isArray(pointSavedSlots[pointSelectedSlot]) ? pointSavedSlots[pointSelectedSlot] : [];
   if (!pointEditMode && savedSelectedSequence.length > 0) {
@@ -1311,6 +1333,8 @@ function createSquareExercisePanel() {
         pointSelectedSlot,
         pointSelectedHand,
         pointSequenceMode,
+        pointSymmetryMode,
+        pointPalindromMode,
         pointSequence: sanitizePointSequence(pointSequence)
       }));
     } catch (error) {
@@ -1516,36 +1540,65 @@ function createSquareExercisePanel() {
   pointToggleInput.checked = pointEditMode;
   pointToggleWrap.appendChild(pointToggleInput);
   pointToggleWrap.appendChild(document.createTextNode('Bearbeiten'));
+  pointToggleWrap.classList.toggle('is-active', pointEditMode);
   pointSection.appendChild(pointToggleWrap);
   bindUiGroupDescription([pointToggleWrap], 'Eingewöhnung', 'Bearbeiten');
 
-  const pointSequenceModeWrap = document.createElement('label');
-  pointSequenceModeWrap.className = 'figure-dynamics-toggle';
-  const pointSequenceModeInput = document.createElement('input');
-  pointSequenceModeInput.type = 'checkbox';
-  pointSequenceModeInput.checked = pointSequenceMode;
-  pointSequenceModeWrap.appendChild(pointSequenceModeInput);
-  pointSequenceModeWrap.appendChild(document.createTextNode('Nacheinander'));
-  pointSequenceModeWrap.hidden = !pointEditMode;
-  pointSection.appendChild(pointSequenceModeWrap);
-  bindUiGroupDescription([pointSequenceModeWrap, pointSequenceModeInput], 'Eingewöhnung', 'Nacheinander');
-  pointSequenceModeInput.addEventListener('change', () => {
-    pointSequenceMode = pointSequenceModeInput.checked;
-    persistPointState();
-    managerRef?.setPointExerciseSequentialMode?.(pointSequenceMode);
+  const pointSequenceModeTitle = document.createElement('div');
+  pointSequenceModeTitle.className = 'figure-point-group-label';
+  pointSequenceModeTitle.textContent = 'Berührungslogik';
+  pointSequenceModeTitle.hidden = !pointEditMode;
+  pointSection.appendChild(pointSequenceModeTitle);
+
+  const pointSequenceModeRow = document.createElement('div');
+  pointSequenceModeRow.className = 'figure-point-hand-row';
+  pointSequenceModeRow.hidden = !pointEditMode;
+
+  const pointSequenceModeOptions = [
+    { value: 'independent', label: 'Unabhängig' },
+    { value: 'sequential', label: 'Nacheinander' },
+    { value: 'simultaneous', label: 'Gleichzeitig' }
+  ];
+
+  const pointSequenceModeInputs = pointSequenceModeOptions.map(({ value, label }) => {
+    const option = document.createElement('label');
+    option.className = 'figure-point-hand-option';
+    const input = document.createElement('input');
+    input.type = 'radio';
+    input.name = 'point-exercise-sequence-mode';
+    input.value = value;
+    input.checked = pointSequenceMode === value;
+    input.addEventListener('change', () => {
+      if (!input.checked) {
+        return;
+      }
+      pointSequenceMode = normalizePointSequenceMode(value);
+      updatePointPresetInfo();
+      persistPointState();
+      managerRef?.setPointExerciseSequentialMode?.(pointSequenceMode);
+    });
+    option.appendChild(input);
+    const labelNode = document.createElement('span');
+    labelNode.textContent = label;
+    option.appendChild(labelNode);
+    pointSequenceModeRow.appendChild(option);
+    return input;
   });
 
-  const pointHandTitle = document.createElement('div');
-  pointHandTitle.className = 'figure-panel-section-title';
-  pointHandTitle.textContent = 'Hand';
-  pointHandTitle.hidden = !pointEditMode;
-  pointSection.appendChild(pointHandTitle);
+  pointSection.appendChild(pointSequenceModeRow);
+  bindUiGroupDescription([...pointSequenceModeRow.querySelectorAll('label, input')], 'Eingewöhnung', 'Nacheinander');
+
+  const pointHandGroupLabel = document.createElement('div');
+  pointHandGroupLabel.className = 'figure-point-group-label';
+  pointHandGroupLabel.textContent = 'Hand';
+  pointHandGroupLabel.hidden = !pointEditMode;
+  pointSection.appendChild(pointHandGroupLabel);
 
   const pointHandRow = document.createElement('div');
   pointHandRow.className = 'figure-point-hand-row';
   pointHandRow.hidden = !pointEditMode;
 
-  const pointHandOptions = ['right', 'left'].map((handValue) => {
+  const pointHandOptions = ['right', 'left', 'auto'].map((handValue) => {
     const option = document.createElement('label');
     option.className = 'figure-point-hand-option';
     const input = document.createElement('input');
@@ -1564,12 +1617,47 @@ function createSquareExercisePanel() {
     });
     option.appendChild(input);
     const label = document.createElement('span');
-    label.textContent = handValue === 'left' ? 'Links' : 'Rechts';
+    label.textContent = handValue === 'left' ? 'Links' : handValue === 'auto' ? 'Auto' : 'Rechts';
     option.appendChild(label);
     pointHandRow.appendChild(option);
     return input;
   });
   pointSection.appendChild(pointHandRow);
+  bindUiGroupDescription([...pointHandRow.querySelectorAll('label, input')], 'Eingewöhnung', 'HandBearbeiten');
+
+  const pointSymmetryWrap = document.createElement('label');
+  pointSymmetryWrap.className = 'figure-dynamics-toggle';
+  const pointSymmetryInput = document.createElement('input');
+  pointSymmetryInput.type = 'checkbox';
+  pointSymmetryInput.checked = pointSymmetryMode;
+  pointSymmetryWrap.appendChild(pointSymmetryInput);
+  pointSymmetryWrap.appendChild(document.createTextNode('Symmetrie'));
+  pointSymmetryWrap.hidden = !pointEditMode;
+  pointSection.appendChild(pointSymmetryWrap);
+  bindUiGroupDescription([pointSymmetryWrap, pointSymmetryInput], 'Eingewöhnung', 'Symmetrie');
+  pointSymmetryInput.addEventListener('change', () => {
+    pointSymmetryMode = pointSymmetryInput.checked;
+    persistPointState();
+    managerRef?.setPointExerciseSymmetryMode?.(pointSymmetryMode);
+  });
+
+  const pointPalindromWrap = document.createElement('label');
+  pointPalindromWrap.className = 'figure-dynamics-toggle';
+  const pointPalindromInput = document.createElement('input');
+  pointPalindromInput.type = 'checkbox';
+  pointPalindromInput.checked = pointPalindromMode;
+  pointPalindromWrap.appendChild(pointPalindromInput);
+  pointPalindromWrap.appendChild(document.createTextNode('Palindrom'));
+  pointPalindromWrap.hidden = !pointEditMode;
+  pointSection.appendChild(pointPalindromWrap);
+  bindUiGroupDescription([pointPalindromWrap, pointPalindromInput], 'Eingewöhnung', 'Palindrom');
+  pointPalindromInput.addEventListener('change', () => {
+    pointPalindromMode = pointPalindromInput.checked;
+    updatePointPresetInfo();
+    persistPointState();
+    managerRef?.setPointExercisePalindromMode?.(pointPalindromMode);
+    managerRef?.setPointExerciseSequentialMode?.(pointSequenceMode);
+  });
 
   const pointPresetTitle = document.createElement('div');
   pointPresetTitle.className = 'figure-panel-section-title';
@@ -1582,6 +1670,25 @@ function createSquareExercisePanel() {
   pointSlotRow.className = 'figure-point-slot-grid';
   pointSlotRow.hidden = pointEditMode;
 
+  const pointPresetInfo = document.createElement('div');
+  pointPresetInfo.className = 'figure-point-preset-info';
+  pointPresetInfo.hidden = pointEditMode;
+  bindUiGroupDescription([pointPresetInfo], 'Eingewöhnung', 'Presetinfo');
+
+  const updatePointPresetInfo = () => {
+    const motionLogic = pointSequenceMode === 'independent'
+      ? 'unabhängig'
+      : pointSequenceMode === 'sequential'
+        ? 'nacheinander'
+        : 'gleichzeitig';
+    const movementDirection = pointPalindromMode ? 'Palindrom' : 'vorwärts';
+    pointPresetInfo.textContent = [
+      'Presetinfo',
+      `Bewegungslogik: ${motionLogic}`,
+      `Bewegungsrichtung: ${movementDirection}`
+    ].join('\n');
+  };
+
   const loadPointPresetIntoCurrentSequence = (slotNumber, { force = false } = {}) => {
     const normalizedSlot = normalizePointSlot(slotNumber);
     const savedPreset = pointSavedSlots[normalizedSlot] || { sequence: [], gridResolution: selectedGridResolution, resolution: selectedResolution, hand: pointSelectedHand };
@@ -1589,13 +1696,19 @@ function createSquareExercisePanel() {
     const savedPattern = presetEntry.sequence;
     if ((force || !pointEditMode) && savedPattern.length > 0) {
       pointSequence = sanitizePointSequence(savedPattern);
-      pointSequenceMode = Boolean(presetEntry.sequentialMode);
+      pointSequenceMode = normalizePointSequenceMode(presetEntry.sequentialMode);
+      pointPalindromMode = Boolean(presetEntry.palindromMode ?? false);
       pointHandOptions.forEach((radio) => {
         radio.checked = radio.value === pointSelectedHand;
       });
-      pointSequenceModeInput.checked = pointSequenceMode;
+      pointSequenceModeInputs.forEach((radio) => {
+        radio.checked = radio.value === pointSequenceMode;
+      });
+      pointPalindromInput.checked = pointPalindromMode;
+      updatePointPresetInfo();
       managerRef?.setPointExerciseHand?.(pointSelectedHand);
       managerRef?.setPointExerciseSequentialMode?.(pointSequenceMode);
+      managerRef?.setPointExercisePalindromMode?.(pointPalindromMode);
       setGridResolution(presetEntry.gridResolution);
       setResolution(presetEntry.resolution);
       persistSettings();
@@ -1635,6 +1748,7 @@ function createSquareExercisePanel() {
     return input;
   });
   pointSection.appendChild(pointSlotRow);
+  pointSection.appendChild(pointPresetInfo);
   bindUiGroupDescription([...pointSlotRow.querySelectorAll('label, input')], 'Eingewöhnung', 'Presets');
 
   const pointActions = document.createElement('div');
@@ -1693,9 +1807,24 @@ function createSquareExercisePanel() {
   pointSaveDialogConfirm.className = 'figure-point-action primary';
   pointSaveDialogConfirm.textContent = 'Speichern';
 
+  pointSaveDialogActions.appendChild(pointSaveDialogCancel);
+  pointSaveDialogActions.appendChild(pointSaveDialogConfirm);
+
   const closePointSaveDialog = () => {
     pointSaveDialog.classList.add('hidden');
     pointSaveDialogInput.value = String(pointSelectedSlot);
+  };
+
+  const validatePointSaveForSequenceMode = () => {
+    const normalizedSequenceMode = normalizePointSequenceMode(pointSequenceModeInputs.find((radio) => radio.checked)?.value || pointSequenceMode);
+    const leftPointCount = sanitizePointSequence(pointSequence).filter((point) => point.hand === 'left').length;
+    const rightPointCount = sanitizePointSequence(pointSequence).filter((point) => point.hand === 'right').length;
+
+    if (normalizedSequenceMode === 'simultaneous' && leftPointCount !== rightPointCount) {
+      window.alert('Im Modus gleichzeitig müssen für linke und rechte Hand dieselbe Anzahl an Punkten ausgewählt sein. Speichern nicht möglich.');
+      return false;
+    }
+    return true;
   };
 
   pointSaveDialogCancel.addEventListener('click', closePointSaveDialog);
@@ -1712,13 +1841,21 @@ function createSquareExercisePanel() {
       return;
     }
 
+    const normalizedSequenceMode = normalizePointSequenceMode(pointSequenceModeInputs.find((radio) => radio.checked)?.value || pointSequenceMode);
+    if (!validatePointSaveForSequenceMode()) {
+      return;
+    }
+
     pointSelectedSlot = slotNumber;
+    pointSequenceMode = normalizedSequenceMode;
+    pointSymmetryMode = pointSymmetryInput.checked;
     pointSavedSlots[pointSelectedSlot] = {
       sequence: sanitizePointSequence(pointSequence),
       gridResolution: selectedGridResolution,
       resolution: selectedResolution,
       hand: pointSelectedHand,
-      sequentialMode: pointSequenceMode
+      sequentialMode: pointSequenceMode,
+      palindromMode: pointPalindromMode
     };
     pointSlotLabels.forEach((radio) => {
       radio.checked = Number(radio.value) === pointSelectedSlot;
@@ -1726,12 +1863,12 @@ function createSquareExercisePanel() {
     persistPointState();
     managerRef?.setPointExerciseSelectedSlot(pointSelectedSlot);
     managerRef?.setPointExerciseSavedSlots(pointSavedSlots);
+    managerRef?.setPointExerciseSequentialMode?.(pointSequenceMode);
+    managerRef?.setPointExerciseSymmetryMode?.(pointSymmetryMode);
     renderPointList();
     closePointSaveDialog();
   });
 
-  pointSaveDialogActions.appendChild(pointSaveDialogCancel);
-  pointSaveDialogActions.appendChild(pointSaveDialogConfirm);
   pointSaveDialogCard.appendChild(pointSaveDialogTitle);
   pointSaveDialogCard.appendChild(pointSaveDialogText);
   pointSaveDialogCard.appendChild(pointSaveDialogInput);
@@ -1749,6 +1886,10 @@ function createSquareExercisePanel() {
       return;
     }
 
+    if (!validatePointSaveForSequenceMode()) {
+      return;
+    }
+
     pointSaveDialogInput.value = String(pointSelectedSlot);
     pointSaveDialog.classList.remove('hidden');
   });
@@ -1763,18 +1904,30 @@ function createSquareExercisePanel() {
   pointListWrap.className = 'figure-point-list';
   pointListWrap.hidden = !pointEditMode;
   pointSection.appendChild(pointListWrap);
-  bindUiGroupDescription([pointListWrap], 'Eingewöhnung', 'Bearbeiten');
+  bindUiGroupDescription([pointListWrap], 'Eingewöhnung', 'Liste');
 
   const updatePointPanelVisibility = () => {
     const showPresetRow = !pointEditMode;
     const showEditActions = pointEditMode;
 
-    pointSequenceModeWrap.hidden = !pointEditMode;
-    pointSequenceModeWrap.style.display = pointEditMode ? '' : 'none';
-    pointSequenceModeInput.checked = pointSequenceMode;
+    pointSequenceModeTitle.hidden = !pointEditMode;
+    pointSequenceModeTitle.style.display = pointEditMode ? '' : 'none';
+    pointSequenceModeRow.hidden = !pointEditMode;
+    pointSequenceModeRow.style.display = pointEditMode ? '' : 'none';
+    pointSequenceModeInputs.forEach((radio) => {
+      radio.checked = radio.value === pointSequenceMode;
+    });
 
-    pointHandTitle.hidden = !pointEditMode;
-    pointHandTitle.style.display = pointEditMode ? '' : 'none';
+    pointSymmetryWrap.hidden = !pointEditMode;
+    pointSymmetryWrap.style.display = pointEditMode ? '' : 'none';
+    pointSymmetryInput.checked = pointSymmetryMode;
+
+    pointPalindromWrap.hidden = !pointEditMode;
+    pointPalindromWrap.style.display = pointEditMode ? '' : 'none';
+    pointPalindromInput.checked = pointPalindromMode;
+
+    pointHandGroupLabel.hidden = !pointEditMode;
+    pointHandGroupLabel.style.display = pointEditMode ? '' : 'none';
     pointHandRow.hidden = !pointEditMode;
     pointHandRow.style.display = pointEditMode ? '' : 'none';
     pointHandOptions.forEach((radio) => {
@@ -1791,6 +1944,9 @@ function createSquareExercisePanel() {
 
     pointSlotRow.hidden = pointEditMode;
     pointSlotRow.style.display = showPresetRow ? '' : 'none';
+    pointPresetInfo.hidden = pointEditMode;
+    pointPresetInfo.style.display = showPresetRow ? '' : 'none';
+    updatePointPresetInfo();
     pointSlotLabels.forEach((radio) => {
       radio.hidden = pointEditMode;
       radio.style.display = showPresetRow ? '' : 'none';
@@ -1805,6 +1961,7 @@ function createSquareExercisePanel() {
     pointListWrap.hidden = !showEditActions;
     pointListWrap.style.display = showEditActions ? '' : 'none';
     pointToggleInput.checked = pointEditMode;
+    pointToggleWrap.classList.toggle('is-active', pointEditMode);
   };
 
   const renderPointList = () => {
@@ -1835,6 +1992,11 @@ function createSquareExercisePanel() {
 
   pointToggleInput.addEventListener('change', () => {
     pointEditMode = pointToggleInput.checked;
+    if (pointEditMode) {
+      pointSequence = [];
+      renderPointList();
+      managerRef?.setPointExerciseSequence([]);
+    }
     updatePointPanelVisibility();
     persistPointState();
     managerRef?.setPointExerciseEditMode(pointEditMode);
@@ -1842,6 +2004,10 @@ function createSquareExercisePanel() {
       loadPointPresetIntoCurrentSequence(pointSelectedSlot, { force: true });
     }
     managerRef?.setPointExerciseSequentialMode?.(pointSequenceMode);
+  });
+
+  pointSequenceModeInputs.forEach((radio) => {
+    radio.checked = radio.value === pointSequenceMode;
   });
 
   updatePointPanelVisibility();
@@ -2340,18 +2506,27 @@ function createSquareExercisePanel() {
     setResolution,
     setGridResolution,
     renderPointList,
-    syncPointState: ({ sequence, slot, editMode, savedSlots }) => {
+    syncPointState: ({ sequence, slot, editMode, savedSlots, symmetryMode, palindromMode, palindromeMode }) => {
       pointSequence = sanitizePointSequence(sequence);
       pointSelectedSlot = normalizePointSlot(slot);
       pointEditMode = Boolean(editMode);
+      pointSymmetryMode = typeof symmetryMode === 'boolean' ? symmetryMode : pointSymmetryMode;
+      pointPalindromMode = typeof palindromMode === 'boolean' ? palindromMode : (typeof palindromeMode === 'boolean' ? palindromeMode : pointPalindromMode);
       pointSavedSlots = savedSlots && typeof savedSlots === 'object'
         ? Object.fromEntries(Object.entries(savedSlots).map(([key, value]) => [normalizePointSlot(key), normalizePointPresetEntry(value)]))
         : pointSavedSlots;
-      if (['left', 'right'].includes(pointSelectedHand)) {
+      managerRef?.setPointExerciseSymmetryMode?.(pointSymmetryMode);
+      managerRef?.setPointExercisePalindromMode?.(pointPalindromMode);
+      if (['left', 'right', 'auto'].includes(pointSelectedHand)) {
         pointHandOptions.forEach((radio) => {
           radio.checked = radio.value === pointSelectedHand;
         });
       }
+      pointSymmetryInput.checked = pointSymmetryMode;
+      pointPalindromInput.checked = pointPalindromMode;
+      pointPalindromWrap.hidden = !pointEditMode;
+      pointPalindromWrap.style.display = pointEditMode ? '' : 'none';
+      updatePointPresetInfo();
       updatePointPanelVisibility();
       pointSlotLabels.forEach((radio) => {
         radio.checked = Number(radio.value) === pointSelectedSlot;
@@ -2415,6 +2590,14 @@ function createSquareExercisePanel() {
         selectedAlternatingFrequencyModulation = activeAlternatingFrequencyModulation;
         selectedAlternatingAxisSwap = activeAlternatingAxisSwap;
         pointEditMode = Boolean(managerRef.pointExerciseEditMode || pointEditMode);
+        pointSymmetryMode = typeof managerRef.pointExerciseSymmetryMode === 'boolean'
+          ? managerRef.pointExerciseSymmetryMode
+          : pointSymmetryMode;
+        pointPalindromMode = typeof managerRef.pointExercisePalindromMode === 'boolean'
+          ? managerRef.pointExercisePalindromMode
+          : pointPalindromMode;
+        managerRef.setPointExerciseSymmetryMode?.(pointSymmetryMode);
+        managerRef.setPointExercisePalindromMode?.(pointPalindromMode);
         pointSavedSlots = managerRef.pointExerciseSavedSlots && typeof managerRef.pointExerciseSavedSlots === 'object'
           ? Object.fromEntries(Object.entries(managerRef.pointExerciseSavedSlots).map(([key, value]) => [normalizePointSlot(key), normalizePointPresetEntry(value)]))
           : pointSavedSlots;
@@ -2422,15 +2605,25 @@ function createSquareExercisePanel() {
           pointSavedSlots = readStoredPointSlots();
         }
         pointSelectedSlot = normalizePointSlot(managerRef.pointExerciseSelectedSlot || pointSelectedSlot);
-        if (typeof managerRef.pointExerciseSequentialMode === 'boolean') {
-          pointSequenceMode = managerRef.pointExerciseSequentialMode;
+        if (['left', 'right', 'auto'].includes(pointSelectedHand)) {
+          managerRef.setPointExerciseHand(pointSelectedHand);
+        }
+        if (typeof managerRef.pointExerciseEditMode === 'boolean') {
+          pointEditMode = Boolean(managerRef.pointExerciseEditMode);
+        }
+        if (typeof managerRef.pointExerciseSequentialMode === 'boolean' || typeof managerRef.pointExerciseSequentialMode === 'string') {
+          pointSequenceMode = normalizePointSequenceMode(managerRef.pointExerciseSequentialMode);
         }
         const selectedSavedPreset = pointSavedSlots[pointSelectedSlot];
         const selectedSavedEntry = normalizePointPresetEntry(selectedSavedPreset);
         const selectedSavedSequence = selectedSavedEntry.sequence;
-        pointSequenceMode = Boolean(selectedSavedEntry.sequentialMode);
-        if (typeof managerRef.pointExerciseSequentialMode === 'boolean') {
-          pointSequenceMode = Boolean(managerRef.pointExerciseSequentialMode);
+        pointSequenceMode = normalizePointSequenceMode(selectedSavedEntry.sequentialMode);
+        pointPalindromMode = Boolean(selectedSavedEntry.palindromMode ?? false);
+        if (typeof managerRef.pointExerciseSequentialMode === 'boolean' || typeof managerRef.pointExerciseSequentialMode === 'string') {
+          pointSequenceMode = normalizePointSequenceMode(managerRef.pointExerciseSequentialMode);
+        }
+        if (typeof managerRef.pointExercisePalindromMode === 'boolean') {
+          pointPalindromMode = managerRef.pointExercisePalindromMode;
         }
         const restoredPointSequence = (!pointEditMode && selectedSavedSequence.length > 0)
           ? sanitizePointSequence(selectedSavedSequence)
@@ -3529,6 +3722,8 @@ export function initApp() {
     pointExerciseSavedSlots: levelManager.pointExerciseSavedSlots,
     setPointExerciseEditMode: (value) => levelManager.setPointExerciseEditMode(value),
     setPointExerciseHand: (value) => levelManager.setPointExerciseHand(value),
+    setPointExerciseSymmetryMode: (value) => levelManager.setPointExerciseSymmetryMode(value),
+    setPointExercisePalindromMode: (value) => levelManager.setPointExercisePalindromMode(value),
     setPointExerciseSequentialMode: (value) => levelManager.setPointExerciseSequentialMode(value),
     setPointExerciseSelectedSlot: (value) => levelManager.setPointExerciseSelectedSlot(value),
     setPointExerciseSequence: (value) => levelManager.setPointExerciseSequence(value),
