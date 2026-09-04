@@ -2794,15 +2794,52 @@ export class LevelManager {
   }
 
   setHandIndependenceTempoRatio(ratio) {
-    const allowed = ['1:1', '2:1', '3:1', '1:2', '1:3', '0.5:1', '1:0.5'];
-    this.handIndependenceTempoRatio = allowed.includes(ratio) ? ratio : '1:1';
+    const allowed = [
+      '1:1',
+      '2:1',
+      '3:1',
+      '1:2',
+      '1:3',
+      '0.5:1',
+      '1:0.5',
+      '0.25:1',
+      '1:0.25',
+      '0.125:1',
+      '1:0.125'
+    ];
+    const nextRatio = allowed.includes(ratio) ? ratio : '1:1';
+    if (nextRatio !== this.handIndependenceTempoRatio) {
+      this.handIndependenceTempoRatio = nextRatio;
+      this.handIndependenceAnimationStart = performance.now();
+    }
     this.requestRender();
   }
 
+  normalizeHandIndependenceTempoRatio(ratio) {
+    const allowed = ['1:1', '2:1', '3:1', '1:2', '1:3', '0.5:1', '1:0.5', '0.25:1', '1:0.25', '0.125:1', '1:0.125'];
+    const normalizedRatio = allowed.includes(ratio) ? ratio : '1:1';
+    const [first, second] = normalizedRatio.split(':').map(Number);
+    if (!Number.isFinite(first) || !Number.isFinite(second) || first <= 0 || second <= 0) {
+      return { ratio: '1:1', scaleFactor: 1 };
+    }
+
+    const scaleFactor = Math.min(first, second);
+    const normalizedFirst = first / scaleFactor;
+    const normalizedSecond = second / scaleFactor;
+    return {
+      ratio: `${normalizedFirst}:${normalizedSecond}`,
+      scaleFactor
+    };
+  }
+
   getHandIndependenceTempoPair() {
-    const [first, second] = this.handIndependenceTempoRatio.split(':').map(Number);
+    const { ratio, scaleFactor } = this.normalizeHandIndependenceTempoRatio(this.handIndependenceTempoRatio);
+    const [first, second] = ratio.split(':').map(Number);
     const base = this.handIndependenceSharedTempoBpm;
-    return { figure: base * second, shape: base * first };
+    return {
+      figure: base * second * scaleFactor,
+      shape: base * first * scaleFactor
+    };
   }
 
   setHandIndependenceFigureCornerHeight(index, value) {
@@ -3709,7 +3746,7 @@ export class LevelManager {
       return 0;
     }
 
-    const bpm = Math.min(360, Math.max(30, Number(tempoBpm) || 60));
+    const bpm = Math.min(360, Math.max(1, Number(tempoBpm) || 60));
     const beatDurationMs = 60000 / bpm;
     const segmentDurationMs = beatDurationMs / 2;
     const pathDurationMs = segmentDurationMs * renderSegments.length;
@@ -3748,7 +3785,7 @@ export class LevelManager {
       return null;
     }
 
-    const bpm = Math.min(360, Math.max(30, Number(settings.tempoBpm ?? this.figureTempoBpm) || 60));
+    const bpm = Math.min(360, Math.max(1, Number(settings.tempoBpm ?? this.figureTempoBpm) || 60));
     const beatDurationMs = 60000 / bpm;
     const segmentDurationMs = beatDurationMs / 2;
     const pathDurationMs = segmentDurationMs * renderSegments.length;

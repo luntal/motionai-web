@@ -917,6 +917,16 @@ function createDynamicFigureModePanel() {
     initialTitle: 'Dynamikebenen',
     defaultVariant: 'hard'
   });
+
+  const inheritedPresetPanel = basePanel.panel.querySelector('.dynamic-figure-presets');
+  if (inheritedPresetPanel) {
+    const inheritedDivider = inheritedPresetPanel.previousElementSibling;
+    if (inheritedDivider && inheritedDivider.classList.contains('figure-panel-divider')) {
+      inheritedDivider.remove();
+    }
+    inheritedPresetPanel.remove();
+  }
+
   const pointPanel = document.createElement('div');
   pointPanel.className = 'dynamic-figure-point-controls';
   const pointTitle = document.createElement('div');
@@ -2795,7 +2805,7 @@ function createHandIndependencePanel() {
   addRange('sharedTempoBpm', 'BPM', 30, 120, 1);
   const ratioSelect = document.createElement('select');
   ratioSelect.className = 'hand-independence-tempo-ratio';
-  ['1:1', '2:1', '3:1', '1:2', '1:3', '0.5:1', '1:0.5'].forEach((ratio) => {
+  ['1:1', '2:1', '3:1', '1:2', '1:3', '0.5:1', '1:0.5', '0.25:1', '1:0.25', '0.125:1', '1:0.125'].forEach((ratio) => {
     const option = document.createElement('option');
     option.value = ratio;
     option.textContent = ratio;
