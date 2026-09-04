@@ -149,6 +149,8 @@ export class LevelManager {
     this.pointExerciseTraversalCursor = 0;
     this.pointExerciseTraversalSequence = [];
     this.pointExerciseSavedSlots = {};
+    this.pointExerciseFlashPoints = [];
+    this.pointExerciseFlashDurationMs = 350;
     this.squareExerciseHandMode = 'right';
     this.squareExerciseSyncMode = 'asynchronous';
     this.squareExerciseResolution = 1;
@@ -1611,6 +1613,31 @@ export class LevelManager {
     return normalized;
   }
 
+  registerPointExerciseFlash(point, nowMs = performance.now()) {
+    if (!point || !Number.isFinite(Number(point.row)) || !Number.isFinite(Number(point.col))) {
+      return;
+    }
+
+    const row = Math.max(0, Math.min(this.gridRows - 1, Math.round(Number(point.row))));
+    const col = Math.max(0, Math.min(this.gridCols - 1, Math.round(Number(point.col))));
+    const hand = ['left', 'right'].includes(point.hand)
+      ? point.hand
+      : this.resolvePointHandForColumn(col, this.pointExerciseHand);
+
+    this.pointExerciseFlashPoints.push({
+      row,
+      col,
+      hand,
+      index: row * this.gridCols + col,
+      startedAt: nowMs,
+      durationMs: this.pointExerciseFlashDurationMs
+    });
+
+    if (this.pointExerciseFlashPoints.length > 16) {
+      this.pointExerciseFlashPoints.shift();
+    }
+  }
+
   setPointExerciseSequence(value) {
     this.pointExerciseSequence = this.sanitizePointSequence(value);
     this.resetPointExerciseTraversalState();
@@ -1688,6 +1715,7 @@ export class LevelManager {
       const existing = this.pointExerciseSequence.some((candidate) => candidate.row === point.row && candidate.col === point.col && candidate.hand === point.hand);
       if (!existing) {
         this.pointExerciseSequence.push(point);
+        this.registerPointExerciseFlash(point);
       }
       return !existing;
     };
@@ -1702,6 +1730,7 @@ export class LevelManager {
       const existingMirror = this.pointExerciseSequence.some((candidate) => candidate.row === mirrorPoint.row && candidate.col === mirrorPoint.col && candidate.hand === mirrorPoint.hand);
       if (!existingMirror) {
         this.pointExerciseSequence.push(mirrorPoint);
+        this.registerPointExerciseFlash(mirrorPoint);
         return true;
       }
       return false;
@@ -4665,6 +4694,7 @@ export class LevelManager {
 
     // draw grid
     const nowMs = performance.now();
+    this.pointExerciseFlashPoints = this.pointExerciseFlashPoints.filter((flash) => nowMs - flash.startedAt < flash.durationMs);
     const freeMovementTouchFeedbackActive = this.chapter === 1 && Number.isInteger(this.level) && this.level === 2;
     for (let i = 0; i < this.grid.length; i += 1) {
       const circle = this.grid[i];
@@ -4673,6 +4703,8 @@ export class LevelManager {
       const radiusY = circle.radiusY * scale;
       let fill = 'rgba(255, 255, 255, 0.08)';
       let stroke = 'rgba(255, 255, 255, 0.16)';
+      const pointFlash = this.pointExerciseFlashPoints.find((flash) => flash.index === i);
+      const flashProgress = pointFlash ? Math.min(1, (nowMs - pointFlash.startedAt) / Math.max(1, pointFlash.durationMs)) : 0;
 
       const leftTouch = freeMovementTouchFeedbackActive && (this.activeTouchCircleByHand.left?.has(i) ?? false);
       const rightTouch = freeMovementTouchFeedbackActive && (this.activeTouchCircleByHand.right?.has(i) ?? false);
@@ -4732,6 +4764,16 @@ export class LevelManager {
             stroke = targetColors.stroke;
           }
         }
+      }
+
+      if (pointFlash) {
+        const flashAlpha = Math.max(0, 1 - flashProgress);
+        const flashOscillation = 0.5 + 0.5 * Math.sin(flashProgress * Math.PI);
+        const glowBase = pointFlash.hand === 'left'
+          ? [117, 165, 255]
+          : [255, 168, 112];
+        fill = `rgba(${glowBase[0]}, ${glowBase[1]}, ${glowBase[2]}, ${0.12 + flashOscillation * 0.7 + flashAlpha * 0.1})`;
+        stroke = `rgba(255, 255, 255, ${0.75 + flashOscillation * 0.2})`;
       }
 
       this.ctx.beginPath();
