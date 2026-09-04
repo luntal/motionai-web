@@ -10,7 +10,17 @@ import {
   attachPanelHoverHelp,
   registerHoverHelp
 } from './ui.js';
-import { startTracking, onLandmarksUpdate, onPoseUpdate, setStabilizationEnabled, setLandmarkDrawingEnabled, onCanvasResize } from './tracking.js';
+import {
+  startTracking,
+  onLandmarksUpdate,
+  onPoseUpdate,
+  setStabilizationEnabled,
+  setLandmarkDrawingEnabled,
+  setVideoSofteningEnabled,
+  setVideoSofteningStyle,
+  getVideoSofteningStyle,
+  onCanvasResize
+} from './tracking.js';
 import { LevelManager } from './levels.js';
 import { getLevelCountForChapter, uiElementDescriptions } from './constants.js';
 
@@ -3154,11 +3164,112 @@ function createTrackingControls(trackingController) {
   landmarkDrawingButton.className = 'tracking-controls-button';
   let landmarkDrawingVisible = true;
 
+  const videoCanvas = document.getElementById('canvas');
+  const videoSofteningStorageKey = 'motionai.video-softening-enabled';
+  const videoSofteningSettingsStorageKey = 'motionai.video-softening-settings';
+  const videoSofteningButton = document.createElement('button');
+  videoSofteningButton.type = 'button';
+  videoSofteningButton.className = 'tracking-controls-button';
+  let videoSofteningEnabled = true;
+  let videoSofteningBlurPx = 5;
+  let videoSofteningBrightness = 0.75;
+
+  try {
+    const raw = localStorage.getItem(videoSofteningStorageKey);
+    if (raw !== null) {
+      videoSofteningEnabled = raw === 'true';
+    }
+
+    const settingsRaw = localStorage.getItem(videoSofteningSettingsStorageKey);
+    if (settingsRaw) {
+      const parsed = JSON.parse(settingsRaw);
+      if (Number.isFinite(Number(parsed.blurPx))) {
+        videoSofteningBlurPx = Math.min(20, Math.max(2, Number(parsed.blurPx)));
+      }
+      if (Number.isFinite(Number(parsed.brightness))) {
+        videoSofteningBrightness = Math.min(0.9, Math.max(0.2, Number(parsed.brightness)));
+      }
+    }
+  } catch (error) {
+    videoSofteningEnabled = true;
+    videoSofteningBlurPx = 5;
+    videoSofteningBrightness = 0.75;
+  }
+
+  function persistVideoSofteningSettings() {
+    try {
+      localStorage.setItem(videoSofteningStorageKey, String(videoSofteningEnabled));
+      localStorage.setItem(videoSofteningSettingsStorageKey, JSON.stringify({
+        blurPx: videoSofteningBlurPx,
+        brightness: videoSofteningBrightness
+      }));
+    } catch (error) {
+      // Ignore storage failures for local settings.
+    }
+  }
+
+  function updateVideoSofteningLabel() {
+    videoSofteningButton.textContent = videoSofteningEnabled ? 'Weichzeichnen: ON' : 'Weichzeichnen: OFF';
+    videoSofteningButton.setAttribute('aria-pressed', String(videoSofteningEnabled));
+    if (videoCanvas) {
+      videoCanvas.style.filter = 'none';
+      videoCanvas.style.transition = 'filter 180ms ease';
+    }
+    setVideoSofteningEnabled(videoSofteningEnabled);
+    setVideoSofteningStyle(videoSofteningBlurPx, videoSofteningBrightness);
+    persistVideoSofteningSettings();
+  }
+
   const poseWarningLandmarksButton = document.createElement('button');
   poseWarningLandmarksButton.type = 'button';
   poseWarningLandmarksButton.className = 'tracking-controls-button';
   let poseWarningLandmarksVisible = false;
   let levelManagerRef = null;
+
+  const videoSofteningDivider = document.createElement('div');
+  videoSofteningDivider.className = 'figure-panel-divider';
+
+  const blurLabel = document.createElement('label');
+  blurLabel.textContent = 'Blur';
+  blurLabel.className = 'tracking-controls-label';
+
+  const blurSlider = document.createElement('input');
+  blurSlider.type = 'range';
+  blurSlider.min = '2';
+  blurSlider.max = '20';
+  blurSlider.step = '1';
+  blurSlider.value = String(videoSofteningBlurPx);
+  blurSlider.className = 'tracking-controls-range';
+
+  const blurValue = document.createElement('div');
+  blurValue.className = 'tracking-controls-inline-value';
+  blurValue.textContent = `${videoSofteningBlurPx}px`;
+
+  const brightnessLabel = document.createElement('label');
+  brightnessLabel.textContent = 'Brightness';
+  brightnessLabel.className = 'tracking-controls-label';
+
+  const brightnessSlider = document.createElement('input');
+  brightnessSlider.type = 'range';
+  brightnessSlider.min = '0.2';
+  brightnessSlider.max = '0.9';
+  brightnessSlider.step = '0.05';
+  brightnessSlider.value = String(videoSofteningBrightness);
+  brightnessSlider.className = 'tracking-controls-range';
+
+  const brightnessValue = document.createElement('div');
+  brightnessValue.className = 'tracking-controls-inline-value';
+  brightnessValue.textContent = videoSofteningBrightness.toFixed(2);
+
+  function updateVideoSofteningControls() {
+    blurSlider.value = String(videoSofteningBlurPx);
+    brightnessSlider.value = String(videoSofteningBrightness);
+    blurValue.textContent = `${videoSofteningBlurPx}px`;
+    brightnessValue.textContent = Number(videoSofteningBrightness).toFixed(2);
+    blurSlider.disabled = !videoSofteningEnabled;
+    brightnessSlider.disabled = !videoSofteningEnabled;
+    setVideoSofteningStyle(videoSofteningBlurPx, videoSofteningBrightness);
+  }
 
   const modeLabel = document.createElement('div');
   modeLabel.textContent = 'Playback';
@@ -3388,6 +3499,26 @@ function createTrackingControls(trackingController) {
     updateLandmarkDrawingLabel();
   });
 
+  videoSofteningButton.addEventListener('click', () => {
+    videoSofteningEnabled = !videoSofteningEnabled;
+    updateVideoSofteningLabel();
+    updateVideoSofteningControls();
+  });
+
+  blurSlider.addEventListener('input', () => {
+    videoSofteningBlurPx = Number(blurSlider.value);
+    blurValue.textContent = `${videoSofteningBlurPx}px`;
+    setVideoSofteningStyle(videoSofteningBlurPx, videoSofteningBrightness);
+    persistVideoSofteningSettings();
+  });
+
+  brightnessSlider.addEventListener('input', () => {
+    videoSofteningBrightness = Number(brightnessSlider.value);
+    brightnessValue.textContent = Number(videoSofteningBrightness).toFixed(2);
+    setVideoSofteningStyle(videoSofteningBlurPx, videoSofteningBrightness);
+    persistVideoSofteningSettings();
+  });
+
   poseWarningLandmarksButton.addEventListener('click', () => {
     poseWarningLandmarksVisible = !poseWarningLandmarksVisible;
     if (levelManagerRef) {
@@ -3415,6 +3546,8 @@ function createTrackingControls(trackingController) {
   }
   updateStabilizationLabel();
   updateLandmarkDrawingLabel();
+  updateVideoSofteningLabel();
+  updateVideoSofteningControls();
   updatePoseWarningLandmarksLabel();
   updateCameraToggleLabel();
   updateResolutionToggleLabel();
@@ -3442,6 +3575,9 @@ function createTrackingControls(trackingController) {
   bindUiGroupDescription([modeLabel, ...modeGroup.querySelectorAll('label, input')], 'Einstellungen', 'Playback');
   bindUiGroupDescription([stabilizationButton], 'Einstellungen', 'Stabilization');
   bindUiGroupDescription([landmarkDrawingButton], 'Einstellungen', 'Landmarks');
+  bindUiGroupDescription([videoSofteningButton], 'Einstellungen', 'Weichzeichnen');
+  bindUiGroupDescription([blurLabel, blurSlider], 'Einstellungen', 'Weichzeichnen');
+  bindUiGroupDescription([brightnessLabel, brightnessSlider], 'Einstellungen', 'Weichzeichnen');
   bindUiGroupDescription([poseWarningLandmarksButton], 'Einstellungen', 'Pose Warning Landmarks');
 
   container.appendChild(settingsHeader);
@@ -3462,6 +3598,14 @@ function createTrackingControls(trackingController) {
   container.appendChild(stabilizationButton);
   container.appendChild(landmarkDrawingButton);
   container.appendChild(poseWarningLandmarksButton);
+  container.appendChild(videoSofteningDivider);
+  container.appendChild(videoSofteningButton);
+  container.appendChild(blurLabel);
+  container.appendChild(blurSlider);
+  container.appendChild(blurValue);
+  container.appendChild(brightnessLabel);
+  container.appendChild(brightnessSlider);
+  container.appendChild(brightnessValue);
 
   settingsSection.appendChild(container);
   attachPanelHoverHelp(container);

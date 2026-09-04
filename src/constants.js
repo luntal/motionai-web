@@ -163,6 +163,7 @@ export const uiElementDescriptions = {
     'Camera: OFF': 'Deaktiviert die Kamera und pausiert die Erkennung.',
     'Stabilization': 'Aktiviert oder deaktiviert die Stabilisierung der Bewegungserkennung.',
     'Landmarks': 'Blendet die Landmarken im Video für die Verifikation der Erkennung ein oder aus.',
+    'Weichzeichnen': 'Weichzeichnet das Live-Video leicht und verdunkelt es minimal, damit die Bewegungserkennung ruhiger wirkt.',
     'Pose Warning Landmarks': 'Blendet zusätzliche Warnhinweise für die Pose-Erkennung ein oder aus.'
   },
   'Eingewöhnung': {

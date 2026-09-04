@@ -62,6 +62,12 @@ export class LevelManager {
     this.consistencyTempoBpm = 100;
     this.consistencyStrictnessPercent = 100;
     this.consistencyMotionBlendPercent = 0;
+    this.consistencySettingsStorageKey = 'motionai.consistency-panel-settings';
+    this.consistencyTouchStateByHand = {
+      left: { active: false, startedAt: 0, lastTouchAt: 0, scale: 1 },
+      right: { active: false, startedAt: 0, lastTouchAt: 0, scale: 1 }
+    };
+    this.loadConsistencySettings();
     this.gridRows = 12;
     this.gridCols = 16;
     this.targetIndexByCircle = new Map();
@@ -942,6 +948,43 @@ export class LevelManager {
     `;
   }
 
+  loadConsistencySettings() {
+    try {
+      const stored = JSON.parse(localStorage.getItem(this.consistencySettingsStorageKey) || '{}');
+      if (!stored || typeof stored !== 'object') {
+        return;
+      }
+
+      const nextTempo = Number(stored.tempoBpm);
+      const nextStrictness = Number(stored.strictnessPercent);
+      const nextMotion = Number(stored.motionBlendPercent);
+
+      if (Number.isFinite(nextTempo)) {
+        this.consistencyTempoBpm = Math.min(170, Math.max(30, nextTempo));
+      }
+      if (Number.isFinite(nextStrictness)) {
+        this.consistencyStrictnessPercent = Math.min(160, Math.max(70, nextStrictness));
+      }
+      if (Number.isFinite(nextMotion)) {
+        this.consistencyMotionBlendPercent = Math.min(100, Math.max(0, nextMotion));
+      }
+    } catch (error) {
+      // Ignore storage failures for local settings.
+    }
+  }
+
+  persistConsistencySettings() {
+    try {
+      localStorage.setItem(this.consistencySettingsStorageKey, JSON.stringify({
+        tempoBpm: this.consistencyTempoBpm,
+        strictnessPercent: this.consistencyStrictnessPercent,
+        motionBlendPercent: this.consistencyMotionBlendPercent
+      }));
+    } catch (error) {
+      // Ignore storage failures for local settings.
+    }
+  }
+
   createConsistencyInfoPanel() {
     const panel = document.createElement('div');
     panel.className = 'consistency-info-panel';
@@ -1000,19 +1043,25 @@ export class LevelManager {
           <strong class="consistency-score-value">0%</strong>
         </div>
         <div class="consistency-slider-row">
-          <label for="consistency-speed-slider">Tempo</label>
+          <div class="consistency-slider-meta">
+            <label for="consistency-speed-slider">Tempo</label>
+            <span class="consistency-slider-value consistency-speed-value">100 bpm</span>
+          </div>
           <input id="consistency-speed-slider" type="range" min="30" max="170" step="5" value="100" />
-          <span class="consistency-slider-value consistency-speed-value">100 bpm</span>
         </div>
         <div class="consistency-slider-row">
-          <label for="consistency-strictness-slider">Strenge</label>
+          <div class="consistency-slider-meta">
+            <label for="consistency-strictness-slider">Strenge</label>
+            <span class="consistency-slider-value consistency-strictness-value">100%</span>
+          </div>
           <input id="consistency-strictness-slider" type="range" min="70" max="160" step="5" value="100" />
-          <span class="consistency-slider-value consistency-strictness-value">100%</span>
         </div>
         <div class="consistency-slider-row">
-          <label for="consistency-motion-slider">Kurve</label>
+          <div class="consistency-slider-meta">
+            <label for="consistency-motion-slider">Kurve</label>
+            <span class="consistency-slider-value consistency-motion-value">0%</span>
+          </div>
           <input id="consistency-motion-slider" type="range" min="0" max="100" step="5" value="0" />
-          <span class="consistency-slider-value consistency-motion-value">0%</span>
         </div>
         <p class="consistency-status">Die Bewertung aktualisiert sich fortlaufend.</p>
       `;
@@ -1030,21 +1079,24 @@ export class LevelManager {
         speedSlider.value = String(this.consistencyTempoBpm);
         speedSlider.addEventListener('input', (event) => {
           const next = Number(event.target.value);
-          this.consistencyTempoBpm = Number.isFinite(next) ? next : 100;
+          this.consistencyTempoBpm = Number.isFinite(next) ? Math.min(170, Math.max(30, next)) : 100;
+          this.persistConsistencySettings();
         });
       }
       if (strictnessSlider) {
         strictnessSlider.value = String(this.consistencyStrictnessPercent);
         strictnessSlider.addEventListener('input', (event) => {
           const next = Number(event.target.value);
-          this.consistencyStrictnessPercent = Number.isFinite(next) ? next : 100;
+          this.consistencyStrictnessPercent = Number.isFinite(next) ? Math.min(160, Math.max(70, next)) : 100;
+          this.persistConsistencySettings();
         });
       }
       if (motionSlider) {
         motionSlider.value = String(this.consistencyMotionBlendPercent);
         motionSlider.addEventListener('input', (event) => {
           const next = Number(event.target.value);
-          this.consistencyMotionBlendPercent = Number.isFinite(next) ? next : 0;
+          this.consistencyMotionBlendPercent = Number.isFinite(next) ? Math.min(100, Math.max(0, next)) : 0;
+          this.persistConsistencySettings();
         });
       }
       const consistencyDescriptions = {
@@ -5858,6 +5910,16 @@ export class LevelManager {
     return Math.max(7, Math.min(22, radius));
   }
 
+  getConsistencyDistanceScore(distance, threshold) {
+    if (!Number.isFinite(distance) || distance < 0) {
+      return 0;
+    }
+    if (distance <= threshold) {
+      return 1;
+    }
+    return Math.max(0, 1 - (distance - threshold) / Math.max(1, threshold));
+  }
+
   getConsistencyScene() {
     const w = this.canvas.width;
     const h = this.canvas.height;
@@ -5969,10 +6031,7 @@ export class LevelManager {
       }
 
       const distance = this.distance(tip, movingTarget);
-      // Inside the dotted ring = full score; only outside the ring starts to decay.
-      const score = distance <= threshold
-        ? 1
-        : Math.max(0, 1 - (distance - threshold) / threshold);
+      const score = this.getConsistencyDistanceScore(distance, threshold);
       sum += score;
     }
 
@@ -6032,6 +6091,10 @@ export class LevelManager {
     const scene = this.getConsistencyScene();
     const threshold = this.getConsistencyThreshold();
     const pointRadius = this.getConsistencyPointRadius(threshold);
+    const bpm = Math.max(30, this.consistencyTempoBpm);
+    const growDurationMs = (60 / bpm) * 1000 / 5;
+    const easeOutCubic = (value) => 1 - Math.pow(1 - value, 3);
+
     this.recordConsistencyScore(nowMs, scene, threshold);
 
     const bgGradient = this.ctx.createLinearGradient(0, 0, 0, this.canvas.height);
@@ -6059,11 +6122,63 @@ export class LevelManager {
     this.ctx.restore();
 
     scene.movingTargets.forEach((movingTarget) => {
+      const handState = this.consistencyTouchStateByHand[movingTarget.hand] || {
+        touching: false,
+        startedAt: 0,
+        releaseStartedAt: 0,
+        scale: 1
+      };
+      const tip = movingTarget.hand === 'left' ? this.leftTip : this.rightTip;
+      const distance = tip ? this.distance(tip, movingTarget) : Number.POSITIVE_INFINITY;
+      const isActiveTouch = tip && distance <= threshold;
+
+      if (isActiveTouch) {
+        if (!handState.touching) {
+          handState.touching = true;
+          handState.startedAt = nowMs;
+          handState.releaseStartedAt = 0;
+        }
+      } else if (handState.touching) {
+        handState.touching = false;
+        handState.releaseStartedAt = nowMs;
+      }
+
+      const growProgress = handState.touching
+        ? Math.min(1, (nowMs - handState.startedAt) / Math.max(1, growDurationMs))
+        : 0;
+      const releaseProgress = handState.releaseStartedAt > 0
+        ? Math.min(1, (nowMs - handState.releaseStartedAt) / Math.max(1, growDurationMs))
+        : 0;
+
+      const ringPhase = handState.touching
+        ? easeOutCubic(growProgress)
+        : (handState.releaseStartedAt > 0
+          ? 1 - easeOutCubic(releaseProgress)
+          : 0);
+
+      const currentScale = handState.touching
+        ? 1 + (1.35 - 1) * easeOutCubic(growProgress)
+        : (handState.releaseStartedAt > 0
+          ? 1.35 + (1 - 1.35) * easeOutCubic(releaseProgress)
+          : 1);
+
+      handState.scale = currentScale;
+      if (handState.releaseStartedAt > 0 && releaseProgress >= 1) {
+        handState.releaseStartedAt = 0;
+        handState.scale = 1;
+      }
+      this.consistencyTouchStateByHand[movingTarget.hand] = handState;
+
+      const activeRadius = pointRadius * handState.scale;
+      const ringDash = ringPhase >= 0.98 ? [] : [Math.max(0.5, 8 * (1 - ringPhase)), Math.max(0.5, 6 * (1 - ringPhase))];
+      const ringOpacity = 0.34 + ringPhase * 0.46;
+      const accuracyPercent = Math.round(Math.max(0, Math.min(100, (this.consistencyAccuracy || 0) * 100)));
+
       this.ctx.save();
       this.ctx.beginPath();
-      this.ctx.strokeStyle = 'rgba(255, 239, 190, 0.34)';
+      this.ctx.strokeStyle = `rgba(255, 239, 190, ${ringOpacity})`;
       this.ctx.lineWidth = 2;
-      this.ctx.setLineDash([8, 6]);
+      this.ctx.setLineDash(ringDash);
       this.ctx.arc(movingTarget.x, movingTarget.y, threshold, 0, Math.PI * 2);
       this.ctx.stroke();
       this.ctx.restore();
@@ -6071,11 +6186,21 @@ export class LevelManager {
       this.ctx.save();
       this.ctx.beginPath();
       this.ctx.fillStyle = movingTarget.color;
-      this.ctx.shadowBlur = 14;
+      this.ctx.shadowBlur = isActiveTouch ? 20 : 14;
       this.ctx.shadowColor = movingTarget.color;
-      this.ctx.arc(movingTarget.x, movingTarget.y, pointRadius, 0, Math.PI * 2);
+      this.ctx.arc(movingTarget.x, movingTarget.y, activeRadius, 0, Math.PI * 2);
       this.ctx.fill();
       this.ctx.restore();
+
+      if (isActiveTouch) {
+        this.ctx.save();
+        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+        this.ctx.font = '700 16px Arial';
+        this.ctx.textAlign = 'center';
+        this.ctx.textBaseline = 'middle';
+        this.ctx.fillText(`${accuracyPercent}%`, movingTarget.x, movingTarget.y);
+        this.ctx.restore();
+      }
     });
 
     this.updateConsistencyPanelPosition();

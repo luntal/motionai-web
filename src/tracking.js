@@ -1,5 +1,8 @@
 let stabilizationEnabled = true;
 let landmarkDrawingEnabled = true;
+let videoSofteningEnabled = true;
+let videoSofteningBlurPx = 5;
+let videoSofteningBrightness = 0.75;
 const landmarksListeners = [];
 const poseListeners = [];
 let resizeCallback = null;
@@ -10,6 +13,24 @@ export function setStabilizationEnabled(enabled) {
 
 export function setLandmarkDrawingEnabled(enabled) {
   landmarkDrawingEnabled = enabled;
+}
+
+export function setVideoSofteningEnabled(enabled) {
+  videoSofteningEnabled = Boolean(enabled);
+}
+
+export function setVideoSofteningStyle(blurPx = 5, brightness = 0.75) {
+  const nextBlur = Number.isFinite(Number(blurPx)) ? Number(blurPx) : 5;
+  const nextBrightness = Number.isFinite(Number(brightness)) ? Number(brightness) : 0.75;
+  videoSofteningBlurPx = Math.min(20, Math.max(2, nextBlur));
+  videoSofteningBrightness = Math.min(0.9, Math.max(0.2, nextBrightness));
+}
+
+export function getVideoSofteningStyle() {
+  return {
+    blurPx: videoSofteningBlurPx,
+    brightness: videoSofteningBrightness
+  };
 }
 
 export function onLandmarksUpdate(callback) {
@@ -126,6 +147,10 @@ export function startTracking(videoElement, canvasElement, options = {}) {
     });
   }
 
+  function toMirroredCanvasX(xValue) {
+    return canvasElement.width - (xValue * canvasElement.width);
+  }
+
   function drawConnections(landmarks, edges) {
     ctx.strokeStyle = connectorStyle.color;
     ctx.lineWidth = connectorStyle.lineWidth;
@@ -139,8 +164,8 @@ export function startTracking(videoElement, canvasElement, options = {}) {
         continue;
       }
       ctx.beginPath();
-      ctx.moveTo(start.x * canvasElement.width, start.y * canvasElement.height);
-      ctx.lineTo(end.x * canvasElement.width, end.y * canvasElement.height);
+      ctx.moveTo(toMirroredCanvasX(start.x), start.y * canvasElement.height);
+      ctx.lineTo(toMirroredCanvasX(end.x), end.y * canvasElement.height);
       ctx.stroke();
     }
   }
@@ -148,7 +173,7 @@ export function startTracking(videoElement, canvasElement, options = {}) {
   function drawPoints(landmarks) {
     ctx.fillStyle = landmarkStyle.fillStyle;
     for (const landmark of landmarks) {
-      const x = landmark.x * canvasElement.width;
+      const x = toMirroredCanvasX(landmark.x);
       const y = landmark.y * canvasElement.height;
       ctx.beginPath();
       ctx.arc(x, y, landmarkStyle.radius, 0, Math.PI * 2);
@@ -158,11 +183,30 @@ export function startTracking(videoElement, canvasElement, options = {}) {
 
   function drawMirroredFrame(image) {
     resizeCanvasIfNeeded();
+    const drawSource = (() => {
+      if (!videoSofteningEnabled) {
+        return image;
+      }
+
+      const softCanvas = document.createElement('canvas');
+      softCanvas.width = canvasElement.width;
+      softCanvas.height = canvasElement.height;
+      const softCtx = softCanvas.getContext('2d');
+      if (!softCtx) {
+        return image;
+      }
+
+      softCtx.filter = `blur(${videoSofteningBlurPx}px) brightness(${videoSofteningBrightness})`;
+      softCtx.drawImage(image, 0, 0, softCanvas.width, softCanvas.height);
+      return softCanvas;
+    })();
+
     ctx.save();
     ctx.scale(-1, 1);
     ctx.translate(-canvasElement.width, 0);
     ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-    ctx.drawImage(image, 0, 0, canvasElement.width, canvasElement.height);
+    ctx.drawImage(drawSource, 0, 0, canvasElement.width, canvasElement.height);
+    ctx.restore();
   }
 
   function closeMirroredFrame() {
@@ -174,7 +218,7 @@ export function startTracking(videoElement, canvasElement, options = {}) {
       return;
     }
 
-    const x = normalizedPoint.x * canvasElement.width;
+    const x = toMirroredCanvasX(normalizedPoint.x);
     const y = normalizedPoint.y * canvasElement.height;
     const radius = triggerStyle.radius;
     const colors = (side && triggerColors[side]) ? triggerColors[side] : triggerColors.default;
@@ -188,7 +232,7 @@ export function startTracking(videoElement, canvasElement, options = {}) {
     if (label) {
       ctx.save();
       ctx.translate(x, y);
-      ctx.scale(-1, 1); // un-mirror text drawn inside mirrored frame
+      ctx.scale(-1, 1);
       ctx.font = `bold ${Math.round(radius * 1.5)}px sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
