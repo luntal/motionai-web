@@ -591,6 +591,14 @@ canvas {
   accent-color: #65d79d;
 }
 
+.tracking-controls-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+}
+
 .tracking-controls-inline-value {
   color: #dce6ef;
   font-family: var(--ui-font-family);

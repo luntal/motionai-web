@@ -1,5 +1,7 @@
 let stabilizationEnabled = true;
 let landmarkDrawingEnabled = true;
+let silhouetteEnabled = false;
+let silhouetteOpacity = 0.2;
 let videoSofteningEnabled = true;
 let videoSofteningBlurPx = 5;
 let videoSofteningBrightness = 0.75;
@@ -13,6 +15,15 @@ export function setStabilizationEnabled(enabled) {
 
 export function setLandmarkDrawingEnabled(enabled) {
   landmarkDrawingEnabled = enabled;
+}
+
+export function setSilhouetteEnabled(enabled) {
+  silhouetteEnabled = Boolean(enabled);
+}
+
+export function setSilhouetteOpacity(value) {
+  const next = Number(value);
+  silhouetteOpacity = Number.isFinite(next) ? Math.min(1, Math.max(0, next)) : 0.2;
 }
 
 export function setVideoSofteningEnabled(enabled) {
@@ -181,6 +192,299 @@ export function startTracking(videoElement, canvasElement, options = {}) {
     }
   }
 
+  function drawSilhouette(landmarks) {
+    if (!silhouetteEnabled || !Array.isArray(landmarks) || landmarks.length < 25) {
+      return;
+    }
+
+    const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+    const midpoint = (a, b) => ({ x: (a.x + b.x) * 0.5, y: (a.y + b.y) * 0.5 });
+    const toCanvasPoint = (landmark) => {
+      if (!landmark) {
+        return null;
+      }
+      return { x: toMirroredCanvasX(landmark.x), y: landmark.y * canvasElement.height };
+    };
+
+    const strokeOpacity = Math.min(0.9, Math.max(0.2, silhouetteOpacity * 1.15));
+    const strokeColor = `rgba(122, 180, 255, ${strokeOpacity})`;
+    const fillColor = `rgba(122, 180, 255, ${silhouetteOpacity})`;
+
+    function drawSoftClosedShape(points) {
+      if (!Array.isArray(points) || points.length < 3) {
+        return;
+      }
+
+      const smoothPoints = points.slice();
+      if (smoothPoints.length >= 3) {
+        const first = smoothPoints[0];
+        const last = smoothPoints[smoothPoints.length - 1];
+        const extraStart = { x: first.x + (first.x - smoothPoints[1].x) * 0.2, y: first.y + (first.y - smoothPoints[1].y) * 0.2 };
+        const extraEnd = { x: last.x + (last.x - smoothPoints[smoothPoints.length - 2].x) * 0.2, y: last.y + (last.y - smoothPoints[smoothPoints.length - 2].y) * 0.2 };
+        smoothPoints.unshift(extraStart);
+        smoothPoints.push(extraEnd);
+      }
+
+      ctx.beginPath();
+      ctx.moveTo(smoothPoints[0].x, smoothPoints[0].y);
+
+      for (let index = 1; index < smoothPoints.length - 1; index += 1) {
+        const current = smoothPoints[index];
+        const next = smoothPoints[index + 1];
+        const midX = (current.x + next.x) * 0.5;
+        const midY = (current.y + next.y) * 0.5;
+        ctx.quadraticCurveTo(current.x, current.y, midX, midY);
+      }
+
+      const last = smoothPoints[smoothPoints.length - 1];
+      const first = smoothPoints[0];
+      ctx.quadraticCurveTo(last.x, last.y, first.x, first.y);
+      ctx.closePath();
+      ctx.fillStyle = fillColor;
+      ctx.fill();
+      ctx.strokeStyle = strokeColor;
+      ctx.lineWidth = 1.25;
+      ctx.stroke();
+    }
+
+    function drawRoundedBand(start, end, width) {
+      if (!start || !end) {
+        return;
+      }
+
+      const dx = end.x - start.x;
+      const dy = end.y - start.y;
+      const length = Math.hypot(dx, dy) || 1;
+      const nx = -dy / length;
+      const ny = dx / length;
+      const half = width * 0.5;
+
+      const a = { x: start.x + nx * half, y: start.y + ny * half };
+      const b = { x: start.x - nx * half, y: start.y - ny * half };
+      const c = { x: end.x + nx * half, y: end.y + ny * half };
+      const d = { x: end.x - nx * half, y: end.y - ny * half };
+
+      drawSoftClosedShape([a, c, d, b]);
+    }
+
+    function drawArmSegment(startLandmark, endLandmark, widthScale = 1, shoulderBias = 0) {
+      const start = toCanvasPoint(startLandmark);
+      const end = toCanvasPoint(endLandmark);
+      if (!start || !end) {
+        return;
+      }
+
+      const dx = end.x - start.x;
+      const dy = end.y - start.y;
+      const length = Math.hypot(dx, dy) || 1;
+      const baseWidth = clamp(length * 0.56 + 26, 24, 72) * widthScale;
+      const shoulderWidth = baseWidth + 18 + shoulderBias;
+      const endWidth = Math.max(baseWidth * 0.72, 18);
+
+      const nx = -dy / length;
+      const ny = dx / length;
+      const dirX = (dx / length) || 0;
+      const dirY = (dy / length) || 0;
+      const shoulderExpansion = clamp(length * 0.12, 8, 18);
+      const endExpansion = clamp(length * 0.12, 8, 18);
+
+      const a = {
+        x: start.x + nx * shoulderWidth * 0.5 - dirX * shoulderExpansion,
+        y: start.y + ny * shoulderWidth * 0.5 - dirY * shoulderExpansion
+      };
+      const b = {
+        x: start.x - nx * shoulderWidth * 0.5 - dirX * shoulderExpansion,
+        y: start.y - ny * shoulderWidth * 0.5 - dirY * shoulderExpansion
+      };
+      const c = {
+        x: end.x + nx * endWidth * 0.5 + dirX * endExpansion,
+        y: end.y + ny * endWidth * 0.5 + dirY * endExpansion
+      };
+      const d = {
+        x: end.x - nx * endWidth * 0.5 + dirX * endExpansion,
+        y: end.y - ny * endWidth * 0.5 + dirY * endExpansion
+      };
+
+      drawRoundedPolygon([a, c, d, b], Math.min(shoulderWidth * 0.45, 30));
+    }
+
+    const leftShoulder = landmarks[11];
+    const rightShoulder = landmarks[12];
+    const leftElbow = landmarks[13];
+    const rightElbow = landmarks[14];
+    const leftWrist = landmarks[15];
+    const rightWrist = landmarks[16];
+    const leftHip = landmarks[23];
+    const rightHip = landmarks[24];
+    const leftEar = landmarks[7] || landmarks[5] || landmarks[1];
+    const rightEar = landmarks[8] || landmarks[6] || landmarks[4];
+    const mouthLeft = landmarks[9];
+    const mouthRight = landmarks[10];
+    const nose = landmarks[0] || landmarks[1];
+
+    if (!leftShoulder || !rightShoulder || !leftHip || !rightHip || !nose) {
+      return;
+    }
+
+    const leftShoulderPoint = toCanvasPoint(leftShoulder);
+    const rightShoulderPoint = toCanvasPoint(rightShoulder);
+    const leftHipPoint = toCanvasPoint(leftHip);
+    const rightHipPoint = toCanvasPoint(rightHip);
+    const leftEarPoint = toCanvasPoint(leftEar || nose);
+    const rightEarPoint = toCanvasPoint(rightEar || nose);
+    const mouthLeftPoint = toCanvasPoint(mouthLeft || nose);
+    const mouthRightPoint = toCanvasPoint(mouthRight || nose);
+
+    if (!leftShoulderPoint || !rightShoulderPoint || !leftHipPoint || !rightHipPoint) {
+      return;
+    }
+
+    ctx.save();
+
+    function drawRoundedPolygon(points, radius) {
+      if (!Array.isArray(points) || points.length < 3) {
+        return;
+      }
+
+      const pointToward = (start, end, distance) => {
+        const dx = end.x - start.x;
+        const dy = end.y - start.y;
+        const length = Math.hypot(dx, dy) || 1;
+        const factor = Math.min(distance / length, 1);
+        return {
+          x: start.x + dx * factor,
+          y: start.y + dy * factor
+        };
+      };
+
+      const safeRadius = Math.min(
+        radius,
+        ...points.map((point, index) => {
+          const prev = points[(index - 1 + points.length) % points.length];
+          const next = points[(index + 1) % points.length];
+          return Math.min(
+            Math.hypot(point.x - prev.x, point.y - prev.y),
+            Math.hypot(point.x - next.x, point.y - next.y)
+          ) * 0.5;
+        })
+      );
+
+      ctx.beginPath();
+      const first = points[0];
+      const last = points[points.length - 1];
+      const firstStart = pointToward(first, last, safeRadius);
+      ctx.moveTo(firstStart.x, firstStart.y);
+
+      for (let index = 0; index < points.length; index += 1) {
+        const current = points[index];
+        const next = points[(index + 1) % points.length];
+        const prev = points[(index - 1 + points.length) % points.length];
+
+        const from = pointToward(current, prev, safeRadius);
+        const to = pointToward(current, next, safeRadius);
+
+        ctx.lineTo(from.x, from.y);
+        ctx.quadraticCurveTo(current.x, current.y, to.x, to.y);
+      }
+
+      ctx.closePath();
+      ctx.fillStyle = fillColor;
+      ctx.fill();
+      ctx.strokeStyle = strokeColor;
+      ctx.lineWidth = 1.25;
+      ctx.stroke();
+    }
+
+    const torsoShape = [
+      {
+        x: leftShoulderPoint.x - 24,
+        y: leftShoulderPoint.y - 22
+      },
+      {
+        x: rightShoulderPoint.x + 24,
+        y: rightShoulderPoint.y - 22
+      },
+      {
+        x: rightHipPoint.x + 30,
+        y: rightHipPoint.y + 22
+      },
+      {
+        x: leftHipPoint.x - 30,
+        y: leftHipPoint.y + 22
+      }
+    ];
+    drawRoundedPolygon(torsoShape, 52);
+
+    const headShape = [
+      {
+        x: mouthLeftPoint.x - 12,
+        y: mouthLeftPoint.y + 20
+      },
+      {
+        x: mouthRightPoint.x + 12,
+        y: mouthRightPoint.y + 20
+      },
+      {
+        x: rightEarPoint.x + 22,
+        y: rightEarPoint.y -60
+      },
+      {
+        x: ((toCanvasPoint(landmarks[6])?.x ?? rightEarPoint.x) + (toCanvasPoint(landmarks[3])?.x ?? leftEarPoint.x)) * 0.5 + 26,
+        y: ((toCanvasPoint(landmarks[6])?.y ?? rightEarPoint.y) + (toCanvasPoint(landmarks[3])?.y ?? leftEarPoint.y)) * 0.5 - 40
+      },
+      {
+        x: ((toCanvasPoint(landmarks[3])?.x ?? leftEarPoint.x) + (toCanvasPoint(landmarks[6])?.x ?? rightEarPoint.x)) * 0.5 - 26,
+        y: ((toCanvasPoint(landmarks[3])?.y ?? leftEarPoint.y) + (toCanvasPoint(landmarks[6])?.y ?? rightEarPoint.y)) * 0.5 - 40
+      },
+      {
+        x: leftEarPoint.x - 22,
+        y: leftEarPoint.y - 60
+      }
+    ];
+
+    drawRoundedPolygon(headShape, 32);
+
+    function drawPoseHandPolygon(indices, padding = 10) {
+      const points = indices
+        .map((index) => toCanvasPoint(landmarks[index]))
+        .filter(Boolean);
+
+      if (points.length < 3) {
+        return;
+      }
+
+      const centroid = points.reduce((acc, point) => ({
+        x: acc.x + point.x,
+        y: acc.y + point.y
+      }), { x: 0, y: 0 });
+
+      centroid.x /= points.length;
+      centroid.y /= points.length;
+
+      const expanded = points.map((point) => {
+        const dx = point.x - centroid.x;
+        const dy = point.y - centroid.y;
+        const distance = Math.hypot(dx, dy) || 1;
+        return {
+          x: centroid.x + (dx / distance) * (distance + padding),
+          y: centroid.y + (dy / distance) * (distance + padding)
+        };
+      });
+
+      drawRoundedPolygon(expanded, 18);
+    }
+
+    drawPoseHandPolygon([15, 17, 19, 21], 16);
+    drawPoseHandPolygon([16, 18, 20, 22], 16);
+
+    drawArmSegment(leftShoulder, leftElbow, 0.9, 18);
+    drawArmSegment(leftElbow, leftWrist || leftShoulder, 0.7, 0);
+    drawArmSegment(rightShoulder, rightElbow, 0.9, 18);
+    drawArmSegment(rightElbow, rightWrist || rightShoulder, 0.7, 0);
+
+    ctx.restore();
+  }
+
   function drawMirroredFrame(image) {
     resizeCanvasIfNeeded();
     const drawSource = (() => {
@@ -232,7 +536,6 @@ export function startTracking(videoElement, canvasElement, options = {}) {
     if (label) {
       ctx.save();
       ctx.translate(x, y);
-      ctx.scale(-1, 1);
       ctx.font = `bold ${Math.round(radius * 1.5)}px sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
@@ -406,6 +709,9 @@ export function startTracking(videoElement, canvasElement, options = {}) {
           : results.poseLandmarks;
 
         smoothedPoseLandmarks = stablePose;
+        if (silhouetteEnabled) {
+          drawSilhouette(stablePose);
+        }
         if (landmarkDrawingEnabled) {
           drawConnections(stablePose, POSE_EDGE_LIST);
           drawPoints(stablePose);

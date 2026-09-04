@@ -16,6 +16,8 @@ import {
   onPoseUpdate,
   setStabilizationEnabled,
   setLandmarkDrawingEnabled,
+  setSilhouetteEnabled,
+  setSilhouetteOpacity,
   setVideoSofteningEnabled,
   setVideoSofteningStyle,
   getVideoSofteningStyle,
@@ -3121,9 +3123,59 @@ function createTrackingControls(trackingController) {
   resolutionToggleButton.className = 'tracking-controls-button';
   let resolutionPreset = trackingController.getResolutionPreset() === 'low' ? 'low' : 'high';
 
+  let stabilizationEnabled = false;
+  let landmarkDrawingVisible = true;
+  let silhouetteVisible = false;
+  let silhouetteOpacityValue = 0.2;
+  let videoSofteningEnabled = true;
+  let videoSofteningBlurPx = 5;
+  let videoSofteningBrightness = 0.75;
+  let poseWarningLandmarksVisible = false;
+
   const hoverHelpToggleButton = document.createElement('button');
   hoverHelpToggleButton.type = 'button';
   hoverHelpToggleButton.className = 'tracking-controls-button';
+
+  const settingsStorageKey = 'motionai.settings-panel-state';
+
+  function readSavedSettings() {
+    try {
+      const stored = localStorage.getItem(settingsStorageKey);
+      if (!stored) {
+        return {};
+      }
+      const parsed = JSON.parse(stored);
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch (error) {
+      return {};
+    }
+  }
+
+  function persistSettingsState() {
+    try {
+      const snapshot = {
+        model: modelSelect.value,
+        cameraEnabled,
+        cameraDeviceId: cameraSelect.value || null,
+        resolutionPreset,
+        hoverHelpEnabled: uiState.hoverHelpEnabled,
+        playbackMode: selectedPlaybackMode,
+        calibrationSetIndex: selectedCalibrationSetIndex,
+        calibrationStrictness: Number(calibrationStrictnessSlider.value),
+        stabilizationEnabled,
+        landmarkDrawingVisible,
+        silhouetteVisible,
+        silhouetteOpacity: silhouetteOpacityValue,
+        videoSofteningEnabled,
+        videoSofteningBlurPx,
+        videoSofteningBrightness,
+        poseWarningLandmarksVisible
+      };
+      localStorage.setItem(settingsStorageKey, JSON.stringify(snapshot));
+    } catch (error) {
+      // Ignore storage failures for local settings.
+    }
+  }
 
   function updateCameraToggleLabel() {
     cameraToggleButton.textContent = cameraEnabled ? 'Camera: ON' : 'Camera: OFF';
@@ -3160,6 +3212,57 @@ function createTrackingControls(trackingController) {
   calibrationStrictnessSlider.value = '60';
   calibrationStrictnessSlider.className = 'tracking-controls-range';
 
+  const playbackModes = ['one', 'repeat', 'autoplay'];
+  let selectedPlaybackMode = 'one';
+  let selectedCalibrationSetIndex = null;
+
+  const savedSettings = readSavedSettings();
+  const savedModel = typeof savedSettings.model === 'string' ? savedSettings.model : trackingController.getCurrentModel();
+  const savedCameraEnabled = typeof savedSettings.cameraEnabled === 'boolean' ? savedSettings.cameraEnabled : true;
+  const savedResolutionPreset = savedSettings.resolutionPreset === 'low' || savedSettings.resolutionPreset === 'high'
+    ? savedSettings.resolutionPreset
+    : (trackingController.getResolutionPreset() === 'low' ? 'low' : 'high');
+  const savedHoverHelpEnabled = typeof savedSettings.hoverHelpEnabled === 'boolean' ? savedSettings.hoverHelpEnabled : false;
+  const savedPlaybackMode = playbackModes.includes(savedSettings.playbackMode) ? savedSettings.playbackMode : 'one';
+  const savedCalibrationStrictness = Number.isFinite(Number(savedSettings.calibrationStrictness))
+    ? Number(savedSettings.calibrationStrictness)
+    : 60;
+  const savedStabilizationEnabled = typeof savedSettings.stabilizationEnabled === 'boolean' ? savedSettings.stabilizationEnabled : false;
+  const savedLandmarkDrawingVisible = typeof savedSettings.landmarkDrawingVisible === 'boolean' ? savedSettings.landmarkDrawingVisible : true;
+  const savedSilhouetteVisible = typeof savedSettings.silhouetteVisible === 'boolean' ? savedSettings.silhouetteVisible : false;
+  const savedSilhouetteOpacity = Number.isFinite(Number(savedSettings.silhouetteOpacity))
+    ? Math.min(1, Math.max(0, Number(savedSettings.silhouetteOpacity)))
+    : 0.2;
+  const savedVideoSofteningEnabled = typeof savedSettings.videoSofteningEnabled === 'boolean' ? savedSettings.videoSofteningEnabled : true;
+  const savedVideoSofteningBlurPx = Number.isFinite(Number(savedSettings.videoSofteningBlurPx))
+    ? Math.min(20, Math.max(2, Number(savedSettings.videoSofteningBlurPx)))
+    : 5;
+  const savedVideoSofteningBrightness = Number.isFinite(Number(savedSettings.videoSofteningBrightness))
+    ? Math.min(0.9, Math.max(0.2, Number(savedSettings.videoSofteningBrightness)))
+    : 0.75;
+  const savedPoseWarningLandmarksVisible = typeof savedSettings.poseWarningLandmarksVisible === 'boolean'
+    ? savedSettings.poseWarningLandmarksVisible
+    : false;
+
+  cameraEnabled = savedCameraEnabled;
+  resolutionPreset = savedResolutionPreset;
+  selectedPlaybackMode = savedPlaybackMode;
+  calibrationStrictnessSlider.value = String(savedCalibrationStrictness);
+  stabilizationEnabled = savedStabilizationEnabled;
+  landmarkDrawingVisible = savedLandmarkDrawingVisible;
+  silhouetteVisible = savedSilhouetteVisible;
+  silhouetteOpacityValue = savedSilhouetteOpacity;
+  videoSofteningEnabled = savedVideoSofteningEnabled;
+  videoSofteningBlurPx = savedVideoSofteningBlurPx;
+  videoSofteningBrightness = savedVideoSofteningBrightness;
+  poseWarningLandmarksVisible = savedPoseWarningLandmarksVisible;
+  uiState.hoverHelpEnabled = savedHoverHelpEnabled;
+  modelSelect.value = savedModel;
+
+  if (savedCameraEnabled && savedSettings.cameraDeviceId) {
+    cameraSelect.value = savedSettings.cameraDeviceId;
+  }
+
   const calibrationStrictnessValue = document.createElement('div');
   calibrationStrictnessValue.className = 'tracking-controls-inline-value';
   calibrationStrictnessValue.textContent = '60%';
@@ -3167,12 +3270,74 @@ function createTrackingControls(trackingController) {
   const stabilizationButton = document.createElement('button');
   stabilizationButton.type = 'button';
   stabilizationButton.className = 'tracking-controls-button';
-  let stabilizationEnabled = false;
 
   const landmarkDrawingButton = document.createElement('button');
   landmarkDrawingButton.type = 'button';
   landmarkDrawingButton.className = 'tracking-controls-button';
-  let landmarkDrawingVisible = true;
+
+  const silhouetteButton = document.createElement('button');
+  silhouetteButton.type = 'button';
+  silhouetteButton.className = 'tracking-controls-button';
+  const silhouetteStorageKey = 'motionai.silhouette-enabled';
+  const silhouetteOpacityStorageKey = 'motionai.silhouette-opacity';
+
+  try {
+    const storedSilhouette = localStorage.getItem(silhouetteStorageKey);
+    if (storedSilhouette !== null) {
+      silhouetteVisible = storedSilhouette === 'true';
+    }
+
+    const storedSilhouetteOpacity = localStorage.getItem(silhouetteOpacityStorageKey);
+    if (storedSilhouetteOpacity !== null) {
+      const parsed = Number(storedSilhouetteOpacity);
+      silhouetteOpacityValue = Number.isFinite(parsed) ? Math.min(1, Math.max(0, parsed)) : 0.2;
+    }
+  } catch (error) {
+    silhouetteVisible = false;
+    silhouetteOpacityValue = 0.2;
+  }
+
+  const silhouetteOpacityLabel = document.createElement('label');
+  silhouetteOpacityLabel.textContent = 'Deckkraft';
+  silhouetteOpacityLabel.className = 'tracking-controls-label';
+
+  const silhouetteOpacityValueLabel = document.createElement('div');
+  silhouetteOpacityValueLabel.className = 'tracking-controls-inline-value';
+  silhouetteOpacityValueLabel.textContent = Number(silhouetteOpacityValue).toFixed(2);
+
+  const silhouetteOpacityRow = document.createElement('div');
+  silhouetteOpacityRow.className = 'tracking-controls-row';
+  silhouetteOpacityRow.appendChild(silhouetteOpacityLabel);
+  silhouetteOpacityRow.appendChild(silhouetteOpacityValueLabel);
+
+  const silhouetteOpacitySlider = document.createElement('input');
+  silhouetteOpacitySlider.type = 'range';
+  silhouetteOpacitySlider.min = '0';
+  silhouetteOpacitySlider.max = '1';
+  silhouetteOpacitySlider.step = '0.01';
+  silhouetteOpacitySlider.value = String(silhouetteOpacityValue);
+  silhouetteOpacitySlider.className = 'tracking-controls-range';
+  silhouetteOpacitySlider.title = 'Deckkraft der Silhouette';
+
+  function persistSilhouetteOpacitySetting() {
+    try {
+      localStorage.setItem(silhouetteOpacityStorageKey, String(silhouetteOpacityValue));
+    } catch (error) {
+      // Ignore storage failures for local settings.
+    }
+  }
+
+  function updateSilhouetteOpacityControl() {
+    const minOpacity = Math.max(0, silhouetteOpacityValue * 0.4);
+    const maxOpacity = Math.max(silhouetteOpacityValue, 0.2);
+
+    silhouetteOpacitySlider.min = String(minOpacity);
+    silhouetteOpacitySlider.max = String(maxOpacity);
+    silhouetteOpacitySlider.value = String(Math.min(maxOpacity, Math.max(minOpacity, silhouetteOpacityValue)));
+    silhouetteOpacityValueLabel.textContent = Number(silhouetteOpacityValue).toFixed(2);
+    setSilhouetteOpacity(silhouetteOpacityValue);
+    persistSilhouetteOpacitySetting();
+  }
 
   const videoCanvas = document.getElementById('canvas');
   const videoSofteningStorageKey = 'motionai.video-softening-enabled';
@@ -3180,9 +3345,6 @@ function createTrackingControls(trackingController) {
   const videoSofteningButton = document.createElement('button');
   videoSofteningButton.type = 'button';
   videoSofteningButton.className = 'tracking-controls-button';
-  let videoSofteningEnabled = true;
-  let videoSofteningBlurPx = 5;
-  let videoSofteningBrightness = 0.75;
 
   try {
     const raw = localStorage.getItem(videoSofteningStorageKey);
@@ -3233,7 +3395,6 @@ function createTrackingControls(trackingController) {
   const poseWarningLandmarksButton = document.createElement('button');
   poseWarningLandmarksButton.type = 'button';
   poseWarningLandmarksButton.className = 'tracking-controls-button';
-  let poseWarningLandmarksVisible = false;
   let levelManagerRef = null;
 
   const videoSofteningDivider = document.createElement('div');
@@ -3288,11 +3449,10 @@ function createTrackingControls(trackingController) {
   const modeGroup = document.createElement('div');
   modeGroup.className = 'tracking-controls-radio-group';
 
-  const playbackModes = ['one', 'repeat', 'autoplay'];
-  let selectedPlaybackMode = 'one';
-  let selectedCalibrationSetIndex = null;
   let calibrationSetChangeHandler = null;
   let calibrationStrictnessChangeHandler = null;
+
+  selectedPlaybackMode = savedPlaybackMode;
 
   function createModeOption(mode) {
     const label = document.createElement('label');
@@ -3395,6 +3555,53 @@ function createTrackingControls(trackingController) {
     landmarkDrawingButton.setAttribute('aria-pressed', String(landmarkDrawingVisible));
   }
 
+  function persistSilhouetteSetting() {
+    try {
+      localStorage.setItem(silhouetteStorageKey, String(silhouetteVisible));
+    } catch (error) {
+      // Ignore storage failures for local settings.
+    }
+  }
+
+  function updateSilhouetteLabel() {
+    silhouetteButton.textContent = silhouetteVisible ? 'Silhouette: ON' : 'Silhouette: OFF';
+    silhouetteButton.setAttribute('aria-pressed', String(silhouetteVisible));
+    persistSilhouetteSetting();
+  }
+
+  silhouetteOpacitySlider.addEventListener('input', () => {
+    const nextOpacity = Number(silhouetteOpacitySlider.value);
+    const safeNext = Number.isFinite(nextOpacity) ? Math.min(Number(silhouetteOpacitySlider.max), Math.max(Number(silhouetteOpacitySlider.min), nextOpacity)) : 0.2;
+    silhouetteOpacityValue = safeNext;
+    updateSilhouetteOpacityControl();
+  });
+
+  const restoreDefaultsButton = document.createElement('button');
+  restoreDefaultsButton.type = 'button';
+  restoreDefaultsButton.className = 'tracking-controls-button';
+  restoreDefaultsButton.textContent = 'Werkseinstellung';
+  restoreDefaultsButton.addEventListener('click', async () => {
+    const confirmed = window.confirm('Möchtest du wirklich alle Parameter und Presets auf die Werkseinstellung zurücksetzen?');
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      const response = await fetch('./motionai-defaults.json', { cache: 'no-store' });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      const json = await response.json();
+      const success = window.loadDefaultSettings(json);
+      if (success) {
+        window.location.reload();
+      }
+    } catch (error) {
+      console.error('Failed to load motionai defaults:', error);
+      window.alert('Die Werkseinstellung konnte nicht geladen werden.');
+    }
+  });
+
   function updatePoseWarningLandmarksLabel() {
     poseWarningLandmarksButton.textContent = poseWarningLandmarksVisible ? 'Pose Warning Landmarks: ON' : 'Pose Warning Landmarks: OFF';
     poseWarningLandmarksButton.setAttribute('aria-pressed', String(poseWarningLandmarksVisible));
@@ -3439,6 +3646,7 @@ function createTrackingControls(trackingController) {
     await trackingController.setModel(modelSelect.value);
     modelSelect.value = trackingController.getCurrentModel();
     modelSelect.disabled = false;
+    persistSettingsState();
   });
 
   cameraSelect.addEventListener('change', async () => {
@@ -3451,6 +3659,7 @@ function createTrackingControls(trackingController) {
     await trackingController.setCamera(cameraSelect.value);
     cameraSelect.disabled = false;
     updateCameraToggleLabel();
+    persistSettingsState();
   });
 
   cameraToggleButton.addEventListener('click', async () => {
@@ -3465,6 +3674,7 @@ function createTrackingControls(trackingController) {
     }
 
     updateCameraToggleLabel();
+    persistSettingsState();
   });
 
   resolutionToggleButton.addEventListener('click', async () => {
@@ -3474,11 +3684,13 @@ function createTrackingControls(trackingController) {
     resolutionPreset = trackingController.getResolutionPreset();
     updateResolutionToggleLabel();
     resolutionToggleButton.disabled = false;
+    persistSettingsState();
   });
 
   hoverHelpToggleButton.addEventListener('click', () => {
     setHoverHelpEnabled(!uiState.hoverHelpEnabled);
     updateHoverHelpToggleLabel();
+    persistSettingsState();
   });
 
   calibrationSetSelect.addEventListener('change', () => {
@@ -3495,24 +3707,35 @@ function createTrackingControls(trackingController) {
     if (calibrationStrictnessChangeHandler) {
       calibrationStrictnessChangeHandler(value);
     }
+    persistSettingsState();
   });
 
   stabilizationButton.addEventListener('click', () => {
     stabilizationEnabled = !stabilizationEnabled;
     setStabilizationEnabled(stabilizationEnabled);
     updateStabilizationLabel();
+    persistSettingsState();
   });
 
   landmarkDrawingButton.addEventListener('click', () => {
     landmarkDrawingVisible = !landmarkDrawingVisible;
     setLandmarkDrawingEnabled(landmarkDrawingVisible);
     updateLandmarkDrawingLabel();
+    persistSettingsState();
+  });
+
+  silhouetteButton.addEventListener('click', () => {
+    silhouetteVisible = !silhouetteVisible;
+    setSilhouetteEnabled(silhouetteVisible);
+    updateSilhouetteLabel();
+    persistSettingsState();
   });
 
   videoSofteningButton.addEventListener('click', () => {
     videoSofteningEnabled = !videoSofteningEnabled;
     updateVideoSofteningLabel();
     updateVideoSofteningControls();
+    persistSettingsState();
   });
 
   blurSlider.addEventListener('input', () => {
@@ -3520,6 +3743,7 @@ function createTrackingControls(trackingController) {
     blurValue.textContent = `${videoSofteningBlurPx}px`;
     setVideoSofteningStyle(videoSofteningBlurPx, videoSofteningBrightness);
     persistVideoSofteningSettings();
+    persistSettingsState();
   });
 
   brightnessSlider.addEventListener('input', () => {
@@ -3527,6 +3751,7 @@ function createTrackingControls(trackingController) {
     brightnessValue.textContent = Number(videoSofteningBrightness).toFixed(2);
     setVideoSofteningStyle(videoSofteningBlurPx, videoSofteningBrightness);
     persistVideoSofteningSettings();
+    persistSettingsState();
   });
 
   poseWarningLandmarksButton.addEventListener('click', () => {
@@ -3535,10 +3760,12 @@ function createTrackingControls(trackingController) {
       levelManagerRef.setPoseWarningLandmarksEnabled(poseWarningLandmarksVisible);
     }
     updatePoseWarningLandmarksLabel();
+    persistSettingsState();
   });
 
   trackingController.onModelChange((modelName) => {
     modelSelect.value = modelName;
+    persistSettingsState();
   });
 
   trackingController.onCameraChange((deviceId) => {
@@ -3547,15 +3774,20 @@ function createTrackingControls(trackingController) {
       cameraSelect.value = deviceId;
     }
     updateCameraToggleLabel();
+    persistSettingsState();
   });
 
   setStabilizationEnabled(stabilizationEnabled);
   setLandmarkDrawingEnabled(landmarkDrawingVisible);
+  setSilhouetteEnabled(silhouetteVisible);
+  setSilhouetteOpacity(silhouetteOpacityValue);
   if (levelManagerRef) {
     levelManagerRef.setPoseWarningLandmarksEnabled(poseWarningLandmarksVisible);
   }
   updateStabilizationLabel();
   updateLandmarkDrawingLabel();
+  updateSilhouetteLabel();
+  updateSilhouetteOpacityControl();
   updateVideoSofteningLabel();
   updateVideoSofteningControls();
   updatePoseWarningLandmarksLabel();
@@ -3585,6 +3817,9 @@ function createTrackingControls(trackingController) {
   bindUiGroupDescription([modeLabel, ...modeGroup.querySelectorAll('label, input')], 'Einstellungen', 'Playback');
   bindUiGroupDescription([stabilizationButton], 'Einstellungen', 'Stabilization');
   bindUiGroupDescription([landmarkDrawingButton], 'Einstellungen', 'Landmarks');
+  bindUiGroupDescription([silhouetteButton], 'Einstellungen', 'Silhouette');
+  bindUiGroupDescription([silhouetteOpacityLabel, silhouetteOpacityValueLabel, silhouetteOpacitySlider], 'Einstellungen', 'Silhouette Deckkraft');
+  bindUiGroupDescription([restoreDefaultsButton], 'Einstellungen', 'Werkseinstellung');
   bindUiGroupDescription([videoSofteningButton], 'Einstellungen', 'Weichzeichnen');
   bindUiGroupDescription([blurLabel, blurSlider], 'Einstellungen', 'Weichzeichnen');
   bindUiGroupDescription([brightnessLabel, brightnessSlider], 'Einstellungen', 'Weichzeichnen');
@@ -3607,6 +3842,10 @@ function createTrackingControls(trackingController) {
   container.appendChild(modeGroup);
   container.appendChild(stabilizationButton);
   container.appendChild(landmarkDrawingButton);
+  container.appendChild(silhouetteButton);
+  container.appendChild(silhouetteOpacityRow);
+  container.appendChild(silhouetteOpacitySlider);
+  container.appendChild(restoreDefaultsButton);
   container.appendChild(poseWarningLandmarksButton);
   container.appendChild(videoSofteningDivider);
   container.appendChild(videoSofteningButton);

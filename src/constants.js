@@ -161,8 +161,10 @@ export const uiElementDescriptions = {
     'Info Box': 'Aktiviert oder deaktiviert die individuelle Info-Box in der Mitte oben im Fenster beim Hover.',
     'Camera: ON': 'Aktiviert die Kamera für die Live-Erkennung.',
     'Camera: OFF': 'Deaktiviert die Kamera und pausiert die Erkennung.',
-    'Stabilization': 'Aktiviert oder deaktiviert die Stabilisierung der Bewegungserkennung.',
+    'Stabilization': 'Experimental: Aktiviert oder deaktiviert die Stabilisierung der Bewegungserkennung. Anstatt der rohen aktuellen Position wird die geglättete Position verwendet, um die Bewegungserkennung ruhiger zu gestalten. Allerdings gibt es dadurch eine minimale Verzögerung in der Bewegungserkennung.',
     'Landmarks': 'Blendet die Landmarken im Video für die Verifikation der Erkennung ein oder aus.',
+    'Silhouette': 'Zeichnet eine leicht transparente Körper-Silhouette über die Live-Erkennung, ohne die Landmarken oder ihre Verbindungen zu verändern.',
+    'Silhouette Deckkraft': 'Stellt die Transparenz der Silhouette ein. Niedrige Werte machen sie fast unsichtbar, hohe Werte machen sie kräftiger und deutlicher.',
     'Weichzeichnen': 'Weichzeichnet das Live-Video leicht und verdunkelt es minimal, damit die Bewegungserkennung ruhiger wirkt.',
     'Pose Warning Landmarks': 'Blendet zusätzliche Warnhinweise für die Pose-Erkennung ein oder aus.'
   },
