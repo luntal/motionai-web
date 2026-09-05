@@ -166,7 +166,8 @@ export const uiElementDescriptions = {
     'Silhouette': 'Zeichnet eine leicht transparente Körper-Silhouette über die Live-Erkennung, ohne die Landmarken oder ihre Verbindungen zu verändern.',
     'Silhouette Deckkraft': 'Stellt die Transparenz der Silhouette ein. Niedrige Werte machen sie fast unsichtbar, hohe Werte machen sie kräftiger und deutlicher.',
     'Weichzeichnen': 'Weichzeichnet das Live-Video leicht und verdunkelt es minimal, damit die Bewegungserkennung ruhiger wirkt.',
-    'Pose Warning Landmarks': 'Blendet zusätzliche Warnhinweise für die Pose-Erkennung ein oder aus.'
+    'Pose Warning Landmarks': 'Blendet zusätzliche Warnhinweise für die Pose-Erkennung ein oder aus.',
+    'Werkseinstellung': 'Setzt alle Einstellungen und Presets auf die Werkseinstellungen zurück. Alle gespeicherten Presets werden gelöscht.',
   },
   'Eingewöhnung': {
     Form: 'Wähle die Form der Bewegung aus, die du üben möchtest.',

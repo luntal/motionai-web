@@ -672,6 +672,23 @@ canvas {
   font-family: var(--ui-font-family);
 }
 
+.exercise-field-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.exercise-field-info {
+  margin-top: 0.15rem;
+  padding: 0.7rem 0.75rem;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(235, 243, 255, 0.8);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
 .figure-side-panel.hidden {
   display: none;
 }

@@ -86,6 +86,15 @@ export class LevelManager {
     this.activeTouchFadeByHand = { left: new Map(), right: new Map() };
     this.activeTouchFadeEnabled = true;
     this.activeTouchFadeDurationMs = 2000;
+    this.exerciseFieldVisible = true;
+    this.exerciseFieldScale = 1;
+    this.exerciseFieldXOffset = 0;
+    this.exerciseFieldZones = {
+      leftTop: null,
+      leftBottom: null,
+      rightTop: null,
+      rightBottom: null
+    };
     this.renderQueued = false;
     this.figureVariant = 'soft';
     this.figureScale = 1 / 3;
@@ -231,8 +240,87 @@ export class LevelManager {
     }
   }
 
+  setExerciseFieldVisible(visible) {
+    this.exerciseFieldVisible = Boolean(visible);
+    this.requestRender();
+  }
+
+  setExerciseFieldScale(value) {
+    const next = Number(value);
+    if (!Number.isFinite(next)) {
+      return;
+    }
+
+    this.exerciseFieldScale = Math.min(1.25, Math.max(0.25, next));
+    this.requestRender();
+  }
+
+  setExerciseFieldXOffset(value) {
+    const next = Number(value);
+    if (!Number.isFinite(next)) {
+      return;
+    }
+
+    this.exerciseFieldXOffset = Math.min(1, Math.max(0, next));
+    this.requestRender();
+  }
+
   getPoseWarningLandmarksEnabled() {
     return this.poseWarningLandmarksVisible;
+  }
+
+  getExerciseFieldZones() {
+    const calibrationSet = this.getSelectedCalibrationPoseSet();
+    const landmarks = this.getCalibrationLandmarksForCanvas(calibrationSet);
+    const leftEye = landmarks[2] || landmarks[5] || landmarks[1] || landmarks[0] || null;
+    const rightEye = landmarks[5] || landmarks[2] || landmarks[4] || landmarks[0] || null;
+    const leftHand = landmarks[15] || landmarks[19] || landmarks[17] || landmarks[7] || landmarks[0] || null;
+    const rightHand = landmarks[16] || landmarks[20] || landmarks[18] || landmarks[8] || landmarks[0] || null;
+    const leftHip = landmarks[23] || landmarks[25] || landmarks[24] || landmarks[0] || null;
+    const rightHip = landmarks[24] || landmarks[26] || landmarks[23] || landmarks[0] || null;
+    const leftShoulder = landmarks[11] || landmarks[13] || landmarks[0] || null;
+    const rightShoulder = landmarks[12] || landmarks[14] || landmarks[0] || null;
+
+    if (!leftHand || !rightHand || !leftHip || !rightHip || !leftShoulder || !rightShoulder) {
+      return {
+        leftTop: null,
+        leftBottom: null,
+        rightTop: null,
+        rightBottom: null,
+        sideLength: 80
+      };
+    }
+
+    const leftUpperCenterY = leftEye && leftShoulder ? (leftEye.y + leftShoulder.y) / 2 : leftShoulder.y;
+    const rightUpperCenterY = rightEye && rightShoulder ? (rightEye.y + rightShoulder.y) / 2 : rightShoulder.y;
+    const leftLowerCenterY = leftHand && leftHip ? (leftHand.y + leftHip.y) / 2 : leftHand.y;
+    const rightLowerCenterY = rightHand && rightHip ? (rightHand.y + rightHip.y) / 2 : rightHand.y;
+
+    const defaultSideLength = Math.max(60, Math.min(220, Math.max(
+      Math.abs(leftHand.y - leftHip.y),
+      Math.abs(rightHand.y - rightHip.y),
+      Math.abs((leftEye?.y ?? leftShoulder.y) - leftShoulder.y),
+      Math.abs((rightEye?.y ?? rightShoulder.y) - rightShoulder.y)
+    ) * 2));
+
+    const sideLength = defaultSideLength * this.exerciseFieldScale;
+    const baseXOffset = this.exerciseFieldXOffset * Math.max(defaultSideLength, 60);
+    const makeRect = (centerX, centerY, direction) => ({
+      x: direction === 'left' ? centerX - baseXOffset : centerX + baseXOffset,
+      y: centerY,
+      width: sideLength,
+      height: sideLength
+    });
+
+    return {
+      leftTop: makeRect(leftHand.x, leftUpperCenterY, 'left'),
+      leftBottom: makeRect(leftHand.x, leftLowerCenterY, 'left'),
+      rightTop: makeRect(rightHand.x, rightUpperCenterY, 'right'),
+      rightBottom: makeRect(rightHand.x, rightLowerCenterY, 'right'),
+      sideLength,
+      defaultSideLength,
+      xOffset: baseXOffset
+    };
   }
 
   getFallbackCalibrationPoseSet() {
@@ -4183,6 +4271,19 @@ export class LevelManager {
       return;
     }
 
+    if (this.chapter === 6) {
+      this.active = Number.isInteger(this.level) && this.level >= 0 && this.level <= 4;
+      this.figureActive = false;
+      this.dynamicFigureActive = false;
+      this.handIndependenceActive = false;
+      this.calibrationActive = false;
+      this.consistencyActive = false;
+      this.setCalibrationPanelVisible(false);
+      this.setConsistencyPanelVisible(false);
+      this.render();
+      return;
+    }
+
     this.figureActive = false;
     this.dynamicFigureActive = false;
     this.handIndependenceActive = false;
@@ -4665,6 +4766,47 @@ export class LevelManager {
     this.setPoseAlignmentPanelVisible(true);
   }
 
+  drawExerciseFieldZones() {
+    if (!this.exerciseFieldVisible) {
+      return;
+    }
+
+    const zones = this.getExerciseFieldZones();
+    const entries = ['leftTop', 'leftBottom', 'rightTop', 'rightBottom'];
+    if (!entries.some((key) => zones[key])) {
+      return;
+    }
+
+    this.ctx.save();
+
+    entries.forEach((key) => {
+      const rect = zones[key];
+      if (!rect) {
+        return;
+      }
+
+      const side = key.includes('left') ? 'left' : 'right';
+      const handTip = side === 'left' ? this.leftTip : this.rightTip;
+      const isActive = Boolean(handTip) && handTip.x >= rect.x - rect.width / 2 && handTip.x <= rect.x + rect.width / 2
+        && handTip.y >= rect.y - rect.height / 2 && handTip.y <= rect.y + rect.height / 2;
+      const fillAlpha = isActive ? 0.28 : 0.12;
+      const strokeAlpha = isActive ? 0.96 : 0.55;
+      this.ctx.fillStyle = side === 'left'
+        ? `rgba(82, 156, 255, ${fillAlpha})`
+        : `rgba(255, 163, 92, ${fillAlpha})`;
+      this.ctx.strokeStyle = side === 'left'
+        ? `rgba(128, 204, 255, ${strokeAlpha})`
+        : `rgba(255, 201, 129, ${strokeAlpha})`;
+      this.ctx.lineWidth = isActive ? 2.6 : 1.4;
+      this.ctx.shadowBlur = isActive ? 18 : 0;
+      this.ctx.shadowColor = side === 'left' ? 'rgba(82, 156, 255, 0.9)' : 'rgba(255, 163, 92, 0.9)';
+      this.ctx.fillRect(rect.x - rect.width / 2, rect.y - rect.height / 2, rect.width, rect.height);
+      this.ctx.strokeRect(rect.x - rect.width / 2, rect.y - rect.height / 2, rect.width, rect.height);
+    });
+
+    this.ctx.restore();
+  }
+
   renderPoseAlignmentFeedback() {
     if (this.calibrationActive && this.level === 0) {
       const status = this.poseAlignmentStatus;
@@ -4771,6 +4913,13 @@ export class LevelManager {
           rotation: this.handIndependenceShapeRotation
         });
       }
+      this.renderPoseAlignmentFeedback();
+      this.requestRender();
+      return;
+    }
+
+    if (this.chapter === 6 && Number.isInteger(this.level) && this.level >= 0 && this.level <= 4) {
+      this.drawExerciseFieldZones();
       this.renderPoseAlignmentFeedback();
       this.requestRender();
       return;

@@ -1161,6 +1161,202 @@ function createDynamicFigureModePanel() {
   };
 }
 
+function createExerciseFieldPanel() {
+  const panel = document.createElement('aside');
+  panel.className = 'figure-side-panel hidden exercise-field-panel';
+  const storageKey = 'motionai.exercise-field-panel-settings';
+  let managerRef = null;
+
+  const readSavedSettings = () => {
+    try {
+      const stored = JSON.parse(localStorage.getItem(storageKey) || '{}');
+      const enabled = stored.enabled;
+      const scale = Number(stored.scale);
+      const xOffset = Number(stored.xOffset);
+      return {
+        enabled: typeof enabled === 'boolean' ? enabled : true,
+        scale: Number.isFinite(scale) ? Math.min(1.25, Math.max(0.25, scale)) : 1,
+        xOffset: Number.isFinite(xOffset) ? Math.min(1, Math.max(0, xOffset)) : 0
+      };
+    } catch (error) {
+      return { enabled: true, scale: 1, xOffset: 0 };
+    }
+  };
+
+  const saveSettings = () => {
+    try {
+      localStorage.setItem(storageKey, JSON.stringify({
+        enabled: Boolean(toggleInput.checked),
+        scale: Number(sizeSlider.value),
+        xOffset: Number(xOffsetSlider.value)
+      }));
+    } catch (error) {
+      // no-op: localStorage limits or privacy modes may block this safely
+    }
+  };
+
+  const title = document.createElement('div');
+  title.className = 'figure-side-panel-title';
+  title.textContent = 'Einsatzfelder';
+  panel.appendChild(title);
+
+  const toggleWrap = document.createElement('label');
+  toggleWrap.className = 'figure-dynamics-toggle';
+  const toggleInput = document.createElement('input');
+  toggleInput.type = 'checkbox';
+  toggleInput.checked = readSavedSettings().enabled;
+  const toggleLabel = document.createTextNode('Einsatzfelder');
+  toggleWrap.appendChild(toggleInput);
+  toggleWrap.appendChild(toggleLabel);
+  panel.appendChild(toggleWrap);
+
+  const sizeWrap = document.createElement('div');
+  sizeWrap.className = 'figure-size-wrap';
+
+  const sizeLabel = document.createElement('div');
+  sizeLabel.className = 'figure-size-label';
+  sizeLabel.textContent = 'Größe';
+
+  const sizeSlider = document.createElement('input');
+  sizeSlider.type = 'range';
+  sizeSlider.min = '0.25';
+  sizeSlider.max = '1.25';
+  sizeSlider.step = '0.05';
+  sizeSlider.value = String(readSavedSettings().scale);
+
+  const sizeValue = document.createElement('div');
+  sizeValue.className = 'figure-size-value';
+  sizeValue.textContent = '1.00x';
+
+  sizeWrap.appendChild(sizeLabel);
+  sizeWrap.appendChild(sizeSlider);
+  sizeWrap.appendChild(sizeValue);
+  panel.appendChild(sizeWrap);
+
+  const xOffsetWrap = document.createElement('div');
+  xOffsetWrap.className = 'figure-size-wrap';
+
+  const xOffsetLabel = document.createElement('div');
+  xOffsetLabel.className = 'figure-size-label';
+  xOffsetLabel.textContent = 'X-Offset';
+
+  const xOffsetSlider = document.createElement('input');
+  xOffsetSlider.type = 'range';
+  xOffsetSlider.min = '0';
+  xOffsetSlider.max = '1';
+  xOffsetSlider.step = '0.01';
+  xOffsetSlider.value = String(readSavedSettings().xOffset ?? 0);
+
+  const xOffsetValue = document.createElement('div');
+  xOffsetValue.className = 'figure-size-value';
+  xOffsetValue.textContent = '0.00';
+
+  xOffsetWrap.appendChild(xOffsetLabel);
+  xOffsetWrap.appendChild(xOffsetSlider);
+  xOffsetWrap.appendChild(xOffsetValue);
+  panel.appendChild(xOffsetWrap);
+
+  const info = document.createElement('div');
+  info.className = 'exercise-field-info';
+  info.textContent = 'Die Felder orientieren sich an der aktiven Kalibrierung und leuchten, sobald eine Hand in das passende Feld gelangt.';
+  panel.appendChild(info);
+
+  const updateSizeValue = () => {
+    const next = Number(sizeSlider.value);
+    sizeValue.textContent = `${Number.isFinite(next) ? next.toFixed(2) : '1.00'}x`;
+  };
+
+  const updateXOffsetValue = () => {
+    const next = Number(xOffsetSlider.value);
+    xOffsetValue.textContent = Number.isFinite(next) ? next.toFixed(2) : '0.00';
+  };
+
+  toggleInput.addEventListener('change', () => {
+    const visible = toggleInput.checked;
+    managerRef?.setExerciseFieldVisible?.(visible);
+    saveSettings();
+  });
+
+  sizeSlider.addEventListener('input', () => {
+    updateSizeValue();
+    managerRef?.setExerciseFieldScale?.(Number(sizeSlider.value));
+    saveSettings();
+  });
+
+  xOffsetSlider.addEventListener('input', () => {
+    updateXOffsetValue();
+    managerRef?.setExerciseFieldXOffset?.(Number(xOffsetSlider.value));
+    saveSettings();
+  });
+
+  attachPanelHoverHelp(panel);
+
+  return {
+    panel,
+    isEnabled: () => Boolean(toggleInput.checked),
+    setVisible: (visible) => {
+      panel.classList.toggle('hidden', !visible);
+    },
+    setLevelManager: (manager) => {
+      managerRef = manager || null;
+      if (!managerRef) {
+        return;
+      }
+      const savedSettings = readSavedSettings();
+      const restoredScale = Number.isFinite(savedSettings.scale) ? savedSettings.scale : 1;
+      const restoredOffset = Number.isFinite(savedSettings.xOffset) ? savedSettings.xOffset : 0;
+      const restoredEnabled = typeof savedSettings.enabled === 'boolean' ? savedSettings.enabled : true;
+
+      managerRef.exerciseFieldScale = Math.min(1.25, Math.max(0.25, Number(managerRef.exerciseFieldScale) || restoredScale));
+      managerRef.exerciseFieldXOffset = Math.min(1, Math.max(0, Number(managerRef.exerciseFieldXOffset) || restoredOffset));
+      managerRef.exerciseFieldVisible = typeof managerRef.exerciseFieldVisible === 'boolean'
+        ? managerRef.exerciseFieldVisible
+        : restoredEnabled;
+
+      const value = Number.isFinite(Number(savedSettings.scale))
+        ? Number(savedSettings.scale)
+        : Number(managerRef.exerciseFieldScale);
+      const enabled = typeof savedSettings.enabled === 'boolean'
+        ? savedSettings.enabled
+        : Boolean(managerRef.exerciseFieldVisible);
+      const offset = Number.isFinite(Number(savedSettings.xOffset))
+        ? Number(savedSettings.xOffset)
+        : Number(managerRef.exerciseFieldXOffset);
+
+      sizeSlider.value = String(Math.min(1.25, Math.max(0.25, value)));
+      updateSizeValue();
+      xOffsetSlider.value = String(Math.min(1, Math.max(0, offset)));
+      updateXOffsetValue();
+      toggleInput.checked = Boolean(enabled);
+      managerRef.setExerciseFieldScale?.(Number(sizeSlider.value));
+      managerRef.setExerciseFieldVisible?.(toggleInput.checked);
+      managerRef.setExerciseFieldXOffset?.(Number(xOffsetSlider.value));
+      saveSettings();
+    },
+    setToggle: (enabled) => {
+      toggleInput.checked = Boolean(enabled);
+      managerRef?.setExerciseFieldVisible?.(toggleInput.checked);
+      saveSettings();
+    },
+    setScale: (value) => {
+      const next = Number(value);
+      const clamped = Number.isFinite(next) ? Math.min(1.25, Math.max(0.25, next)) : 1;
+      sizeSlider.value = String(clamped);
+      updateSizeValue();
+      managerRef?.setExerciseFieldScale?.(clamped);
+      saveSettings();
+    },
+    setXOffset: (value) => {
+      const next = Number(value);
+      const clamped = Number.isFinite(next) ? Math.min(1, Math.max(0, next)) : 0;
+      xOffsetSlider.value = String(clamped);
+      updateXOffsetValue();
+      managerRef?.setExerciseFieldXOffset?.(clamped);
+      saveSettings();
+    }
+  };
+}
+
 function createSquareExercisePanel() {
   const panel = document.createElement('aside');
   panel.className = 'figure-side-panel hidden square-exercise-panel';
@@ -4024,10 +4220,12 @@ export function initApp() {
   const dynamicFigurePanel = createDynamicFigureModePanel();
   const handIndependencePanel = createHandIndependencePanel();
   const squareExercisePanel = createSquareExercisePanel();
+  const exerciseFieldPanel = createExerciseFieldPanel();
   document.body.appendChild(figurePanel.panel);
   document.body.appendChild(dynamicFigurePanel.panel);
   document.body.appendChild(handIndependencePanel.panel);
   document.body.appendChild(squareExercisePanel.panel);
+  document.body.appendChild(exerciseFieldPanel.panel);
 
   const levelCanvas = document.createElement('canvas');
   levelCanvas.className = 'level-overlay';
@@ -4121,6 +4319,14 @@ export function initApp() {
     setPointExerciseSelectedSlot: (value) => levelManager.setPointExerciseSelectedSlot(value),
     setPointExerciseSequence: (value) => levelManager.setPointExerciseSequence(value),
     setPointExerciseSavedSlots: (value) => levelManager.setPointExerciseSavedSlots(value)
+  });
+  exerciseFieldPanel.setLevelManager({
+    exerciseFieldVisible: levelManager.exerciseFieldVisible,
+    exerciseFieldScale: levelManager.exerciseFieldScale,
+    exerciseFieldXOffset: levelManager.exerciseFieldXOffset,
+    setExerciseFieldVisible: (value) => levelManager.setExerciseFieldVisible(value),
+    setExerciseFieldScale: (value) => levelManager.setExerciseFieldScale(value),
+    setExerciseFieldXOffset: (value) => levelManager.setExerciseFieldXOffset(value)
   });
   const dynamicFigureManager = {
     get figureScale() { return levelManager.dynamicFigureScale; },
@@ -4219,6 +4425,7 @@ export function initApp() {
     const showSquareExercisePanel = chapter === 1 && exerciseVisibility.square;
     const showSymmetricExercisePanel = chapter === 1 && exerciseVisibility.symmetric;
     const showPointsExercisePanel = chapter === 1 && exerciseVisibility.points;
+    const showExerciseFieldPanel = chapter === 6 && Number.isInteger(uiState.activeLevel) && uiState.activeLevel >= 0 && uiState.activeLevel <= 4;
     const selectedSquareMode = showPointsExercisePanel
       ? 'points'
       : showSymmetricExercisePanel
@@ -4231,6 +4438,12 @@ export function initApp() {
     handIndependencePanel.setVisible(isHandIndependenceChapter);
     squareExercisePanel.setVisible(showSquareExercisePanel || showSymmetricExercisePanel || showPointsExercisePanel || chapter === 1 && uiState.activeLevel !== null);
     squareExercisePanel.setExerciseMode(selectedSquareMode);
+    exerciseFieldPanel.setVisible(showExerciseFieldPanel);
+    if (!showExerciseFieldPanel) {
+      levelManager.setExerciseFieldVisible(false);
+    } else {
+      levelManager.setExerciseFieldVisible(exerciseFieldPanel.isEnabled());
+    }
     if (isDynamicFigureChapter) {
       dynamicFigurePanel.setTitle('dynamic');
       dynamicFigurePanel.setVariant(levelManager.dynamicFigureVariant || 'hard');
@@ -4260,11 +4473,26 @@ export function initApp() {
     const blankChapter1ExercisePanel = uiState.activeChapter === 1 && Number.isInteger(level) && [3, 4].includes(level);
     const freeMovementExercisePanel = uiState.activeChapter === 1 && Number.isInteger(level) && level === 2;
     const alternatingExercisePanel = uiState.activeChapter === 1 && Number.isInteger(level) && level === 2 && false;
+    const showExerciseFieldPanel = uiState.activeChapter === 6 && Number.isInteger(level) && level >= 0 && level <= 4;
     const squareExerciseTitle = uiState.activeChapter === 1 && Number.isInteger(level) && level >= 0 && level < chapter1ExerciseTitles.length
       ? chapter1ExerciseTitles[level]
       : 'Ziffern';
     if (uiState.activeChapter === 1) {
       squareExercisePanel.setTitle(squareExerciseTitle);
+    }
+
+    if (uiState.activeChapter === 6) {
+      figurePanel.setVisible(false);
+      dynamicFigurePanel.setVisible(false);
+      handIndependencePanel.setVisible(false);
+      squareExercisePanel.setVisible(false);
+      exerciseFieldPanel.setVisible(showExerciseFieldPanel);
+      if (!showExerciseFieldPanel) {
+        levelManager.setExerciseFieldVisible(false);
+      } else {
+        levelManager.setExerciseFieldVisible(exerciseFieldPanel.isEnabled());
+      }
+      return;
     }
 
     if (uiState.activeChapter === 3) {
