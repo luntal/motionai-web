@@ -248,6 +248,24 @@ function renderLevelButtons(levelRow) {
     actions.append(saveButton, resetButton);
     levelRow.appendChild(actions);
   }
+
+  if (uiState.activeChapter === 6) {
+    const actions = document.createElement('div');
+    actions.className = 'hand-independence-navigation-actions';
+
+    const saveButton = createButton('Speichern', false, () => {
+      document.dispatchEvent(new CustomEvent('exercise-field-save-preset'));
+    }, 'Preset für Einsatzfelder speichern');
+    saveButton.classList.add('hand-independence-navigation-action');
+
+    const resetButton = createButton('Werkseinstellungen', false, () => {
+      document.dispatchEvent(new CustomEvent('exercise-field-reset-presets'));
+    }, 'Einsatzfelder auf Werkseinstellungen zurücksetzen');
+    resetButton.classList.add('hand-independence-navigation-action');
+
+    actions.append(saveButton, resetButton);
+    levelRow.appendChild(actions);
+  }
 }
 
 export function setActiveLevel(level) {

@@ -89,6 +89,16 @@ export class LevelManager {
     this.exerciseFieldVisible = true;
     this.exerciseFieldScale = 1;
     this.exerciseFieldXOffset = 0;
+    this.exerciseFieldStrikeCount = 2;
+    this.exerciseFieldStrikeRadius = 12;
+    this.exerciseFieldStrikeRadiusBase = 12;
+    this.exerciseFieldAssignment = {
+      side: 'left',
+      vertical: 'top',
+      beatIndex: 1
+    };
+    this.exerciseFieldStrikePositions = { left: [], right: [] };
+    this.exerciseFieldDrag = null;
     this.exerciseFieldZones = {
       leftTop: null,
       leftBottom: null,
@@ -263,6 +273,210 @@ export class LevelManager {
 
     this.exerciseFieldXOffset = Math.min(1, Math.max(0, next));
     this.requestRender();
+  }
+
+  getExerciseFieldStrikeDefaults(count) {
+    const centerX = this.canvas.width * 0.5;
+    const leftMin = 12;
+    const leftMax = Math.max(leftMin + 8, centerX - 12);
+    const midpoint = (leftMin + leftMax) * 0.5;
+    const spread = count > 1
+      ? Math.min((leftMax - leftMin) * 0.5, 180) / (count - 1)
+      : 0;
+    const yLevels = [
+      this.canvas.height * 0.32,
+      this.canvas.height * 0.42,
+      this.canvas.height * 0.52,
+      this.canvas.height * 0.62
+    ];
+
+    const leftX = Array.from({ length: count }, (_, index) => {
+      const offset = (index - (count - 1) * 0.5) * spread;
+      return Math.min(leftMax, Math.max(leftMin, midpoint + offset));
+    });
+
+    return {
+      leftX,
+      rightX: leftX.map((value) => centerX + (centerX - value)),
+      centerX,
+      y: this.canvas.height * 0.52,
+      yLevels
+    };
+  }
+
+  setExerciseFieldStrikePositions(positions = {}) {
+    const nextLeft = Array.isArray(positions.left) ? positions.left : [];
+    const nextRight = Array.isArray(positions.right) ? positions.right : [];
+    const count = Math.max(2, Math.min(4, Number.isInteger(this.exerciseFieldStrikeCount) ? this.exerciseFieldStrikeCount : nextLeft.length || nextRight.length || 2));
+    const left = Array.from({ length: count }, (_, index) => {
+      const point = nextLeft[index] || { x: 0, y: 0 };
+      const safeX = Number.isFinite(Number(point.x)) ? Number(point.x) : 0;
+      const safeY = Number.isFinite(Number(point.y)) ? Number(point.y) : 0;
+      return { x: safeX, y: safeY };
+    });
+    const right = Array.from({ length: count }, (_, index) => {
+      const point = nextRight[index] || { x: 0, y: 0 };
+      const safeX = Number.isFinite(Number(point.x)) ? Number(point.x) : 0;
+      const safeY = Number.isFinite(Number(point.y)) ? Number(point.y) : 0;
+      return { x: safeX, y: safeY };
+    });
+
+    this.exerciseFieldStrikePositions = { left, right };
+    this.exerciseFieldStrikeCount = count;
+    this.requestRender();
+  }
+
+  setExerciseFieldPositions(positions = {}) {
+    this.setExerciseFieldStrikePositions(positions);
+  }
+
+  setExerciseFieldStrikeCount(value) {
+    const next = Number(value);
+    if (!Number.isFinite(next)) {
+      return;
+    }
+
+    const safeValue = [2, 3, 4].includes(next) ? next : 2;
+    if (this.exerciseFieldStrikeCount === safeValue) {
+      return;
+    }
+
+    const previousLeft = this.exerciseFieldStrikePositions.left || [];
+    const previousRight = this.exerciseFieldStrikePositions.right || [];
+    const defaultPositions = this.getExerciseFieldStrikeDefaults(safeValue);
+
+    this.exerciseFieldStrikeCount = safeValue;
+    this.exerciseFieldStrikePositions.left = Array.from({ length: safeValue }, (_, index) => {
+      const previous = previousLeft[index];
+      const y = defaultPositions.yLevels[index] ?? defaultPositions.y;
+      if (previous && Number.isFinite(previous.x) && Number.isFinite(previous.y)) {
+        return { x: previous.x, y: previous.y };
+      }
+      return { x: defaultPositions.leftX[index], y };
+    });
+    this.exerciseFieldStrikePositions.right = Array.from({ length: safeValue }, (_, index) => {
+      const previous = previousRight[index];
+      const pairedLeft = this.exerciseFieldStrikePositions.left[index];
+      const y = defaultPositions.yLevels[index] ?? defaultPositions.y;
+      const mirroredX = pairedLeft && Number.isFinite(pairedLeft.x)
+        ? defaultPositions.centerX + (defaultPositions.centerX - pairedLeft.x)
+        : defaultPositions.rightX[index];
+      if (previous && Number.isFinite(previous.x) && Number.isFinite(previous.y)) {
+        return { x: previous.x, y: previous.y };
+      }
+      return { x: mirroredX, y };
+    });
+    this.requestRender();
+  }
+
+  setExerciseFieldStrikeRadius(value) {
+    const next = Number(value);
+    if (!Number.isFinite(next)) {
+      return;
+    }
+
+    const minimum = 20;
+    const maximum = 60;
+    this.exerciseFieldStrikeRadiusBase = minimum;
+    this.exerciseFieldStrikeRadius = Math.min(maximum, Math.max(minimum, next));
+    this.requestRender();
+  }
+
+  setExerciseFieldAssignment(assignment = {}) {
+    const side = assignment && assignment.side === 'right' ? 'right' : 'left';
+    const vertical = assignment && assignment.vertical === 'bottom' ? 'bottom' : 'top';
+    const beatCount = Number.isInteger(this.exerciseFieldStrikeCount)
+      ? Math.max(2, Math.min(4, this.exerciseFieldStrikeCount))
+      : 2;
+    const beatIndex = Number(assignment && assignment.beatIndex);
+    const nextBeat = Number.isFinite(beatIndex)
+      ? Math.max(1, Math.min(beatCount, Math.round(beatIndex)))
+      : 1;
+
+    this.exerciseFieldAssignment = { side, vertical, beatIndex: nextBeat };
+    this.requestRender();
+  }
+
+  getExerciseFieldStrikeLayout(zones, count) {
+    if (!zones || !count) {
+      return { leftX: [], rightX: [], y: this.canvas.height * 0.62, centerX: this.canvas.width * 0.5 };
+    }
+
+    const centerX = this.canvas.width * 0.5;
+    const leftRect = zones.leftTop || zones.leftBottom;
+    const rightRect = zones.rightTop || zones.rightBottom;
+    const lineY = leftRect && rightRect
+      ? (leftRect.y + rightRect.y) * 0.5 + (leftRect.height + rightRect.height) * 0.06
+      : this.canvas.height * 0.64;
+    const leftMin = 12;
+    const leftMax = centerX - 12;
+    const step = count > 1 ? (leftMax - leftMin) / (count - 1) : 0;
+    const leftX = Array.from({ length: count }, (_, index) => leftMin + index * step);
+    const rightX = leftX.map((value) => centerX + (centerX - value));
+
+    return { leftX, rightX, y: lineY, centerX };
+  }
+
+  getExerciseFieldStrikeHit(x, y) {
+    const strikeCount = Number.isInteger(this.exerciseFieldStrikeCount)
+      ? Math.max(2, Math.min(4, this.exerciseFieldStrikeCount))
+      : 2;
+
+    const candidates = [];
+    for (let index = 0; index < strikeCount; index += 1) {
+      candidates.push({ side: 'left', index, point: this.exerciseFieldStrikePositions.left[index] || { x: 0, y: 0 } });
+      candidates.push({ side: 'right', index, point: this.exerciseFieldStrikePositions.right[index] || { x: 0, y: 0 } });
+    }
+
+    const hit = candidates.find(({ point }) => point && Number.isFinite(point.x) && Number.isFinite(point.y)
+      && Math.hypot(x - point.x, y - point.y) <= 16);
+    return hit || null;
+  }
+
+  beginExerciseFieldDrag(x, y) {
+    const hit = this.getExerciseFieldStrikeHit(x, y);
+    if (!hit) {
+      return false;
+    }
+
+    this.exerciseFieldDrag = {
+      side: hit.side,
+      index: hit.index
+    };
+    return true;
+  }
+
+  updateExerciseFieldDrag(x, y) {
+    if (!this.exerciseFieldDrag) {
+      return false;
+    }
+
+    const centerX = this.canvas.width * 0.5;
+    const side = this.exerciseFieldDrag.side;
+    const index = this.exerciseFieldDrag.index;
+    const leftMin = 12;
+    const leftMax = centerX - 12;
+    const rightMin = centerX + 12;
+    const rightMax = this.canvas.width - 12;
+    const nextX = side === 'left'
+      ? Math.min(leftMax, Math.max(leftMin, x))
+      : Math.min(rightMax, Math.max(rightMin, x));
+    const nextY = Math.min(this.canvas.height - 20, Math.max(20, y));
+
+    if (side === 'left') {
+      this.exerciseFieldStrikePositions.left[index] = { x: nextX, y: nextY };
+      this.exerciseFieldStrikePositions.right[index] = { x: centerX + (centerX - nextX), y: nextY };
+    } else {
+      this.exerciseFieldStrikePositions.right[index] = { x: nextX, y: nextY };
+      this.exerciseFieldStrikePositions.left[index] = { x: centerX - (nextX - centerX), y: nextY };
+    }
+
+    this.requestRender();
+    return true;
+  }
+
+  endExerciseFieldDrag() {
+    this.exerciseFieldDrag = null;
   }
 
   getPoseWarningLandmarksEnabled() {
@@ -4777,8 +4991,46 @@ export class LevelManager {
       return;
     }
 
-    this.ctx.save();
+    const strikeCount = Number.isInteger(this.exerciseFieldStrikeCount)
+      ? Math.max(2, Math.min(4, this.exerciseFieldStrikeCount))
+      : 2;
+    const assignmentSide = this.exerciseFieldAssignment?.side === 'right' ? 'right' : 'left';
+    const assignmentVertical = this.exerciseFieldAssignment?.vertical === 'bottom' ? 'bottom' : 'top';
+    const assignmentBeatIndex = Math.max(1, Math.min(strikeCount, Number(this.exerciseFieldAssignment?.beatIndex) || 1));
+    const assignmentRectKey = assignmentSide === 'left'
+      ? (assignmentVertical === 'top' ? 'leftTop' : 'leftBottom')
+      : (assignmentVertical === 'top' ? 'rightTop' : 'rightBottom');
+    const assignmentRect = zones[assignmentRectKey] || null;
 
+    const layout = this.getExerciseFieldStrikeLayout(zones, strikeCount);
+    const generatedStrikeDefaults = this.getExerciseFieldStrikeDefaults(strikeCount);
+    const currentLeft = Array.isArray(this.exerciseFieldStrikePositions.left) ? this.exerciseFieldStrikePositions.left : [];
+    const currentRight = Array.isArray(this.exerciseFieldStrikePositions.right) ? this.exerciseFieldStrikePositions.right : [];
+
+    this.exerciseFieldStrikePositions.left = Array.from({ length: strikeCount }, (_, index) => {
+      const previous = currentLeft[index];
+      const defaultY = generatedStrikeDefaults.yLevels[index] ?? generatedStrikeDefaults.y;
+      const base = previous && Number.isFinite(previous.x) && Number.isFinite(previous.y)
+        ? previous
+        : { x: generatedStrikeDefaults.leftX[index], y: defaultY };
+      const clampedX = Math.min(layout.centerX - 12, Math.max(12, base.x));
+      return { x: clampedX, y: Number.isFinite(base.y) ? base.y : defaultY };
+    });
+    this.exerciseFieldStrikePositions.right = Array.from({ length: strikeCount }, (_, index) => {
+      const previous = currentRight[index];
+      const pairedLeft = this.exerciseFieldStrikePositions.left[index];
+      const defaultY = generatedStrikeDefaults.yLevels[index] ?? generatedStrikeDefaults.y;
+      const mirroredX = pairedLeft && Number.isFinite(pairedLeft.x)
+        ? layout.centerX + (layout.centerX - pairedLeft.x)
+        : generatedStrikeDefaults.rightX[index];
+      const base = previous && Number.isFinite(previous.x) && Number.isFinite(previous.y)
+        ? previous
+        : { x: mirroredX, y: defaultY };
+      const clampedX = Math.min(this.canvas.width - 12, Math.max(layout.centerX + 12, base.x));
+      return { x: clampedX, y: Number.isFinite(base.y) ? base.y : defaultY };
+    });
+
+    this.ctx.save();
     entries.forEach((key) => {
       const rect = zones[key];
       if (!rect) {
@@ -4803,6 +5055,73 @@ export class LevelManager {
       this.ctx.fillRect(rect.x - rect.width / 2, rect.y - rect.height / 2, rect.width, rect.height);
       this.ctx.strokeRect(rect.x - rect.width / 2, rect.y - rect.height / 2, rect.width, rect.height);
     });
+
+    if (assignmentRect) {
+      this.ctx.fillStyle = 'rgba(255, 255, 255, 0.06)';
+      this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.72)';
+      this.ctx.lineWidth = 1.6;
+      this.ctx.strokeRect(assignmentRect.x - assignmentRect.width / 2, assignmentRect.y - assignmentRect.height / 2, assignmentRect.width, assignmentRect.height);
+      this.ctx.fillStyle = '#f5f9ff';
+      this.ctx.font = 'bold 18px sans-serif';
+      this.ctx.textAlign = 'center';
+      this.ctx.textBaseline = 'middle';
+      this.ctx.fillText(String(assignmentBeatIndex), assignmentRect.x, assignmentRect.y + 1);
+    }
+
+    for (let index = 0; index < strikeCount; index += 1) {
+      const leftPoint = this.exerciseFieldStrikePositions.left[index];
+      const rightPoint = this.exerciseFieldStrikePositions.right[index];
+      if (!leftPoint || !rightPoint) {
+        continue;
+      }
+
+      const isDraggingThisPair = this.exerciseFieldDrag
+        && this.exerciseFieldDrag.index === index;
+
+      if (isDraggingThisPair) {
+        this.ctx.beginPath();
+        this.ctx.moveTo(leftPoint.x, leftPoint.y);
+        this.ctx.lineTo(rightPoint.x, rightPoint.y);
+        this.ctx.strokeStyle = 'rgba(210, 227, 255, 0.5)';
+        this.ctx.lineWidth = 1.1;
+        this.ctx.setLineDash([4, 6]);
+        this.ctx.stroke();
+        this.ctx.setLineDash([]);
+      }
+
+      const pairId = index + 1;
+      const drawStrikeCircle = (point, side) => {
+        const isLeft = side === 'left';
+        const shouldHideAssignedBeat = side === assignmentSide && index === assignmentBeatIndex - 1;
+        if (shouldHideAssignedBeat) {
+          return;
+        }
+
+        const handTip = isLeft ? this.leftTip : this.rightTip;
+        const isActive = Boolean(handTip) && Math.hypot(handTip.x - point.x, handTip.y - point.y) <= 18;
+        const radius = this.exerciseFieldStrikeRadius * (isActive ? 1.15 : 1);
+        this.ctx.beginPath();
+        this.ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
+        this.ctx.fillStyle = isLeft
+          ? (isActive ? 'rgba(82, 156, 255, 0.38)' : 'rgba(82, 156, 255, 0.16)')
+          : (isActive ? 'rgba(255, 163, 92, 0.38)' : 'rgba(255, 163, 92, 0.16)');
+        this.ctx.shadowBlur = isActive ? 18 : 0;
+        this.ctx.shadowColor = isLeft ? 'rgba(82, 156, 255, 0.9)' : 'rgba(255, 163, 92, 0.9)';
+        this.ctx.fill();
+        this.ctx.lineWidth = isActive ? 2.4 : 1.5;
+        this.ctx.strokeStyle = isLeft ? 'rgba(128, 204, 255, 0.9)' : 'rgba(255, 201, 129, 0.9)';
+        this.ctx.stroke();
+        this.ctx.shadowBlur = 0;
+        this.ctx.fillStyle = isLeft ? '#dbeeff' : '#ffe4c2';
+        this.ctx.font = 'bold 11px sans-serif';
+        this.ctx.textAlign = 'center';
+        this.ctx.textBaseline = 'middle';
+        this.ctx.fillText(String(pairId), point.x, point.y + 0.5);
+      };
+
+      drawStrikeCircle(leftPoint, 'left');
+      drawStrikeCircle(rightPoint, 'right');
+    }
 
     this.ctx.restore();
   }

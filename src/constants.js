@@ -27,7 +27,7 @@ export const chapterDescriptions = [
   'Grundfiguren: Übe grundlegende Dirigierschläge und Bewegungsmuster.',
   'Dynamikebenen: Hier können die Grundfiguren mit verschiedenen Dynamikstufen für einzelne Zählzeiten geübt werden.',
   'Handunabhängigkeit: Übe die Unabhängigkeit deiner Hände durch unterschiedliche Bewegungsmuster in der linken und rechten Hand.',
-  'Einsätze geben: Platzhalter für zukünftige Einsatzübungen.',
+  'Einsätze geben: Übe mit einer Hand eine Grundfigur und mit der anderen Hand das Geben von Einsätzen. Die nummerierten Kreise stellen die Zählzeiten dar. Berühre sie im richtigen Moment, beim Ausführen der Grundfigur. Die vier Quadrate sind die Einsatzfelder, die du mit der Hand berühren musst, um den Einsatz zu geben.',
   'Prüfungen: Hier werden deine Fortschritte geprüft und bewertet.'
 ];
 
@@ -38,8 +38,8 @@ export const levelTitles = [
   ['Einserfigur', 'Zweierfigur', 'Dreierfigur', 'Viererfigur', 'Fünferfigur', 'Sechserfigur', 'Siebenerfigur'],
   ['Einsertakt', 'Zweiertakt', 'Dreiertakt', 'Vierertakt'],
   ['Preset 1', 'Preset 2', 'Preset 3', 'Preset 4', 'Preset 5', 'Preset 6', 'Preset 7', 'Preset 8'],
-  ['Lehrübung 1', 'Lehrübung 2', 'Lehrübung 3', 'Lehrübung 4', 'Lehrübung 5'],
-  ['Lehrübung 1', 'Lehrübung 2', 'Lehrübung 3', 'Lehrübung 4', 'Lehrübung 5']
+  ['Preset 1', 'Preset 2', 'Preset 3', 'Preset 4', 'Preset 5'],
+  ['Preset 1', 'Preset 2', 'Preset 3', 'Preset 4', 'Preset 5']
 ];
 
 export const levelDescriptions = [
@@ -80,18 +80,18 @@ export const levelDescriptions = [
   ],
   ['Preset 1', 'Preset 2', 'Preset 3', 'Preset 4', 'Preset 5', 'Preset 6', 'Preset 7', 'Preset 8'],
   [
-    'Lehrübung 1: Platzhalter für Einsatzübungen ohne Zuordnung zu Grundfiguren.',
-    'Lehrübung 2: Platzhalter für Einsatzübungen ohne Zuordnung zu Grundfiguren.',
-    'Lehrübung 3: Platzhalter für Einsatzübungen ohne Zuordnung zu Grundfiguren.',
-    'Lehrübung 4: Platzhalter für Einsatzübungen ohne Zuordnung zu Grundfiguren.',
-    'Lehrübung 5: Platzhalter für Einsatzübungen ohne Zuordnung zu Grundfiguren.'
+    'Preset 1: Konfiguriere die Einsatzfelder und Speichere die Einstellungen für die erste Übung.',
+    'Preset 2: Konfiguriere die Einsatzfelder und Speichere die Einstellungen für die zweite Übung.',
+    'Preset 3: Konfiguriere die Einsatzfelder und Speichere die Einstellungen für die dritte Übung.',
+    'Preset 4: Konfiguriere die Einsatzfelder und Speichere die Einstellungen für die vierte Übung.',
+    'Preset 5: Konfiguriere die Einsatzfelder und Speichere die Einstellungen für die fünfte Übung.'
   ],
   [
-    'Lehrübung 1: Platzhalter für Prüfungsaufgaben ohne Zuordnung zu Grundfiguren.',
-    'Lehrübung 2: Platzhalter für Prüfungsaufgaben ohne Zuordnung zu Grundfiguren.',
-    'Lehrübung 3: Platzhalter für Prüfungsaufgaben ohne Zuordnung zu Grundfiguren.',
-    'Lehrübung 4: Platzhalter für Prüfungsaufgaben ohne Zuordnung zu Grundfiguren.',
-    'Lehrübung 5: Platzhalter für Prüfungsaufgaben ohne Zuordnung zu Grundfiguren.'
+    'Preset 1: Konfiguriere die Einsatzfelder und speichere die Einstellungen für die erste Übung.',
+    'Preset 2: Konfiguriere die Einsatzfelder und speichere die Einstellungen für die zweite Übung.',
+    'Preset 3: Konfiguriere die Einsatzfelder und speichere die Einstellungen für die dritte Übung.',
+    'Preset 4: Konfiguriere die Einsatzfelder und speichere die Einstellungen für die vierte Übung.',
+    'Preset 5: Konfiguriere die Einsatzfelder und speichere die Einstellungen für die fünfte Übung.'
   ]
 ];
 
@@ -241,6 +241,16 @@ export const uiElementDescriptions = {
     Gegensatz: 'Stellt die Form für die zweite Hand ein, die eine gegensätzliche Form zur ersten Hand darstellt. Die erste Hand ist die Taktgebung, die zweite Hand ist die Handunabhängigkeit.',
     Länge: 'Stellt die Länge der Gegensatzfigur ein.',
     Rotation: 'Stellt die Rotation der Gegensatzfigur ein.',
+  },
+  'Einsätze geben': {
+    Einsatzfelder: 'Aktiviert oder deaktiviert die Einsatzfelder für die Übung.',
+    'Grösse Einsatzfeld': 'Stellt die Größe der vier Einsatzfelder ein.',
+    xOffset: 'Stellt den horizontalen Abstand der Einsatzfelder zur Mitte ein.',
+    'Kreisgröße': 'Stellt die Größe der Kreise für die Zählzeiten ein.',
+    'Schlaganzahl': 'Stellt die Anzahl der Schläge pro Takt ein. Diese werden durch die nummerierten Kreise dargestellt. Diese Kreise können mit der Maus verschoben werden. Dadurch können verschiedene Bewegungsmuster erstellt werden, die zum Beispiel orientiert an den Grundfiguren sind und unterschiedliche Dynamikebenen aufweisen. Die Bewegungsmuster können in den Presets gespeichert werden.',
+    'Seite': 'Stellt die Seite ein, auf der ein Einsatz gegeben werden soll. Der Einsatz wird im entsprechenden Einsatzfeld mit seiner Zählzeit angezeigt.',
+    'Position': 'Stellt die Position des Einsatzes ein. Zur Auswahl stehen oben oder unten. Der Einsatz wird im entsprechenden Einsatzfeld mit seiner Zählzeit angezeigt.',
+    'Einsatz': 'Stellt die Zählzeit ein, auf der der Einsatz gegeben werden soll.'
   }
 
 }

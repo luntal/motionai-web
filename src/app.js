@@ -1165,7 +1165,58 @@ function createExerciseFieldPanel() {
   const panel = document.createElement('aside');
   panel.className = 'figure-side-panel hidden exercise-field-panel';
   const storageKey = 'motionai.exercise-field-panel-settings';
+  const presetsKey = 'motionai.exercise-field-presets';
   let managerRef = null;
+
+  const sanitizeStrikeCount = (value) => {
+    const next = Number(value);
+    return [2, 3, 4].includes(next) ? next : 2;
+  };
+
+  const readPresetMap = () => {
+    try {
+      const stored = JSON.parse(localStorage.getItem(presetsKey) || '{}');
+      return stored && typeof stored === 'object' ? stored : {};
+    } catch (error) {
+      return {};
+    }
+  };
+
+  const sanitizeAssignmentBeat = (value, strikeCount = 2) => {
+    const next = Number(value);
+    const normalized = [2, 3, 4].includes(Number(strikeCount)) ? Number(strikeCount) : 2;
+    if (!Number.isFinite(next)) {
+      return 1;
+    }
+    return Math.max(1, Math.min(normalized, Math.round(next)));
+  };
+
+  const sanitizeExerciseFieldStrikePositions = (value) => {
+    const next = value && typeof value === 'object' ? value : { left: [], right: [] };
+    const left = Array.isArray(next.left) ? next.left : [];
+    const right = Array.isArray(next.right) ? next.right : [];
+    const count = Math.max(2, Math.min(4, left.length || right.length || 2));
+    const normalizePoint = (point, fallbackX = 0, fallbackY = 0) => ({
+      x: Number.isFinite(Number(point && point.x)) ? Number(point.x) : fallbackX,
+      y: Number.isFinite(Number(point && point.y)) ? Number(point.y) : fallbackY
+    });
+
+    return {
+      left: Array.from({ length: count }, (_, index) => normalizePoint(left[index], 0, 0)),
+      right: Array.from({ length: count }, (_, index) => normalizePoint(right[index], 0, 0))
+    };
+  };
+
+  const EXERCISE_FIELD_STRIKE_RADIUS_MIN = 20;
+  const EXERCISE_FIELD_STRIKE_RADIUS_MAX = 60;
+
+  const clampExerciseFieldStrikeRadius = (value) => {
+    const next = Number(value);
+    if (!Number.isFinite(next)) {
+      return EXERCISE_FIELD_STRIKE_RADIUS_MIN;
+    }
+    return Math.min(EXERCISE_FIELD_STRIKE_RADIUS_MAX, Math.max(EXERCISE_FIELD_STRIKE_RADIUS_MIN, next));
+  };
 
   const readSavedSettings = () => {
     try {
@@ -1173,26 +1224,139 @@ function createExerciseFieldPanel() {
       const enabled = stored.enabled;
       const scale = Number(stored.scale);
       const xOffset = Number(stored.xOffset);
+      const strikeCount = Number(stored.strikeCount);
+      const strikeRadius = Number(stored.strikeRadius);
+      const fieldSide = stored.fieldSide === 'right' ? 'right' : 'left';
+      const fieldVertical = stored.fieldVertical === 'bottom' ? 'bottom' : 'top';
+      const fieldBeat = sanitizeAssignmentBeat(stored.fieldBeat, strikeCount || 2);
       return {
         enabled: typeof enabled === 'boolean' ? enabled : true,
         scale: Number.isFinite(scale) ? Math.min(1.25, Math.max(0.25, scale)) : 1,
-        xOffset: Number.isFinite(xOffset) ? Math.min(1, Math.max(0, xOffset)) : 0
+        xOffset: Number.isFinite(xOffset) ? Math.min(1, Math.max(0, xOffset)) : 0,
+        strikeCount: sanitizeStrikeCount(strikeCount),
+        strikeRadius: clampExerciseFieldStrikeRadius(strikeRadius),
+        fieldSide,
+        fieldVertical,
+        fieldBeat,
+        strikePositions: sanitizeExerciseFieldStrikePositions(stored.strikePositions)
       };
     } catch (error) {
-      return { enabled: true, scale: 1, xOffset: 0 };
+      return { enabled: true, scale: 1, xOffset: 0, strikeCount: 2, strikeRadius: EXERCISE_FIELD_STRIKE_RADIUS_MIN, fieldSide: 'left', fieldVertical: 'top', fieldBeat: 1, strikePositions: { left: [], right: [] } };
     }
   };
 
+  const getCurrentState = () => ({
+    enabled: Boolean(toggleInput.checked),
+    scale: Number(sizeSlider.value),
+    xOffset: Number(xOffsetSlider.value),
+    strikeCount: sanitizeStrikeCount(strikeCountInputs.find((input) => input.checked)?.value ?? 2),
+    strikeRadius: Number(circleSizeSlider.value),
+    fieldSide: fieldSideInputs.find((input) => input.checked)?.value || 'left',
+    fieldVertical: fieldVerticalInputs.find((input) => input.checked)?.value || 'top',
+    fieldBeat: sanitizeAssignmentBeat(fieldBeatInputs.find((input) => input.checked)?.value ?? 1, sanitizeStrikeCount(strikeCountInputs.find((input) => input.checked)?.value ?? 2)),
+    strikePositions: managerRef && managerRef.exerciseFieldStrikePositions ? {
+      left: (managerRef.exerciseFieldStrikePositions.left || []).map((point) => ({ x: Number(point.x), y: Number(point.y) })),
+      right: (managerRef.exerciseFieldStrikePositions.right || []).map((point) => ({ x: Number(point.x), y: Number(point.y) }))
+    } : { left: [], right: [] }
+  });
+
   const saveSettings = () => {
     try {
-      localStorage.setItem(storageKey, JSON.stringify({
-        enabled: Boolean(toggleInput.checked),
-        scale: Number(sizeSlider.value),
-        xOffset: Number(xOffsetSlider.value)
-      }));
+      localStorage.setItem(storageKey, JSON.stringify(getCurrentState()));
     } catch (error) {
       // no-op: localStorage limits or privacy modes may block this safely
     }
+  };
+
+  const syncCircleSliderRange = () => {
+    circleSizeSlider.min = String(EXERCISE_FIELD_STRIKE_RADIUS_MIN);
+    circleSizeSlider.max = String(EXERCISE_FIELD_STRIKE_RADIUS_MAX);
+  };
+
+  const syncAssignmentBeatInputs = (strikeCount) => {
+    const normalizedStrikeCount = sanitizeStrikeCount(strikeCount);
+    const selectedBeat = sanitizeAssignmentBeat(
+      fieldBeatInputs.find((input) => input.checked)?.value ?? 1,
+      normalizedStrikeCount
+    );
+
+    fieldBeatGroup.innerHTML = '';
+    fieldBeatInputs.length = 0;
+
+    for (let value = 1; value <= normalizedStrikeCount; value += 1) {
+      const option = document.createElement('label');
+      option.className = 'figure-mode-option';
+      const input = document.createElement('input');
+      input.type = 'radio';
+      input.name = 'exercise-field-assignment-beat';
+      input.value = String(value);
+      input.checked = value === selectedBeat;
+      option.appendChild(input);
+      option.appendChild(document.createTextNode(String(value)));
+      fieldBeatGroup.appendChild(option);
+      fieldBeatInputs.push(input);
+
+      input.addEventListener('change', () => {
+        if (!input.checked) {
+          return;
+        }
+        managerRef?.setExerciseFieldAssignment?.({
+          side: fieldSideInputs.find((item) => item.checked)?.value || 'left',
+          vertical: fieldVerticalInputs.find((item) => item.checked)?.value || 'top',
+          beatIndex: sanitizeAssignmentBeat(input.value, sanitizeStrikeCount(strikeCountInputs.find((item) => item.checked)?.value ?? 2))
+        });
+        saveSettings();
+      });
+      bindUiDescription(option, 'Einsätze geben', 'Einsatz');
+      bindUiDescription(input, 'Einsätze geben', 'Einsatz');
+    }
+  };
+
+  const setControlsFromState = (state) => {
+    const safeState = state && typeof state === 'object' ? state : {};
+    const enabled = typeof safeState.enabled === 'boolean' ? safeState.enabled : true;
+    const scale = Number.isFinite(Number(safeState.scale)) ? Number(safeState.scale) : 1;
+    const xOffset = Number.isFinite(Number(safeState.xOffset)) ? Number(safeState.xOffset) : 0;
+    const strikeCount = sanitizeStrikeCount(safeState.strikeCount ?? 2);
+    const strikeRadius = clampExerciseFieldStrikeRadius(safeState.strikeRadius ?? EXERCISE_FIELD_STRIKE_RADIUS_MIN);
+    const fieldSide = safeState.fieldSide === 'right' ? 'right' : 'left';
+    const fieldVertical = safeState.fieldVertical === 'bottom' ? 'bottom' : 'top';
+    const fieldBeat = sanitizeAssignmentBeat(safeState.fieldBeat ?? 1, strikeCount);
+    const strikePositions = sanitizeExerciseFieldStrikePositions(safeState.strikePositions);
+
+    toggleInput.checked = Boolean(enabled);
+    sizeSlider.value = String(Math.min(1.25, Math.max(0.25, scale)));
+    xOffsetSlider.value = String(Math.min(1, Math.max(0, xOffset)));
+    syncCircleSliderRange();
+    circleSizeSlider.value = String(clampExerciseFieldStrikeRadius(strikeRadius));
+    strikeCountInputs.forEach((input) => {
+      input.checked = Number(input.value) === strikeCount;
+    });
+    syncAssignmentBeatInputs(strikeCount);
+    fieldSideInputs.forEach((input) => {
+      input.checked = input.value === fieldSide;
+    });
+    fieldVerticalInputs.forEach((input) => {
+      input.checked = input.value === fieldVertical;
+    });
+    fieldBeatInputs.forEach((input) => {
+      input.checked = Number(input.value) === fieldBeat;
+    });
+    updateSizeValue();
+    updateXOffsetValue();
+    updateCircleSizeValue();
+
+    managerRef?.setExerciseFieldVisible?.(Boolean(enabled));
+    managerRef?.setExerciseFieldScale?.(Number(sizeSlider.value));
+    managerRef?.setExerciseFieldXOffset?.(Number(xOffsetSlider.value));
+    managerRef?.setExerciseFieldStrikeCount?.(strikeCount);
+    managerRef?.setExerciseFieldStrikeRadius?.(Number(circleSizeSlider.value));
+    managerRef?.setExerciseFieldAssignment?.({
+      side: fieldSide,
+      vertical: fieldVertical,
+      beatIndex: fieldBeat
+    });
+    managerRef?.setExerciseFieldStrikePositions?.(strikePositions);
   };
 
   const title = document.createElement('div');
@@ -1209,13 +1373,14 @@ function createExerciseFieldPanel() {
   toggleWrap.appendChild(toggleInput);
   toggleWrap.appendChild(toggleLabel);
   panel.appendChild(toggleWrap);
+  bindUiDescription(toggleInput, 'Einsätze geben', 'Einsatzfelder');
 
   const sizeWrap = document.createElement('div');
   sizeWrap.className = 'figure-size-wrap';
 
   const sizeLabel = document.createElement('div');
   sizeLabel.className = 'figure-size-label';
-  sizeLabel.textContent = 'Größe';
+  sizeLabel.textContent = 'Grösse Einsatzfeld';
 
   const sizeSlider = document.createElement('input');
   sizeSlider.type = 'range';
@@ -1232,6 +1397,8 @@ function createExerciseFieldPanel() {
   sizeWrap.appendChild(sizeSlider);
   sizeWrap.appendChild(sizeValue);
   panel.appendChild(sizeWrap);
+  bindUiDescription(sizeLabel, 'Einsätze geben', 'Grösse Einsatzfeld');
+  bindUiDescription(sizeSlider, 'Einsätze geben', 'Grösse Einsatzfeld');
 
   const xOffsetWrap = document.createElement('div');
   xOffsetWrap.className = 'figure-size-wrap';
@@ -1255,11 +1422,132 @@ function createExerciseFieldPanel() {
   xOffsetWrap.appendChild(xOffsetSlider);
   xOffsetWrap.appendChild(xOffsetValue);
   panel.appendChild(xOffsetWrap);
+  bindUiDescription(xOffsetLabel, 'Einsätze geben', 'xOffset');
+  bindUiDescription(xOffsetSlider, 'Einsätze geben', 'xOffset');
 
-  const info = document.createElement('div');
-  info.className = 'exercise-field-info';
-  info.textContent = 'Die Felder orientieren sich an der aktiven Kalibrierung und leuchten, sobald eine Hand in das passende Feld gelangt.';
-  panel.appendChild(info);
+  const circleSizeWrap = document.createElement('div');
+  circleSizeWrap.className = 'figure-size-wrap';
+
+  const circleSizeLabel = document.createElement('div');
+  circleSizeLabel.className = 'figure-size-label';
+  circleSizeLabel.textContent = 'Kreisgröße';
+
+  const currentCircleRadius = clampExerciseFieldStrikeRadius(readSavedSettings().strikeRadius ?? EXERCISE_FIELD_STRIKE_RADIUS_MIN);
+  const circleSizeSlider = document.createElement('input');
+  circleSizeSlider.type = 'range';
+  circleSizeSlider.min = String(EXERCISE_FIELD_STRIKE_RADIUS_MIN);
+  circleSizeSlider.max = String(EXERCISE_FIELD_STRIKE_RADIUS_MAX);
+  circleSizeSlider.step = '1';
+  circleSizeSlider.value = String(currentCircleRadius);
+
+  const circleSizeValue = document.createElement('div');
+  circleSizeValue.className = 'figure-size-value';
+  circleSizeValue.textContent = `${currentCircleRadius}px`;
+
+  circleSizeWrap.appendChild(circleSizeLabel);
+  circleSizeWrap.appendChild(circleSizeSlider);
+  circleSizeWrap.appendChild(circleSizeValue);
+  panel.appendChild(circleSizeWrap);
+  bindUiDescription(circleSizeLabel, 'Einsätze geben', 'Kreisgröße');
+  bindUiDescription(circleSizeSlider, 'Einsätze geben', 'Kreisgröße');
+
+  const strikeCountWrap = document.createElement('div');
+  strikeCountWrap.className = 'figure-side-group';
+
+  const strikeCountTitle = document.createElement('div');
+  strikeCountTitle.className = 'figure-size-label';
+  strikeCountTitle.textContent = 'Schlaganzahl';
+  strikeCountWrap.appendChild(strikeCountTitle);
+
+  const strikeCountGroup = document.createElement('div');
+  strikeCountGroup.className = 'figure-mode-group';
+  const strikeCountInputs = [2, 3, 4].map((value) => {
+    const option = document.createElement('label');
+    option.className = 'figure-mode-option';
+    const input = document.createElement('input');
+    input.type = 'radio';
+    input.name = 'exercise-field-strike-count';
+    input.value = String(value);
+    input.checked = sanitizeStrikeCount(readSavedSettings().strikeCount) === value;
+    option.appendChild(input);
+    option.appendChild(document.createTextNode(String(value)));
+    strikeCountGroup.appendChild(option);
+    return input;
+  });
+  strikeCountWrap.appendChild(strikeCountGroup);
+  panel.appendChild(strikeCountWrap);
+  bindUiDescription(strikeCountTitle, 'Einsätze geben', 'Schlaganzahl');
+  strikeCountInputs.forEach((input) => bindUiDescription(input, 'Einsätze geben', 'Schlaganzahl'));
+  bindUiGroupDescription([...strikeCountGroup.querySelectorAll('label, input')], 'Einsätze geben', 'Schlaganzahl');
+
+  const fieldSideWrap = document.createElement('div');
+  fieldSideWrap.className = 'figure-side-group';
+  const fieldSideTitle = document.createElement('div');
+  fieldSideTitle.className = 'figure-size-label';
+  fieldSideTitle.textContent = 'Seite';
+  fieldSideWrap.appendChild(fieldSideTitle);
+  const fieldSideGroup = document.createElement('div');
+  fieldSideGroup.className = 'figure-mode-group';
+  const fieldSideInputs = ['left', 'right'].map((value) => {
+    const option = document.createElement('label');
+    option.className = 'figure-mode-option';
+    const input = document.createElement('input');
+    input.type = 'radio';
+    input.name = 'exercise-field-side';
+    input.value = value;
+    input.checked = (readSavedSettings().fieldSide || 'left') === value;
+    option.appendChild(input);
+    option.appendChild(document.createTextNode(value === 'left' ? 'links' : 'rechts'));
+    fieldSideGroup.appendChild(option);
+    return input;
+  });
+  fieldSideWrap.appendChild(fieldSideGroup);
+  panel.appendChild(fieldSideWrap);
+  bindUiDescription(fieldSideTitle, 'Einsätze geben', 'Seite');
+  fieldSideInputs.forEach((input) => bindUiDescription(input, 'Einsätze geben', 'Seite'));
+  bindUiGroupDescription([...fieldSideGroup.querySelectorAll('label, input')], 'Einsätze geben', 'Seite');
+
+  const fieldVerticalWrap = document.createElement('div');
+  fieldVerticalWrap.className = 'figure-side-group';
+  const fieldVerticalTitle = document.createElement('div');
+  fieldVerticalTitle.className = 'figure-size-label';
+  fieldVerticalTitle.textContent = 'Position';
+  fieldVerticalWrap.appendChild(fieldVerticalTitle);
+  const fieldVerticalGroup = document.createElement('div');
+  fieldVerticalGroup.className = 'figure-mode-group';
+  const fieldVerticalInputs = ['top', 'bottom'].map((value) => {
+    const option = document.createElement('label');
+    option.className = 'figure-mode-option';
+    const input = document.createElement('input');
+    input.type = 'radio';
+    input.name = 'exercise-field-vertical';
+    input.value = value;
+    input.checked = (readSavedSettings().fieldVertical || 'top') === value;
+    option.appendChild(input);
+    option.appendChild(document.createTextNode(value === 'top' ? 'oben' : 'unten'));
+    fieldVerticalGroup.appendChild(option);
+    return input;
+  });
+  fieldVerticalWrap.appendChild(fieldVerticalGroup);
+  panel.appendChild(fieldVerticalWrap);
+  bindUiDescription(fieldVerticalTitle, 'Einsätze geben', 'Position');
+  fieldVerticalInputs.forEach((input) => bindUiDescription(input, 'Einsätze geben', 'Position'));
+  bindUiGroupDescription([...fieldVerticalGroup.querySelectorAll('label, input')], 'Einsätze geben', 'Position');
+
+  const fieldBeatWrap = document.createElement('div');
+  fieldBeatWrap.className = 'figure-side-group';
+  const fieldBeatTitle = document.createElement('div');
+  fieldBeatTitle.className = 'figure-size-label';
+  fieldBeatTitle.textContent = 'Einsatz';
+  fieldBeatWrap.appendChild(fieldBeatTitle);
+  const fieldBeatGroup = document.createElement('div');
+  fieldBeatGroup.className = 'figure-mode-group';
+  const fieldBeatInputs = [];
+  fieldBeatWrap.appendChild(fieldBeatGroup);
+  panel.appendChild(fieldBeatWrap);
+  bindUiDescription(fieldBeatTitle, 'Einsätze geben', 'Einsatz');
+  bindUiGroupDescription([...fieldBeatGroup.querySelectorAll('label, input')], 'Einsätze geben', 'Einsatz');
+  syncAssignmentBeatInputs(readSavedSettings().strikeCount || 2);
 
   const updateSizeValue = () => {
     const next = Number(sizeSlider.value);
@@ -1269,6 +1557,11 @@ function createExerciseFieldPanel() {
   const updateXOffsetValue = () => {
     const next = Number(xOffsetSlider.value);
     xOffsetValue.textContent = Number.isFinite(next) ? next.toFixed(2) : '0.00';
+  };
+
+  const updateCircleSizeValue = () => {
+    const next = Number(circleSizeSlider.value);
+    circleSizeValue.textContent = Number.isFinite(next) ? `${Math.round(next)}px` : '12px';
   };
 
   toggleInput.addEventListener('change', () => {
@@ -1289,6 +1582,179 @@ function createExerciseFieldPanel() {
     saveSettings();
   });
 
+  circleSizeSlider.addEventListener('input', () => {
+    const minimum = EXERCISE_FIELD_STRIKE_RADIUS_MIN;
+    const maximum = EXERCISE_FIELD_STRIKE_RADIUS_MAX;
+    const currentValue = Number(circleSizeSlider.value);
+    const nextValue = Math.min(maximum, Math.max(minimum, currentValue));
+    circleSizeSlider.value = String(nextValue);
+    updateCircleSizeValue();
+    managerRef?.setExerciseFieldStrikeRadius?.(nextValue);
+    saveSettings();
+  });
+
+  strikeCountInputs.forEach((input) => {
+    input.addEventListener('change', () => {
+      if (!input.checked) {
+        return;
+      }
+      const nextValue = sanitizeStrikeCount(input.value);
+      syncAssignmentBeatInputs(nextValue);
+      const activeBeat = sanitizeAssignmentBeat(
+        fieldBeatInputs.find((item) => item.checked)?.value ?? 1,
+        nextValue
+      );
+      managerRef?.setExerciseFieldStrikeCount?.(nextValue);
+      managerRef?.setExerciseFieldAssignment?.({
+        side: fieldSideInputs.find((item) => item.checked)?.value || 'left',
+        vertical: fieldVerticalInputs.find((item) => item.checked)?.value || 'top',
+        beatIndex: activeBeat
+      });
+      saveSettings();
+    });
+  });
+
+  fieldSideInputs.forEach((input) => {
+    input.addEventListener('change', () => {
+      if (!input.checked) {
+        return;
+      }
+      managerRef?.setExerciseFieldAssignment?.({
+        side: input.value,
+        vertical: fieldVerticalInputs.find((item) => item.checked)?.value || 'top',
+        beatIndex: sanitizeAssignmentBeat(fieldBeatInputs.find((item) => item.checked)?.value ?? 1, sanitizeStrikeCount(strikeCountInputs.find((item) => item.checked)?.value ?? 2))
+      });
+      saveSettings();
+    });
+  });
+
+  fieldVerticalInputs.forEach((input) => {
+    input.addEventListener('change', () => {
+      if (!input.checked) {
+        return;
+      }
+      managerRef?.setExerciseFieldAssignment?.({
+        side: fieldSideInputs.find((item) => item.checked)?.value || 'left',
+        vertical: input.value,
+        beatIndex: sanitizeAssignmentBeat(fieldBeatInputs.find((item) => item.checked)?.value ?? 1, sanitizeStrikeCount(strikeCountInputs.find((item) => item.checked)?.value ?? 2))
+      });
+      saveSettings();
+    });
+  });
+
+  const applyPreset = (slot) => {
+    const normalizedSlot = Number(slot);
+    const presetIndex = Number.isInteger(normalizedSlot) && normalizedSlot >= 0 && normalizedSlot <= 4
+      ? normalizedSlot
+      : 0;
+    const presets = readPresetMap();
+    const preset = presets[String(presetIndex)] || {};
+    const currentSettings = readSavedSettings();
+    const savedStrikePositions = sanitizeExerciseFieldStrikePositions(preset.strikePositions ?? currentSettings.strikePositions);
+    const nextState = {
+      enabled: typeof preset.enabled === 'boolean' ? preset.enabled : currentSettings.enabled,
+      scale: Number.isFinite(Number(preset.scale)) ? Number(preset.scale) : currentSettings.scale,
+      xOffset: Number.isFinite(Number(preset.xOffset)) ? Number(preset.xOffset) : currentSettings.xOffset,
+      strikeCount: sanitizeStrikeCount(preset.strikeCount ?? currentSettings.strikeCount),
+      strikeRadius: Number.isFinite(Number(preset.strikeRadius)) ? Number(preset.strikeRadius) : currentSettings.strikeRadius,
+      fieldSide: preset.fieldSide === 'right' ? 'right' : 'left',
+      fieldVertical: preset.fieldVertical === 'bottom' ? 'bottom' : 'top',
+      fieldBeat: sanitizeAssignmentBeat(preset.fieldBeat ?? currentSettings.fieldBeat, sanitizeStrikeCount(preset.strikeCount ?? currentSettings.strikeCount)),
+      strikePositions: savedStrikePositions
+    };
+
+    console.group(`Exercise Field preset ${presetIndex}`);
+    console.log('saved preset state:', JSON.parse(JSON.stringify(preset)));
+    console.log('saved strike positions from preset:', JSON.parse(JSON.stringify(savedStrikePositions)));
+    console.log('before restore rendered positions:', JSON.parse(JSON.stringify(managerRef?.exerciseFieldStrikePositions || { left: [], right: [] })));
+
+    setControlsFromState(nextState);
+
+    const renderedPositions = managerRef?.exerciseFieldStrikePositions || { left: [], right: [] };
+    console.log('after restore rendered positions:', JSON.parse(JSON.stringify(renderedPositions)));
+    console.log('after restore current state positions:', JSON.parse(JSON.stringify(getCurrentState().strikePositions)));
+    console.groupEnd();
+    return true;
+  };
+
+  const savePresetFromPrompt = () => {
+    const requestedSlot = window.prompt('In welchen Preset-Slot möchten Sie die aktuellen Einstellungen speichern? (1-5)');
+    const slot = Number(requestedSlot);
+    if (!Number.isInteger(slot) || slot < 1 || slot > 5) {
+      return null;
+    }
+
+    const presetIndex = slot - 1;
+    const presets = readPresetMap();
+    presets[String(presetIndex)] = getCurrentState();
+    localStorage.setItem(presetsKey, JSON.stringify(presets));
+    return presetIndex;
+  };
+
+  const resetPresets = async () => {
+    const confirmed = window.confirm('Möchtest du die Presets für das Kapitel „Einsätze geben“ wirklich auf die Werkseinstellungen zurücksetzen?');
+    if (!confirmed) {
+      return false;
+    }
+
+    try {
+      const response = await fetch('./motionai-defaults.json', { cache: 'no-store' });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const json = await response.json();
+      const defaults = json && typeof json === 'object' ? json : {};
+      const nextPanelSettings = defaults['motionai.exercise-field-panel-settings'] || {
+        enabled: true,
+        scale: 1,
+        xOffset: 0,
+        strikeCount: 2,
+        strikeRadius: 12,
+        fieldSide: 'left',
+        fieldVertical: 'top',
+        fieldBeat: 1
+      };
+      const nextPresets = defaults['motionai.exercise-field-presets'] || {};
+      const defaultPresetState = nextPresets[String(0)] || nextPanelSettings;
+
+      localStorage.setItem(storageKey, JSON.stringify({
+        enabled: typeof nextPanelSettings.enabled === 'boolean' ? nextPanelSettings.enabled : true,
+        scale: Number.isFinite(Number(nextPanelSettings.scale)) ? Number(nextPanelSettings.scale) : 1,
+        xOffset: Number.isFinite(Number(nextPanelSettings.xOffset)) ? Number(nextPanelSettings.xOffset) : 0,
+        strikeCount: sanitizeStrikeCount(nextPanelSettings.strikeCount ?? 2),
+        strikeRadius: Number.isFinite(Number(nextPanelSettings.strikeRadius)) ? Number(nextPanelSettings.strikeRadius) : 12,
+        fieldSide: nextPanelSettings.fieldSide === 'right' ? 'right' : 'left',
+        fieldVertical: nextPanelSettings.fieldVertical === 'bottom' ? 'bottom' : 'top',
+        fieldBeat: sanitizeAssignmentBeat(nextPanelSettings.fieldBeat ?? 1, sanitizeStrikeCount(nextPanelSettings.strikeCount ?? 2))
+      }));
+      localStorage.setItem(presetsKey, JSON.stringify(nextPresets));
+
+      const activePresetIndex = Number.isInteger(uiState?.activeLevel) && uiState.activeLevel >= 0 && uiState.activeLevel <= 4
+        ? uiState.activeLevel
+        : 0;
+      const activePreset = nextPresets[String(activePresetIndex)] || defaultPresetState || {};
+      setControlsFromState({
+        enabled: typeof activePreset.enabled === 'boolean' ? activePreset.enabled : true,
+        scale: Number.isFinite(Number(activePreset.scale)) ? Number(activePreset.scale) : 1,
+        xOffset: Number.isFinite(Number(activePreset.xOffset)) ? Number(activePreset.xOffset) : 0,
+        strikeCount: sanitizeStrikeCount(activePreset.strikeCount ?? 2),
+        strikeRadius: Number.isFinite(Number(activePreset.strikeRadius)) ? Number(activePreset.strikeRadius) : 12,
+        fieldSide: activePreset.fieldSide === 'right' ? 'right' : 'left',
+        fieldVertical: activePreset.fieldVertical === 'bottom' ? 'bottom' : 'top',
+        fieldBeat: sanitizeAssignmentBeat(activePreset.fieldBeat ?? 1, sanitizeStrikeCount(activePreset.strikeCount ?? 2)),
+        strikePositions: sanitizeExerciseFieldStrikePositions(activePreset.strikePositions || {})
+      });
+      applyPreset(activePresetIndex);
+      window.alert('Die Presets für das Kapitel „Einsätze geben“ wurden auf die Werkseinstellungen zurückgesetzt.');
+      return true;
+    } catch (error) {
+      console.error('Failed to load exercise field defaults:', error);
+      window.alert('Die Werkseinstellungen für das Kapitel „Einsätze geben“ konnten nicht geladen werden.');
+      return false;
+    }
+  };
+
   attachPanelHoverHelp(panel);
 
   return {
@@ -1306,12 +1772,35 @@ function createExerciseFieldPanel() {
       const restoredScale = Number.isFinite(savedSettings.scale) ? savedSettings.scale : 1;
       const restoredOffset = Number.isFinite(savedSettings.xOffset) ? savedSettings.xOffset : 0;
       const restoredEnabled = typeof savedSettings.enabled === 'boolean' ? savedSettings.enabled : true;
+      const restoredStrikeCount = sanitizeStrikeCount(savedSettings.strikeCount ?? 2);
+      const restoredStrikeRadius = clampExerciseFieldStrikeRadius(savedSettings.strikeRadius ?? EXERCISE_FIELD_STRIKE_RADIUS_MIN);
+      const restoredFieldSide = savedSettings.fieldSide === 'right' ? 'right' : 'left';
+      const restoredFieldVertical = savedSettings.fieldVertical === 'bottom' ? 'bottom' : 'top';
+      const restoredFieldBeat = sanitizeAssignmentBeat(savedSettings.fieldBeat, restoredStrikeCount);
 
-      managerRef.exerciseFieldScale = Math.min(1.25, Math.max(0.25, Number(managerRef.exerciseFieldScale) || restoredScale));
-      managerRef.exerciseFieldXOffset = Math.min(1, Math.max(0, Number(managerRef.exerciseFieldXOffset) || restoredOffset));
-      managerRef.exerciseFieldVisible = typeof managerRef.exerciseFieldVisible === 'boolean'
+      const liveExerciseFieldScale = Number.isFinite(Number(managerRef.exerciseFieldScale))
+        ? Number(managerRef.exerciseFieldScale)
+        : restoredScale;
+      const liveExerciseFieldXOffset = Number.isFinite(Number(managerRef.exerciseFieldXOffset))
+        ? Number(managerRef.exerciseFieldXOffset)
+        : restoredOffset;
+      const liveExerciseFieldVisible = typeof managerRef.exerciseFieldVisible === 'boolean'
         ? managerRef.exerciseFieldVisible
         : restoredEnabled;
+      const liveExerciseFieldStrikeRadius = clampExerciseFieldStrikeRadius(Number.isFinite(Number(managerRef.exerciseFieldStrikeRadius))
+        ? Number(managerRef.exerciseFieldStrikeRadius)
+        : restoredStrikeRadius);
+
+      managerRef.setExerciseFieldScale?.(Math.min(1.25, Math.max(0.25, liveExerciseFieldScale)));
+      managerRef.setExerciseFieldXOffset?.(Math.min(1, Math.max(0, liveExerciseFieldXOffset)));
+      managerRef.setExerciseFieldVisible?.(liveExerciseFieldVisible);
+      managerRef.setExerciseFieldStrikeCount?.(restoredStrikeCount);
+      managerRef.setExerciseFieldStrikeRadius?.(liveExerciseFieldStrikeRadius);
+      managerRef.setExerciseFieldAssignment?.({
+        side: restoredFieldSide,
+        vertical: restoredFieldVertical,
+        beatIndex: restoredFieldBeat
+      });
 
       const value = Number.isFinite(Number(savedSettings.scale))
         ? Number(savedSettings.scale)
@@ -1322,15 +1811,40 @@ function createExerciseFieldPanel() {
       const offset = Number.isFinite(Number(savedSettings.xOffset))
         ? Number(savedSettings.xOffset)
         : Number(managerRef.exerciseFieldXOffset);
+      const strikeRadiusValue = clampExerciseFieldStrikeRadius(Number.isFinite(Number(savedSettings.strikeRadius)) ? Number(savedSettings.strikeRadius) : Number(managerRef.exerciseFieldStrikeRadius));
 
       sizeSlider.value = String(Math.min(1.25, Math.max(0.25, value)));
       updateSizeValue();
       xOffsetSlider.value = String(Math.min(1, Math.max(0, offset)));
       updateXOffsetValue();
+      syncCircleSliderRange();
+      circleSizeSlider.value = String(clampExerciseFieldStrikeRadius(strikeRadiusValue));
+      updateCircleSizeValue();
       toggleInput.checked = Boolean(enabled);
+      strikeCountInputs.forEach((input) => {
+        input.checked = Number(input.value) === restoredStrikeCount;
+      });
+      syncAssignmentBeatInputs(restoredStrikeCount);
+      fieldSideInputs.forEach((input) => {
+        input.checked = input.value === restoredFieldSide;
+      });
+      fieldVerticalInputs.forEach((input) => {
+        input.checked = input.value === restoredFieldVertical;
+      });
+      fieldBeatInputs.forEach((input) => {
+        input.checked = Number(input.value) === restoredFieldBeat;
+      });
       managerRef.setExerciseFieldScale?.(Number(sizeSlider.value));
       managerRef.setExerciseFieldVisible?.(toggleInput.checked);
       managerRef.setExerciseFieldXOffset?.(Number(xOffsetSlider.value));
+      managerRef.setExerciseFieldStrikeCount?.(restoredStrikeCount);
+      managerRef.setExerciseFieldStrikeRadius?.(Number(circleSizeSlider.value));
+      managerRef.setExerciseFieldAssignment?.({
+        side: restoredFieldSide,
+        vertical: restoredFieldVertical,
+        beatIndex: restoredFieldBeat
+      });
+      managerRef.setExerciseFieldStrikePositions?.(savedSettings.strikePositions || { left: [], right: [] });
       saveSettings();
     },
     setToggle: (enabled) => {
@@ -1353,7 +1867,27 @@ function createExerciseFieldPanel() {
       updateXOffsetValue();
       managerRef?.setExerciseFieldXOffset?.(clamped);
       saveSettings();
-    }
+    },
+    setStrikeCount: (value) => {
+      const nextValue = sanitizeStrikeCount(value);
+      strikeCountInputs.forEach((input) => {
+        input.checked = Number(input.value) === nextValue;
+      });
+      managerRef?.setExerciseFieldStrikeCount?.(nextValue);
+      saveSettings();
+    },
+    setStrikeRadius: (value) => {
+      const nextValue = Number(value);
+      const clamped = clampExerciseFieldStrikeRadius(Number.isFinite(nextValue) ? nextValue : EXERCISE_FIELD_STRIKE_RADIUS_MIN);
+      syncCircleSliderRange();
+      circleSizeSlider.value = String(clamped);
+      updateCircleSizeValue();
+      managerRef?.setExerciseFieldStrikeRadius?.(clamped);
+      saveSettings();
+    },
+    applyPreset,
+    savePresetFromPrompt,
+    resetPresets
   };
 }
 
@@ -4229,7 +4763,7 @@ export function initApp() {
 
   const levelCanvas = document.createElement('canvas');
   levelCanvas.className = 'level-overlay';
-  levelCanvas.style.pointerEvents = 'none';
+  levelCanvas.style.pointerEvents = 'auto';
   levelCanvas.style.position = 'absolute';
   levelCanvas.style.left = '0';
   levelCanvas.style.top = '0';
@@ -4238,6 +4772,32 @@ export function initApp() {
   stageFrame.appendChild(levelCanvas);
 
   const levelManager = new LevelManager(levelCanvas);
+  levelCanvas.addEventListener('pointerdown', (event) => {
+    if (uiState.activeChapter !== 6 || uiState.activeLevel === null || !levelManager.exerciseFieldVisible) {
+      return;
+    }
+
+    const rect = levelCanvas.getBoundingClientRect();
+    const x = (event.clientX - rect.left) * (levelCanvas.width / rect.width);
+    const y = (event.clientY - rect.top) * (levelCanvas.height / rect.height);
+    const didDrag = levelManager.beginExerciseFieldDrag(x, y);
+    if (didDrag) {
+      event.preventDefault();
+    }
+  });
+  levelCanvas.addEventListener('pointermove', (event) => {
+    if (!levelManager.exerciseFieldDrag) {
+      return;
+    }
+
+    const rect = levelCanvas.getBoundingClientRect();
+    const x = (event.clientX - rect.left) * (levelCanvas.width / rect.width);
+    const y = (event.clientY - rect.top) * (levelCanvas.height / rect.height);
+    levelManager.updateExerciseFieldDrag(x, y);
+  });
+  window.addEventListener('pointerup', () => {
+    levelManager.endExerciseFieldDrag();
+  });
   canvasElement.addEventListener('pointerdown', (event) => {
     if (uiState.activeChapter !== 1 || uiState.activeLevel !== 1 || !levelManager.pointExerciseEditMode) {
       return;
@@ -4321,12 +4881,19 @@ export function initApp() {
     setPointExerciseSavedSlots: (value) => levelManager.setPointExerciseSavedSlots(value)
   });
   exerciseFieldPanel.setLevelManager({
-    exerciseFieldVisible: levelManager.exerciseFieldVisible,
-    exerciseFieldScale: levelManager.exerciseFieldScale,
-    exerciseFieldXOffset: levelManager.exerciseFieldXOffset,
+    get exerciseFieldVisible() { return levelManager.exerciseFieldVisible; },
+    get exerciseFieldScale() { return levelManager.exerciseFieldScale; },
+    get exerciseFieldXOffset() { return levelManager.exerciseFieldXOffset; },
+    get exerciseFieldStrikeCount() { return levelManager.exerciseFieldStrikeCount; },
+    get exerciseFieldStrikeRadius() { return levelManager.exerciseFieldStrikeRadius; },
+    get exerciseFieldStrikePositions() { return levelManager.exerciseFieldStrikePositions; },
     setExerciseFieldVisible: (value) => levelManager.setExerciseFieldVisible(value),
     setExerciseFieldScale: (value) => levelManager.setExerciseFieldScale(value),
-    setExerciseFieldXOffset: (value) => levelManager.setExerciseFieldXOffset(value)
+    setExerciseFieldXOffset: (value) => levelManager.setExerciseFieldXOffset(value),
+    setExerciseFieldStrikeCount: (value) => levelManager.setExerciseFieldStrikeCount(value),
+    setExerciseFieldStrikeRadius: (value) => levelManager.setExerciseFieldStrikeRadius(value),
+    setExerciseFieldAssignment: (assignment) => levelManager.setExerciseFieldAssignment(assignment),
+    setExerciseFieldStrikePositions: (positions) => levelManager.setExerciseFieldStrikePositions(positions)
   });
   const dynamicFigureManager = {
     get figureScale() { return levelManager.dynamicFigureScale; },
@@ -4487,6 +5054,9 @@ export function initApp() {
       handIndependencePanel.setVisible(false);
       squareExercisePanel.setVisible(false);
       exerciseFieldPanel.setVisible(showExerciseFieldPanel);
+      if (Number.isInteger(level) && level >= 0 && level <= 4) {
+        exerciseFieldPanel.applyPreset(level);
+      }
       if (!showExerciseFieldPanel) {
         levelManager.setExerciseFieldVisible(false);
       } else {
@@ -4550,6 +5120,15 @@ export function initApp() {
   });
   document.addEventListener('hand-independence-reset-presets', () => {
     handIndependencePanel.resetPresets();
+  });
+  document.addEventListener('exercise-field-save-preset', () => {
+    const savedSlot = exerciseFieldPanel.savePresetFromPrompt();
+    if (Number.isInteger(savedSlot)) {
+      setActiveLevel(savedSlot);
+    }
+  });
+  document.addEventListener('exercise-field-reset-presets', () => {
+    exerciseFieldPanel.resetPresets();
   });
 
   levelManager.setCompletionCallback((chapter, level) => {

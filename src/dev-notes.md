@@ -11,3 +11,6 @@
 - Visuelles Feedback wenn die entsprechende hand im korrekten Bereich ist. 
 
 - linke und rechte hand wieder vertauscht
+
+- zurücksetzen auf werkseinstellungen für die einzelnen Kapitel ermöglichen.
+- Bewegungspunkt läuft bei Handunabhängigkeit in den Zweiviertel und Dreiviertel verschoben zur Figur.
