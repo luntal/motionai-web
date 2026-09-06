@@ -97,7 +97,28 @@ export class LevelManager {
       vertical: 'top',
       beatIndex: 1
     };
+    this.exerciseFieldChallengeMode = 'free';
+    this.exerciseFieldTempoBpm = 60;
+    this.exerciseFieldMetronomeEnabled = false;
+    this.exerciseFieldSequenceIndex = 0;
+    this.exerciseFieldAccuracy = 0;
+    this.exerciseFieldLastFreeTickBeat = -1;
+    this.exerciseFieldSequenceStartedAt = performance.now();
     this.exerciseFieldStrikePositions = { left: [], right: [] };
+    this.exerciseFieldTimingSamples = [];
+    this.exerciseFieldBeatWindow = null;
+    this.exerciseFieldTimingLabels = [];
+    this.exerciseFieldMetronomeClock = {
+      audioContext: null,
+      masterGain: null,
+      startedAtAudioTime: 0,
+      lastBeatIndex: -1,
+      lastBeatAtAudioTime: 0
+    };
+    this.exerciseFieldMetronomeBeatTimer = null;
+    this.exerciseFieldMetronomeSchedulerToken = 0;
+    this.exerciseFieldMetronomeSchedulerActive = false;
+    this.exerciseFieldMetronomeActivationBound = false;
     this.exerciseFieldDrag = null;
     this.exerciseFieldZones = {
       leftTop: null,
@@ -366,6 +387,18 @@ export class LevelManager {
       }
       return { x: mirroredX, y };
     });
+
+    if (this.exerciseFieldMetronomeEnabled && this.exerciseFieldChallengeMode === 'tempo') {
+      this.stopExerciseFieldMetronomeScheduler();
+      const audioContext = this.ensureExerciseFieldMetronomeAudio();
+      if (audioContext) {
+        this.exerciseFieldMetronomeClock.startedAtAudioTime = audioContext.currentTime;
+        this.exerciseFieldMetronomeClock.lastBeatIndex = -1;
+        this.exerciseFieldMetronomeClock.lastBeatAtAudioTime = audioContext.currentTime;
+        this.startExerciseFieldMetronomeScheduler();
+      }
+    }
+
     this.requestRender();
   }
 
@@ -417,6 +450,37 @@ export class LevelManager {
     return { leftX, rightX, y: lineY, centerX };
   }
 
+  getExerciseFieldTargetForIndex(side, index) {
+    const strikeCount = Number.isInteger(this.exerciseFieldStrikeCount)
+      ? Math.max(2, Math.min(4, this.exerciseFieldStrikeCount))
+      : 2;
+    const normalizedIndex = Number.isInteger(index) ? Math.max(0, Math.min(strikeCount - 1, index)) : 0;
+    const assignmentSide = this.exerciseFieldAssignment?.side === 'right' ? 'right' : 'left';
+    const assignmentVertical = this.exerciseFieldAssignment?.vertical === 'bottom' ? 'bottom' : 'top';
+    const assignmentBeatIndex = Math.max(1, Math.min(strikeCount, Number(this.exerciseFieldAssignment?.beatIndex) || 1));
+
+    const point = side === 'left'
+      ? (this.exerciseFieldStrikePositions.left[normalizedIndex] || { x: 0, y: 0 })
+      : (this.exerciseFieldStrikePositions.right[normalizedIndex] || { x: 0, y: 0 });
+
+    const isAssignedBeatTarget = side === assignmentSide && normalizedIndex === assignmentBeatIndex - 1;
+    if (!isAssignedBeatTarget) {
+      return { kind: 'point', point };
+    }
+
+    const zones = this.getExerciseFieldZones();
+    const key = assignmentSide === 'left'
+      ? (assignmentVertical === 'top' ? 'leftTop' : 'leftBottom')
+      : (assignmentVertical === 'top' ? 'rightTop' : 'rightBottom');
+    const rect = zones[key] || null;
+
+    if (rect) {
+      return { kind: 'rect', rect };
+    }
+
+    return { kind: 'point', point };
+  }
+
   getExerciseFieldStrikeHit(x, y) {
     const strikeCount = Number.isInteger(this.exerciseFieldStrikeCount)
       ? Math.max(2, Math.min(4, this.exerciseFieldStrikeCount))
@@ -424,12 +488,21 @@ export class LevelManager {
 
     const candidates = [];
     for (let index = 0; index < strikeCount; index += 1) {
-      candidates.push({ side: 'left', index, point: this.exerciseFieldStrikePositions.left[index] || { x: 0, y: 0 } });
-      candidates.push({ side: 'right', index, point: this.exerciseFieldStrikePositions.right[index] || { x: 0, y: 0 } });
+      candidates.push({ side: 'left', index, target: this.getExerciseFieldTargetForIndex('left', index) });
+      candidates.push({ side: 'right', index, target: this.getExerciseFieldTargetForIndex('right', index) });
     }
 
-    const hit = candidates.find(({ point }) => point && Number.isFinite(point.x) && Number.isFinite(point.y)
-      && Math.hypot(x - point.x, y - point.y) <= 16);
+    const hit = candidates.find(({ target }) => {
+      if (target.kind === 'rect') {
+        const rect = target.rect;
+        return rect && x >= rect.x - rect.width / 2 && x <= rect.x + rect.width / 2
+          && y >= rect.y - rect.height / 2 && y <= rect.y + rect.height / 2;
+      }
+
+      const point = target.point || { x: 0, y: 0 };
+      return Number.isFinite(point.x) && Number.isFinite(point.y)
+        && Math.hypot(x - point.x, y - point.y) <= 16;
+    });
     return hit || null;
   }
 
@@ -477,6 +550,683 @@ export class LevelManager {
 
   endExerciseFieldDrag() {
     this.exerciseFieldDrag = null;
+  }
+
+  setExerciseFieldChallengeMode(mode = 'free') {
+    const nextMode = mode === 'tempo' ? 'tempo' : 'free';
+    if (this.exerciseFieldChallengeMode === nextMode) {
+      return;
+    }
+
+    this.exerciseFieldChallengeMode = nextMode;
+    this.exerciseFieldSequenceIndex = 0;
+    this.exerciseFieldLastFreeTickBeat = -1;
+    this.exerciseFieldSequenceStartedAt = performance.now();
+    this.exerciseFieldAccuracy = 0;
+    if (nextMode === 'tempo') {
+      if (this.exerciseFieldMetronomeEnabled) {
+        const audioContext = this.ensureExerciseFieldMetronomeAudio();
+        if (audioContext) {
+          this.exerciseFieldMetronomeClock.startedAtAudioTime = audioContext.currentTime;
+          this.exerciseFieldMetronomeClock.lastBeatIndex = -1;
+          this.startExerciseFieldMetronomeScheduler();
+        }
+      }
+    } else {
+      this.stopExerciseFieldMetronomeScheduler();
+    }
+    this.requestRender();
+  }
+
+  getExerciseFieldBeatDurationMs() {
+    return 60000 / Math.max(30, Math.min(180, Number(this.exerciseFieldTempoBpm) || 60));
+  }
+
+  setExerciseFieldTempoBpm(value) {
+    const next = Number(value);
+    if (!Number.isFinite(next)) {
+      return;
+    }
+
+    const clamped = Math.min(180, Math.max(30, next));
+    if (this.exerciseFieldTempoBpm === clamped) {
+      return;
+    }
+
+    this.exerciseFieldTempoBpm = clamped;
+    this.exerciseFieldSequenceStartedAt = performance.now();
+    if (this.exerciseFieldMetronomeEnabled && this.exerciseFieldChallengeMode === 'tempo') {
+      this.stopExerciseFieldMetronomeScheduler();
+      const audioContext = this.ensureExerciseFieldMetronomeAudio();
+      if (audioContext) {
+        this.exerciseFieldMetronomeClock.startedAtAudioTime = audioContext.currentTime;
+        this.exerciseFieldMetronomeClock.lastBeatIndex = -1;
+        this.exerciseFieldMetronomeClock.lastBeatAtAudioTime = audioContext.currentTime;
+        this.startExerciseFieldMetronomeScheduler();
+      }
+    }
+    this.requestRender();
+  }
+
+  bindExerciseFieldMetronomeUserActivation() {
+    if (typeof window === 'undefined' || this.exerciseFieldMetronomeActivationBound) {
+      return;
+    }
+
+    this.exerciseFieldMetronomeActivationBound = true;
+    const silentResumeAudio = async () => {
+      const audioContext = this.ensureExerciseFieldMetronomeAudio();
+      if (!audioContext) {
+        return;
+      }
+
+      if (audioContext.state === 'suspended') {
+        try {
+          await audioContext.resume();
+        } catch (error) {
+          this.captureExerciseFieldMetronomeDebug({ action: 'resume:silent-failed', error: String(error) });
+        }
+      }
+    };
+
+    const resumeOnUserGesture = () => {
+      if (this.exerciseFieldMetronomeEnabled || this.exerciseFieldChallengeMode === 'tempo') {
+        silentResumeAudio();
+      }
+    };
+
+    window.addEventListener('pointerdown', resumeOnUserGesture, { passive: true });
+    window.addEventListener('mousedown', resumeOnUserGesture, { passive: true });
+    window.addEventListener('touchstart', resumeOnUserGesture, { passive: true });
+    window.addEventListener('click', resumeOnUserGesture, { passive: true });
+    window.addEventListener('keydown', resumeOnUserGesture, { passive: true });
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && (this.exerciseFieldMetronomeEnabled || this.exerciseFieldChallengeMode === 'tempo')) {
+          this.resumeExerciseFieldMetronomeAudio().catch(() => {});
+          if (this.exerciseFieldChallengeMode === 'tempo' && this.exerciseFieldMetronomeEnabled) {
+            this.startExerciseFieldMetronomeScheduler();
+          }
+        }
+      });
+    }
+  }
+
+  captureExerciseFieldMetronomeDebug(detail = {}) {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    window.__motionAiMetronomeDebug = {
+      enabled: Boolean(this.exerciseFieldMetronomeEnabled),
+      challengeMode: this.exerciseFieldChallengeMode,
+      tempoBpm: this.exerciseFieldTempoBpm,
+      audioContextState: this.exerciseFieldMetronomeClock?.audioContext?.state || null,
+      hasMasterGain: Boolean(this.exerciseFieldMetronomeClock?.masterGain),
+      lastBeatIndex: this.exerciseFieldMetronomeClock?.lastBeatIndex ?? null,
+      detail
+    };
+  }
+
+  async resumeExerciseFieldMetronomeAudio() {
+    const audioContext = this.ensureExerciseFieldMetronomeAudio();
+    if (!audioContext) {
+      this.captureExerciseFieldMetronomeDebug({ action: 'resume:missing-audio-context' });
+      return null;
+    }
+
+    if (audioContext.state === 'suspended') {
+      try {
+        await audioContext.resume();
+      } catch (error) {
+        this.captureExerciseFieldMetronomeDebug({ action: 'resume:failed', error: String(error) });
+        return null;
+      }
+    }
+
+    this.captureExerciseFieldMetronomeDebug({ action: 'resume:ok', audioContextState: audioContext.state });
+    return audioContext;
+  }
+
+  ensureExerciseFieldMetronomeAudio() {
+    if (typeof window === 'undefined') {
+      return null;
+    }
+
+    const AudioCtor = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtor) {
+      return null;
+    }
+
+    if (!this.exerciseFieldMetronomeClock.audioContext) {
+      const audioContext = new AudioCtor();
+      const masterGain = audioContext.createGain();
+      masterGain.gain.value = 0.22;
+      masterGain.connect(audioContext.destination);
+      this.exerciseFieldMetronomeClock = {
+        audioContext,
+        masterGain,
+        startedAtAudioTime: audioContext.currentTime,
+        lastBeatIndex: -1,
+        lastBeatAtAudioTime: audioContext.currentTime
+      };
+    }
+
+    const clock = this.exerciseFieldMetronomeClock;
+    if (clock.audioContext.state === 'suspended') {
+      clock.audioContext.resume().catch(() => {});
+    }
+
+    return clock.audioContext;
+  }
+
+  stopExerciseFieldMetronomeScheduler() {
+    if (this.exerciseFieldMetronomeBeatTimer) {
+      clearTimeout(this.exerciseFieldMetronomeBeatTimer);
+      this.exerciseFieldMetronomeBeatTimer = null;
+    }
+    this.exerciseFieldMetronomeSchedulerToken += 1;
+    this.exerciseFieldMetronomeSchedulerActive = false;
+  }
+
+  startExerciseFieldMetronomeScheduler() {
+    if (!this.exerciseFieldMetronomeEnabled || this.exerciseFieldChallengeMode !== 'tempo') {
+      this.stopExerciseFieldMetronomeScheduler();
+      return;
+    }
+
+    if (this.exerciseFieldMetronomeSchedulerActive) {
+      this.stopExerciseFieldMetronomeScheduler();
+    }
+
+    this.exerciseFieldMetronomeSchedulerActive = true;
+    this.exerciseFieldSequenceStartedAt = performance.now();
+    const schedulerToken = ++this.exerciseFieldMetronomeSchedulerToken;
+
+    this.resumeExerciseFieldMetronomeAudio().then((audioContext) => {
+      if (!audioContext || !this.exerciseFieldMetronomeClock.masterGain) {
+        this.exerciseFieldMetronomeSchedulerActive = false;
+        return;
+      }
+
+      if (schedulerToken !== this.exerciseFieldMetronomeSchedulerToken) {
+        this.exerciseFieldMetronomeSchedulerActive = false;
+        return;
+      }
+
+      const beatDurationMs = this.getExerciseFieldBeatDurationMs();
+      const beatDurationSeconds = beatDurationMs / 1000;
+      const strikeCount = Number.isInteger(this.exerciseFieldStrikeCount)
+        ? Math.max(2, Math.min(4, this.exerciseFieldStrikeCount))
+        : 2;
+
+      this.exerciseFieldMetronomeClock.startedAtAudioTime = audioContext.currentTime;
+      this.exerciseFieldMetronomeClock.lastBeatIndex = -1;
+      this.exerciseFieldMetronomeClock.lastBeatAtAudioTime = audioContext.currentTime;
+
+      let nextBeatNumber = 1;
+      const baseAudioTime = audioContext.currentTime;
+
+      const scheduleNextBeat = () => {
+        if (schedulerToken !== this.exerciseFieldMetronomeSchedulerToken) {
+          return;
+        }
+        if (!this.exerciseFieldMetronomeEnabled || this.exerciseFieldChallengeMode !== 'tempo') {
+          this.exerciseFieldMetronomeSchedulerActive = false;
+          return;
+        }
+
+        const beatIndexInCycle = nextBeatNumber - 1;
+        const beatAudioTime = baseAudioTime + beatIndexInCycle * beatDurationSeconds;
+        const delayMs = Math.max(15, (beatAudioTime - audioContext.currentTime) * 1000 + 5);
+
+        this.exerciseFieldMetronomeBeatTimer = window.setTimeout(() => {
+          if (schedulerToken !== this.exerciseFieldMetronomeSchedulerToken) {
+            return;
+          }
+          if (!this.exerciseFieldMetronomeEnabled || this.exerciseFieldChallengeMode !== 'tempo') {
+            this.exerciseFieldMetronomeSchedulerActive = false;
+            return;
+          }
+
+          const activeAudioContext = this.ensureExerciseFieldMetronomeAudio();
+          if (!activeAudioContext || !this.exerciseFieldMetronomeClock.masterGain) {
+            this.exerciseFieldMetronomeSchedulerActive = false;
+            return;
+          }
+
+          const beatNumber = ((nextBeatNumber - 1) % strikeCount) + 1;
+          const scheduledAt = baseAudioTime + (nextBeatNumber - 1) * beatDurationSeconds;
+
+          this.exerciseFieldMetronomeClock.lastBeatIndex = beatNumber - 1;
+          this.exerciseFieldMetronomeClock.lastBeatAtAudioTime = scheduledAt;
+
+          this.playExerciseFieldMetronomeTick(beatNumber, beatNumber === 1, scheduledAt);
+
+          nextBeatNumber += 1;
+          scheduleNextBeat();
+        }, delayMs);
+      };
+
+      scheduleNextBeat();
+    }).catch(() => {
+      this.exerciseFieldMetronomeSchedulerActive = false;
+    });
+  }
+
+  setExerciseFieldMetronomeEnabled(enabled) {
+    const next = Boolean(enabled);
+    this.exerciseFieldMetronomeEnabled = next;
+    this.bindExerciseFieldMetronomeUserActivation();
+    this.exerciseFieldLastFreeTickBeat = -1;
+    this.captureExerciseFieldMetronomeDebug({ action: 'toggle', enabled: next, challengeMode: this.exerciseFieldChallengeMode });
+
+    if (next) {
+      const audioContext = this.ensureExerciseFieldMetronomeAudio();
+      if (audioContext) {
+        this.exerciseFieldMetronomeClock.startedAtAudioTime = audioContext.currentTime;
+        this.exerciseFieldMetronomeClock.lastBeatIndex = -1;
+        this.exerciseFieldMetronomeClock.lastBeatAtAudioTime = audioContext.currentTime;
+      }
+      this.resumeExerciseFieldMetronomeAudio().catch(() => {});
+      if (this.exerciseFieldChallengeMode === 'tempo') {
+        this.startExerciseFieldMetronomeScheduler();
+      }
+    } else {
+      this.stopExerciseFieldMetronomeScheduler();
+      this.exerciseFieldBeatWindow = null;
+    }
+
+    this.requestRender();
+  }
+
+  async playExerciseFieldMetronomeTick(beatNumber = 1, isPrimary = false, atTime = null) {
+    const audioContext = await this.resumeExerciseFieldMetronomeAudio();
+    this.captureExerciseFieldMetronomeDebug({ action: 'tick:request', beatNumber, isPrimary, atTime, audioContextState: audioContext?.state || null, hasMasterGain: Boolean(this.exerciseFieldMetronomeClock?.masterGain) });
+    if (!audioContext || !this.exerciseFieldMetronomeClock.masterGain) {
+      return;
+    }
+
+    const startAt = Number.isFinite(Number(atTime)) ? Number(atTime) : audioContext.currentTime;
+    const primaryFrequency = isPrimary ? 880 : 660;
+    const secondaryFrequency = isPrimary ? 660 : 440;
+    const beatDuration = this.getExerciseFieldBeatDurationMs() / 1000;
+    const frequency = beatNumber === 1 ? primaryFrequency : secondaryFrequency;
+    const duration = isPrimary ? 0.08 : 0.05;
+
+    const oscillator = audioContext.createOscillator();
+    oscillator.type = isPrimary ? 'square' : 'triangle';
+    oscillator.frequency.setValueAtTime(frequency, startAt);
+
+    const filter = audioContext.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(isPrimary ? 2200 : 1600, startAt);
+    filter.Q.setValueAtTime(0.8, startAt);
+
+    const gainNode = audioContext.createGain();
+    gainNode.gain.setValueAtTime(0.0001, startAt);
+    gainNode.gain.exponentialRampToValueAtTime(isPrimary ? 0.18 : 0.12, startAt + 0.008);
+    gainNode.gain.exponentialRampToValueAtTime(0.0001, startAt + duration);
+
+    const noiseBuffer = audioContext.createBuffer(1, Math.max(1, Math.floor(audioContext.sampleRate * 0.02)), audioContext.sampleRate);
+    const noiseData = noiseBuffer.getChannelData(0);
+    for (let index = 0; index < noiseData.length; index += 1) {
+      noiseData[index] = (Math.random() * 2 - 1) * (isPrimary ? 0.8 : 0.55);
+    }
+
+    const noiseSource = audioContext.createBufferSource();
+    noiseSource.buffer = noiseBuffer;
+
+    const noiseFilter = audioContext.createBiquadFilter();
+    noiseFilter.type = 'highpass';
+    noiseFilter.frequency.value = isPrimary ? 2500 : 1800;
+
+    const noiseGain = audioContext.createGain();
+    noiseGain.gain.setValueAtTime(isPrimary ? 0.08 : 0.05, startAt);
+    noiseGain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.02);
+
+    oscillator.connect(filter);
+    filter.connect(gainNode);
+    gainNode.connect(this.exerciseFieldMetronomeClock.masterGain);
+
+    noiseSource.connect(noiseFilter);
+    noiseFilter.connect(noiseGain);
+    noiseGain.connect(this.exerciseFieldMetronomeClock.masterGain);
+
+    oscillator.start(startAt);
+    oscillator.stop(startAt + duration + 0.04);
+    noiseSource.start(startAt);
+    noiseSource.stop(startAt + 0.03);
+    this.captureExerciseFieldMetronomeDebug({ action: 'tick:started', beatNumber, isPrimary, startAt, audioContextState: audioContext.state, hasMasterGain: true });
+
+    setTimeout(() => {
+      oscillator.disconnect();
+      filter.disconnect();
+      gainNode.disconnect();
+      noiseSource.disconnect();
+      noiseFilter.disconnect();
+      noiseGain.disconnect();
+    }, Math.max(50, (duration + 0.04) * 1000 + 30));
+
+    return beatDuration;
+  }
+
+  getExerciseFieldTimelineElapsedMs(nowMs = performance.now()) {
+    if (!Number.isFinite(this.exerciseFieldSequenceStartedAt)) {
+      this.exerciseFieldSequenceStartedAt = nowMs;
+    }
+
+    return Math.max(0, nowMs - this.exerciseFieldSequenceStartedAt);
+  }
+
+  getExerciseFieldBeatState(nowMs = performance.now()) {
+    const strikeCount = Number.isInteger(this.exerciseFieldStrikeCount)
+      ? Math.max(2, Math.min(4, this.exerciseFieldStrikeCount))
+      : 2;
+
+    const beatDurationMs = this.getExerciseFieldBeatDurationMs();
+    const elapsedMs = this.getExerciseFieldTimelineElapsedMs(nowMs);
+    const absoluteBeatIndex = Math.floor(elapsedMs / beatDurationMs);
+    const scheduledIndex = absoluteBeatIndex % strikeCount;
+    const phase = beatDurationMs > 0 ? (elapsedMs % beatDurationMs) / beatDurationMs : 0;
+    return { absoluteBeatIndex, scheduledIndex, beatDurationMs, elapsedMs, phase };
+  }
+
+  finalizeExerciseFieldBeatWindow(nowMs = performance.now()) {
+    const sample = this.exerciseFieldBeatWindow;
+    if (!sample || sample.finalized) {
+      return;
+    }
+
+    const beatDurationMs = this.getExerciseFieldBeatDurationMs();
+    const expectedAtMs = Number.isFinite(sample.expectedAtMs) ? sample.expectedAtMs : 0;
+    const bothHandsKnown = Number.isFinite(sample.leftTouchAtMs) && Number.isFinite(sample.rightTouchAtMs);
+    const beatTimedOut = Number.isFinite(nowMs) && nowMs >= expectedAtMs + beatDurationMs;
+
+    if (!bothHandsKnown && !beatTimedOut) {
+      return;
+    }
+
+    sample.finalized = true;
+
+    const leftTouchAtMs = Number.isFinite(sample.leftTouchAtMs) ? sample.leftTouchAtMs : null;
+    const rightTouchAtMs = Number.isFinite(sample.rightTouchAtMs) ? sample.rightTouchAtMs : null;
+    const leftDeltaMs = leftTouchAtMs !== null ? leftTouchAtMs - expectedAtMs : null;
+    const rightDeltaMs = rightTouchAtMs !== null ? rightTouchAtMs - expectedAtMs : null;
+    const fullBeatPenaltyMs = Math.max(50, beatDurationMs);
+    const leftErrorMs = leftDeltaMs !== null ? Math.abs(leftDeltaMs) : fullBeatPenaltyMs;
+    const rightErrorMs = rightDeltaMs !== null ? Math.abs(rightDeltaMs) : fullBeatPenaltyMs;
+    const syncDeltaMs = Number.isFinite(leftTouchAtMs) && Number.isFinite(rightTouchAtMs)
+      ? Math.abs(leftTouchAtMs - rightTouchAtMs)
+      : fullBeatPenaltyMs;
+    const avgAbsoluteDeviationMs = ((leftErrorMs + rightErrorMs) / 2);
+    const normalizedDeviationRangeMs = Math.max(50, beatDurationMs);
+    const normalizedDeviation = Math.min(1, Math.max(0, avgAbsoluteDeviationMs / normalizedDeviationRangeMs));
+
+    this.exerciseFieldTimingSamples.push({
+      beatIndex: sample.beatIndex,
+      expectedAtMs,
+      leftTouchAtMs: leftTouchAtMs,
+      rightTouchAtMs: rightTouchAtMs,
+      leftDeltaMs,
+      rightDeltaMs,
+      leftErrorMs,
+      rightErrorMs,
+      syncDeltaMs,
+      avgAbsoluteDeviationMs,
+      normalizedDeviation
+    });
+
+    const sampleWindow = Math.max(10, this.exerciseFieldStrikeCount * 10);
+    this.exerciseFieldTimingSamples = this.exerciseFieldTimingSamples.slice(-sampleWindow);
+    this.exerciseFieldBeatWindow = null;
+  }
+
+  recordExerciseFieldTouchTiming(side, beatIndex, nowMs) {
+    if (this.exerciseFieldChallengeMode !== 'tempo') {
+      return;
+    }
+
+    const absoluteBeatIndex = Number.isFinite(Number(beatIndex)) ? Number(beatIndex) : 0;
+    const cycleBeatIndex = Math.abs(this.exerciseFieldStrikeCount || 2) > 0
+      ? absoluteBeatIndex % Number(this.exerciseFieldStrikeCount || 2)
+      : 0;
+    const beatDurationMs = this.getExerciseFieldBeatDurationMs();
+    const absoluteOriginMs = Number.isFinite(this.exerciseFieldSequenceStartedAt)
+      ? this.exerciseFieldSequenceStartedAt
+      : nowMs;
+    const expectedAtMs = absoluteOriginMs + absoluteBeatIndex * beatDurationMs;
+    const deltaMs = nowMs - expectedAtMs;
+
+    const existingLabel = this.exerciseFieldTimingLabels.find((label) => label.side === side && label.beatIndex === cycleBeatIndex);
+    if (existingLabel && nowMs - existingLabel.createdAtMs < beatDurationMs) {
+      return;
+    }
+
+    this.exerciseFieldTimingLabels = this.exerciseFieldTimingLabels.filter((label) => {
+      const stillFresh = nowMs - label.createdAtMs < beatDurationMs;
+      return stillFresh && !(label.side === side && label.beatIndex === cycleBeatIndex);
+    });
+
+    this.exerciseFieldTimingLabels.push({
+      side,
+      beatIndex: cycleBeatIndex,
+      absoluteBeatIndex,
+      createdAtMs: nowMs,
+      deltaMs,
+      expectedAtMs
+    });
+
+    if (!this.exerciseFieldBeatWindow || this.exerciseFieldBeatWindow.beatIndex !== beatIndex) {
+      this.exerciseFieldBeatWindow = {
+        beatIndex,
+        expectedAtMs,
+        leftTouchAtMs: null,
+        rightTouchAtMs: null,
+        finalized: false
+      };
+    }
+
+    const sample = this.exerciseFieldBeatWindow;
+    if (side === 'left') {
+      sample.leftTouchAtMs = nowMs;
+    }
+    if (side === 'right') {
+      sample.rightTouchAtMs = nowMs;
+    }
+
+    if (Number.isFinite(sample.leftTouchAtMs) && Number.isFinite(sample.rightTouchAtMs)) {
+      this.finalizeExerciseFieldBeatWindow();
+    }
+  }
+
+  getExerciseFieldTimingStats() {
+    const samples = Array.isArray(this.exerciseFieldTimingSamples) ? this.exerciseFieldTimingSamples : [];
+    if (samples.length === 0) {
+      return {
+        syncAvgMs: null,
+        leftAccuracyPct: null,
+        rightAccuracyPct: null,
+        combinedAccuracyPct: null,
+        observations: 0
+      };
+    }
+
+    const beatWindow = this.getExerciseFieldBeatDurationMs();
+    const toleranceMs = Math.max(75, beatWindow * 0.75);
+    const syncValues = samples.map((sample) => Number(sample.syncDeltaMs)).filter((value) => Number.isFinite(value));
+    const leftValues = samples.map((sample) => Number(sample.leftErrorMs)).filter((value) => Number.isFinite(value));
+    const rightValues = samples.map((sample) => Number(sample.rightErrorMs)).filter((value) => Number.isFinite(value));
+
+    const syncAvgMs = syncValues.length > 0 ? syncValues.reduce((sum, value) => sum + value, 0) / syncValues.length : null;
+    const leftAvgMs = leftValues.length > 0 ? leftValues.reduce((sum, value) => sum + value, 0) / leftValues.length : null;
+    const rightAvgMs = rightValues.length > 0 ? rightValues.reduce((sum, value) => sum + value, 0) / rightValues.length : null;
+
+    const clampScore = (avgValue) => {
+      if (!Number.isFinite(avgValue) || !Number.isFinite(toleranceMs) || toleranceMs <= 0) {
+        return null;
+      }
+      const ratio = Math.min(1, avgValue / toleranceMs);
+      return Math.max(0, Math.min(100, (1 - ratio) * 100));
+    };
+
+    return {
+      syncAvgMs: syncAvgMs,
+      leftAccuracyPct: clampScore(leftAvgMs),
+      rightAccuracyPct: clampScore(rightAvgMs),
+      combinedAccuracyPct: clampScore((leftAvgMs === null || rightAvgMs === null)
+        ? (leftAvgMs ?? rightAvgMs)
+        : (leftAvgMs + rightAvgMs) / 2),
+      observations: samples.length
+    };
+  }
+
+  getExerciseFieldMetrics() {
+    const timing = this.getExerciseFieldTimingStats();
+    return {
+      mode: this.exerciseFieldChallengeMode || 'free',
+      tempoBpm: Number.isFinite(this.exerciseFieldTempoBpm) ? this.exerciseFieldTempoBpm : 60,
+      accuracy: Number.isFinite(this.exerciseFieldAccuracy) ? this.exerciseFieldAccuracy : 0,
+      activeIndex: Number.isInteger(this.exerciseFieldSequenceIndex) ? this.exerciseFieldSequenceIndex : 0,
+      strikeCount: Number.isInteger(this.exerciseFieldStrikeCount)
+        ? Math.max(2, Math.min(4, this.exerciseFieldStrikeCount))
+        : 2,
+      metronomeEnabled: Boolean(this.exerciseFieldMetronomeEnabled),
+      syncAvgMs: timing.syncAvgMs,
+      leftAccuracyPct: timing.leftAccuracyPct,
+      rightAccuracyPct: timing.rightAccuracyPct,
+      combinedAccuracyPct: timing.combinedAccuracyPct,
+      observations: timing.observations
+    };
+  }
+
+  scheduleExerciseFieldMetronomeTick() {
+    if (!this.exerciseFieldMetronomeEnabled || this.exerciseFieldChallengeMode !== 'tempo') {
+      this.stopExerciseFieldMetronomeScheduler();
+      return;
+    }
+
+    this.startExerciseFieldMetronomeScheduler();
+  }
+
+  updateExerciseFieldChallengeTracking(nowMs = performance.now()) {
+    const strikeCount = Number.isInteger(this.exerciseFieldStrikeCount)
+      ? Math.max(2, Math.min(4, this.exerciseFieldStrikeCount))
+      : 2;
+
+    if (strikeCount <= 0) {
+      return;
+    }
+
+    if (this.exerciseFieldMetronomeEnabled && this.exerciseFieldChallengeMode === 'tempo') {
+      if (!this.exerciseFieldMetronomeSchedulerActive) {
+        this.scheduleExerciseFieldMetronomeTick();
+      }
+
+      const beatState = this.getExerciseFieldBeatState(nowMs);
+      const beatDurationMs = this.getExerciseFieldBeatDurationMs();
+      const absoluteOriginMs = Number.isFinite(this.exerciseFieldSequenceStartedAt)
+        ? this.exerciseFieldSequenceStartedAt
+        : nowMs;
+
+      if (Number.isFinite(beatState.absoluteBeatIndex)) {
+        const previousScheduledIndex = this.exerciseFieldSequenceIndex;
+        const nextScheduledIndex = beatState.scheduledIndex;
+        const absoluteBeatIndex = beatState.absoluteBeatIndex;
+
+        if (this.exerciseFieldBeatWindow) {
+          const beatWindow = this.exerciseFieldBeatWindow;
+          const beatIsResolved = Number.isFinite(beatWindow.leftTouchAtMs)
+            && Number.isFinite(beatWindow.rightTouchAtMs);
+          const beatTimedOut = nowMs >= beatWindow.expectedAtMs + beatDurationMs;
+
+          if (beatIsResolved || beatTimedOut || previousScheduledIndex !== nextScheduledIndex) {
+            this.finalizeExerciseFieldBeatWindow(nowMs);
+          }
+        }
+
+        if (!this.exerciseFieldBeatWindow || this.exerciseFieldBeatWindow.beatIndex !== absoluteBeatIndex) {
+          this.exerciseFieldBeatWindow = {
+            beatIndex: absoluteBeatIndex,
+            expectedAtMs: absoluteOriginMs + absoluteBeatIndex * beatDurationMs,
+            leftTouchAtMs: null,
+            rightTouchAtMs: null,
+            finalized: false
+          };
+        }
+
+        this.exerciseFieldSequenceIndex = nextScheduledIndex;
+      }
+    }
+
+    const activeIndex = this.exerciseFieldSequenceIndex % strikeCount;
+    const leftTarget = this.getExerciseFieldTargetForIndex('left', activeIndex);
+    const rightTarget = this.getExerciseFieldTargetForIndex('right', activeIndex);
+
+    const isRectHit = (tip, target) => {
+      if (!tip || !target) {
+        return false;
+      }
+
+      if (target.kind === 'rect') {
+        const rect = target.rect;
+        return rect && tip.x >= rect.x - rect.width / 2 && tip.x <= rect.x + rect.width / 2
+          && tip.y >= rect.y - rect.height / 2 && tip.y <= rect.y + rect.height / 2;
+      }
+
+      const point = target.point || { x: 0, y: 0 };
+      return Number.isFinite(point.x) && Number.isFinite(point.y)
+        && Math.hypot(tip.x - point.x, tip.y - point.y) <= Math.max(16, this.exerciseFieldStrikeRadius * 1.8);
+    };
+
+    const leftMatch = isRectHit(this.leftTip, leftTarget);
+    const rightMatch = isRectHit(this.rightTip, rightTarget);
+
+    if (this.exerciseFieldChallengeMode === 'tempo' && this.exerciseFieldMetronomeEnabled) {
+      const beatState = this.getExerciseFieldBeatState(nowMs);
+      if (leftMatch) {
+        this.recordExerciseFieldTouchTiming('left', beatState.absoluteBeatIndex, nowMs);
+      }
+      if (rightMatch) {
+        this.recordExerciseFieldTouchTiming('right', beatState.absoluteBeatIndex, nowMs);
+      }
+    }
+
+    if (this.exerciseFieldChallengeMode === 'free') {
+      if (leftMatch && rightMatch) {
+        const tickBeat = ((this.exerciseFieldSequenceIndex % strikeCount) + 1) || 1;
+        if (this.exerciseFieldMetronomeEnabled) {
+          const audioContext = this.ensureExerciseFieldMetronomeAudio();
+          this.playExerciseFieldMetronomeTick(tickBeat, tickBeat === 1, audioContext ? audioContext.currentTime : null);
+        }
+        this.exerciseFieldSequenceIndex = (activeIndex + 1) % strikeCount;
+        this.exerciseFieldSequenceStartedAt = nowMs;
+        this.exerciseFieldAccuracy = Math.min(1, this.exerciseFieldAccuracy + 0.2);
+      } else {
+        const partialMatch = Number(leftMatch || rightMatch);
+        const nextAccuracy = partialMatch > 0
+          ? Math.min(1, this.exerciseFieldAccuracy * 0.88 + 0.12)
+          : Math.max(0, this.exerciseFieldAccuracy * 0.96);
+        this.exerciseFieldAccuracy = Math.max(0, Math.min(1, nextAccuracy));
+      }
+      return;
+    }
+
+    const beatDurationMs = this.getExerciseFieldBeatDurationMs();
+    const elapsedSinceStart = this.exerciseFieldMetronomeEnabled && this.exerciseFieldChallengeMode === 'tempo'
+      ? this.getExerciseFieldTimelineElapsedMs(nowMs)
+      : Math.max(0, nowMs - this.exerciseFieldSequenceStartedAt);
+    const scheduledIndex = Math.floor(elapsedSinceStart / beatDurationMs) % strikeCount;
+
+    if (scheduledIndex !== this.exerciseFieldSequenceIndex) {
+      this.exerciseFieldSequenceIndex = scheduledIndex;
+    }
+
+    const combinedMatchScore = (leftMatch && rightMatch) ? 1 : ((leftMatch || rightMatch) ? 0.5 : 0);
+    const phaseProgress = beatDurationMs > 0 ? (elapsedSinceStart % beatDurationMs) / beatDurationMs : 0;
+    const timingQuality = (1 - Math.abs(phaseProgress - 0.5) * 2);
+    const quality = Math.max(0, Math.min(1, combinedMatchScore * (0.7 + timingQuality * 0.3)));
+    this.exerciseFieldAccuracy = Math.max(0, Math.min(1, this.exerciseFieldAccuracy * 0.82 + quality * 0.18));
   }
 
   getPoseWarningLandmarksEnabled() {
@@ -4980,10 +5730,77 @@ export class LevelManager {
     this.setPoseAlignmentPanelVisible(true);
   }
 
+  drawExerciseFieldTimingOverlay() {
+    const metrics = this.getExerciseFieldMetrics();
+    const chartX = 18;
+    const chartY = this.canvas.height - 72;
+    const chartWidth = Math.min(340, this.canvas.width - 36);
+    const chartHeight = 46;
+    const barCount = 10;
+    const samples = Array.isArray(this.exerciseFieldTimingSamples) ? this.exerciseFieldTimingSamples.slice(-barCount) : [];
+    const displaySamples = samples.length > 0 ? samples : [];
+    const maxValue = 1;
+
+    this.ctx.save();
+    this.ctx.fillStyle = 'rgba(7, 14, 26, 0.72)';
+    this.ctx.strokeStyle = 'rgba(180, 220, 255, 0.7)';
+    this.ctx.lineWidth = 1.1;
+    this.ctx.fillRect(chartX, chartY, chartWidth, chartHeight + 18);
+    this.ctx.strokeRect(chartX, chartY, chartWidth, chartHeight + 18);
+
+    this.ctx.fillStyle = 'rgba(230, 242, 255, 0.96)';
+    this.ctx.font = '700 11px Arial';
+    this.ctx.textAlign = 'left';
+    this.ctx.textBaseline = 'top';
+    this.ctx.fillText('Tempo-Genauigkeit', chartX + 12, chartY + 8);
+
+    const barGap = 6;
+    const slotCount = Math.max(1, displaySamples.length);
+    const barWidth = Math.max(8, (chartWidth - 24 - barGap * (slotCount - 1)) / slotCount);
+    const baselineY = chartY + chartHeight + 10;
+    this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.28)';
+    this.ctx.beginPath();
+    this.ctx.moveTo(chartX + 12, baselineY);
+    this.ctx.lineTo(chartX + chartWidth - 12, baselineY);
+    this.ctx.stroke();
+
+    displaySamples.forEach((sample, sampleIndex) => {
+      const normalizedDeviation = Number.isFinite(sample?.normalizedDeviation) ? sample.normalizedDeviation : 0;
+      const normalizedScore = Math.max(0, Math.min(1, 1 - normalizedDeviation));
+      const scoreForDisplay = sample && Number.isFinite(sample.leftErrorMs) && Number.isFinite(sample.rightErrorMs)
+        ? Math.max(0, Math.min(1, (sample.leftErrorMs === sample.rightErrorMs && sample.leftErrorMs >= Math.max(50, this.getExerciseFieldBeatDurationMs()) ? 0 : normalizedScore)))
+        : 0;
+      const height = (scoreForDisplay / maxValue) * (chartHeight - 8);
+      const x = chartX + 12 + sampleIndex * (barWidth + barGap);
+      const y = baselineY - height;
+      const hue = scoreForDisplay * 120;
+      const alpha = 0.9;
+      const lightness = 32 + (1 - scoreForDisplay) * 20;
+      const color = `hsla(${hue}, 76%, ${lightness}%, ${alpha})`;
+
+      this.ctx.fillStyle = color;
+      this.ctx.fillRect(x, y, barWidth, height);
+    });
+
+    this.ctx.fillStyle = 'rgba(214, 230, 255, 0.9)';
+    this.ctx.font = '10px Arial';
+    this.ctx.textAlign = 'left';
+    this.ctx.fillText('0', chartX + 12, baselineY + 8);
+    this.ctx.textAlign = 'right';
+    this.ctx.fillText('1', chartX + chartWidth - 12, baselineY + 8);
+
+    const modeText = metrics.mode === 'tempo' ? `Tempo ${Math.round(metrics.tempoBpm || 60)} bpm` : 'Frei';
+    this.ctx.textAlign = 'right';
+    this.ctx.fillText(modeText, chartX + chartWidth - 12, chartY + 10);
+    this.ctx.restore();
+  }
+
   drawExerciseFieldZones() {
     if (!this.exerciseFieldVisible) {
       return;
     }
+
+    this.updateExerciseFieldChallengeTracking(performance.now());
 
     const zones = this.getExerciseFieldZones();
     const entries = ['leftTop', 'leftBottom', 'rightTop', 'rightBottom'];
@@ -4997,6 +5814,9 @@ export class LevelManager {
     const assignmentSide = this.exerciseFieldAssignment?.side === 'right' ? 'right' : 'left';
     const assignmentVertical = this.exerciseFieldAssignment?.vertical === 'bottom' ? 'bottom' : 'top';
     const assignmentBeatIndex = Math.max(1, Math.min(strikeCount, Number(this.exerciseFieldAssignment?.beatIndex) || 1));
+    const activeSequenceIndex = Number.isInteger(this.exerciseFieldSequenceIndex)
+      ? this.exerciseFieldSequenceIndex % strikeCount
+      : 0;
     const assignmentRectKey = assignmentSide === 'left'
       ? (assignmentVertical === 'top' ? 'leftTop' : 'leftBottom')
       : (assignmentVertical === 'top' ? 'rightTop' : 'rightBottom');
@@ -5057,15 +5877,33 @@ export class LevelManager {
     });
 
     if (assignmentRect) {
-      this.ctx.fillStyle = 'rgba(255, 255, 255, 0.06)';
-      this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.72)';
-      this.ctx.lineWidth = 1.6;
+      const isAssignmentActive = activeSequenceIndex === assignmentBeatIndex - 1;
+      const assignmentTempoLabel = this.exerciseFieldChallengeMode === 'tempo'
+        ? this.exerciseFieldTimingLabels.find((label) => label.side === assignmentSide && label.beatIndex === assignmentBeatIndex - 1)
+        : null;
+      const assignmentLabelAgeMs = assignmentTempoLabel ? performance.now() - assignmentTempoLabel.createdAtMs : Number.POSITIVE_INFINITY;
+      const assignmentLabelVisible = Boolean(assignmentTempoLabel) && assignmentLabelAgeMs >= 0 && assignmentLabelAgeMs <= this.getExerciseFieldBeatDurationMs();
+      const assignmentLabelAlpha = assignmentLabelVisible ? Math.max(0, 1 - assignmentLabelAgeMs / this.getExerciseFieldBeatDurationMs()) : 0;
+
+      this.ctx.fillStyle = isAssignmentActive ? 'rgba(255, 244, 168, 0.18)' : 'rgba(255, 255, 255, 0.06)';
+      this.ctx.strokeStyle = isAssignmentActive ? 'rgba(255, 244, 168, 0.98)' : 'rgba(255, 255, 255, 0.72)';
+      this.ctx.lineWidth = isAssignmentActive ? 3.1 : 1.6;
+      this.ctx.shadowBlur = isAssignmentActive ? 18 : 0;
+      this.ctx.shadowColor = isAssignmentActive ? 'rgba(255, 244, 168, 0.9)' : 'rgba(255, 255, 255, 0.45)';
       this.ctx.strokeRect(assignmentRect.x - assignmentRect.width / 2, assignmentRect.y - assignmentRect.height / 2, assignmentRect.width, assignmentRect.height);
+      this.ctx.fillRect(assignmentRect.x - assignmentRect.width / 2, assignmentRect.y - assignmentRect.height / 2, assignmentRect.width, assignmentRect.height);
+      this.ctx.shadowBlur = 0;
       this.ctx.fillStyle = '#f5f9ff';
       this.ctx.font = 'bold 18px sans-serif';
       this.ctx.textAlign = 'center';
       this.ctx.textBaseline = 'middle';
-      this.ctx.fillText(String(assignmentBeatIndex), assignmentRect.x, assignmentRect.y + 1);
+
+      if (assignmentLabelVisible && assignmentTempoLabel) {
+        this.ctx.fillStyle = `rgba(255, 244, 168, ${Math.max(0.15, assignmentLabelAlpha)})`;
+        this.ctx.fillText(`${Math.round(assignmentTempoLabel.deltaMs)}ms`, assignmentRect.x, assignmentRect.y + 1);
+      } else {
+        this.ctx.fillText(String(assignmentBeatIndex), assignmentRect.x, assignmentRect.y + 1);
+      }
     }
 
     for (let index = 0; index < strikeCount; index += 1) {
@@ -5092,6 +5930,7 @@ export class LevelManager {
       const pairId = index + 1;
       const drawStrikeCircle = (point, side) => {
         const isLeft = side === 'left';
+        const isCurrentSequenceTarget = index === activeSequenceIndex;
         const shouldHideAssignedBeat = side === assignmentSide && index === assignmentBeatIndex - 1;
         if (shouldHideAssignedBeat) {
           return;
@@ -5100,22 +5939,42 @@ export class LevelManager {
         const handTip = isLeft ? this.leftTip : this.rightTip;
         const isActive = Boolean(handTip) && Math.hypot(handTip.x - point.x, handTip.y - point.y) <= 18;
         const radius = this.exerciseFieldStrikeRadius * (isActive ? 1.15 : 1);
+        const tempoLabel = this.exerciseFieldChallengeMode === 'tempo'
+          ? this.exerciseFieldTimingLabels.find((label) => label.side === side && label.beatIndex === index)
+          : null;
+        const nowMs = performance.now();
+        const labelFadeWindowMs = this.getExerciseFieldBeatDurationMs();
+        const labelAgeMs = tempoLabel ? nowMs - tempoLabel.createdAtMs : Number.POSITIVE_INFINITY;
+        const labelVisible = Boolean(tempoLabel) && labelAgeMs >= 0 && labelAgeMs <= labelFadeWindowMs;
+        const labelAlpha = labelVisible ? Math.max(0, 1 - labelAgeMs / labelFadeWindowMs) : 0;
+
         this.ctx.beginPath();
         this.ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
         this.ctx.fillStyle = isLeft
           ? (isActive ? 'rgba(82, 156, 255, 0.38)' : 'rgba(82, 156, 255, 0.16)')
           : (isActive ? 'rgba(255, 163, 92, 0.38)' : 'rgba(255, 163, 92, 0.16)');
-        this.ctx.shadowBlur = isActive ? 18 : 0;
+        this.ctx.shadowBlur = isActive || isCurrentSequenceTarget ? 18 : 0;
         this.ctx.shadowColor = isLeft ? 'rgba(82, 156, 255, 0.9)' : 'rgba(255, 163, 92, 0.9)';
         this.ctx.fill();
-        this.ctx.lineWidth = isActive ? 2.4 : 1.5;
-        this.ctx.strokeStyle = isLeft ? 'rgba(128, 204, 255, 0.9)' : 'rgba(255, 201, 129, 0.9)';
+        this.ctx.lineWidth = isCurrentSequenceTarget ? 3.2 : (isActive ? 2.4 : 1.5);
+        this.ctx.strokeStyle = isCurrentSequenceTarget
+          ? (isLeft ? 'rgba(255, 244, 168, 0.98)' : 'rgba(255, 214, 127, 0.98)')
+          : (isLeft ? 'rgba(128, 204, 255, 0.9)' : 'rgba(255, 201, 129, 0.9)');
         this.ctx.stroke();
         this.ctx.shadowBlur = 0;
         this.ctx.fillStyle = isLeft ? '#dbeeff' : '#ffe4c2';
         this.ctx.font = 'bold 11px sans-serif';
         this.ctx.textAlign = 'center';
         this.ctx.textBaseline = 'middle';
+
+        if (labelVisible && tempoLabel) {
+          this.ctx.fillStyle = `rgba(255, 244, 168, ${Math.max(0.1, labelAlpha)})`;
+          const labelText = `${Math.round(tempoLabel.deltaMs)}ms`;
+          this.ctx.fillText(labelText, point.x, point.y + 0.5);
+          return;
+        }
+
+        this.ctx.fillStyle = isLeft ? '#dbeeff' : '#ffe4c2';
         this.ctx.fillText(String(pairId), point.x, point.y + 0.5);
       };
 
@@ -5239,6 +6098,7 @@ export class LevelManager {
 
     if (this.chapter === 6 && Number.isInteger(this.level) && this.level >= 0 && this.level <= 4) {
       this.drawExerciseFieldZones();
+      this.drawExerciseFieldTimingOverlay();
       this.renderPoseAlignmentFeedback();
       this.requestRender();
       return;

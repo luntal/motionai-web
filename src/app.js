@@ -1229,6 +1229,9 @@ function createExerciseFieldPanel() {
       const fieldSide = stored.fieldSide === 'right' ? 'right' : 'left';
       const fieldVertical = stored.fieldVertical === 'bottom' ? 'bottom' : 'top';
       const fieldBeat = sanitizeAssignmentBeat(stored.fieldBeat, strikeCount || 2);
+      const mode = stored.mode === 'tempo' ? 'tempo' : 'free';
+      const bpm = Number(stored.tempoBpm);
+      const metronomeEnabled = typeof stored.metronomeEnabled === 'boolean' ? stored.metronomeEnabled : false;
       return {
         enabled: typeof enabled === 'boolean' ? enabled : true,
         scale: Number.isFinite(scale) ? Math.min(1.25, Math.max(0.25, scale)) : 1,
@@ -1238,15 +1241,36 @@ function createExerciseFieldPanel() {
         fieldSide,
         fieldVertical,
         fieldBeat,
+        mode,
+        tempoBpm: Number.isFinite(bpm) ? Math.min(180, Math.max(30, bpm)) : 60,
+        metronomeEnabled,
         strikePositions: sanitizeExerciseFieldStrikePositions(stored.strikePositions)
       };
     } catch (error) {
-      return { enabled: true, scale: 1, xOffset: 0, strikeCount: 2, strikeRadius: EXERCISE_FIELD_STRIKE_RADIUS_MIN, fieldSide: 'left', fieldVertical: 'top', fieldBeat: 1, strikePositions: { left: [], right: [] } };
+      return {
+        enabled: true,
+        scale: 1,
+        xOffset: 0,
+        strikeCount: 2,
+        strikeRadius: EXERCISE_FIELD_STRIKE_RADIUS_MIN,
+        fieldSide: 'left',
+        fieldVertical: 'top',
+        fieldBeat: 1,
+        mode: 'free',
+        tempoBpm: 60,
+        metronomeEnabled: false,
+        strikePositions: { left: [], right: [] }
+      };
     }
   };
 
+  const isPresetRunning = () => uiState.activeChapter === 6
+    && Number.isInteger(uiState.activeLevel)
+    && uiState.activeLevel >= 0
+    && uiState.activeLevel <= 4;
+
   const getCurrentState = () => ({
-    enabled: Boolean(toggleInput.checked),
+    enabled: isPresetRunning() || Boolean(toggleInput.checked),
     scale: Number(sizeSlider.value),
     xOffset: Number(xOffsetSlider.value),
     strikeCount: sanitizeStrikeCount(strikeCountInputs.find((input) => input.checked)?.value ?? 2),
@@ -1254,6 +1278,9 @@ function createExerciseFieldPanel() {
     fieldSide: fieldSideInputs.find((input) => input.checked)?.value || 'left',
     fieldVertical: fieldVerticalInputs.find((input) => input.checked)?.value || 'top',
     fieldBeat: sanitizeAssignmentBeat(fieldBeatInputs.find((input) => input.checked)?.value ?? 1, sanitizeStrikeCount(strikeCountInputs.find((input) => input.checked)?.value ?? 2)),
+    mode: selectedMode === 'tempo' ? 'tempo' : 'free',
+    tempoBpm: Number(challengeTempoSlider.value),
+    metronomeEnabled: Boolean(metronomeToggle.checked),
     strikePositions: managerRef && managerRef.exerciseFieldStrikePositions ? {
       left: (managerRef.exerciseFieldStrikePositions.left || []).map((point) => ({ x: Number(point.x), y: Number(point.y) })),
       right: (managerRef.exerciseFieldStrikePositions.right || []).map((point) => ({ x: Number(point.x), y: Number(point.y) }))
@@ -1314,7 +1341,8 @@ function createExerciseFieldPanel() {
 
   const setControlsFromState = (state) => {
     const safeState = state && typeof state === 'object' ? state : {};
-    const enabled = typeof safeState.enabled === 'boolean' ? safeState.enabled : true;
+    const forceVisible = isPresetRunning();
+    const enabled = forceVisible || (typeof safeState.enabled === 'boolean' ? safeState.enabled : true);
     const scale = Number.isFinite(Number(safeState.scale)) ? Number(safeState.scale) : 1;
     const xOffset = Number.isFinite(Number(safeState.xOffset)) ? Number(safeState.xOffset) : 0;
     const strikeCount = sanitizeStrikeCount(safeState.strikeCount ?? 2);
@@ -1322,9 +1350,17 @@ function createExerciseFieldPanel() {
     const fieldSide = safeState.fieldSide === 'right' ? 'right' : 'left';
     const fieldVertical = safeState.fieldVertical === 'bottom' ? 'bottom' : 'top';
     const fieldBeat = sanitizeAssignmentBeat(safeState.fieldBeat ?? 1, strikeCount);
+    const nextMode = safeState.mode === 'tempo' ? 'tempo' : 'free';
+    const nextTempoBpm = Number.isFinite(Number(safeState.tempoBpm))
+      ? Math.min(180, Math.max(30, Number(safeState.tempoBpm)))
+      : 60;
+    const nextMetronomeEnabled = typeof safeState.metronomeEnabled === 'boolean' ? safeState.metronomeEnabled : false;
     const strikePositions = sanitizeExerciseFieldStrikePositions(safeState.strikePositions);
 
+    selectedMode = nextMode;
+    challengeTempoSlider.value = String(nextTempoBpm);
     toggleInput.checked = Boolean(enabled);
+    syncMetronomeUi(nextMetronomeEnabled);
     sizeSlider.value = String(Math.min(1.25, Math.max(0.25, scale)));
     xOffsetSlider.value = String(Math.min(1, Math.max(0, xOffset)));
     syncCircleSliderRange();
@@ -1342,6 +1378,10 @@ function createExerciseFieldPanel() {
     fieldBeatInputs.forEach((input) => {
       input.checked = Number(input.value) === fieldBeat;
     });
+    challengeModeInputs.forEach((input) => {
+      input.checked = input.value === selectedMode;
+    });
+    challengeTempoValue.textContent = `${Math.round(Number(challengeTempoSlider.value))} bpm`;
     updateSizeValue();
     updateXOffsetValue();
     updateCircleSizeValue();
@@ -1356,6 +1396,9 @@ function createExerciseFieldPanel() {
       vertical: fieldVertical,
       beatIndex: fieldBeat
     });
+    managerRef?.setExerciseFieldChallengeMode?.(selectedMode);
+    managerRef?.setExerciseFieldTempoBpm?.(Number(challengeTempoSlider.value));
+    managerRef?.setExerciseFieldMetronomeEnabled?.(nextMetronomeEnabled);
     managerRef?.setExerciseFieldStrikePositions?.(strikePositions);
   };
 
@@ -1364,16 +1407,136 @@ function createExerciseFieldPanel() {
   title.textContent = 'Einsatzfelder';
   panel.appendChild(title);
 
-  const toggleWrap = document.createElement('label');
-  toggleWrap.className = 'figure-dynamics-toggle';
   const toggleInput = document.createElement('input');
   toggleInput.type = 'checkbox';
   toggleInput.checked = readSavedSettings().enabled;
-  const toggleLabel = document.createTextNode('Einsatzfelder');
-  toggleWrap.appendChild(toggleInput);
-  toggleWrap.appendChild(toggleLabel);
-  panel.appendChild(toggleWrap);
-  bindUiDescription(toggleInput, 'Einsätze geben', 'Einsatzfelder');
+  toggleInput.style.display = 'none';
+  toggleInput.setAttribute('aria-hidden', 'true');
+  let selectedMode = readSavedSettings().mode === 'tempo' ? 'tempo' : 'free';
+
+  const challengeModeWrap = document.createElement('div');
+  challengeModeWrap.className = 'figure-side-group';
+  const challengeModeTitle = document.createElement('div');
+  challengeModeTitle.className = 'figure-size-label';
+  challengeModeTitle.textContent = 'Modus';
+  const challengeModeGroup = document.createElement('div');
+  challengeModeGroup.className = 'figure-mode-group';
+  const challengeModeInputs = ['free', 'tempo'].map((value) => {
+    const option = document.createElement('label');
+    option.className = 'figure-mode-option';
+    const input = document.createElement('input');
+    input.type = 'radio';
+    input.name = 'exercise-field-challenge-mode';
+    input.value = value;
+    input.checked = selectedMode === value;
+    option.appendChild(input);
+    option.appendChild(document.createTextNode(value === 'free' ? 'Frei' : 'Festes Tempo'));
+    challengeModeGroup.appendChild(option);
+    return input;
+  });
+  challengeModeWrap.appendChild(challengeModeTitle);
+  challengeModeWrap.appendChild(challengeModeGroup);
+  panel.appendChild(challengeModeWrap);
+
+  const challengeTempoWrap = document.createElement('div');
+  challengeTempoWrap.className = 'figure-size-wrap';
+  const challengeTempoLabel = document.createElement('div');
+  challengeTempoLabel.className = 'figure-size-label';
+  challengeTempoLabel.textContent = 'Tempo';
+  const challengeTempoSlider = document.createElement('input');
+  challengeTempoSlider.type = 'range';
+  challengeTempoSlider.min = '30';
+  challengeTempoSlider.max = '180';
+  challengeTempoSlider.step = '1';
+  challengeTempoSlider.value = String(readSavedSettings().tempoBpm ?? 60);
+  const challengeTempoValue = document.createElement('div');
+  challengeTempoValue.className = 'figure-size-value';
+  challengeTempoValue.textContent = `${Math.round(Number(challengeTempoSlider.value))} bpm`;
+  challengeTempoWrap.appendChild(challengeTempoLabel);
+  challengeTempoWrap.appendChild(challengeTempoSlider);
+  challengeTempoWrap.appendChild(challengeTempoValue);
+  panel.appendChild(challengeTempoWrap);
+
+  const metronomeWrap = document.createElement('div');
+  metronomeWrap.className = 'figure-size-wrap';
+  const metronomeLabel = document.createElement('div');
+  metronomeLabel.className = 'figure-size-label';
+  metronomeLabel.textContent = 'Metronom';
+
+  const metronomeToggle = document.createElement('input');
+  metronomeToggle.type = 'hidden';
+  metronomeToggle.checked = Boolean(readSavedSettings().metronomeEnabled ?? false);
+
+  const metronomeGroup = document.createElement('div');
+  metronomeGroup.className = 'figure-mode-group';
+  metronomeGroup.style.gridColumn = '1 / -1';
+
+  const metronomeOffOption = document.createElement('button');
+  metronomeOffOption.type = 'button';
+  metronomeOffOption.className = 'figure-mode-option';
+  metronomeOffOption.setAttribute('aria-pressed', String(!metronomeToggle.checked));
+  metronomeOffOption.textContent = 'Aus';
+  metronomeGroup.appendChild(metronomeOffOption);
+
+  const metronomeOnOption = document.createElement('button');
+  metronomeOnOption.type = 'button';
+  metronomeOnOption.className = 'figure-mode-option';
+  metronomeOnOption.setAttribute('aria-pressed', String(metronomeToggle.checked));
+  metronomeOnOption.textContent = 'An';
+  metronomeGroup.appendChild(metronomeOnOption);
+
+  const metronomeOffInput = document.createElement('input');
+  metronomeOffInput.type = 'hidden';
+  metronomeOffInput.name = 'exercise-field-metronome';
+  metronomeOffInput.value = 'off';
+  metronomeOffInput.checked = !metronomeToggle.checked;
+  metronomeOffOption.appendChild(metronomeOffInput);
+
+  const metronomeOnInput = document.createElement('input');
+  metronomeOnInput.type = 'hidden';
+  metronomeOnInput.name = 'exercise-field-metronome';
+  metronomeOnInput.value = 'on';
+  metronomeOnInput.checked = metronomeToggle.checked;
+  metronomeOnOption.appendChild(metronomeOnInput);
+
+  const syncMetronomeUi = (enabled) => {
+    metronomeToggle.checked = Boolean(enabled);
+    metronomeOffInput.checked = !Boolean(enabled);
+    metronomeOnInput.checked = Boolean(enabled);
+    metronomeOffOption.setAttribute('aria-pressed', String(!Boolean(enabled)));
+    metronomeOnOption.setAttribute('aria-pressed', String(Boolean(enabled)));
+    metronomeOffOption.style.outline = !Boolean(enabled) ? '2px solid currentColor' : 'none';
+    metronomeOnOption.style.outline = Boolean(enabled) ? '2px solid currentColor' : 'none';
+  };
+
+  metronomeWrap.appendChild(metronomeLabel);
+  metronomeWrap.appendChild(metronomeGroup);
+  panel.appendChild(metronomeWrap);
+  bindUiDescription(metronomeLabel, 'Einsätze geben', 'Metronom');
+  bindUiDescription(metronomeOffOption, 'Einsätze geben', 'Metronom');
+  bindUiDescription(metronomeOnOption, 'Einsätze geben', 'Metronom');
+
+  const accuracyWrap = document.createElement('div');
+  accuracyWrap.className = 'figure-size-wrap';
+  const accuracyLabel = document.createElement('div');
+  accuracyLabel.className = 'figure-size-label';
+  accuracyLabel.textContent = 'Genauigkeit';
+  const accuracyValue = document.createElement('div');
+  accuracyValue.className = 'figure-size-value';
+  accuracyValue.textContent = '0%';
+  accuracyWrap.appendChild(accuracyLabel);
+  accuracyWrap.appendChild(accuracyValue);
+  panel.appendChild(accuracyWrap);
+
+  const refreshExerciseFieldAccuracyValue = () => {
+    const metrics = managerRef?.getExerciseFieldMetrics?.();
+    if (metrics && Number.isFinite(metrics.accuracy)) {
+      const nextAccuracy = Math.max(0, Math.min(1, Number(metrics.accuracy)));
+      accuracyValue.textContent = `${Math.round(nextAccuracy * 100)}%`;
+    }
+    requestAnimationFrame(refreshExerciseFieldAccuracyValue);
+  };
+  requestAnimationFrame(refreshExerciseFieldAccuracyValue);
 
   const sizeWrap = document.createElement('div');
   sizeWrap.className = 'figure-size-wrap';
@@ -1564,6 +1727,63 @@ function createExerciseFieldPanel() {
     circleSizeValue.textContent = Number.isFinite(next) ? `${Math.round(next)}px` : '12px';
   };
 
+  challengeModeInputs.forEach((input) => {
+    input.addEventListener('pointerdown', () => {
+      if (!input.checked && input.value === 'tempo' && metronomeOnInput.checked) {
+        managerRef?.resumeExerciseFieldMetronomeAudio?.();
+      }
+    });
+
+    input.addEventListener('change', () => {
+      if (!input.checked) {
+        return;
+      }
+
+      const nextMode = input.value === 'tempo' ? 'tempo' : 'free';
+      const metronomeWasOn = metronomeOnInput.checked;
+      selectedMode = nextMode;
+
+      if (nextMode === 'tempo' && metronomeWasOn) {
+        managerRef?.resumeExerciseFieldMetronomeAudio?.();
+      }
+
+      managerRef?.setExerciseFieldChallengeMode?.(selectedMode);
+      saveSettings();
+    });
+  });
+
+  challengeTempoSlider.addEventListener('input', () => {
+    const nextBpm = Number.isFinite(Number(challengeTempoSlider.value))
+      ? Math.min(180, Math.max(30, Number(challengeTempoSlider.value)))
+      : 60;
+    challengeTempoSlider.value = String(nextBpm);
+    challengeTempoValue.textContent = `${Math.round(nextBpm)} bpm`;
+    managerRef?.setExerciseFieldTempoBpm?.(nextBpm);
+    saveSettings();
+  });
+
+  const activateMetronomeButton = (enabled) => {
+    syncMetronomeUi(enabled);
+    if (enabled) {
+      managerRef?.resumeExerciseFieldMetronomeAudio?.();
+    }
+    managerRef?.setExerciseFieldMetronomeEnabled?.(enabled);
+    saveSettings();
+  };
+
+  metronomeOffOption.addEventListener('click', () => {
+    activateMetronomeButton(false);
+  });
+
+  metronomeOnOption.addEventListener('click', () => {
+    activateMetronomeButton(true);
+    if (selectedMode === 'tempo') {
+      managerRef?.resumeExerciseFieldMetronomeAudio?.();
+      managerRef?.setExerciseFieldMetronomeEnabled?.(true);
+      managerRef?.setExerciseFieldChallengeMode?.('tempo');
+    }
+  });
+
   toggleInput.addEventListener('change', () => {
     const visible = toggleInput.checked;
     managerRef?.setExerciseFieldVisible?.(visible);
@@ -1660,6 +1880,9 @@ function createExerciseFieldPanel() {
       fieldSide: preset.fieldSide === 'right' ? 'right' : 'left',
       fieldVertical: preset.fieldVertical === 'bottom' ? 'bottom' : 'top',
       fieldBeat: sanitizeAssignmentBeat(preset.fieldBeat ?? currentSettings.fieldBeat, sanitizeStrikeCount(preset.strikeCount ?? currentSettings.strikeCount)),
+      mode: preset.mode === 'tempo' ? 'tempo' : 'free',
+      tempoBpm: Number.isFinite(Number(preset.tempoBpm)) ? Math.min(180, Math.max(30, Number(preset.tempoBpm))) : (Number.isFinite(Number(currentSettings.tempoBpm)) ? Number(currentSettings.tempoBpm) : 60),
+      metronomeEnabled: typeof preset.metronomeEnabled === 'boolean' ? preset.metronomeEnabled : (typeof currentSettings.metronomeEnabled === 'boolean' ? currentSettings.metronomeEnabled : false),
       strikePositions: savedStrikePositions
     };
 
@@ -1713,7 +1936,10 @@ function createExerciseFieldPanel() {
         strikeRadius: 12,
         fieldSide: 'left',
         fieldVertical: 'top',
-        fieldBeat: 1
+        fieldBeat: 1,
+        mode: 'free',
+        tempoBpm: 60,
+        metronomeEnabled: false
       };
       const nextPresets = defaults['motionai.exercise-field-presets'] || {};
       const defaultPresetState = nextPresets[String(0)] || nextPanelSettings;
@@ -1726,7 +1952,9 @@ function createExerciseFieldPanel() {
         strikeRadius: Number.isFinite(Number(nextPanelSettings.strikeRadius)) ? Number(nextPanelSettings.strikeRadius) : 12,
         fieldSide: nextPanelSettings.fieldSide === 'right' ? 'right' : 'left',
         fieldVertical: nextPanelSettings.fieldVertical === 'bottom' ? 'bottom' : 'top',
-        fieldBeat: sanitizeAssignmentBeat(nextPanelSettings.fieldBeat ?? 1, sanitizeStrikeCount(nextPanelSettings.strikeCount ?? 2))
+        fieldBeat: sanitizeAssignmentBeat(nextPanelSettings.fieldBeat ?? 1, sanitizeStrikeCount(nextPanelSettings.strikeCount ?? 2)),
+        mode: nextPanelSettings.mode === 'tempo' ? 'tempo' : 'free',
+        tempoBpm: Number.isFinite(Number(nextPanelSettings.tempoBpm)) ? Math.min(180, Math.max(30, Number(nextPanelSettings.tempoBpm))) : 60
       }));
       localStorage.setItem(presetsKey, JSON.stringify(nextPresets));
 
@@ -1743,6 +1971,8 @@ function createExerciseFieldPanel() {
         fieldSide: activePreset.fieldSide === 'right' ? 'right' : 'left',
         fieldVertical: activePreset.fieldVertical === 'bottom' ? 'bottom' : 'top',
         fieldBeat: sanitizeAssignmentBeat(activePreset.fieldBeat ?? 1, sanitizeStrikeCount(activePreset.strikeCount ?? 2)),
+        mode: activePreset.mode === 'tempo' ? 'tempo' : 'free',
+        tempoBpm: Number.isFinite(Number(activePreset.tempoBpm)) ? Math.min(180, Math.max(30, Number(activePreset.tempoBpm))) : 60,
         strikePositions: sanitizeExerciseFieldStrikePositions(activePreset.strikePositions || {})
       });
       applyPreset(activePresetIndex);
@@ -1812,6 +2042,10 @@ function createExerciseFieldPanel() {
         ? Number(savedSettings.xOffset)
         : Number(managerRef.exerciseFieldXOffset);
       const strikeRadiusValue = clampExerciseFieldStrikeRadius(Number.isFinite(Number(savedSettings.strikeRadius)) ? Number(savedSettings.strikeRadius) : Number(managerRef.exerciseFieldStrikeRadius));
+      const mode = savedSettings.mode === 'tempo' ? 'tempo' : 'free';
+      selectedMode = mode;
+      challengeTempoSlider.value = String(Number.isFinite(Number(savedSettings.tempoBpm)) ? Math.min(180, Math.max(30, Number(savedSettings.tempoBpm))) : 60);
+      challengeTempoValue.textContent = `${Math.round(Number(challengeTempoSlider.value))} bpm`;
 
       sizeSlider.value = String(Math.min(1.25, Math.max(0.25, value)));
       updateSizeValue();
@@ -1821,6 +2055,9 @@ function createExerciseFieldPanel() {
       circleSizeSlider.value = String(clampExerciseFieldStrikeRadius(strikeRadiusValue));
       updateCircleSizeValue();
       toggleInput.checked = Boolean(enabled);
+      challengeModeInputs.forEach((input) => {
+        input.checked = input.value === selectedMode;
+      });
       strikeCountInputs.forEach((input) => {
         input.checked = Number(input.value) === restoredStrikeCount;
       });
@@ -1835,7 +2072,7 @@ function createExerciseFieldPanel() {
         input.checked = Number(input.value) === restoredFieldBeat;
       });
       managerRef.setExerciseFieldScale?.(Number(sizeSlider.value));
-      managerRef.setExerciseFieldVisible?.(toggleInput.checked);
+      managerRef.setExerciseFieldVisible?.(true);
       managerRef.setExerciseFieldXOffset?.(Number(xOffsetSlider.value));
       managerRef.setExerciseFieldStrikeCount?.(restoredStrikeCount);
       managerRef.setExerciseFieldStrikeRadius?.(Number(circleSizeSlider.value));
@@ -1844,6 +2081,8 @@ function createExerciseFieldPanel() {
         vertical: restoredFieldVertical,
         beatIndex: restoredFieldBeat
       });
+      managerRef.setExerciseFieldChallengeMode?.(selectedMode);
+      managerRef.setExerciseFieldTempoBpm?.(Number(challengeTempoSlider.value));
       managerRef.setExerciseFieldStrikePositions?.(savedSettings.strikePositions || { left: [], right: [] });
       saveSettings();
     },
@@ -1851,6 +2090,13 @@ function createExerciseFieldPanel() {
       toggleInput.checked = Boolean(enabled);
       managerRef?.setExerciseFieldVisible?.(toggleInput.checked);
       saveSettings();
+    },
+    getChallengeMetrics: () => managerRef?.getExerciseFieldMetrics?.() || {
+      mode: selectedMode,
+      tempoBpm: Number(challengeTempoSlider.value),
+      accuracy: 0,
+      activeIndex: 0,
+      strikeCount: sanitizeStrikeCount(strikeCountInputs.find((input) => input.checked)?.value ?? 2)
     },
     setScale: (value) => {
       const next = Number(value);
@@ -4887,12 +5133,19 @@ export function initApp() {
     get exerciseFieldStrikeCount() { return levelManager.exerciseFieldStrikeCount; },
     get exerciseFieldStrikeRadius() { return levelManager.exerciseFieldStrikeRadius; },
     get exerciseFieldStrikePositions() { return levelManager.exerciseFieldStrikePositions; },
+    get exerciseFieldChallengeMode() { return levelManager.exerciseFieldChallengeMode; },
+    get exerciseFieldTempoBpm() { return levelManager.exerciseFieldTempoBpm; },
+    getExerciseFieldMetrics: () => levelManager.getExerciseFieldMetrics(),
+    resumeExerciseFieldMetronomeAudio: () => levelManager.resumeExerciseFieldMetronomeAudio(),
     setExerciseFieldVisible: (value) => levelManager.setExerciseFieldVisible(value),
     setExerciseFieldScale: (value) => levelManager.setExerciseFieldScale(value),
     setExerciseFieldXOffset: (value) => levelManager.setExerciseFieldXOffset(value),
     setExerciseFieldStrikeCount: (value) => levelManager.setExerciseFieldStrikeCount(value),
     setExerciseFieldStrikeRadius: (value) => levelManager.setExerciseFieldStrikeRadius(value),
     setExerciseFieldAssignment: (assignment) => levelManager.setExerciseFieldAssignment(assignment),
+    setExerciseFieldChallengeMode: (mode) => levelManager.setExerciseFieldChallengeMode(mode),
+    setExerciseFieldTempoBpm: (value) => levelManager.setExerciseFieldTempoBpm(value),
+    setExerciseFieldMetronomeEnabled: (enabled) => levelManager.setExerciseFieldMetronomeEnabled(enabled),
     setExerciseFieldStrikePositions: (positions) => levelManager.setExerciseFieldStrikePositions(positions)
   });
   const dynamicFigureManager = {
@@ -5009,7 +5262,7 @@ export function initApp() {
     if (!showExerciseFieldPanel) {
       levelManager.setExerciseFieldVisible(false);
     } else {
-      levelManager.setExerciseFieldVisible(exerciseFieldPanel.isEnabled());
+      levelManager.setExerciseFieldVisible(true);
     }
     if (isDynamicFigureChapter) {
       dynamicFigurePanel.setTitle('dynamic');
@@ -5060,7 +5313,7 @@ export function initApp() {
       if (!showExerciseFieldPanel) {
         levelManager.setExerciseFieldVisible(false);
       } else {
-        levelManager.setExerciseFieldVisible(exerciseFieldPanel.isEnabled());
+        levelManager.setExerciseFieldVisible(true);
       }
       return;
     }

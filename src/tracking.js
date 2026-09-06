@@ -100,6 +100,8 @@ export function startTracking(videoElement, canvasElement, options = {}) {
   let poseModel = null;
   let smoothedHandLandmarks = [];
   let smoothedPoseLandmarks = null;
+  let modelAbortRecoveryCount = 0;
+  const MAX_MODEL_ABORT_RECOVERIES = 2;
 
   function enqueueOperation(task) {
     operationQueue = operationQueue.then(task, task);
@@ -827,12 +829,35 @@ export function startTracking(videoElement, canvasElement, options = {}) {
     }));
   }
 
+  async function recoverFromModelAbort(error) {
+    const message = error && error.message ? error.message : String(error || '');
+    if (!/abort|aborted|RuntimeError|wasm/i.test(message)) {
+      throw error;
+    }
+
+    if (modelAbortRecoveryCount >= MAX_MODEL_ABORT_RECOVERIES) {
+      console.error('MediaPipe tracking model failed repeatedly. Stopping tracking loop.', error);
+      processing = false;
+      return;
+    }
+
+    modelAbortRecoveryCount += 1;
+    console.warn('MediaPipe tracking model aborted during init. Recreating model.', error);
+    closeTrackingModels();
+    smoothedHandLandmarks = [];
+    smoothedPoseLandmarks = null;
+    landmarksListeners.forEach((listener) => listener([]));
+    poseListeners.forEach((listener) => listener([]));
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+
   async function processFrames() {
     if (processing) {
       return;
     }
 
     processing = true;
+    modelAbortRecoveryCount = 0;
 
     while (processing) {
       if (!activeStream || videoElement.readyState < 2) {
@@ -840,8 +865,23 @@ export function startTracking(videoElement, canvasElement, options = {}) {
         continue;
       }
 
-      const model = await getActiveModel();
-      await model.send({ image: videoElement });
+      try {
+        const model = await getActiveModel();
+        await model.send({ image: videoElement });
+      } catch (error) {
+        try {
+          await recoverFromModelAbort(error);
+          if (!processing) {
+            break;
+          }
+          continue;
+        } catch (retryError) {
+          console.error('Unhandled tracking model error.', retryError);
+          processing = false;
+          break;
+        }
+      }
+
       await new Promise((resolve) => requestAnimationFrame(resolve));
     }
   }

@@ -53,14 +53,17 @@ export const DEFAULT_MOTIONAI_STORAGE = {
     fieldSide: 'left',
     fieldVertical: 'top',
     fieldBeat: 1,
+    mode: 'free',
+    tempoBpm: 60,
+    metronomeEnabled: false,
     strikePositions: { left: [], right: [] }
   },
   'motionai.exercise-field-presets': {
-    '0': { enabled: true, scale: 1, xOffset: 0, strikeCount: 2, strikeRadius: 20, fieldSide: 'left', fieldVertical: 'top', fieldBeat: 1, strikePositions: { left: [], right: [] } },
-    '1': { enabled: true, scale: 1, xOffset: 0, strikeCount: 2, strikeRadius: 20, fieldSide: 'left', fieldVertical: 'top', fieldBeat: 1, strikePositions: { left: [], right: [] } },
-    '2': { enabled: true, scale: 1, xOffset: 0, strikeCount: 2, strikeRadius: 20, fieldSide: 'left', fieldVertical: 'top', fieldBeat: 1, strikePositions: { left: [], right: [] } },
-    '3': { enabled: true, scale: 1, xOffset: 0, strikeCount: 2, strikeRadius: 20, fieldSide: 'left', fieldVertical: 'top', fieldBeat: 1, strikePositions: { left: [], right: [] } },
-    '4': { enabled: true, scale: 1, xOffset: 0, strikeCount: 2, strikeRadius: 20, fieldSide: 'left', fieldVertical: 'top', fieldBeat: 1, strikePositions: { left: [], right: [] } }
+    '0': { enabled: true, scale: 1, xOffset: 0, strikeCount: 2, strikeRadius: 20, fieldSide: 'left', fieldVertical: 'top', fieldBeat: 1, mode: 'free', tempoBpm: 60, metronomeEnabled: false, strikePositions: { left: [], right: [] } },
+    '1': { enabled: true, scale: 1, xOffset: 0, strikeCount: 2, strikeRadius: 20, fieldSide: 'left', fieldVertical: 'top', fieldBeat: 1, mode: 'free', tempoBpm: 60, metronomeEnabled: false, strikePositions: { left: [], right: [] } },
+    '2': { enabled: true, scale: 1, xOffset: 0, strikeCount: 2, strikeRadius: 20, fieldSide: 'left', fieldVertical: 'top', fieldBeat: 1, mode: 'free', tempoBpm: 60, metronomeEnabled: false, strikePositions: { left: [], right: [] } },
+    '3': { enabled: true, scale: 1, xOffset: 0, strikeCount: 2, strikeRadius: 20, fieldSide: 'left', fieldVertical: 'top', fieldBeat: 1, mode: 'free', tempoBpm: 60, metronomeEnabled: false, strikePositions: { left: [], right: [] } },
+    '4': { enabled: true, scale: 1, xOffset: 0, strikeCount: 2, strikeRadius: 20, fieldSide: 'left', fieldVertical: 'top', fieldBeat: 1, mode: 'free', tempoBpm: 60, metronomeEnabled: false, strikePositions: { left: [], right: [] } }
   }
 };
 
