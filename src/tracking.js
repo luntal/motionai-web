@@ -1,6 +1,7 @@
 let stabilizationEnabled = true;
 let landmarkDrawingEnabled = true;
 let silhouetteEnabled = false;
+let eyeOverlayEnabled = false;
 let silhouetteOpacity = 0.2;
 let videoSofteningEnabled = true;
 let videoSofteningBlurPx = 5;
@@ -19,6 +20,13 @@ export function setLandmarkDrawingEnabled(enabled) {
 
 export function setSilhouetteEnabled(enabled) {
   silhouetteEnabled = Boolean(enabled);
+  if (!silhouetteEnabled) {
+    eyeOverlayEnabled = false;
+  }
+}
+
+export function setEyeOverlayEnabled(enabled) {
+  eyeOverlayEnabled = Boolean(enabled) && silhouetteEnabled;
 }
 
 export function setSilhouetteOpacity(value) {
@@ -183,6 +191,125 @@ export function startTracking(videoElement, canvasElement, options = {}) {
     }
   }
 
+  function drawHandSilhouette(handLandmarks) {
+    if (!silhouetteEnabled || !Array.isArray(handLandmarks) || handLandmarks.length === 0) {
+      return;
+    }
+
+    const fillColor = `rgba(122, 180, 255, ${silhouetteOpacity})`;
+    const strokeColor = `rgba(122, 180, 255, ${Math.min(0.9, Math.max(0.2, silhouetteOpacity * 1.15))})`;
+
+    const toCanvasPoint = (landmark) => {
+      if (!landmark) {
+        return null;
+      }
+      return {
+        x: toMirroredCanvasX(landmark.x),
+        y: landmark.y * canvasElement.height
+      };
+    };
+
+    function drawRoundedPolygon(points, radius) {
+      if (!Array.isArray(points) || points.length < 3) {
+        return;
+      }
+
+      const pointToward = (start, end, distance) => {
+        const dx = end.x - start.x;
+        const dy = end.y - start.y;
+        const length = Math.hypot(dx, dy) || 1;
+        const factor = Math.min(distance / length, 1);
+        return { x: start.x + dx * factor, y: start.y + dy * factor };
+      };
+
+      const safeRadius = Math.min(
+        radius,
+        ...points.map((point, index) => {
+          const prev = points[(index - 1 + points.length) % points.length];
+          const next = points[(index + 1) % points.length];
+          return Math.min(
+            Math.hypot(point.x - prev.x, point.y - prev.y),
+            Math.hypot(point.x - next.x, point.y - next.y)
+          ) * 0.5;
+        })
+      );
+
+      ctx.beginPath();
+      const first = points[0];
+      const firstStart = pointToward(first, points[points.length - 1], safeRadius);
+      ctx.moveTo(firstStart.x, firstStart.y);
+
+      for (let index = 0; index < points.length; index += 1) {
+        const current = points[index];
+        const next = points[(index + 1) % points.length];
+        const prev = points[(index - 1 + points.length) % points.length];
+        const from = pointToward(current, prev, safeRadius);
+        const to = pointToward(current, next, safeRadius);
+        ctx.lineTo(from.x, from.y);
+        ctx.quadraticCurveTo(current.x, current.y, to.x, to.y);
+      }
+
+      ctx.closePath();
+      ctx.fillStyle = fillColor;
+      ctx.fill();
+      ctx.strokeStyle = strokeColor;
+      ctx.lineWidth = 1.25;
+      ctx.stroke();
+    }
+
+    function drawSegmentBand(startPoint, endPoint, width = 18) {
+      if (!startPoint || !endPoint) {
+        return;
+      }
+
+      const dx = endPoint.x - startPoint.x;
+      const dy = endPoint.y - startPoint.y;
+      const length = Math.hypot(dx, dy) || 1;
+      const nx = -dy / length;
+      const ny = dx / length;
+      const halfWidth = width * 0.5;
+
+      const a = { x: startPoint.x + nx * halfWidth, y: startPoint.y + ny * halfWidth };
+      const b = { x: startPoint.x - nx * halfWidth, y: startPoint.y - ny * halfWidth };
+      const c = { x: endPoint.x + nx * halfWidth, y: endPoint.y + ny * halfWidth };
+      const d = { x: endPoint.x - nx * halfWidth, y: endPoint.y - ny * halfWidth };
+
+      const corners = [a, c, d, b];
+      drawRoundedPolygon(corners, Math.min(width * 0.7, 12));
+    }
+
+    const palmPoints = [0, 1, 2, 5, 9, 13, 17]
+      .map((index) => toCanvasPoint(handLandmarks[index]))
+      .filter(Boolean);
+
+    if (palmPoints.length >= 3) {
+      drawRoundedPolygon(palmPoints, 18);
+    }
+
+    const fingerSegments = [
+      [2, 3],
+      [3, 4],
+      [5, 6],
+      [6, 7],
+      [7, 8],
+      [9, 10],
+      [10, 11],
+      [11, 12],
+      [13, 14],
+      [14, 15],
+      [15, 16],
+      [17, 18],
+      [18, 19],
+      [19, 20]
+    ];
+
+    fingerSegments.forEach(([startIndex, endIndex]) => {
+      const start = toCanvasPoint(handLandmarks[startIndex]);
+      const end = toCanvasPoint(handLandmarks[endIndex]);
+      drawSegmentBand(start, end, 14);
+    });
+  }
+
   function drawPoints(landmarks) {
     ctx.fillStyle = landmarkStyle.fillStyle;
     for (const landmark of landmarks) {
@@ -310,6 +437,39 @@ export function startTracking(videoElement, canvasElement, options = {}) {
       drawRoundedPolygon([a, c, d, b], Math.min(shoulderWidth * 0.45, 30));
     }
 
+    function drawEyeEllipse(landmarkA, landmarkB, pupil) {
+      const start = toCanvasPoint(landmarkA);
+      const end = toCanvasPoint(landmarkB);
+      const center = toCanvasPoint(pupil);
+      if (!start || !end || !center) {
+        return;
+      }
+
+      const dx = end.x - start.x;
+      const dy = end.y - start.y;
+      const length = Math.hypot(dx, dy) || 1;
+      const rx = Math.max(8, length * 0.52);
+      const ry = Math.max(6, length * 0.28);
+      const angle = Math.atan2(dy, dx);
+
+      ctx.save();
+      ctx.translate(center.x, center.y);
+      ctx.rotate(angle);
+      ctx.beginPath();
+      ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.72)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    if (eyeOverlayEnabled) {
+      drawEyeEllipse(landmarks[1], landmarks[3], landmarks[2]);
+      drawEyeEllipse(landmarks[4], landmarks[6], landmarks[5]);
+    }
+
     const leftShoulder = landmarks[11];
     const rightShoulder = landmarks[12];
     const leftElbow = landmarks[13];
@@ -417,6 +577,11 @@ export function startTracking(videoElement, canvasElement, options = {}) {
     ];
     drawRoundedPolygon(torsoShape, 52);
 
+    const eyeLeftRef = toCanvasPoint(landmarks[3]) || leftEarPoint;
+    const eyeRightRef = toCanvasPoint(landmarks[6]) || rightEarPoint;
+    const eyeTopLeft = { x: eyeLeftRef.x, y: eyeLeftRef.y - 28 };
+    const eyeTopRight = { x: eyeRightRef.x, y: eyeRightRef.y - 28 };
+
     const headShape = [
       {
         x: mouthLeftPoint.x - 12,
@@ -428,19 +593,27 @@ export function startTracking(videoElement, canvasElement, options = {}) {
       },
       {
         x: rightEarPoint.x + 22,
-        y: rightEarPoint.y -60
+        y: rightEarPoint.y - 20
       },
       {
-        x: ((toCanvasPoint(landmarks[6])?.x ?? rightEarPoint.x) + (toCanvasPoint(landmarks[3])?.x ?? leftEarPoint.x)) * 0.5 + 26,
-        y: ((toCanvasPoint(landmarks[6])?.y ?? rightEarPoint.y) + (toCanvasPoint(landmarks[3])?.y ?? leftEarPoint.y)) * 0.5 - 40
+        x: rightEarPoint.x + 22,
+        y: rightEarPoint.y - 80
       },
       {
-        x: ((toCanvasPoint(landmarks[3])?.x ?? leftEarPoint.x) + (toCanvasPoint(landmarks[6])?.x ?? rightEarPoint.x)) * 0.5 - 26,
-        y: ((toCanvasPoint(landmarks[3])?.y ?? leftEarPoint.y) + (toCanvasPoint(landmarks[6])?.y ?? rightEarPoint.y)) * 0.5 - 40
+        x: (eyeTopRight.x + eyeTopLeft.x) * 0.5 + 26,
+        y: (eyeTopRight.y + eyeTopLeft.y) * 0.5 - 60
+      },
+      {
+        x: (eyeTopLeft.x + eyeTopRight.x) * 0.5 - 26,
+        y: (eyeTopLeft.y + eyeTopRight.y) * 0.5 - 60
       },
       {
         x: leftEarPoint.x - 22,
-        y: leftEarPoint.y - 60
+        y: leftEarPoint.y - 80
+      },
+      {
+        x: leftEarPoint.x - 22,
+        y: leftEarPoint.y - 20
       }
     ];
 
@@ -640,6 +813,12 @@ export function startTracking(videoElement, canvasElement, options = {}) {
 
         smoothedHandLandmarks = stableHands;
 
+        if (silhouetteEnabled) {
+          for (const handLandmarks of stableHands) {
+            drawHandSilhouette(handLandmarks);
+          }
+        }
+
         if (landmarkDrawingEnabled) {
           for (const handLandmarks of stableHands) {
             drawConnections(handLandmarks, HAND_CONNECTIONS);
@@ -651,20 +830,24 @@ export function startTracking(videoElement, canvasElement, options = {}) {
         for (let i = 0; i < stableHands.length; i++) {
           const handLandmarks = stableHands[i];
           const mpLabel = handednessData[i] ? handednessData[i].label : null;
-          const side = mpLabel === 'Left' ? 'left' : mpLabel === 'Right' ? 'right' : null;
+          const rawSide = mpLabel === 'Left' ? 'left' : mpLabel === 'Right' ? 'right' : null;
+          const side = rawSide === 'left' ? 'right' : rawSide === 'right' ? 'left' : null;
           const indexTipTrigger = createTriggerPointFromLandmarks(handLandmarks, 8);
           drawTriggerPoint(indexTipTrigger, side);
         }
 
         const canvasLandmarks = stableHands.map((hand, index) => {
+          const mpLabel = handednessData[index] ? handednessData[index].label : null;
+          const rawSide = mpLabel === 'Left' ? 'left' : mpLabel === 'Right' ? 'right' : null;
+          const invertedSide = rawSide === 'left' ? 'right' : rawSide === 'right' ? 'left' : null;
+
           const normalized = hand.map((landmark) => ({
             x: (1 - landmark.x) * canvasElement.width,
             y: landmark.y * canvasElement.height,
             z: landmark.z
           }));
-          const mpLabel = handednessData[index] ? handednessData[index].label : null;
-          const side = mpLabel === 'Left' ? 'left' : mpLabel === 'Right' ? 'right' : null;
-          normalized.side = side;
+
+          normalized.side = invertedSide || null;
           return normalized;
         });
 

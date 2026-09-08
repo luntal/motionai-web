@@ -166,7 +166,7 @@ export const uiElementDescriptions = {
     'Silhouette': 'Zeichnet eine leicht transparente Körper-Silhouette über die Live-Erkennung, ohne die Landmarken oder ihre Verbindungen zu verändern.',
     'Silhouette Deckkraft': 'Stellt die Transparenz der Silhouette ein. Niedrige Werte machen sie fast unsichtbar, hohe Werte machen sie kräftiger und deutlicher.',
     'Weichzeichnen': 'Weichzeichnet das Live-Video leicht und verdunkelt es minimal, damit die Bewegungserkennung ruhiger wirkt.',
-    'Pose Warning Landmarks': 'Blendet zusätzliche Warnhinweise für die Pose-Erkennung ein oder aus.',
+    'Pose Warning Landmarks': 'Blendet zusätzliche Warnhinweise für die Pose-Erkennung ein oder aus. Es werden die relevanten Landmarks der aktuellen Kallibrierung als rote Punkte angezeigt.',
     'Werkseinstellung': 'Setzt alle Einstellungen und Presets auf die Werkseinstellungen zurück. Alle gespeicherten Presets werden gelöscht.',
   },
   'Eingewöhnung': {
@@ -243,7 +243,8 @@ export const uiElementDescriptions = {
     Rotation: 'Stellt die Rotation der Gegensatzfigur ein.',
   },
   'Einsätze geben': {
-    Einsatzfelder: 'Aktiviert oder deaktiviert die Einsatzfelder für die Übung.',
+    ModusFrei: 'Hier kann mit eigener freier Tempowahl geübt werden. Führe die Dirigierbewegung so aus, dass auf die Zählzeiten die Kreise mit der entsprechenden Nummerierung berührt werden. Das Einsatzfeld auf dem der Einsatz gegeben werden soll ist durch die Nummer markiert. Hier musst du aus der Dirigierfigur ausbrechen um mit einer Hand den Einsatz zu geben. Du erhälst die Durchschnittliche Synchronität zwischen linker und rechter Hand als große Anzeige mit ø markiert und die Tempogleichmäßigkeit mit dem Symbol ~. Direkt im Kreis wird in Millisekunden angezeigt, wie die zeitliche Abweichung zwischen linker und rechter Hand ist.',
+    ModusFestesTempo: 'Hier kann mit einem festen Tempo geübt werden. Führe die Dirigierbewegung so aus, dass auf die Zählzeiten die Kreise mit der entsprechenden Nummerierung berührt werden. Das Einsatzfeld auf dem der Einsatz gegeben werden soll ist durch die Nummer markiert. Hier musst du aus der Dirigierfigur ausbrechen um mit einer Hand den Einsatz zu geben. Du erhälst die Durchschnittliche Schlaggenauigkeit als große Anzeige mit ø markiert.',
     'Grösse Einsatzfeld': 'Stellt die Größe der vier Einsatzfelder ein.',
     xOffset: 'Stellt den horizontalen Abstand der Einsatzfelder zur Mitte ein.',
     'Kreisgröße': 'Stellt die Größe der Kreise für die Zählzeiten ein.',

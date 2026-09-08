@@ -106,7 +106,15 @@ export class LevelManager {
     this.exerciseFieldSequenceStartedAt = performance.now();
     this.exerciseFieldStrikePositions = { left: [], right: [] };
     this.exerciseFieldTimingSamples = [];
+    this.exerciseFieldFreeSyncSamples = [];
+    this.exerciseFieldFreeBeatRegularitySamples = [];
+    this.exerciseFieldFreeBeatRegularityLastBeatAtMs = null;
+    this.exerciseFieldFreeSyncLabels = [];
+    this.exerciseFieldFreeSyncActive = false;
+    this.exerciseFieldFreeSyncCurrentPair = { leftTouchAtMs: null, rightTouchAtMs: null };
+    this.exerciseFieldFreeSyncLastTouchAt = { left: null, right: null };
     this.exerciseFieldBeatWindow = null;
+    this.exerciseFieldLastResolvedBeatIndex = null;
     this.exerciseFieldTimingLabels = [];
     this.exerciseFieldMetronomeClock = {
       audioContext: null,
@@ -563,6 +571,16 @@ export class LevelManager {
     this.exerciseFieldLastFreeTickBeat = -1;
     this.exerciseFieldSequenceStartedAt = performance.now();
     this.exerciseFieldAccuracy = 0;
+    this.exerciseFieldTimingSamples = [];
+    this.exerciseFieldFreeSyncSamples = [];
+    this.exerciseFieldFreeBeatRegularitySamples = [];
+    this.exerciseFieldFreeBeatRegularityLastBeatAtMs = null;
+    this.exerciseFieldFreeSyncLabels = [];
+    this.exerciseFieldFreeSyncActive = false;
+    this.exerciseFieldFreeSyncCurrentPair = { leftTouchAtMs: null, rightTouchAtMs: null };
+    this.exerciseFieldFreeSyncLastTouchAt = { left: null, right: null };
+    this.exerciseFieldBeatWindow = null;
+    this.exerciseFieldLastResolvedBeatIndex = null;
     if (nextMode === 'tempo') {
       if (this.exerciseFieldMetronomeEnabled) {
         const audioContext = this.ensureExerciseFieldMetronomeAudio();
@@ -940,8 +958,9 @@ export class LevelManager {
 
     const beatDurationMs = this.getExerciseFieldBeatDurationMs();
     const expectedAtMs = Number.isFinite(sample.expectedAtMs) ? sample.expectedAtMs : 0;
+    const beatWindowHalfDurationMs = beatDurationMs / 2;
     const bothHandsKnown = Number.isFinite(sample.leftTouchAtMs) && Number.isFinite(sample.rightTouchAtMs);
-    const beatTimedOut = Number.isFinite(nowMs) && nowMs >= expectedAtMs + beatDurationMs;
+    const beatTimedOut = Number.isFinite(nowMs) && nowMs >= expectedAtMs + beatWindowHalfDurationMs;
 
     if (!bothHandsKnown && !beatTimedOut) {
       return;
@@ -976,6 +995,8 @@ export class LevelManager {
       avgAbsoluteDeviationMs,
       normalizedDeviation
     });
+
+    this.exerciseFieldLastResolvedBeatIndex = sample.beatIndex;
 
     const sampleWindow = Math.max(10, this.exerciseFieldStrikeCount * 10);
     this.exerciseFieldTimingSamples = this.exerciseFieldTimingSamples.slice(-sampleWindow);
@@ -1038,6 +1059,33 @@ export class LevelManager {
     if (Number.isFinite(sample.leftTouchAtMs) && Number.isFinite(sample.rightTouchAtMs)) {
       this.finalizeExerciseFieldBeatWindow();
     }
+  }
+
+  getExerciseFieldFreeBeatRegularityStats() {
+    const samples = Array.isArray(this.exerciseFieldFreeBeatRegularitySamples)
+      ? this.exerciseFieldFreeBeatRegularitySamples.slice(-10)
+      : [];
+
+    if (samples.length < 2) {
+      return {
+        avgIntervalMs: null,
+        deviationMs: null,
+        regularityPct: null,
+        observations: samples.length
+      };
+    }
+
+    const avgIntervalMs = samples.reduce((sum, value) => sum + value, 0) / samples.length;
+    const deviationMs = samples.reduce((sum, value) => sum + Math.abs(value - avgIntervalMs), 0) / samples.length;
+    const normalizedDeviation = Math.min(1, deviationMs / Math.max(100, avgIntervalMs * 0.75));
+    const regularityPct = Math.max(0, Math.min(100, (1 - normalizedDeviation) * 100));
+
+    return {
+      avgIntervalMs,
+      deviationMs,
+      regularityPct,
+      observations: samples.length
+    };
   }
 
   getExerciseFieldTimingStats() {
@@ -1138,14 +1186,18 @@ export class LevelManager {
           const beatWindow = this.exerciseFieldBeatWindow;
           const beatIsResolved = Number.isFinite(beatWindow.leftTouchAtMs)
             && Number.isFinite(beatWindow.rightTouchAtMs);
-          const beatTimedOut = nowMs >= beatWindow.expectedAtMs + beatDurationMs;
+          const beatTimedOut = nowMs >= beatWindow.expectedAtMs + (beatDurationMs / 2);
 
-          if (beatIsResolved || beatTimedOut || previousScheduledIndex !== nextScheduledIndex) {
+          if ((beatIsResolved || beatTimedOut) && previousScheduledIndex === nextScheduledIndex) {
             this.finalizeExerciseFieldBeatWindow(nowMs);
           }
         }
 
-        if (!this.exerciseFieldBeatWindow || this.exerciseFieldBeatWindow.beatIndex !== absoluteBeatIndex) {
+        const lastResolvedBeatIndex = Number.isFinite(this.exerciseFieldLastResolvedBeatIndex)
+          ? this.exerciseFieldLastResolvedBeatIndex
+          : null;
+
+        if (!this.exerciseFieldBeatWindow && (lastResolvedBeatIndex === null || absoluteBeatIndex > lastResolvedBeatIndex)) {
           this.exerciseFieldBeatWindow = {
             beatIndex: absoluteBeatIndex,
             expectedAtMs: absoluteOriginMs + absoluteBeatIndex * beatDurationMs,
@@ -1193,7 +1245,46 @@ export class LevelManager {
     }
 
     if (this.exerciseFieldChallengeMode === 'free') {
+      const syncPair = this.exerciseFieldFreeSyncCurrentPair;
+      if (leftMatch && syncPair.leftTouchAtMs === null) {
+        syncPair.leftTouchAtMs = nowMs;
+      }
+      if (rightMatch && syncPair.rightTouchAtMs === null) {
+        syncPair.rightTouchAtMs = nowMs;
+      }
+
       if (leftMatch && rightMatch) {
+        const leftTouchAtMs = Number.isFinite(syncPair.leftTouchAtMs) ? syncPair.leftTouchAtMs : nowMs;
+        const rightTouchAtMs = Number.isFinite(syncPair.rightTouchAtMs) ? syncPair.rightTouchAtMs : nowMs;
+        const rawDeltaMs = leftTouchAtMs - rightTouchAtMs;
+        const deltaMs = Math.abs(rawDeltaMs);
+        const clampedDeltaMs = Math.min(1000, Math.max(0, deltaMs));
+        const score = Math.max(0, Math.min(1, 1 - (clampedDeltaMs / 1000)));
+        const syncTargetIndex = activeIndex;
+
+        if (Number.isFinite(this.exerciseFieldFreeBeatRegularityLastBeatAtMs)) {
+          const intervalMs = Math.max(0, nowMs - this.exerciseFieldFreeBeatRegularityLastBeatAtMs);
+          this.exerciseFieldFreeBeatRegularitySamples.push(intervalMs);
+          this.exerciseFieldFreeBeatRegularitySamples = this.exerciseFieldFreeBeatRegularitySamples.slice(-10);
+        }
+        this.exerciseFieldFreeBeatRegularityLastBeatAtMs = nowMs;
+
+        this.exerciseFieldFreeSyncSamples.push({
+          deltaMs: clampedDeltaMs,
+          score,
+          recordedAtMs: nowMs
+        });
+        this.exerciseFieldFreeSyncSamples = this.exerciseFieldFreeSyncSamples.slice(-10);
+
+        this.exerciseFieldFreeSyncLabels = this.exerciseFieldFreeSyncLabels.filter((label) => label.beatIndex !== syncTargetIndex);
+        this.exerciseFieldFreeSyncLabels.push(
+          { side: 'left', beatIndex: syncTargetIndex, deltaMs: clampedDeltaMs, createdAtMs: nowMs },
+          { side: 'right', beatIndex: syncTargetIndex, deltaMs: clampedDeltaMs, createdAtMs: nowMs }
+        );
+        this.exerciseFieldFreeSyncLabels = this.exerciseFieldFreeSyncLabels.slice(-20);
+        this.exerciseFieldFreeSyncActive = true;
+        this.exerciseFieldFreeSyncCurrentPair = { leftTouchAtMs: null, rightTouchAtMs: null };
+
         const tickBeat = ((this.exerciseFieldSequenceIndex % strikeCount) + 1) || 1;
         if (this.exerciseFieldMetronomeEnabled) {
           const audioContext = this.ensureExerciseFieldMetronomeAudio();
@@ -1203,6 +1294,7 @@ export class LevelManager {
         this.exerciseFieldSequenceStartedAt = nowMs;
         this.exerciseFieldAccuracy = Math.min(1, this.exerciseFieldAccuracy + 0.2);
       } else {
+        this.exerciseFieldFreeSyncActive = false;
         const partialMatch = Number(leftMatch || rightMatch);
         const nextAccuracy = partialMatch > 0
           ? Math.min(1, this.exerciseFieldAccuracy * 0.88 + 0.12)
@@ -5734,29 +5826,37 @@ export class LevelManager {
     const metrics = this.getExerciseFieldMetrics();
     const chartX = 18;
     const chartY = this.canvas.height - 72;
-    const chartWidth = Math.min(340, this.canvas.width - 36);
+    const chartWidth = Math.min(420, this.canvas.width - 36);
     const chartHeight = 46;
     const barCount = 10;
-    const samples = Array.isArray(this.exerciseFieldTimingSamples) ? this.exerciseFieldTimingSamples.slice(-barCount) : [];
+    const isFreeMode = this.exerciseFieldChallengeMode === 'free';
+    const tempoSamples = Array.isArray(this.exerciseFieldTimingSamples) ? this.exerciseFieldTimingSamples.slice(-barCount) : [];
+    const freeSamples = Array.isArray(this.exerciseFieldFreeSyncSamples) ? this.exerciseFieldFreeSyncSamples.slice(-barCount) : [];
+    const samples = isFreeMode ? freeSamples : tempoSamples;
     const displaySamples = samples.length > 0 ? samples : [];
     const maxValue = 1;
+    const panelHeight = chartHeight + 18;
+    const chartInnerWidth = Math.max(180, chartWidth - 170);
+    const chartInnerX = chartX + 12;
+    const metricX = chartX + chartInnerWidth + 18;
 
     this.ctx.save();
     this.ctx.fillStyle = 'rgba(7, 14, 26, 0.72)';
     this.ctx.strokeStyle = 'rgba(180, 220, 255, 0.7)';
     this.ctx.lineWidth = 1.1;
-    this.ctx.fillRect(chartX, chartY, chartWidth, chartHeight + 18);
-    this.ctx.strokeRect(chartX, chartY, chartWidth, chartHeight + 18);
+    this.ctx.fillRect(chartX, chartY, chartWidth, panelHeight);
+    this.ctx.strokeRect(chartX, chartY, chartWidth, panelHeight);
 
     this.ctx.fillStyle = 'rgba(230, 242, 255, 0.96)';
     this.ctx.font = '700 11px Arial';
     this.ctx.textAlign = 'left';
     this.ctx.textBaseline = 'top';
-    this.ctx.fillText('Tempo-Genauigkeit', chartX + 12, chartY + 8);
+    const chartTitle = isFreeMode ? 'Synchronität zwischen linker und rechter Hand' : 'Tempo-Genauigkeit';
+    this.ctx.fillText(chartTitle, chartX + 12, chartY + 8);
 
     const barGap = 6;
     const slotCount = Math.max(1, displaySamples.length);
-    const barWidth = Math.max(8, (chartWidth - 24 - barGap * (slotCount - 1)) / slotCount);
+    const barWidth = Math.max(8, (chartInnerWidth - 24 - barGap * (slotCount - 1)) / slotCount);
     const baselineY = chartY + chartHeight + 10;
     this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.28)';
     this.ctx.beginPath();
@@ -5764,14 +5864,27 @@ export class LevelManager {
     this.ctx.lineTo(chartX + chartWidth - 12, baselineY);
     this.ctx.stroke();
 
-    displaySamples.forEach((sample, sampleIndex) => {
+    const derivedScores = displaySamples.map((sample) => {
+      if (isFreeMode) {
+        const deltaMs = Number.isFinite(sample?.deltaMs) ? sample.deltaMs : 1000;
+        return Math.max(0, Math.min(1, 1 - Math.min(1, deltaMs / 1000)));
+      }
+
       const normalizedDeviation = Number.isFinite(sample?.normalizedDeviation) ? sample.normalizedDeviation : 0;
       const normalizedScore = Math.max(0, Math.min(1, 1 - normalizedDeviation));
-      const scoreForDisplay = sample && Number.isFinite(sample.leftErrorMs) && Number.isFinite(sample.rightErrorMs)
+      return sample && Number.isFinite(sample.leftErrorMs) && Number.isFinite(sample.rightErrorMs)
         ? Math.max(0, Math.min(1, (sample.leftErrorMs === sample.rightErrorMs && sample.leftErrorMs >= Math.max(50, this.getExerciseFieldBeatDurationMs()) ? 0 : normalizedScore)))
         : 0;
+    });
+
+    const averageScore = derivedScores.length > 0
+      ? derivedScores.reduce((sum, value) => sum + value, 0) / derivedScores.length
+      : 0;
+
+    displaySamples.forEach((sample, sampleIndex) => {
+      const scoreForDisplay = derivedScores[sampleIndex] ?? 0;
       const height = (scoreForDisplay / maxValue) * (chartHeight - 8);
-      const x = chartX + 12 + sampleIndex * (barWidth + barGap);
+      const x = chartInnerX + sampleIndex * (barWidth + barGap);
       const y = baselineY - height;
       const hue = scoreForDisplay * 120;
       const alpha = 0.9;
@@ -5782,12 +5895,38 @@ export class LevelManager {
       this.ctx.fillRect(x, y, barWidth, height);
     });
 
+    this.ctx.fillStyle = 'rgba(240, 246, 255, 0.98)';
+    this.ctx.font = '700 48px Arial';
+    this.ctx.textAlign = 'left';
+    const averagePercent = Math.round(averageScore * 100);
+    this.ctx.fillText(`Ø ${averagePercent}%`, metricX + 2, chartY + 14);
+
+    if (isFreeMode) {
+      const freeRegularity = this.getExerciseFieldFreeBeatRegularityStats();
+      if (Number.isFinite(freeRegularity.regularityPct)) {
+        const regularityText = `~${Math.round(freeRegularity.regularityPct)}%`;
+        const averageTempoBpm = Number.isFinite(freeRegularity.avgIntervalMs) && freeRegularity.avgIntervalMs > 0
+          ? 60000 / freeRegularity.avgIntervalMs
+          : null;
+
+        const topRowY = chartY - 58;
+        this.ctx.fillStyle = 'rgba(206, 232, 255, 0.96)';
+        this.ctx.font = '700 48px Arial';
+        this.ctx.textAlign = 'left';
+        this.ctx.fillText(regularityText, chartX + 12, topRowY);
+
+        if (Number.isFinite(averageTempoBpm)) {
+          const tempoText = `${Math.round(averageTempoBpm)} bpm`;
+          this.ctx.font = '700 26px Arial';
+          const tempoX = chartX + 12 + this.ctx.measureText(regularityText).width + 64;
+          this.ctx.fillText(tempoText, tempoX, topRowY + 22);
+        }
+      }
+    }
+
     this.ctx.fillStyle = 'rgba(214, 230, 255, 0.9)';
     this.ctx.font = '10px Arial';
     this.ctx.textAlign = 'left';
-    this.ctx.fillText('0', chartX + 12, baselineY + 8);
-    this.ctx.textAlign = 'right';
-    this.ctx.fillText('1', chartX + chartWidth - 12, baselineY + 8);
 
     const modeText = metrics.mode === 'tempo' ? `Tempo ${Math.round(metrics.tempoBpm || 60)} bpm` : 'Frei';
     this.ctx.textAlign = 'right';
@@ -5881,9 +6020,14 @@ export class LevelManager {
       const assignmentTempoLabel = this.exerciseFieldChallengeMode === 'tempo'
         ? this.exerciseFieldTimingLabels.find((label) => label.side === assignmentSide && label.beatIndex === assignmentBeatIndex - 1)
         : null;
-      const assignmentLabelAgeMs = assignmentTempoLabel ? performance.now() - assignmentTempoLabel.createdAtMs : Number.POSITIVE_INFINITY;
-      const assignmentLabelVisible = Boolean(assignmentTempoLabel) && assignmentLabelAgeMs >= 0 && assignmentLabelAgeMs <= this.getExerciseFieldBeatDurationMs();
-      const assignmentLabelAlpha = assignmentLabelVisible ? Math.max(0, 1 - assignmentLabelAgeMs / this.getExerciseFieldBeatDurationMs()) : 0;
+      const assignmentFreeLabel = this.exerciseFieldChallengeMode === 'free'
+        ? this.exerciseFieldFreeSyncLabels.find((label) => label.side === assignmentSide && label.beatIndex === assignmentBeatIndex - 1)
+        : null;
+      const assignmentLabelAgeMs = assignmentTempoLabel ? performance.now() - assignmentTempoLabel.createdAtMs : (assignmentFreeLabel ? performance.now() - assignmentFreeLabel.createdAtMs : Number.POSITIVE_INFINITY);
+      const assignmentLabelVisible = Boolean(assignmentTempoLabel || assignmentFreeLabel)
+        && assignmentLabelAgeMs >= 0
+        && assignmentLabelAgeMs <= (this.exerciseFieldChallengeMode === 'tempo' ? this.getExerciseFieldBeatDurationMs() : 1000);
+      const assignmentLabelAlpha = assignmentLabelVisible ? Math.max(0, 1 - assignmentLabelAgeMs / (this.exerciseFieldChallengeMode === 'tempo' ? this.getExerciseFieldBeatDurationMs() : 1000)) : 0;
 
       this.ctx.fillStyle = isAssignmentActive ? 'rgba(255, 244, 168, 0.18)' : 'rgba(255, 255, 255, 0.06)';
       this.ctx.strokeStyle = isAssignmentActive ? 'rgba(255, 244, 168, 0.98)' : 'rgba(255, 255, 255, 0.72)';
@@ -5898,9 +6042,13 @@ export class LevelManager {
       this.ctx.textAlign = 'center';
       this.ctx.textBaseline = 'middle';
 
-      if (assignmentLabelVisible && assignmentTempoLabel) {
+      if (assignmentLabelVisible) {
+        const labelValue = assignmentTempoLabel ? assignmentTempoLabel.deltaMs : assignmentFreeLabel?.deltaMs;
+        const labelText = Number.isFinite(labelValue)
+          ? `${labelValue < 100 ? labelValue.toFixed(1) : Math.round(labelValue)}ms`
+          : String(assignmentBeatIndex);
         this.ctx.fillStyle = `rgba(255, 244, 168, ${Math.max(0.15, assignmentLabelAlpha)})`;
-        this.ctx.fillText(`${Math.round(assignmentTempoLabel.deltaMs)}ms`, assignmentRect.x, assignmentRect.y + 1);
+        this.ctx.fillText(labelText, assignmentRect.x, assignmentRect.y + 1);
       } else {
         this.ctx.fillText(String(assignmentBeatIndex), assignmentRect.x, assignmentRect.y + 1);
       }
@@ -5915,8 +6063,9 @@ export class LevelManager {
 
       const isDraggingThisPair = this.exerciseFieldDrag
         && this.exerciseFieldDrag.index === index;
+      const isReservedAssignmentPair = index === assignmentBeatIndex - 1;
 
-      if (isDraggingThisPair) {
+      if (isDraggingThisPair && !isReservedAssignmentPair) {
         this.ctx.beginPath();
         this.ctx.moveTo(leftPoint.x, leftPoint.y);
         this.ctx.lineTo(rightPoint.x, rightPoint.y);
@@ -5942,10 +6091,13 @@ export class LevelManager {
         const tempoLabel = this.exerciseFieldChallengeMode === 'tempo'
           ? this.exerciseFieldTimingLabels.find((label) => label.side === side && label.beatIndex === index)
           : null;
+        const freeLabel = this.exerciseFieldChallengeMode === 'free'
+          ? this.exerciseFieldFreeSyncLabels.find((label) => label.side === side && label.beatIndex === index)
+          : null;
         const nowMs = performance.now();
-        const labelFadeWindowMs = this.getExerciseFieldBeatDurationMs();
-        const labelAgeMs = tempoLabel ? nowMs - tempoLabel.createdAtMs : Number.POSITIVE_INFINITY;
-        const labelVisible = Boolean(tempoLabel) && labelAgeMs >= 0 && labelAgeMs <= labelFadeWindowMs;
+        const labelFadeWindowMs = this.exerciseFieldChallengeMode === 'tempo' ? this.getExerciseFieldBeatDurationMs() : 1000;
+        const labelAgeMs = tempoLabel ? nowMs - tempoLabel.createdAtMs : (freeLabel ? nowMs - freeLabel.createdAtMs : Number.POSITIVE_INFINITY);
+        const labelVisible = Boolean(tempoLabel || freeLabel) && labelAgeMs >= 0 && labelAgeMs <= labelFadeWindowMs;
         const labelAlpha = labelVisible ? Math.max(0, 1 - labelAgeMs / labelFadeWindowMs) : 0;
 
         this.ctx.beginPath();
@@ -5967,9 +6119,12 @@ export class LevelManager {
         this.ctx.textAlign = 'center';
         this.ctx.textBaseline = 'middle';
 
-        if (labelVisible && tempoLabel) {
+        if (labelVisible) {
+          const labelValue = tempoLabel ? tempoLabel.deltaMs : freeLabel?.deltaMs;
+          const labelText = Number.isFinite(labelValue)
+            ? `${labelValue < 100 ? labelValue.toFixed(1) : Math.round(labelValue)}ms`
+            : String(pairId);
           this.ctx.fillStyle = `rgba(255, 244, 168, ${Math.max(0.1, labelAlpha)})`;
-          const labelText = `${Math.round(tempoLabel.deltaMs)}ms`;
           this.ctx.fillText(labelText, point.x, point.y + 0.5);
           return;
         }
@@ -7582,11 +7737,11 @@ export class LevelManager {
       if (!tip) continue;
 
       const explicitSide = hand.side === 'left' || hand.side === 'right' ? hand.side : null;
-      const side = explicitSide || (tip.x < this.canvas.width * 0.5 ? 'left' : 'right');
+      const side = explicitSide || (tip.x < this.canvas.width * 0.5 ? 'right' : 'left');
 
       if (side === 'left') {
         this.leftTip = tip;
-      } else {
+      } else if (side === 'right') {
         this.rightTip = tip;
       }
     }

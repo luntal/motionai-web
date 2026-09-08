@@ -17,6 +17,7 @@ import {
   setStabilizationEnabled,
   setLandmarkDrawingEnabled,
   setSilhouetteEnabled,
+  setEyeOverlayEnabled,
   setSilhouetteOpacity,
   setVideoSofteningEnabled,
   setVideoSofteningStyle,
@@ -1382,6 +1383,7 @@ function createExerciseFieldPanel() {
       input.checked = input.value === selectedMode;
     });
     challengeTempoValue.textContent = `${Math.round(Number(challengeTempoSlider.value))} bpm`;
+    updateExerciseFieldModeUi();
     updateSizeValue();
     updateXOffsetValue();
     updateCircleSizeValue();
@@ -1429,11 +1431,22 @@ function createExerciseFieldPanel() {
     input.name = 'exercise-field-challenge-mode';
     input.value = value;
     input.checked = selectedMode === value;
+    const modeKey = value === 'free' ? 'ModusFrei' : 'ModusFestesTempo';
+    bindUiDescription(input, 'Einsätze geben', modeKey);
+    bindUiDescription(option, 'Einsätze geben', modeKey);
     option.appendChild(input);
     option.appendChild(document.createTextNode(value === 'free' ? 'Frei' : 'Festes Tempo'));
     challengeModeGroup.appendChild(option);
     return input;
   });
+  const updateExerciseFieldModeUi = () => {
+    challengeTempoWrap.style.display = selectedMode === 'tempo' ? '' : 'none';
+    if (selectedMode === 'tempo') {
+      challengeTempoWrap.style.display = '';
+    } else {
+      challengeTempoWrap.style.display = 'none';
+    }
+  };
   challengeModeWrap.appendChild(challengeModeTitle);
   challengeModeWrap.appendChild(challengeModeGroup);
   panel.appendChild(challengeModeWrap);
@@ -1456,6 +1469,7 @@ function createExerciseFieldPanel() {
   challengeTempoWrap.appendChild(challengeTempoSlider);
   challengeTempoWrap.appendChild(challengeTempoValue);
   panel.appendChild(challengeTempoWrap);
+  challengeTempoWrap.style.display = selectedMode === 'tempo' ? '' : 'none';
 
   const metronomeWrap = document.createElement('div');
   metronomeWrap.className = 'figure-size-wrap';
@@ -1516,34 +1530,22 @@ function createExerciseFieldPanel() {
   bindUiDescription(metronomeOffOption, 'Einsätze geben', 'Metronom');
   bindUiDescription(metronomeOnOption, 'Einsätze geben', 'Metronom');
 
-  const accuracyWrap = document.createElement('div');
-  accuracyWrap.className = 'figure-size-wrap';
-  const accuracyLabel = document.createElement('div');
-  accuracyLabel.className = 'figure-size-label';
-  accuracyLabel.textContent = 'Genauigkeit';
-  const accuracyValue = document.createElement('div');
-  accuracyValue.className = 'figure-size-value';
-  accuracyValue.textContent = '0%';
-  accuracyWrap.appendChild(accuracyLabel);
-  accuracyWrap.appendChild(accuracyValue);
-  panel.appendChild(accuracyWrap);
-
-  const refreshExerciseFieldAccuracyValue = () => {
-    const metrics = managerRef?.getExerciseFieldMetrics?.();
-    if (metrics && Number.isFinite(metrics.accuracy)) {
-      const nextAccuracy = Math.max(0, Math.min(1, Number(metrics.accuracy)));
-      accuracyValue.textContent = `${Math.round(nextAccuracy * 100)}%`;
-    }
-    requestAnimationFrame(refreshExerciseFieldAccuracyValue);
-  };
-  requestAnimationFrame(refreshExerciseFieldAccuracyValue);
-
   const sizeWrap = document.createElement('div');
   sizeWrap.className = 'figure-size-wrap';
+
+  const sizeDivider = document.createElement('div');
+  sizeDivider.style.gridColumn = '1 / -1';
+  sizeDivider.style.gridRow = '1';
+  sizeDivider.style.borderTop = '1px solid rgba(180, 220, 255, 0.35)';
+  sizeDivider.style.marginBottom = '8px';
+  sizeDivider.style.marginTop = '2px';
+  sizeDivider.style.height = '0';
 
   const sizeLabel = document.createElement('div');
   sizeLabel.className = 'figure-size-label';
   sizeLabel.textContent = 'Grösse Einsatzfeld';
+  sizeLabel.style.gridColumn = '1';
+  sizeLabel.style.gridRow = '2';
 
   const sizeSlider = document.createElement('input');
   sizeSlider.type = 'range';
@@ -1551,11 +1553,16 @@ function createExerciseFieldPanel() {
   sizeSlider.max = '1.25';
   sizeSlider.step = '0.05';
   sizeSlider.value = String(readSavedSettings().scale);
+  sizeSlider.style.gridColumn = '1 / -1';
+  sizeSlider.style.gridRow = '3';
 
   const sizeValue = document.createElement('div');
   sizeValue.className = 'figure-size-value';
   sizeValue.textContent = '1.00x';
+  sizeValue.style.gridColumn = '2';
+  sizeValue.style.gridRow = '2';
 
+  sizeWrap.appendChild(sizeDivider);
   sizeWrap.appendChild(sizeLabel);
   sizeWrap.appendChild(sizeSlider);
   sizeWrap.appendChild(sizeValue);
@@ -1742,6 +1749,7 @@ function createExerciseFieldPanel() {
       const nextMode = input.value === 'tempo' ? 'tempo' : 'free';
       const metronomeWasOn = metronomeOnInput.checked;
       selectedMode = nextMode;
+      updateExerciseFieldModeUi();
 
       if (nextMode === 'tempo' && metronomeWasOn) {
         managerRef?.resumeExerciseFieldMetronomeAudio?.();
@@ -4102,6 +4110,7 @@ function createTrackingControls(trackingController) {
   let stabilizationEnabled = false;
   let landmarkDrawingVisible = true;
   let silhouetteVisible = false;
+  let eyesVisible = false;
   let silhouetteOpacityValue = 0.2;
   let videoSofteningEnabled = true;
   let videoSofteningBlurPx = 5;
@@ -4141,6 +4150,7 @@ function createTrackingControls(trackingController) {
         stabilizationEnabled,
         landmarkDrawingVisible,
         silhouetteVisible,
+        eyesVisible,
         silhouetteOpacity: silhouetteOpacityValue,
         videoSofteningEnabled,
         videoSofteningBlurPx,
@@ -4206,6 +4216,7 @@ function createTrackingControls(trackingController) {
   const savedStabilizationEnabled = typeof savedSettings.stabilizationEnabled === 'boolean' ? savedSettings.stabilizationEnabled : false;
   const savedLandmarkDrawingVisible = typeof savedSettings.landmarkDrawingVisible === 'boolean' ? savedSettings.landmarkDrawingVisible : true;
   const savedSilhouetteVisible = typeof savedSettings.silhouetteVisible === 'boolean' ? savedSettings.silhouetteVisible : false;
+  const savedEyesVisible = typeof savedSettings.eyesVisible === 'boolean' ? savedSettings.eyesVisible : false;
   const savedSilhouetteOpacity = Number.isFinite(Number(savedSettings.silhouetteOpacity))
     ? Math.min(1, Math.max(0, Number(savedSettings.silhouetteOpacity)))
     : 0.2;
@@ -4227,6 +4238,7 @@ function createTrackingControls(trackingController) {
   stabilizationEnabled = savedStabilizationEnabled;
   landmarkDrawingVisible = savedLandmarkDrawingVisible;
   silhouetteVisible = savedSilhouetteVisible;
+  eyesVisible = savedEyesVisible;
   silhouetteOpacityValue = savedSilhouetteOpacity;
   videoSofteningEnabled = savedVideoSofteningEnabled;
   videoSofteningBlurPx = savedVideoSofteningBlurPx;
@@ -4254,6 +4266,9 @@ function createTrackingControls(trackingController) {
   const silhouetteButton = document.createElement('button');
   silhouetteButton.type = 'button';
   silhouetteButton.className = 'tracking-controls-button';
+  const eyesButton = document.createElement('button');
+  eyesButton.type = 'button';
+  eyesButton.className = 'tracking-controls-button';
   const silhouetteStorageKey = 'motionai.silhouette-enabled';
   const silhouetteOpacityStorageKey = 'motionai.silhouette-opacity';
 
@@ -4542,7 +4557,21 @@ function createTrackingControls(trackingController) {
   function updateSilhouetteLabel() {
     silhouetteButton.textContent = silhouetteVisible ? 'Silhouette: ON' : 'Silhouette: OFF';
     silhouetteButton.setAttribute('aria-pressed', String(silhouetteVisible));
+    eyesButton.disabled = !silhouetteVisible;
+    if (!silhouetteVisible) {
+      eyesVisible = false;
+      setEyeOverlayEnabled(false);
+    } else {
+      setEyeOverlayEnabled(eyesVisible);
+    }
+    updateEyesLabel();
     persistSilhouetteSetting();
+  }
+
+  function updateEyesLabel() {
+    eyesButton.textContent = eyesVisible ? 'Augen: ON' : 'Augen: OFF';
+    eyesButton.setAttribute('aria-pressed', String(eyesVisible));
+    eyesButton.disabled = !silhouetteVisible;
   }
 
   silhouetteOpacitySlider.addEventListener('input', () => {
@@ -4702,8 +4731,22 @@ function createTrackingControls(trackingController) {
 
   silhouetteButton.addEventListener('click', () => {
     silhouetteVisible = !silhouetteVisible;
+    if (!silhouetteVisible) {
+      eyesVisible = false;
+    }
     setSilhouetteEnabled(silhouetteVisible);
+    setEyeOverlayEnabled(silhouetteVisible && eyesVisible);
     updateSilhouetteLabel();
+    persistSettingsState();
+  });
+
+  eyesButton.addEventListener('click', () => {
+    if (!silhouetteVisible) {
+      return;
+    }
+    eyesVisible = !eyesVisible;
+    setEyeOverlayEnabled(eyesVisible);
+    updateEyesLabel();
     persistSettingsState();
   });
 
@@ -4756,6 +4799,7 @@ function createTrackingControls(trackingController) {
   setStabilizationEnabled(stabilizationEnabled);
   setLandmarkDrawingEnabled(landmarkDrawingVisible);
   setSilhouetteEnabled(silhouetteVisible);
+  setEyeOverlayEnabled(silhouetteVisible && eyesVisible);
   setSilhouetteOpacity(silhouetteOpacityValue);
   if (levelManagerRef) {
     levelManagerRef.setPoseWarningLandmarksEnabled(poseWarningLandmarksVisible);
@@ -4763,6 +4807,7 @@ function createTrackingControls(trackingController) {
   updateStabilizationLabel();
   updateLandmarkDrawingLabel();
   updateSilhouetteLabel();
+  updateEyesLabel();
   updateSilhouetteOpacityControl();
   updateVideoSofteningLabel();
   updateVideoSofteningControls();
@@ -4794,6 +4839,7 @@ function createTrackingControls(trackingController) {
   bindUiGroupDescription([stabilizationButton], 'Einstellungen', 'Stabilization');
   bindUiGroupDescription([landmarkDrawingButton], 'Einstellungen', 'Landmarks');
   bindUiGroupDescription([silhouetteButton], 'Einstellungen', 'Silhouette');
+  bindUiGroupDescription([eyesButton], 'Einstellungen', 'Silhouette');
   bindUiGroupDescription([silhouetteOpacityLabel, silhouetteOpacityValueLabel, silhouetteOpacitySlider], 'Einstellungen', 'Silhouette Deckkraft');
   bindUiGroupDescription([restoreDefaultsButton], 'Einstellungen', 'Werkseinstellung');
   bindUiGroupDescription([videoSofteningButton], 'Einstellungen', 'Weichzeichnen');
@@ -4819,6 +4865,7 @@ function createTrackingControls(trackingController) {
   container.appendChild(stabilizationButton);
   container.appendChild(landmarkDrawingButton);
   container.appendChild(silhouetteButton);
+  container.appendChild(eyesButton);
   container.appendChild(silhouetteOpacityRow);
   container.appendChild(silhouetteOpacitySlider);
   container.appendChild(restoreDefaultsButton);
