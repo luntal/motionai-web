@@ -9,7 +9,8 @@ import {
 
 export const uiState = {
   activeChapter: null,
-  activeLevel: null
+  activeLevel: null,
+  hoverHelpEnabled: false
 };
 
 let isLevelActive = false;
@@ -40,16 +41,109 @@ function emitLevelChange(level) {
 
 let hoverDescriptionEl = null;
 
-function setHoverDescription(text) {
-  if (!hoverDescriptionEl || isLevelActive) return;
+function setHoverDescription(text, position = null) {
+  if (!hoverDescriptionEl || !uiState.hoverHelpEnabled) return;
+
   hoverDescriptionEl.textContent = text;
+  hoverDescriptionEl.classList.remove('panel-help');
+
+  const nextPosition = position || { left: '50%', top: 18 };
+  const isCenteredTopHover = nextPosition.left === '50%' || nextPosition.left === window.innerWidth / 2;
+
+  hoverDescriptionEl.style.left = isCenteredTopHover ? '50%' : `${nextPosition.left}px`;
+  hoverDescriptionEl.style.top = `${nextPosition.top}px`;
+  hoverDescriptionEl.style.maxWidth = '260px';
+  hoverDescriptionEl.style.textAlign = 'center';
+  hoverDescriptionEl.style.transform = 'translateX(-50%)';
+
+  if (position) {
+    hoverDescriptionEl.classList.add('panel-help');
+  }
+
   hoverDescriptionEl.classList.add('visible');
 }
 
 export function clearHoverDescription() {
   if (!hoverDescriptionEl) return;
+
   hoverDescriptionEl.textContent = '';
   hoverDescriptionEl.classList.remove('visible');
+  hoverDescriptionEl.classList.remove('panel-help');
+  hoverDescriptionEl.style.left = '50%';
+  hoverDescriptionEl.style.top = '18px';
+  hoverDescriptionEl.style.transform = 'translateX(-50%)';
+  hoverDescriptionEl.style.maxWidth = '260px';
+  hoverDescriptionEl.style.textAlign = 'center';
+}
+
+export function setHoverHelpEnabled(enabled) {
+  uiState.hoverHelpEnabled = Boolean(enabled);
+  if (!uiState.hoverHelpEnabled) {
+    clearHoverDescription();
+  }
+}
+
+export function registerHoverHelp(element, description) {
+  if (!(element instanceof Element) || !description) {
+    return element;
+  }
+
+  if (element.dataset.hoverHelpBound === 'true') {
+    return element;
+  }
+
+  const showDescription = () => {
+    if (!uiState.hoverHelpEnabled) {
+      return;
+    }
+
+    setHoverDescription(description, { left: '50%', top: 18 });
+  };
+
+  element.addEventListener('mouseenter', showDescription);
+  element.addEventListener('mouseover', showDescription);
+  element.addEventListener('pointerenter', showDescription);
+  element.addEventListener('focus', showDescription);
+  element.addEventListener('mouseleave', clearHoverDescription);
+  element.addEventListener('mouseout', clearHoverDescription);
+  element.addEventListener('pointerleave', clearHoverDescription);
+  element.addEventListener('blur', clearHoverDescription);
+  element.setAttribute('aria-label', description);
+  element.setAttribute('title', description);
+  element.dataset.hoverHelpBound = 'true';
+
+  return element;
+}
+
+export function attachPanelHoverHelp(panel) {
+  if (!(panel instanceof Element)) {
+    return panel;
+  }
+
+  if (panel.dataset.hoverHelpAttached === 'true') {
+    return panel;
+  }
+
+  const candidates = panel.querySelectorAll('button, input, select, textarea, label');
+  candidates.forEach((element) => {
+    if (element.dataset.hoverHelpBound === 'true') {
+      return;
+    }
+
+    const explicitDescription = element.dataset.help || element.getAttribute('title') || element.getAttribute('aria-label');
+    if (explicitDescription) {
+      registerHoverHelp(element, explicitDescription);
+      return;
+    }
+
+    const textNode = element.textContent ? element.textContent.replace(/\s+/g, ' ').trim() : '';
+    if (textNode && element.tagName !== 'INPUT' && element.tagName !== 'SELECT' && element.tagName !== 'TEXTAREA') {
+      registerHoverHelp(element, textNode);
+    }
+  });
+
+  panel.dataset.hoverHelpAttached = 'true';
+  return panel;
 }
 function createButton(label, isActive, onClick, description) {
   const button = document.createElement('button');
@@ -63,6 +157,7 @@ function createButton(label, isActive, onClick, description) {
     button.addEventListener('mouseenter', () => setHoverDescription(description));
     button.addEventListener('mouseleave', clearHoverDescription);
     button.setAttribute('aria-label', description);
+    button.setAttribute('title', description);
   }
   return button;
 }
@@ -92,14 +187,27 @@ function renderLevelButtons(levelRow) {
   const hasActiveChapter = Number.isInteger(uiState.activeChapter);
   const levelCount = hasActiveChapter ? getLevelCountForChapter(uiState.activeChapter) : 0;
 
-  // Toggle active state based on chapter selection
   if (hasActiveChapter) {
     levelRow.classList.add('active');
+    const title = document.createElement('div');
+    title.className = 'level-section-title';
+    title.textContent = uiState.activeChapter === 0 ? 'Bereiche' : 'Übungen';
+    levelRow.appendChild(title);
   } else {
     levelRow.classList.remove('active');
   }
 
   for (let index = 0; index < levelCount; index += 1) {
+    if (uiState.activeChapter === 3 && index === 4) {
+      const divider = document.createElement('div');
+      divider.className = 'level-subsection-divider';
+      levelRow.appendChild(divider);
+
+      const extendedTitle = document.createElement('div');
+      extendedTitle.className = 'level-section-title';
+      extendedTitle.textContent = 'Erweiterte Dirigierfiguren';
+      levelRow.appendChild(extendedTitle);
+    }
     const isActive = uiState.activeLevel === index;
     const label = hasActiveChapter && levelTitles[uiState.activeChapter]
       ? levelTitles[uiState.activeChapter][index] || `Level ${index + 1}`
@@ -121,6 +229,42 @@ function renderLevelButtons(levelRow) {
     );
     button.disabled = !hasActiveChapter;
     levelRow.appendChild(button);
+  }
+
+  if (uiState.activeChapter === 5) {
+    const actions = document.createElement('div');
+    actions.className = 'hand-independence-navigation-actions';
+
+    const saveButton = createButton('Speichern', false, () => {
+      document.dispatchEvent(new CustomEvent('hand-independence-save-preset'));
+    }, 'Preset speichern');
+    saveButton.classList.add('hand-independence-navigation-action');
+
+    const resetButton = createButton('Werkseinstellungen', false, () => {
+      document.dispatchEvent(new CustomEvent('hand-independence-reset-presets'));
+    }, 'Presets auf Werkseinstellungen zurücksetzen');
+    resetButton.classList.add('hand-independence-navigation-action');
+
+    actions.append(saveButton, resetButton);
+    levelRow.appendChild(actions);
+  }
+
+  if (uiState.activeChapter === 6) {
+    const actions = document.createElement('div');
+    actions.className = 'hand-independence-navigation-actions';
+
+    const saveButton = createButton('Speichern', false, () => {
+      document.dispatchEvent(new CustomEvent('exercise-field-save-preset'));
+    }, 'Preset für Einsatzfelder speichern');
+    saveButton.classList.add('hand-independence-navigation-action');
+
+    const resetButton = createButton('Werkseinstellungen', false, () => {
+      document.dispatchEvent(new CustomEvent('exercise-field-reset-presets'));
+    }, 'Einsatzfelder auf Werkseinstellungen zurücksetzen');
+    resetButton.classList.add('hand-independence-navigation-action');
+
+    actions.append(saveButton, resetButton);
+    levelRow.appendChild(actions);
   }
 }
 
@@ -146,18 +290,31 @@ export function setActiveChapter(chapter) {
 }
 
 export function createNavigationUI() {
-  const topBar = document.createElement('div');
-  topBar.className = 'top-ui-bar';
+  const sidebar = document.createElement('aside');
+  sidebar.className = 'left-navigation';
 
   const chapterRow = document.createElement('div');
-  chapterRow.className = 'chapter-row';
+  chapterRow.className = 'chapter-row nav-stack';
 
   const levelRow = document.createElement('div');
-  levelRow.className = 'level-row';
+  levelRow.className = 'level-row nav-stack';
 
-  topBar.appendChild(chapterRow);
-  topBar.appendChild(levelRow);
-  document.body.prepend(topBar);
+  const sidebarHeader = document.createElement('div');
+  sidebarHeader.className = 'nav-header-row';
+
+  const sectionTitle = document.createElement('div');
+  sectionTitle.className = 'nav-section-title';
+  sectionTitle.textContent = 'Navigation';
+
+  const headerActions = document.createElement('div');
+  headerActions.className = 'nav-header-actions';
+
+  sidebarHeader.appendChild(sectionTitle);
+  sidebarHeader.appendChild(headerActions);
+  sidebar.appendChild(sidebarHeader);
+  sidebar.appendChild(chapterRow);
+  sidebar.appendChild(levelRow);
+  document.body.prepend(sidebar);
 
   chapterRowElement = chapterRow;
   levelRowElement = levelRow;
