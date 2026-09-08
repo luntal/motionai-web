@@ -42,7 +42,8 @@ export const DEFAULT_MOTIONAI_STORAGE = {
   'motionai.hand-independence-panel-settings': {
     reverse: false,
     dynamicVisible: false,
-    countVisible: false
+    countVisible: false,
+    countTimesVisible: false
   },
   'motionai.exercise-field-panel-settings': {
     enabled: true,

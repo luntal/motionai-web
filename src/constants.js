@@ -229,7 +229,7 @@ export const uiElementDescriptions = {
     Stroke: 'Stellt die Strichstärke der Grundfigur ein.',
     x: 'Stellt den Abstand zur Mitte in horizontaler Richtung ein.',
     y: 'Stellt die Position in vertikaler Richtung ein.',
-    BPM: 'Stellt die Bewegungsgeschwindigkeit in Beats pro Minute ein.',
+    BPMSlider: 'Stellt die Bewegungsgeschwindigkeit in Beats pro Minute ein.',
     Geschwindigkeitsverhältnis: 'Stellt das Verhältnis der Geschwindigkeit zwischen den beiden Händen ein.',
     Taktgebung: 'Stellt die Form der Taktgebung ein. Dafür kann eine der Grundfiguren ausgewählt werden, zum Beispiel Einserfigur, Zweierfigur oder eine andere Figur, die als rhythmischer Leitpfad für die Bewegung dient.',
     weichHart: 'Stellt die Art der Bewegung ein. Weiche Bewegungen sind fließend und rund, während harte Bewegungen kantig und abrupt sind.',

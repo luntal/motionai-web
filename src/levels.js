@@ -3887,12 +3887,14 @@ export class LevelManager {
     if (!this.handIndependenceCountTimesVisible || !state) return;
     const count = Math.ceil(state.renderSegments.length / 2);
     const config = state.figureConfigs[0];
+    const pathAnchor = this.getPathAnchorPoint(state.renderSegments);
     for (let index = 0; index < count; index += 1) {
       const anchor = this.getFigureAnchorPoint(state.renderSegments, index * 2);
       if (!anchor) continue;
       const anchorX = config.mirrorX ? -anchor.x : anchor.x;
-      const x = state.centerX + config.offsetX + anchorX * state.scaleX;
-      const y = state.centerY + this.getCanvasVerticalOffsetFromNormalized(this.handIndependenceFigureY) + anchor.y * state.scaleY;
+      const pathAnchorX = config.mirrorX ? -pathAnchor.x : pathAnchor.x;
+      const x = state.centerX + config.offsetX + (anchorX - pathAnchorX) * state.scaleX;
+      const y = state.centerY + this.getCanvasVerticalOffsetFromNormalized(this.handIndependenceFigureY) + (anchor.y - pathAnchor.y) * state.scaleY;
       this.ctx.save();
       this.ctx.font = '400 17px sans-serif';
       this.ctx.textAlign = 'center';
@@ -5050,6 +5052,7 @@ export class LevelManager {
     }
 
     const beatCount = Math.ceil(state.renderSegments.length / 2);
+    const pathAnchor = this.getPathAnchorPoint(state.renderSegments);
     state.figureConfigs.forEach(({ mirrorX, offsetX }) => {
       for (let beatIndex = 0; beatIndex < beatCount; beatIndex += 1) {
         const anchor = this.getFigureAnchorPoint(state.renderSegments, beatIndex * 2);
@@ -5057,8 +5060,9 @@ export class LevelManager {
           continue;
         }
         const anchorX = mirrorX ? -anchor.x : anchor.x;
-        const x = state.centerX + offsetX + anchorX * state.scaleX;
-        const y = state.centerY + this.getCanvasVerticalOffsetFromNormalized(this.dynamicFigureYPosition) + anchor.y * state.scaleY;
+        const pathAnchorX = mirrorX ? -pathAnchor.x : pathAnchor.x;
+        const x = state.centerX + offsetX + (anchorX - pathAnchorX) * state.scaleX;
+        const y = state.centerY + this.getCanvasVerticalOffsetFromNormalized(this.dynamicFigureYPosition) + (anchor.y - pathAnchor.y) * state.scaleY;
         const label = String(beatIndex + 1);
 
         this.ctx.save();
@@ -5215,6 +5219,7 @@ export class LevelManager {
         || Array.from({ length: beatCount }, (_, index) => String(index + 1))
       : Array.from({ length: beatCount }, (_, index) => String(index + 1));
     const beatSegmentStep = 2;
+    const pathAnchor = this.getPathAnchorPoint(state.renderSegments);
 
     state.figureConfigs.forEach(({ mirrorX, offsetX }) => {
       for (let beatIndex = 0; beatIndex < beatCount; beatIndex += 1) {
@@ -5227,8 +5232,9 @@ export class LevelManager {
         }
 
         const anchorX = mirrorX ? -anchor.x : anchor.x;
-        const x = state.centerX + offsetX + anchorX * state.scaleX;
-        const y = state.centerY + this.getCanvasVerticalOffsetFromNormalized(this.figureYPosition) + anchor.y * state.scaleY;
+        const pathAnchorX = mirrorX ? -pathAnchor.x : pathAnchor.x;
+        const x = state.centerX + offsetX + (anchorX - pathAnchorX) * state.scaleX;
+        const y = state.centerY + this.getCanvasVerticalOffsetFromNormalized(this.figureYPosition) + (anchor.y - pathAnchor.y) * state.scaleY;
 
         this.ctx.save();
         this.ctx.font = '400 17px sans-serif';

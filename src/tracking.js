@@ -597,19 +597,19 @@ export function startTracking(videoElement, canvasElement, options = {}) {
       },
       {
         x: rightEarPoint.x + 22,
-        y: rightEarPoint.y - 80
+        y: rightEarPoint.y - 50
       },
       {
         x: (eyeTopRight.x + eyeTopLeft.x) * 0.5 + 26,
-        y: (eyeTopRight.y + eyeTopLeft.y) * 0.5 - 60
+        y: (eyeTopRight.y + eyeTopLeft.y) * 0.5 - 20
       },
       {
         x: (eyeTopLeft.x + eyeTopRight.x) * 0.5 - 26,
-        y: (eyeTopLeft.y + eyeTopRight.y) * 0.5 - 60
+        y: (eyeTopLeft.y + eyeTopRight.y) * 0.5 - 20
       },
       {
         x: leftEarPoint.x - 22,
-        y: leftEarPoint.y - 80
+        y: leftEarPoint.y - 50
       },
       {
         x: leftEarPoint.x - 22,

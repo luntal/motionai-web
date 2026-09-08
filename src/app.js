@@ -167,6 +167,32 @@ function createFigureModePanel(initialManager, options = {}) {
     return divider;
   };
 
+  const presetPanel = document.createElement('div');
+  presetPanel.className = 'dynamic-figure-presets';
+  const presetTitle = document.createElement('div');
+  presetTitle.className = 'figure-size-label';
+  presetTitle.textContent = 'Presets';
+  const presetSlots = document.createElement('div');
+  presetSlots.className = 'figure-preset-slots dynamic-figure-preset-slots';
+  const presetSaveButton = document.createElement('button');
+  presetSaveButton.type = 'button';
+  presetSaveButton.className = 'dynamic-figure-preset-action';
+  presetSaveButton.textContent = 'Speichern';
+  presetSaveButton.title = 'Aktuelle Parameter in einem Preset-Slot speichern';
+  const presetResetButton = document.createElement('button');
+  presetResetButton.type = 'button';
+  presetResetButton.className = 'dynamic-figure-preset-action';
+  presetResetButton.textContent = 'Zurücksetzen';
+  presetResetButton.title = 'Aktuelle Übung auf die Werkseinstellungen zurücksetzen';
+  const presetActions = document.createElement('div');
+  presetActions.className = 'dynamic-figure-preset-actions';
+  presetActions.appendChild(presetSaveButton);
+  presetActions.appendChild(presetResetButton);
+  presetPanel.appendChild(presetTitle);
+  presetPanel.appendChild(presetSlots);
+  presetPanel.appendChild(presetActions);
+  const presetDivider = createPanelDivider();
+
   const movementTitle = document.createElement('div');
   movementTitle.className = 'figure-panel-section-title';
   movementTitle.textContent = 'Bewegungen';
@@ -555,6 +581,10 @@ function createFigureModePanel(initialManager, options = {}) {
   softTransitionWrap.appendChild(softTransitionValue);
 
   panel.appendChild(title);
+  panel.appendChild(presetDivider);
+  panel.appendChild(presetPanel);
+  panel.appendChild(createPanelDivider());
+  radioGroup.style.marginTop = '0.45rem';
   panel.appendChild(radioGroup);
   panel.appendChild(createPanelDivider());
   panel.appendChild(sideGroup);
@@ -815,35 +845,6 @@ function createFigureModePanel(initialManager, options = {}) {
     }
   }
 
-  const presetPanel = document.createElement('div');
-  presetPanel.className = 'dynamic-figure-presets';
-  const presetTitle = document.createElement('div');
-  presetTitle.className = 'figure-size-label';
-  presetTitle.textContent = 'Presets';
-  const presetSlots = document.createElement('div');
-  presetSlots.className = 'figure-preset-slots dynamic-figure-preset-slots';
-  const presetSaveButton = document.createElement('button');
-  presetSaveButton.type = 'button';
-  presetSaveButton.className = 'dynamic-figure-preset-action';
-  presetSaveButton.textContent = 'Speichern';
-  presetSaveButton.title = 'Aktuelle Parameter in einem Preset-Slot speichern';
-  const presetResetButton = document.createElement('button');
-  presetResetButton.type = 'button';
-  presetResetButton.className = 'dynamic-figure-preset-action';
-  presetResetButton.textContent = 'Zurücksetzen';
-  presetResetButton.title = 'Aktuelle Übung auf die Werkseinstellungen zurücksetzen';
-  const presetActions = document.createElement('div');
-  presetActions.className = 'dynamic-figure-preset-actions';
-  presetActions.appendChild(presetSaveButton);
-  presetActions.appendChild(presetResetButton);
-  presetPanel.appendChild(presetTitle);
-  presetPanel.appendChild(presetSlots);
-  presetPanel.appendChild(presetActions);
-  const presetDivider = document.createElement('div');
-  presetDivider.className = 'figure-panel-divider';
-  panel.appendChild(presetDivider);
-  panel.appendChild(presetPanel);
-
   presetSaveButton.addEventListener('click', () => {
     if (!Number.isInteger(currentLevel)) {
       return;
@@ -930,14 +931,6 @@ function createDynamicFigureModePanel() {
     inheritedPresetPanel.remove();
   }
 
-  const pointPanel = document.createElement('div');
-  pointPanel.className = 'dynamic-figure-point-controls';
-  const pointTitle = document.createElement('div');
-  pointTitle.className = 'figure-panel-section-title';
-  pointTitle.textContent = 'Eck. Höhen (Dynamikebenen)';
-  pointPanel.appendChild(pointTitle);
-  basePanel.panel.appendChild(pointPanel);
-
   let managerRef = null;
   const presetStorageKey = 'motionai.dynamic-figure-presets';
   const selectedPresetStorageKey = 'motionai.dynamic-figure-selected-presets';
@@ -986,8 +979,25 @@ function createDynamicFigureModePanel() {
   presetPanel.appendChild(presetActions);
   const presetDivider = document.createElement('div');
   presetDivider.className = 'figure-panel-divider';
-  basePanel.panel.appendChild(presetDivider);
-  basePanel.panel.appendChild(presetPanel);
+  presetDivider.style.marginBottom = '0.35rem';
+
+  const titleNode = basePanel.panel.querySelector('.figure-side-panel-title');
+  if (titleNode) {
+    const existingDividerAfterTitle = titleNode.nextElementSibling;
+    if (existingDividerAfterTitle && existingDividerAfterTitle.classList.contains('figure-panel-divider')) {
+      existingDividerAfterTitle.remove();
+    }
+    basePanel.panel.insertBefore(presetDivider, titleNode.nextSibling);
+    basePanel.panel.insertBefore(presetPanel, titleNode.nextSibling);
+  }
+
+  const pointPanel = document.createElement('div');
+  pointPanel.className = 'dynamic-figure-point-controls';
+  const pointTitle = document.createElement('div');
+  pointTitle.className = 'figure-panel-section-title';
+  pointTitle.textContent = 'Eck. Höhen (Dynamikebenen)';
+  pointPanel.appendChild(pointTitle);
+  basePanel.panel.appendChild(pointPanel);
 
   function persistPresets() {
     try {
@@ -3715,6 +3725,12 @@ function createHandIndependencePanel() {
     settings = storedSettings && typeof storedSettings === 'object' ? storedSettings : {};
   } catch (error) { settings = {}; }
   settings.sharedX = settings.sharedX ?? 0;
+  if (typeof settings.countTimesVisible !== 'boolean' && typeof settings.countVisible === 'boolean') {
+    settings.countTimesVisible = settings.countVisible;
+  }
+  if (typeof settings.countVisible !== 'boolean' && typeof settings.countTimesVisible === 'boolean') {
+    settings.countVisible = settings.countTimesVisible;
+  }
   try {
     const storedPresets = JSON.parse(localStorage.getItem(presetKey) || '{}');
     presets = storedPresets && typeof storedPresets === 'object' ? storedPresets : {};
@@ -3765,9 +3781,11 @@ function createHandIndependencePanel() {
     const input = document.createElement('input'); input.type = 'checkbox'; input.checked = Boolean(settings[key]);
     input.addEventListener('change', () => { settings[key] = input.checked; managerRef?.setHandIndependenceReverse(input.checked); persist(); });
     wrap.append(input, document.createTextNode(label)); panel.appendChild(wrap); controls[key] = input;
+    return wrap;
   };
 
-  addToggle('reverse', 'Umkehren');
+  const reverseToggleWrap = addToggle('reverse', 'Umkehren');
+  bindUiGroupDescription([reverseToggleWrap, controls.reverse], 'Handunabhängigkeit', 'Umkehren');
   const dynamicsToggle = document.createElement('label');
   dynamicsToggle.className = 'figure-dynamics-toggle';
   const dynamicsInput = document.createElement('input');
@@ -3780,15 +3798,20 @@ function createHandIndependencePanel() {
   });
   dynamicsToggle.append(dynamicsInput, document.createTextNode('Dynamiklinien'));
   panel.appendChild(dynamicsToggle);
+  bindUiGroupDescription([dynamicsToggle, dynamicsInput], 'Handunabhängigkeit', 'Dynamiklinien');
   addRange('strokeWidth', 'Stroke', 0.01, 0.5, 0.01);
+  bindUiGroupDescription([controlWraps.strokeWidth], 'Handunabhängigkeit', 'Stroke');
   addRange('sharedY', 'Y', 0, 1, 0.01);
+  bindUiGroupDescription([controlWraps.sharedY], 'Handunabhängigkeit', 'y');
   addRange('sharedX', 'X', 0, 1, 0.01);
+  bindUiGroupDescription([controlWraps.sharedX], 'Handunabhängigkeit', 'x');
   addDivider();
   const tempoRatioTitle = document.createElement('div');
   tempoRatioTitle.className = 'figure-panel-section-title';
   tempoRatioTitle.textContent = 'Tempo';
   panel.appendChild(tempoRatioTitle);
   addRange('sharedTempoBpm', 'BPM', 30, 120, 1);
+  bindUiGroupDescription([controlWraps.sharedTempoBpm], 'Handunabhängigkeit', 'BPMSlider');
   const ratioSelect = document.createElement('select');
   ratioSelect.className = 'hand-independence-tempo-ratio';
   ['1:1', '2:1', '3:1', '1:2', '1:3', '0.5:1', '1:0.5', '0.25:1', '1:0.25', '0.125:1', '1:0.125'].forEach((ratio) => {
@@ -3842,6 +3865,7 @@ function createHandIndependencePanel() {
   const countInput = document.createElement('input');
   countInput.type = 'checkbox';
   countInput.checked = Boolean(settings.countTimesVisible);
+  controls.countTimesVisible = countInput;
   countInput.addEventListener('change', () => {
     settings.countTimesVisible = countInput.checked;
     managerRef?.setHandIndependenceCountTimesVisible(countInput.checked);
@@ -3850,6 +3874,12 @@ function createHandIndependencePanel() {
   countToggle.append(countInput, document.createTextNode('Zählzeiten'));
   panel.appendChild(countToggle);
   bindUiGroupDescription([countToggle, countInput], 'Handunabhängigkeit', 'Zählzeiten');
+  const syncCountTimesState = () => {
+    const next = Boolean(countInput.checked);
+    settings.countTimesVisible = next;
+    managerRef?.setHandIndependenceCountTimesVisible(next);
+    countInput.checked = next;
+  };
   addRange('scale', 'Größe', 0.2, 1, 0.01);
   bindUiGroupDescription([controlWraps.scale], 'Handunabhängigkeit', 'Größe');
   const updateFigureMotionControlVisibility = () => {
@@ -3940,12 +3970,25 @@ function createHandIndependencePanel() {
       settings.figureLevel = figureLevel;
       figureSelect.value = String(figureLevel);
     }
+    if (typeof safeNext.countTimesVisible === 'boolean') {
+      settings.countTimesVisible = safeNext.countTimesVisible;
+      settings.countVisible = safeNext.countTimesVisible;
+    } else if (typeof safeNext.countVisible === 'boolean') {
+      settings.countTimesVisible = safeNext.countVisible;
+      settings.countVisible = safeNext.countVisible;
+    }
+    if (typeof settings.countTimesVisible === 'boolean') {
+      countInput.checked = Boolean(settings.countTimesVisible);
+    }
     Object.entries(safeNext).forEach(([key, value]) => {
       const control = controls[key];
       if (control && control.type === 'range') control.value = String(value);
       if (control && control.type === 'checkbox') control.checked = Boolean(value);
       if (control && control.tagName === 'SELECT') control.value = String(value);
     });
+    if (typeof settings.countTimesVisible === 'boolean') {
+      countInput.checked = Boolean(settings.countTimesVisible);
+    }
     if (safeNext.variant) managerRef?.setHandIndependenceVariant(safeNext.variant);
     if (Number.isInteger(Number(safeNext.figureLevel))) {
       managerRef?.setHandIndependenceFigureLevel(Number(safeNext.figureLevel));
@@ -4016,7 +4059,11 @@ function createHandIndependencePanel() {
   return {
     panel,
     setVisible: (visible) => panel.classList.toggle('hidden', !visible),
-    setLevelManager: (manager) => { managerRef = manager || null; apply(settings); },
+    setLevelManager: (manager) => {
+      managerRef = manager || null;
+      apply(settings);
+      syncCountTimesState();
+    },
     setLevel: rebuildCornerControls,
     applyPreset: (slot) => {
       selectedPresetSlot = Math.max(0, Math.min(7, Number(slot) || 0));
