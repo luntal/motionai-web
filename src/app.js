@@ -4183,6 +4183,23 @@ function createTrackingControls(trackingController) {
     }
   }
 
+  function readPersistedCalibrationIndex() {
+    try {
+      const stored = localStorage.getItem(settingsStorageKey);
+      if (!stored) {
+        return null;
+      }
+      const parsed = JSON.parse(stored);
+      if (!parsed || typeof parsed !== 'object') {
+        return null;
+      }
+      const candidate = Number(parsed.calibrationSetIndex);
+      return Number.isInteger(candidate) ? candidate : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
   function persistSettingsState() {
     try {
       const snapshot = {
@@ -4553,9 +4570,11 @@ function createTrackingControls(trackingController) {
       calibrationSetSelect.appendChild(option);
     });
 
+    const persistedIndex = readPersistedCalibrationIndex();
+    const hasPersisted = Number.isInteger(persistedIndex) && persistedIndex >= 0 && persistedIndex < poseSets.length;
     const parsedCurrent = Number(currentValue);
     const hasCurrent = Number.isInteger(parsedCurrent) && parsedCurrent >= 0 && parsedCurrent < poseSets.length;
-    selectedCalibrationSetIndex = hasCurrent ? parsedCurrent : poseSets.length - 1;
+    selectedCalibrationSetIndex = hasPersisted ? persistedIndex : (hasCurrent ? parsedCurrent : poseSets.length - 1);
     calibrationSetSelect.value = String(selectedCalibrationSetIndex);
     if (calibrationSetChangeHandler) {
       calibrationSetChangeHandler(selectedCalibrationSetIndex);
@@ -4751,6 +4770,7 @@ function createTrackingControls(trackingController) {
     if (calibrationSetChangeHandler) {
       calibrationSetChangeHandler(selectedCalibrationSetIndex);
     }
+    persistSettingsState();
   });
 
   calibrationStrictnessSlider.addEventListener('input', () => {
