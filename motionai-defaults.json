@@ -6,16 +6,17 @@
     "resolutionPreset": "high",
     "hoverHelpEnabled": false,
     "playbackMode": "one",
-    "calibrationSetIndex": 0,
+    "calibrationSetIndex": 5,
     "calibrationStrictness": 60,
     "stabilizationEnabled": false,
     "landmarkDrawingVisible": false,
     "silhouetteVisible": true,
-    "silhouetteOpacity": 0.062710727319292,
+    "eyesVisible": false,
+    "silhouetteOpacity": 0.0465218750103837,
     "videoSofteningEnabled": true,
-    "videoSofteningBlurPx": 17,
-    "videoSofteningBrightness": 0.35,
-    "poseWarningLandmarksVisible": false
+    "videoSofteningBlurPx": 18,
+    "videoSofteningBrightness": 0.25,
+    "poseWarningLandmarksVisible": true
   },
   "motionai.dynamic-figure-presets": {
     "0": {
@@ -30,7 +31,7 @@
         "figureHardLinearity": 0,
         "figureSoftTransitionPercent": 0,
         "figureDynamicsVisible": false,
-        "figureCountTimesVisible": false,
+        "figureCountTimesVisible": true,
         "dynamicFigureCornerHeights": [
           -25,
           -25
@@ -136,7 +137,7 @@
     },
     "3": {
       "0": {
-        "figureVariant": "hard",
+        "figureVariant": "soft",
         "figureSide": "both",
         "figureScale": 0.55,
         "figureStrokeWidth": 0.21,
@@ -146,39 +147,48 @@
         "figureHardLinearity": 0,
         "figureSoftTransitionPercent": 0,
         "figureDynamicsVisible": false,
-        "figureCountTimesVisible": false,
+        "figureCountTimesVisible": true,
         "dynamicFigureCornerHeights": [
-          -25,
-          -25,
-          -25,
-          -25,
-          -25,
-          -25,
-          -25,
-          -25
+          -0.5,
+          1.6,
+          3.2,
+          5.3,
+          6.9,
+          7.9,
+          11.4,
+          -2.1
         ]
       }
     }
   },
   "motionai.hand-independence-panel-settings": {
-    "variant": "soft",
+    "variant": "hard",
     "reverse": true,
     "strokeWidth": 0.15,
-    "scale": 0.51,
+    "scale": 0.38,
     "figureSoftTransitionPercent": 41,
     "sharedX": 0.3,
     "dynamicsVisible": true,
     "sharedTempoBpm": 30,
     "sharedY": 0.81,
     "corner0": 5.9,
-    "length": 34.9,
+    "length": 24.8,
     "rotation": -90,
-    "figureLevel": 3,
+    "figureLevel": 1,
     "tempoRatio": "0.25:1",
-    "figureHardLinearity": 100
+    "figureHardLinearity": 57,
+    "countTimesVisible": true,
+    "corner2": 8.2,
+    "corner1": 6.9,
+    "corner4": 11.3,
+    "corner5": -1,
+    "corner3": -11.3,
+    "countVisible": true,
+    "shape": "square",
+    "width": 30.2
   },
   "motionai.figure-selected-presets": {
-    "0": 0,
+    "0": 6,
     "1": 0,
     "2": 0,
     "3": 0,
@@ -187,12 +197,12 @@
     "6": 0
   },
   "motionai.square-exercise-panel-settings": {
-    "shape": "0",
-    "handMode": "both",
+    "shape": "4",
+    "handMode": "left",
     "syncMode": "asynchronous",
     "resolution": 1,
-    "gridResolution": 18,
-    "centerDistance": 0.55,
+    "gridResolution": 22,
+    "centerDistance": 0.6,
     "alternatingScale": "chromatic",
     "alternatingStartNote": 36,
     "alternatingVolume": 0,
@@ -200,51 +210,229 @@
     "alternatingFrequencyModulation": false,
     "alternatingAxisSwap": false
   },
-  "motionai.exercise-field-panel-settings": {
-    "enabled": true,
-    "scale": 1,
-    "xOffset": 0,
-    "strikeCount": 2,
-    "strikeRadius": 20,
-    "fieldSide": "left",
-    "fieldVertical": "top",
-    "fieldBeat": 1,
-    "mode": "free",
-    "tempoBpm": 60,
-    "metronomeEnabled": false,
-    "strikePositions": { "left": [], "right": [] }
-  },
-  "motionai.exercise-field-presets": {
-    "0": { "enabled": true, "scale": 1, "xOffset": 0, "strikeCount": 2, "strikeRadius": 20, "fieldSide": "left", "fieldVertical": "top", "fieldBeat": 1, "mode": "free", "tempoBpm": 60, "metronomeEnabled": false, "strikePositions": { "left": [], "right": [] } },
-    "1": { "enabled": true, "scale": 1, "xOffset": 0, "strikeCount": 2, "strikeRadius": 20, "fieldSide": "left", "fieldVertical": "top", "fieldBeat": 1, "mode": "free", "tempoBpm": 60, "metronomeEnabled": false, "strikePositions": { "left": [], "right": [] } },
-    "2": { "enabled": true, "scale": 1, "xOffset": 0, "strikeCount": 2, "strikeRadius": 20, "fieldSide": "left", "fieldVertical": "top", "fieldBeat": 1, "mode": "free", "tempoBpm": 60, "metronomeEnabled": false, "strikePositions": { "left": [], "right": [] } },
-    "3": { "enabled": true, "scale": 1, "xOffset": 0, "strikeCount": 2, "strikeRadius": 20, "fieldSide": "left", "fieldVertical": "top", "fieldBeat": 1, "mode": "free", "tempoBpm": 60, "metronomeEnabled": false, "strikePositions": { "left": [], "right": [] } },
-    "4": { "enabled": true, "scale": 1, "xOffset": 0, "strikeCount": 2, "strikeRadius": 20, "fieldSide": "left", "fieldVertical": "top", "fieldBeat": 1, "mode": "free", "tempoBpm": 60, "metronomeEnabled": false, "strikePositions": { "left": [], "right": [] } }
-  },
   "motionai.video-softening-enabled": true,
   "motionai.dynamic-figure-selected-presets": {
-    "0": 2,
+    "0": 0,
     "1": 0,
-    "2": 0,
-    "3": 0
+    "2": 1,
+    "3": 1
+  },
+  "motionai.exercise-field-presets": {
+    "0": {
+      "enabled": true,
+      "scale": 0.65,
+      "xOffset": 0,
+      "strikeCount": 2,
+      "strikeRadius": 35,
+      "fieldSide": "left",
+      "fieldVertical": "bottom",
+      "fieldBeat": 1,
+      "mode": "free",
+      "tempoBpm": 58,
+      "metronomeEnabled": true,
+      "strikePositions": {
+        "left": [
+          {
+            "x": 566.4915797914996,
+            "y": 448.9214113873296
+          },
+          {
+            "x": 453.223736968725,
+            "y": 447.0449077786688
+          }
+        ],
+        "right": [
+          {
+            "x": 713.5084202085004,
+            "y": 448.9214113873296
+          },
+          {
+            "x": 826.776263031275,
+            "y": 447.0449077786688
+          }
+        ]
+      }
+    },
+    "1": {
+      "enabled": true,
+      "scale": 0.6,
+      "xOffset": 0.15,
+      "strikeCount": 3,
+      "strikeRadius": 20,
+      "fieldSide": "left",
+      "fieldVertical": "top",
+      "fieldBeat": 1,
+      "mode": "free",
+      "tempoBpm": 60,
+      "strikePositions": {
+        "left": [
+          {
+            "x": 476.4153969526865,
+            "y": 487.40577385725743
+          },
+          {
+            "x": 408.5124298315958,
+            "y": 489.83159582999195
+          },
+          {
+            "x": 557.2534081796312,
+            "y": 490.2566158781074
+          }
+        ],
+        "right": [
+          {
+            "x": 803.5846030473135,
+            "y": 487.40577385725743
+          },
+          {
+            "x": 871.4875701684042,
+            "y": 489.83159582999195
+          },
+          {
+            "x": 722.7465918203688,
+            "y": 490.2566158781074
+          }
+        ]
+      }
+    },
+    "2": {
+      "enabled": true,
+      "scale": 0.25,
+      "xOffset": 0,
+      "strikeCount": 3,
+      "strikeRadius": 20,
+      "fieldSide": "left",
+      "fieldVertical": "top",
+      "fieldBeat": 1,
+      "strikePositions": {
+        "left": [
+          {
+            "x": 135.49088359046277,
+            "y": 347.78401122019636
+          },
+          {
+            "x": 139.78260869565224,
+            "y": 135.16830294530155
+          },
+          {
+            "x": 133.82187938288916,
+            "y": 601.7180925666199
+          }
+        ],
+        "right": [
+          {
+            "x": 1144.5091164095372,
+            "y": 347.78401122019636
+          },
+          {
+            "x": 1140.2173913043478,
+            "y": 135.16830294530155
+          },
+          {
+            "x": 1146.1781206171108,
+            "y": 601.7180925666199
+          }
+        ]
+      }
+    },
+    "3": {
+      "enabled": true,
+      "scale": 0.25,
+      "xOffset": 0,
+      "strikeCount": 4,
+      "strikeRadius": 20,
+      "fieldSide": "left",
+      "fieldVertical": "top",
+      "fieldBeat": 1,
+      "strikePositions": {
+        "left": [
+          {
+            "x": 499.11173633440524,
+            "y": 438.741961414791
+          },
+          {
+            "x": 436.8488745980708,
+            "y": 437.0618971061093
+          },
+          {
+            "x": 567.8336012861737,
+            "y": 443.5249196141479
+          },
+          {
+            "x": 382.68890675241164,
+            "y": 434.9397106109324
+          }
+        ],
+        "right": [
+          {
+            "x": 780.8882636655948,
+            "y": 438.741961414791
+          },
+          {
+            "x": 843.1511254019292,
+            "y": 437.0618971061093
+          },
+          {
+            "x": 712.1663987138263,
+            "y": 443.5249196141479
+          },
+          {
+            "x": 897.3110932475884,
+            "y": 434.9397106109324
+          }
+        ]
+      }
+    },
+    "4": {
+      "enabled": true,
+      "scale": 0.6,
+      "xOffset": 0.09,
+      "strikeCount": 2,
+      "strikeRadius": 24,
+      "fieldSide": "left",
+      "fieldVertical": "top",
+      "fieldBeat": 2,
+      "strikePositions": {
+        "left": [
+          {
+            "x": 512.0578778135049,
+            "y": 490.49437299035367
+          },
+          {
+            "x": 400.968649517685,
+            "y": 492.0779742765273
+          }
+        ],
+        "right": [
+          {
+            "x": 767.9421221864951,
+            "y": 490.49437299035367
+          },
+          {
+            "x": 879.031350482315,
+            "y": 492.0779742765273
+          }
+        ]
+      }
+    }
   },
   "motionai.dynamic-figure-panel-settings": {
-    "figureVariant": "soft",
+    "figureVariant": "hard",
     "figureSide": "both",
-    "figureScale": 0.44,
+    "figureScale": 0.31,
     "figureStrokeWidth": 0.08,
-    "figureHorizontalOffset": 0.42,
-    "figureYPosition": 0.75,
-    "figureTempoBpm": 38,
-    "figureHardLinearity": 19,
-    "figureSoftTransitionPercent": 39,
+    "figureHorizontalOffset": 0.29,
+    "figureYPosition": 0.77,
+    "figureTempoBpm": 43,
+    "figureHardLinearity": 14,
+    "figureSoftTransitionPercent": 7,
     "figureDynamicsVisible": false,
-    "figureCountTimesVisible": true
+    "figureCountTimesVisible": false
   },
   "motionai.consistency-panel-settings": {
     "tempoBpm": 35,
-    "strictnessPercent": 70,
-    "motionBlendPercent": 100
+    "strictnessPercent": 160,
+    "motionBlendPercent": 10
   },
   "motionai.memory-debug": [
     {
@@ -7958,23 +8146,59 @@
       }
     }
   ],
+  "motionai.exercise-field-panel-settings": {
+    "enabled": true,
+    "scale": 1.25,
+    "xOffset": 0,
+    "strikeCount": 2,
+    "strikeRadius": 35,
+    "fieldSide": "left",
+    "fieldVertical": "top",
+    "fieldBeat": 1,
+    "mode": "free",
+    "tempoBpm": 58,
+    "metronomeEnabled": true,
+    "strikePositions": {
+      "left": [
+        {
+          "x": 486.8123496391339,
+          "y": 502.8909382518043
+        },
+        {
+          "x": 386.2830793905373,
+          "y": 498.6327185244587
+        }
+      ],
+      "right": [
+        {
+          "x": 793.1876503608661,
+          "y": 502.8909382518043
+        },
+        {
+          "x": 893.7169206094627,
+          "y": 498.6327185244587
+        }
+      ]
+    }
+  },
+  "motionai.defaults-initialized": true,
   "motionai.figure-panel-settings": {
     "figureVariant": "soft",
     "figureSide": "both",
-    "figureScale": 0.31,
-    "figureStrokeWidth": 0.21,
-    "figureHorizontalOffset": 0.5,
-    "figureYPosition": 0.74,
-    "figureTempoBpm": 31,
-    "figureHardLinearity": 15,
-    "figureSoftTransitionPercent": 42,
+    "figureScale": 0.5,
+    "figureStrokeWidth": 0.09,
+    "figureHorizontalOffset": 0.26,
+    "figureYPosition": 0.77,
+    "figureTempoBpm": 30,
+    "figureHardLinearity": 0,
+    "figureSoftTransitionPercent": 0,
     "figureDynamicsVisible": false,
     "figureCountTimesVisible": false
   },
   "motionai.dynamic-figure-corner-heights": {
     "0": [
-      -17.857142857142858,
-      -17.857142857142858,
+      -25,
+      -25,
       0,
       0,
       0,
@@ -7993,29 +8217,29 @@
       0
     ],
     "2": [
-      -25,
-      -25,
-      -25,
-      -25,
-      -25,
-      -25,
+      -17.857142857142858,
+      -17.857142857142858,
+      -17.857142857142858,
+      -17.857142857142858,
+      -17.857142857142858,
+      -17.857142857142858,
       0,
       0
     ],
     "3": [
-      -25,
-      -25,
-      -25,
-      -25,
-      -25,
-      -25,
-      -25,
-      -25
+      -17.857142857142858,
+      -17.857142857142858,
+      -17.857142857142858,
+      -17.857142857142858,
+      -17.857142857142858,
+      -17.857142857142858,
+      -17.857142857142858,
+      -17.857142857142858
     ]
   },
   "motionai.video-softening-settings": {
-    "blurPx": 17,
-    "brightness": 0.35
+    "blurPx": 18,
+    "brightness": 0.25
   },
   "motionai.silhouette-enabled": true,
   "motionai.point-exercise-saved-slots": {
@@ -8162,74 +8386,234 @@
       ],
       "gridResolution": 12,
       "resolution": 1,
-      "hand": "auto",
+      "hand": "left",
       "sequentialMode": "independent",
       "palindromMode": true
     },
     "4": {
       "sequence": [
         {
-          "row": 3,
-          "col": 5,
-          "hand": "right"
-        },
-        {
-          "row": 3,
-          "col": 10,
-          "hand": "left"
-        },
-        {
-          "row": 4,
-          "col": 5,
-          "hand": "right"
-        },
-        {
-          "row": 4,
-          "col": 10,
-          "hand": "left"
-        },
-        {
-          "row": 5,
-          "col": 5,
-          "hand": "right"
-        },
-        {
-          "row": 5,
-          "col": 10,
-          "hand": "left"
-        },
-        {
-          "row": 6,
-          "col": 5,
-          "hand": "right"
-        },
-        {
-          "row": 6,
-          "col": 10,
-          "hand": "left"
-        },
-        {
           "row": 7,
-          "col": 5,
+          "col": 11,
           "hand": "right"
         },
         {
           "row": 7,
-          "col": 10,
+          "col": 18,
           "hand": "left"
         },
         {
           "row": 8,
-          "col": 5,
+          "col": 11,
           "hand": "right"
         },
         {
           "row": 8,
+          "col": 18,
+          "hand": "left"
+        },
+        {
+          "row": 9,
+          "col": 11,
+          "hand": "right"
+        },
+        {
+          "row": 9,
+          "col": 18,
+          "hand": "left"
+        },
+        {
+          "row": 10,
+          "col": 11,
+          "hand": "right"
+        },
+        {
+          "row": 10,
+          "col": 18,
+          "hand": "left"
+        },
+        {
+          "row": 11,
+          "col": 11,
+          "hand": "right"
+        },
+        {
+          "row": 11,
+          "col": 18,
+          "hand": "left"
+        },
+        {
+          "row": 12,
+          "col": 11,
+          "hand": "right"
+        },
+        {
+          "row": 12,
+          "col": 18,
+          "hand": "left"
+        },
+        {
+          "row": 13,
+          "col": 11,
+          "hand": "right"
+        },
+        {
+          "row": 13,
+          "col": 18,
+          "hand": "left"
+        },
+        {
+          "row": 14,
+          "col": 11,
+          "hand": "right"
+        },
+        {
+          "row": 14,
+          "col": 18,
+          "hand": "left"
+        },
+        {
+          "row": 15,
           "col": 10,
+          "hand": "right"
+        },
+        {
+          "row": 15,
+          "col": 19,
+          "hand": "left"
+        },
+        {
+          "row": 16,
+          "col": 9,
+          "hand": "right"
+        },
+        {
+          "row": 16,
+          "col": 20,
+          "hand": "left"
+        },
+        {
+          "row": 17,
+          "col": 8,
+          "hand": "right"
+        },
+        {
+          "row": 17,
+          "col": 21,
+          "hand": "left"
+        },
+        {
+          "row": 17,
+          "col": 7,
+          "hand": "right"
+        },
+        {
+          "row": 17,
+          "col": 22,
+          "hand": "left"
+        },
+        {
+          "row": 16,
+          "col": 7,
+          "hand": "right"
+        },
+        {
+          "row": 16,
+          "col": 22,
+          "hand": "left"
+        },
+        {
+          "row": 15,
+          "col": 7,
+          "hand": "right"
+        },
+        {
+          "row": 15,
+          "col": 22,
+          "hand": "left"
+        },
+        {
+          "row": 14,
+          "col": 7,
+          "hand": "right"
+        },
+        {
+          "row": 14,
+          "col": 22,
+          "hand": "left"
+        },
+        {
+          "row": 13,
+          "col": 7,
+          "hand": "right"
+        },
+        {
+          "row": 13,
+          "col": 22,
+          "hand": "left"
+        },
+        {
+          "row": 12,
+          "col": 7,
+          "hand": "right"
+        },
+        {
+          "row": 12,
+          "col": 22,
+          "hand": "left"
+        },
+        {
+          "row": 11,
+          "col": 7,
+          "hand": "right"
+        },
+        {
+          "row": 11,
+          "col": 22,
+          "hand": "left"
+        },
+        {
+          "row": 10,
+          "col": 7,
+          "hand": "right"
+        },
+        {
+          "row": 10,
+          "col": 22,
+          "hand": "left"
+        },
+        {
+          "row": 9,
+          "col": 7,
+          "hand": "right"
+        },
+        {
+          "row": 9,
+          "col": 22,
+          "hand": "left"
+        },
+        {
+          "row": 8,
+          "col": 7,
+          "hand": "right"
+        },
+        {
+          "row": 8,
+          "col": 22,
+          "hand": "left"
+        },
+        {
+          "row": 7,
+          "col": 7,
+          "hand": "right"
+        },
+        {
+          "row": 7,
+          "col": 22,
           "hand": "left"
         }
       ],
-      "gridResolution": 12,
+      "gridResolution": 22,
       "resolution": 1,
       "hand": "auto",
       "sequentialMode": "simultaneous",
@@ -8238,47 +8622,47 @@
     "5": {
       "sequence": [
         {
-          "row": 4,
-          "col": 8,
+          "row": 6,
+          "col": 10,
           "hand": "right"
         },
         {
-          "row": 4,
-          "col": 15,
-          "hand": "left"
-        },
-        {
-          "row": 12,
-          "col": 8,
-          "hand": "right"
-        },
-        {
-          "row": 12,
-          "col": 15,
-          "hand": "left"
-        },
-        {
-          "row": 9,
-          "col": 4,
-          "hand": "right"
-        },
-        {
-          "row": 9,
+          "row": 6,
           "col": 19,
           "hand": "left"
         },
         {
-          "row": 10,
+          "row": 15,
+          "col": 10,
+          "hand": "right"
+        },
+        {
+          "row": 15,
+          "col": 19,
+          "hand": "left"
+        },
+        {
+          "row": 11,
           "col": 6,
           "hand": "right"
         },
         {
-          "row": 10,
-          "col": 17,
+          "row": 11,
+          "col": 23,
+          "hand": "left"
+        },
+        {
+          "row": 12,
+          "col": 8,
+          "hand": "right"
+        },
+        {
+          "row": 12,
+          "col": 21,
           "hand": "left"
         }
       ],
-      "gridResolution": 18,
+      "gridResolution": 22,
       "resolution": 1,
       "hand": "auto",
       "sequentialMode": "simultaneous",
@@ -8293,37 +8677,67 @@
         },
         {
           "row": 6,
-          "col": 21,
+          "col": 19,
           "hand": "left"
         },
         {
-          "row": 10,
-          "col": 10,
+          "row": 6,
+          "col": 7,
           "hand": "right"
         },
         {
-          "row": 10,
-          "col": 21,
-          "hand": "left"
-        },
-        {
-          "row": 14,
-          "col": 10,
-          "hand": "right"
-        },
-        {
-          "row": 14,
-          "col": 21,
-          "hand": "left"
-        },
-        {
-          "row": 16,
-          "col": 9,
-          "hand": "right"
-        },
-        {
-          "row": 16,
+          "row": 6,
           "col": 22,
+          "hand": "left"
+        },
+        {
+          "row": 9,
+          "col": 10,
+          "hand": "right"
+        },
+        {
+          "row": 9,
+          "col": 19,
+          "hand": "left"
+        },
+        {
+          "row": 9,
+          "col": 7,
+          "hand": "right"
+        },
+        {
+          "row": 9,
+          "col": 22,
+          "hand": "left"
+        },
+        {
+          "row": 12,
+          "col": 10,
+          "hand": "right"
+        },
+        {
+          "row": 12,
+          "col": 19,
+          "hand": "left"
+        },
+        {
+          "row": 12,
+          "col": 7,
+          "hand": "right"
+        },
+        {
+          "row": 12,
+          "col": 22,
+          "hand": "left"
+        },
+        {
+          "row": 15,
+          "col": 10,
+          "hand": "right"
+        },
+        {
+          "row": 15,
+          "col": 19,
           "hand": "left"
         },
         {
@@ -8333,205 +8747,106 @@
         },
         {
           "row": 15,
-          "col": 24,
-          "hand": "left"
-        },
-        {
-          "row": 13,
-          "col": 5,
-          "hand": "right"
-        },
-        {
-          "row": 13,
-          "col": 26,
-          "hand": "left"
-        },
-        {
-          "row": 12,
-          "col": 5,
-          "hand": "right"
-        },
-        {
-          "row": 12,
-          "col": 26,
-          "hand": "left"
-        },
-        {
-          "row": 12,
-          "col": 6,
-          "hand": "right"
-        },
-        {
-          "row": 12,
-          "col": 25,
-          "hand": "left"
-        },
-        {
-          "row": 13,
-          "col": 7,
-          "hand": "right"
-        },
-        {
-          "row": 13,
-          "col": 24,
-          "hand": "left"
-        },
-        {
-          "row": 13,
-          "col": 8,
-          "hand": "right"
-        },
-        {
-          "row": 13,
-          "col": 23,
-          "hand": "left"
-        },
-        {
-          "row": 12,
-          "col": 8,
-          "hand": "right"
-        },
-        {
-          "row": 12,
-          "col": 23,
+          "col": 22,
           "hand": "left"
         }
       ],
-      "gridResolution": 24,
-      "resolution": 1,
-      "hand": "auto",
-      "sequentialMode": "simultaneous",
-      "palindromMode": false
-    },
-    "7": {
-      "sequence": [
-        {
-          "row": 6,
-          "col": 11,
-          "hand": "right"
-        },
-        {
-          "row": 6,
-          "col": 20,
-          "hand": "left"
-        },
-        {
-          "row": 10,
-          "col": 11,
-          "hand": "right"
-        },
-        {
-          "row": 10,
-          "col": 20,
-          "hand": "left"
-        },
-        {
-          "row": 14,
-          "col": 11,
-          "hand": "right"
-        },
-        {
-          "row": 14,
-          "col": 20,
-          "hand": "left"
-        },
-        {
-          "row": 12,
-          "col": 9,
-          "hand": "right"
-        },
-        {
-          "row": 12,
-          "col": 22,
-          "hand": "left"
-        },
-        {
-          "row": 8,
-          "col": 9,
-          "hand": "right"
-        },
-        {
-          "row": 8,
-          "col": 22,
-          "hand": "left"
-        },
-        {
-          "row": 10,
-          "col": 7,
-          "hand": "right"
-        },
-        {
-          "row": 10,
-          "col": 24,
-          "hand": "left"
-        },
-        {
-          "row": 16,
-          "col": 7,
-          "hand": "right"
-        },
-        {
-          "row": 16,
-          "col": 24,
-          "hand": "left"
-        },
-        {
-          "row": 16,
-          "col": 13,
-          "hand": "right"
-        },
-        {
-          "row": 16,
-          "col": 18,
-          "hand": "left"
-        },
-        {
-          "row": 13,
-          "col": 13,
-          "hand": "right"
-        },
-        {
-          "row": 13,
-          "col": 18,
-          "hand": "left"
-        },
-        {
-          "row": 11,
-          "col": 11,
-          "hand": "right"
-        },
-        {
-          "row": 11,
-          "col": 20,
-          "hand": "left"
-        },
-        {
-          "row": 8,
-          "col": 13,
-          "hand": "right"
-        },
-        {
-          "row": 8,
-          "col": 18,
-          "hand": "left"
-        }
-      ],
-      "gridResolution": 24,
+      "gridResolution": 22,
       "resolution": 1,
       "hand": "auto",
       "sequentialMode": "sequential",
       "palindromMode": false
     },
-    "8": {
+    "7": {
       "sequence": [
         {
-          "row": 6,
+          "row": 17,
           "col": 11,
           "hand": "right"
         },
         {
-          "row": 6,
+          "row": 17,
+          "col": 18,
+          "hand": "left"
+        },
+        {
+          "row": 13,
+          "col": 11,
+          "hand": "right"
+        },
+        {
+          "row": 13,
+          "col": 18,
+          "hand": "left"
+        },
+        {
+          "row": 9,
+          "col": 11,
+          "hand": "right"
+        },
+        {
+          "row": 9,
+          "col": 18,
+          "hand": "left"
+        },
+        {
+          "row": 17,
+          "col": 9,
+          "hand": "right"
+        },
+        {
+          "row": 17,
           "col": 20,
+          "hand": "left"
+        },
+        {
+          "row": 13,
+          "col": 9,
+          "hand": "right"
+        },
+        {
+          "row": 13,
+          "col": 20,
+          "hand": "left"
+        },
+        {
+          "row": 9,
+          "col": 9,
+          "hand": "right"
+        },
+        {
+          "row": 9,
+          "col": 20,
+          "hand": "left"
+        },
+        {
+          "row": 17,
+          "col": 7,
+          "hand": "right"
+        },
+        {
+          "row": 17,
+          "col": 22,
+          "hand": "left"
+        },
+        {
+          "row": 13,
+          "col": 7,
+          "hand": "right"
+        },
+        {
+          "row": 13,
+          "col": 22,
+          "hand": "left"
+        },
+        {
+          "row": 9,
+          "col": 7,
+          "hand": "right"
+        },
+        {
+          "row": 9,
+          "col": 22,
           "hand": "left"
         },
         {
@@ -8541,165 +8856,114 @@
         },
         {
           "row": 6,
-          "col": 22,
+          "col": 20,
           "hand": "left"
         },
         {
           "row": 6,
-          "col": 7,
+          "col": 11,
           "hand": "right"
         },
         {
           "row": 6,
+          "col": 18,
+          "hand": "left"
+        }
+      ],
+      "gridResolution": 22,
+      "resolution": 1,
+      "hand": "auto",
+      "sequentialMode": "independent",
+      "palindromMode": true
+    },
+    "8": {
+      "sequence": [
+        {
+          "row": 7,
+          "col": 11,
+          "hand": "right"
+        },
+        {
+          "row": 7,
+          "col": 18,
+          "hand": "left"
+        },
+        {
+          "row": 8,
+          "col": 8,
+          "hand": "right"
+        },
+        {
+          "row": 8,
+          "col": 21,
+          "hand": "left"
+        },
+        {
+          "row": 11,
+          "col": 6,
+          "hand": "right"
+        },
+        {
+          "row": 11,
+          "col": 23,
+          "hand": "left"
+        },
+        {
+          "row": 14,
+          "col": 5,
+          "hand": "right"
+        },
+        {
+          "row": 14,
           "col": 24,
           "hand": "left"
         },
         {
-          "row": 7,
-          "col": 6,
-          "hand": "right"
-        },
-        {
-          "row": 7,
-          "col": 25,
-          "hand": "left"
-        },
-        {
-          "row": 8,
-          "col": 5,
-          "hand": "right"
-        },
-        {
-          "row": 8,
-          "col": 26,
-          "hand": "left"
-        },
-        {
-          "row": 9,
-          "col": 4,
-          "hand": "right"
-        },
-        {
-          "row": 9,
-          "col": 27,
-          "hand": "left"
-        },
-        {
-          "row": 9,
-          "col": 8,
-          "hand": "right"
-        },
-        {
-          "row": 9,
-          "col": 23,
-          "hand": "left"
-        },
-        {
-          "row": 9,
-          "col": 11,
-          "hand": "right"
-        },
-        {
-          "row": 9,
-          "col": 20,
-          "hand": "left"
-        },
-        {
-          "row": 11,
-          "col": 11,
-          "hand": "right"
-        },
-        {
-          "row": 11,
-          "col": 20,
-          "hand": "left"
-        },
-        {
-          "row": 11,
-          "col": 8,
-          "hand": "right"
-        },
-        {
-          "row": 11,
-          "col": 23,
-          "hand": "left"
-        },
-        {
-          "row": 11,
-          "col": 6,
-          "hand": "right"
-        },
-        {
-          "row": 11,
-          "col": 25,
-          "hand": "left"
-        },
-        {
-          "row": 12,
-          "col": 5,
-          "hand": "right"
-        },
-        {
-          "row": 12,
-          "col": 26,
-          "hand": "left"
-        },
-        {
-          "row": 13,
-          "col": 4,
-          "hand": "right"
-        },
-        {
-          "row": 13,
-          "col": 27,
-          "hand": "left"
-        },
-        {
-          "row": 14,
-          "col": 3,
-          "hand": "right"
-        },
-        {
-          "row": 14,
-          "col": 28,
-          "hand": "left"
-        },
-        {
-          "row": 14,
-          "col": 6,
-          "hand": "right"
-        },
-        {
-          "row": 14,
-          "col": 25,
-          "hand": "left"
-        },
-        {
-          "row": 14,
-          "col": 11,
-          "hand": "right"
-        },
-        {
-          "row": 14,
-          "col": 20,
-          "hand": "left"
-        },
-        {
           "row": 17,
-          "col": 11,
+          "col": 7,
           "hand": "right"
         },
         {
           "row": 17,
-          "col": 20,
+          "col": 22,
+          "hand": "left"
+        },
+        {
+          "row": 16,
+          "col": 10,
+          "hand": "right"
+        },
+        {
+          "row": 16,
+          "col": 19,
+          "hand": "left"
+        },
+        {
+          "row": 13,
+          "col": 11,
+          "hand": "right"
+        },
+        {
+          "row": 13,
+          "col": 18,
+          "hand": "left"
+        },
+        {
+          "row": 10,
+          "col": 11,
+          "hand": "right"
+        },
+        {
+          "row": 10,
+          "col": 18,
           "hand": "left"
         }
       ],
-      "gridResolution": 24,
+      "gridResolution": 22,
       "resolution": 1,
       "hand": "auto",
       "sequentialMode": "simultaneous",
-      "palindromMode": true
+      "palindromMode": false
     }
   },
   "motionai.hand-independence-presets": {
@@ -8718,7 +8982,13 @@
       "rotation": -90,
       "figureLevel": 1,
       "tempoRatio": "0.25:1",
-      "figureHardLinearity": 100
+      "figureHardLinearity": 57,
+      "countTimesVisible": true,
+      "corner2": 8.2,
+      "corner1": 6.9,
+      "corner4": 11.3,
+      "corner5": -1,
+      "corner3": -11.3
     },
     "1": {
       "variant": "hard",
@@ -8735,7 +9005,14 @@
       "rotation": -90,
       "figureLevel": 2,
       "tempoRatio": "0.25:1",
-      "figureHardLinearity": 100
+      "figureHardLinearity": 100,
+      "countTimesVisible": false,
+      "corner2": 8.2,
+      "corner1": 6.9,
+      "corner4": 11.3,
+      "corner5": -1,
+      "corner3": -11.3,
+      "countVisible": true
     },
     "2": {
       "variant": "soft",
@@ -8752,23 +9029,119 @@
       "rotation": -90,
       "figureLevel": 3,
       "tempoRatio": "0.25:1",
-      "figureHardLinearity": 100
+      "figureHardLinearity": 100,
+      "countTimesVisible": true,
+      "corner2": 8.2,
+      "corner1": 6.9,
+      "corner4": 11.3,
+      "corner5": -1,
+      "corner3": -11.3,
+      "countVisible": false
+    },
+    "3": {
+      "variant": "soft",
+      "reverse": true,
+      "strokeWidth": 0.15,
+      "scale": 0.51,
+      "figureSoftTransitionPercent": 41,
+      "sharedX": 0.3,
+      "dynamicsVisible": true,
+      "sharedTempoBpm": 30,
+      "sharedY": 0.81,
+      "corner0": 5.9,
+      "length": 34.9,
+      "rotation": -90,
+      "figureLevel": 3,
+      "tempoRatio": "0.25:1",
+      "figureHardLinearity": 100,
+      "countTimesVisible": false,
+      "corner2": 8.2,
+      "corner1": 6.9,
+      "corner4": 11.3,
+      "corner5": -1,
+      "corner3": -11.3,
+      "countVisible": true
     }
   },
   "motionai.figure-presets": {
     "0": {
       "0": {
+        "figureVariant": "hard",
+        "figureSide": "both",
+        "figureScale": 0.4,
+        "figureStrokeWidth": 0.21,
+        "figureHorizontalOffset": 0.43,
+        "figureYPosition": 0.74,
+        "figureTempoBpm": 31,
+        "figureHardLinearity": 66,
+        "figureSoftTransitionPercent": 42,
+        "figureDynamicsVisible": false,
+        "figureCountTimesVisible": true
+      },
+      "1": {
         "figureVariant": "soft",
         "figureSide": "both",
         "figureScale": 0.31,
-        "figureStrokeWidth": 0.21,
-        "figureHorizontalOffset": 0.5,
-        "figureYPosition": 0.74,
-        "figureTempoBpm": 31,
-        "figureHardLinearity": 15,
-        "figureSoftTransitionPercent": 42,
+        "figureStrokeWidth": 0.08,
+        "figureHorizontalOffset": 0.4,
+        "figureYPosition": 0.66,
+        "figureTempoBpm": 30,
+        "figureHardLinearity": 14,
+        "figureSoftTransitionPercent": 15,
+        "figureDynamicsVisible": false,
+        "figureCountTimesVisible": true
+      },
+      "2": {
+        "figureVariant": "soft",
+        "figureSide": "left",
+        "figureScale": 0.43,
+        "figureStrokeWidth": 0.15,
+        "figureHorizontalOffset": 0.44,
+        "figureYPosition": 0.79,
+        "figureTempoBpm": 34,
+        "figureHardLinearity": 29,
+        "figureSoftTransitionPercent": 14,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": false
+      },
+      "3": {
+        "figureVariant": "soft",
+        "figureSide": "right",
+        "figureScale": 0.54,
+        "figureStrokeWidth": 0.22,
+        "figureHorizontalOffset": 0.34,
+        "figureYPosition": 0.77,
+        "figureTempoBpm": 30,
+        "figureHardLinearity": 43,
+        "figureSoftTransitionPercent": 21,
+        "figureDynamicsVisible": false,
+        "figureCountTimesVisible": false
+      },
+      "6": {
+        "figureVariant": "soft",
+        "figureSide": "both",
+        "figureScale": 0.3,
+        "figureStrokeWidth": 0.12,
+        "figureHorizontalOffset": 0.34,
+        "figureYPosition": 0.54,
+        "figureTempoBpm": 58,
+        "figureHardLinearity": 86,
+        "figureSoftTransitionPercent": 43,
+        "figureDynamicsVisible": false,
+        "figureCountTimesVisible": false
+      },
+      "7": {
+        "figureVariant": "soft",
+        "figureSide": "right",
+        "figureScale": 0.32,
+        "figureStrokeWidth": 0.14,
+        "figureHorizontalOffset": 0.38,
+        "figureYPosition": 0.52,
+        "figureTempoBpm": 60,
+        "figureHardLinearity": 100,
+        "figureSoftTransitionPercent": 50,
+        "figureDynamicsVisible": false,
+        "figureCountTimesVisible": true
       }
     },
     "1": {
@@ -8862,53 +9235,123 @@
       }
     }
   },
-  "motionai.silhouette-opacity": 0.062710727319292,
+  "motionai.silhouette-opacity": 0.0465218750103837,
   "motionai.square-exercise-panel-settings-points": {
     "pointEditMode": false,
-    "pointSelectedSlot": 5,
+    "pointSelectedSlot": 7,
     "pointSelectedHand": "auto",
-    "pointSequenceMode": "simultaneous",
+    "pointSequenceMode": "independent",
     "pointSymmetryMode": true,
-    "pointPalindromMode": false,
+    "pointPalindromMode": true,
     "pointSequence": [
       {
-        "row": 4,
-        "col": 8,
+        "row": 17,
+        "col": 11,
         "hand": "right"
       },
       {
-        "row": 4,
-        "col": 15,
+        "row": 17,
+        "col": 18,
         "hand": "left"
       },
       {
-        "row": 12,
-        "col": 8,
+        "row": 13,
+        "col": 11,
         "hand": "right"
       },
       {
-        "row": 12,
-        "col": 15,
+        "row": 13,
+        "col": 18,
         "hand": "left"
       },
       {
         "row": 9,
-        "col": 4,
+        "col": 11,
         "hand": "right"
       },
       {
         "row": 9,
-        "col": 19,
+        "col": 18,
         "hand": "left"
       },
       {
-        "row": 10,
-        "col": 6,
+        "row": 17,
+        "col": 9,
         "hand": "right"
       },
       {
-        "row": 10,
-        "col": 17,
+        "row": 17,
+        "col": 20,
+        "hand": "left"
+      },
+      {
+        "row": 13,
+        "col": 9,
+        "hand": "right"
+      },
+      {
+        "row": 13,
+        "col": 20,
+        "hand": "left"
+      },
+      {
+        "row": 9,
+        "col": 9,
+        "hand": "right"
+      },
+      {
+        "row": 9,
+        "col": 20,
+        "hand": "left"
+      },
+      {
+        "row": 17,
+        "col": 7,
+        "hand": "right"
+      },
+      {
+        "row": 17,
+        "col": 22,
+        "hand": "left"
+      },
+      {
+        "row": 13,
+        "col": 7,
+        "hand": "right"
+      },
+      {
+        "row": 13,
+        "col": 22,
+        "hand": "left"
+      },
+      {
+        "row": 9,
+        "col": 7,
+        "hand": "right"
+      },
+      {
+        "row": 9,
+        "col": 22,
+        "hand": "left"
+      },
+      {
+        "row": 6,
+        "col": 9,
+        "hand": "right"
+      },
+      {
+        "row": 6,
+        "col": 20,
+        "hand": "left"
+      },
+      {
+        "row": 6,
+        "col": 11,
+        "hand": "right"
+      },
+      {
+        "row": 6,
+        "col": 18,
         "hand": "left"
       }
     ]

@@ -28,9 +28,24 @@ export class LevelManager {
     this.calibrationMetrics = null;
     this.calibrationPoseSetsStorageKey = 'callibration_date';
     this.calibrationPoseSets = this.loadCalibrationPoseSets();
-    this.selectedCalibrationPoseSetIndex = this.calibrationPoseSets.length > 0
-      ? this.calibrationPoseSets.length - 1
-      : null;
+
+    let persistedCalibrationSetIndex = null;
+    try {
+      const rawSettings = localStorage.getItem('motionai.settings-panel-state');
+      if (rawSettings) {
+        const parsedSettings = JSON.parse(rawSettings);
+        const candidate = Number(parsedSettings?.calibrationSetIndex);
+        if (Number.isInteger(candidate) && candidate >= 0 && candidate < this.calibrationPoseSets.length) {
+          persistedCalibrationSetIndex = candidate;
+        }
+      }
+    } catch (error) {
+      persistedCalibrationSetIndex = null;
+    }
+
+    this.selectedCalibrationPoseSetIndex = persistedCalibrationSetIndex ?? (
+      this.calibrationPoseSets.length > 0 ? this.calibrationPoseSets.length - 1 : null
+    );
     this.calibrationPoseSetListeners = [];
     this.calibrationSnapshotBuffer = [];
     this.calibrationCaptureActive = false;
@@ -229,21 +244,38 @@ export class LevelManager {
     this.buildGrid();
   }
 
+  persistSelectedCalibrationSetIndex() {
+    try {
+      const raw = localStorage.getItem('motionai.settings-panel-state');
+      const base = raw ? JSON.parse(raw) : {};
+      if (!base || typeof base !== 'object') {
+        return;
+      }
+      base.calibrationSetIndex = this.selectedCalibrationPoseSetIndex;
+      localStorage.setItem('motionai.settings-panel-state', JSON.stringify(base));
+    } catch (error) {
+      // Ignore storage failures for local settings.
+    }
+  }
+
   setSelectedCalibrationPoseSet(index) {
     if (!Number.isInteger(index)) {
       this.selectedCalibrationPoseSetIndex = null;
       this.invalidateScaledCalibrationCache();
+      this.persistSelectedCalibrationSetIndex();
       return;
     }
 
     if (index < 0 || index >= this.calibrationPoseSets.length) {
       this.selectedCalibrationPoseSetIndex = null;
       this.invalidateScaledCalibrationCache();
+      this.persistSelectedCalibrationSetIndex();
       return;
     }
 
     this.selectedCalibrationPoseSetIndex = index;
     this.invalidateScaledCalibrationCache();
+    this.persistSelectedCalibrationSetIndex();
   }
 
   invalidateScaledCalibrationCache() {
@@ -1435,15 +1467,23 @@ export class LevelManager {
   }
 
   getSelectedCalibrationPoseSet() {
-    if (!Number.isInteger(this.selectedCalibrationPoseSetIndex)) {
-      if (this.calibrationPoseSets.length === 0) {
-        this.calibrationPoseSets = [this.getFallbackCalibrationPoseSet()];
-        this.selectedCalibrationPoseSetIndex = 0;
-      }
-      return this.calibrationPoseSets[0] || this.getFallbackCalibrationPoseSet();
+    if (this.calibrationPoseSets.length === 0) {
+      return this.getFallbackCalibrationPoseSet();
     }
 
-    return this.calibrationPoseSets[this.selectedCalibrationPoseSetIndex] || this.getFallbackCalibrationPoseSet();
+    if (!Number.isInteger(this.selectedCalibrationPoseSetIndex)) {
+      this.selectedCalibrationPoseSetIndex = this.calibrationPoseSets.length - 1;
+    }
+
+    if (this.selectedCalibrationPoseSetIndex < 0) {
+      this.selectedCalibrationPoseSetIndex = 0;
+    }
+
+    if (this.selectedCalibrationPoseSetIndex >= this.calibrationPoseSets.length) {
+      this.selectedCalibrationPoseSetIndex = this.calibrationPoseSets.length - 1;
+    }
+
+    return this.calibrationPoseSets[this.selectedCalibrationPoseSetIndex] || this.calibrationPoseSets[0] || this.getFallbackCalibrationPoseSet();
   }
 
   inferReferenceDimensionsFromLandmarks(landmarks) {
@@ -1641,12 +1681,12 @@ export class LevelManager {
     try {
       const raw = localStorage.getItem(this.calibrationPoseSetsStorageKey);
       if (!raw) {
-        return [this.getFallbackCalibrationPoseSet()];
+        return [];
       }
 
       const parsed = JSON.parse(raw);
       if (!Array.isArray(parsed)) {
-        return [this.getFallbackCalibrationPoseSet()];
+        return [];
       }
 
       const normalized = parsed
@@ -1656,13 +1696,13 @@ export class LevelManager {
         .slice(-10);
 
       if (normalized.length === 0) {
-        return [this.getFallbackCalibrationPoseSet()];
+        return [];
       }
 
       return normalized;
     } catch (error) {
       console.warn('Failed to load calibration pose sets:', error);
-      return [this.getFallbackCalibrationPoseSet()];
+      return [];
     }
   }
 
@@ -1754,10 +1794,8 @@ export class LevelManager {
       this.calibrationPoseSets = this.calibrationPoseSets.slice(-10);
     }
 
-    if (!Number.isInteger(this.selectedCalibrationPoseSetIndex)
-      || this.selectedCalibrationPoseSetIndex >= this.calibrationPoseSets.length) {
-      this.selectedCalibrationPoseSetIndex = this.calibrationPoseSets.length - 1;
-    }
+    this.selectedCalibrationPoseSetIndex = this.calibrationPoseSets.length - 1;
+    this.persistSelectedCalibrationSetIndex();
 
     const savedAt = new Date(entry.timestamp).toLocaleString();
     this.calibrationSaveFeedbackText = `Kallibrierung abgeschlossen: ${entry.name} (${savedAt})`;
@@ -5811,9 +5849,20 @@ export class LevelManager {
     const calibrationLandmarks = this.getCalibrationLandmarksForCanvas(calibrationSet);
     if (this.poseWarningLandmarksVisible && calibrationLandmarks.length > 0) {
       this.ctx.fillStyle = 'rgba(255, 88, 88, 0.95)';
-      const landmarkIndices = [2, 5, 11, 12, 15, 16, 23, 24];
-      landmarkIndices.forEach((index) => {
-        const landmark = calibrationLandmarks[index];
+      const leftHandTipMidpoint = this.averagePoints(calibrationLandmarks[17], calibrationLandmarks[19]) || calibrationLandmarks[15];
+      const rightHandTipMidpoint = this.averagePoints(calibrationLandmarks[18], calibrationLandmarks[20]) || calibrationLandmarks[16];
+      const landmarkPoints = [
+        calibrationLandmarks[2],
+        calibrationLandmarks[5],
+        calibrationLandmarks[11],
+        calibrationLandmarks[12],
+        leftHandTipMidpoint,
+        rightHandTipMidpoint,
+        calibrationLandmarks[23],
+        calibrationLandmarks[24]
+      ];
+
+      landmarkPoints.forEach((landmark) => {
         if (!landmark) return;
         this.ctx.beginPath();
         this.ctx.arc(landmark.x, landmark.y, 5.5, 0, Math.PI * 2);
@@ -7283,11 +7332,9 @@ export class LevelManager {
 
       if (leftAnchor && rightAnchor) {
         const paddingX = Math.max(16, w * 0.03);
-        const targetCenterX = (leftAnchor.x + rightAnchor.x) / 2;
-        const centerOffset = (centerX - targetCenterX) * 0.35;
 
-        leftEdgeX = leftAnchor.x + centerOffset;
-        rightEdgeX = rightAnchor.x + centerOffset;
+        leftEdgeX = leftAnchor.x;
+        rightEdgeX = rightAnchor.x;
 
         leftEdgeX = Math.max(paddingX, leftEdgeX);
         rightEdgeX = Math.min(w - paddingX, rightEdgeX);
@@ -7301,10 +7348,45 @@ export class LevelManager {
         }
 
         if (anchorMode === 'wrist') {
-          const avgAnchorY = (leftAnchor.y + rightAnchor.y) / 2;
-          bottomY = Math.max(h * 0.26, Math.min(h * 0.94, avgAnchorY));
-          leftBottomY = bottomY;
-          rightBottomY = bottomY;
+          const leftShoulder = selectedSetLandmarks[11] || leftAnchor;
+          const rightShoulder = selectedSetLandmarks[12] || rightAnchor;
+          const leftEye = selectedSetLandmarks[2] || selectedSetLandmarks[1] || leftAnchor;
+          const rightEye = selectedSetLandmarks[5] || selectedSetLandmarks[4] || rightAnchor;
+          const leftHip = selectedSetLandmarks[23] || selectedSetLandmarks[25] || leftAnchor;
+          const rightHip = selectedSetLandmarks[24] || selectedSetLandmarks[26] || rightAnchor;
+
+          const computeEdgeFromShoulder = (shoulder, anchor, hip, side) => {
+            const anchorToShoulder = this.distance(anchor, shoulder);
+            const reducedRadius = Math.max(12, anchorToShoulder * 0.9);
+            const midY = (anchor.y + hip.y) / 2;
+            const dy = midY - shoulder.y;
+            const dx = Math.sqrt(Math.max(0, reducedRadius * reducedRadius - dy * dy));
+            const outwardX = side === 'left'
+              ? shoulder.x - dx
+              : shoulder.x + dx;
+            return {
+              x: outwardX,
+              y: midY
+            };
+          };
+
+          const leftEdge = computeEdgeFromShoulder(leftShoulder, leftAnchor, leftHip, 'left');
+          const rightEdge = computeEdgeFromShoulder(rightShoulder, rightAnchor, rightHip, 'right');
+
+          leftEdgeX = leftEdge.x;
+          rightEdgeX = rightEdge.x;
+          leftBottomY = leftEdge.y;
+          rightBottomY = rightEdge.y;
+          bottomY = (leftBottomY + rightBottomY) / 2;
+
+          const leftShoulderEyeY = (leftShoulder.y + leftEye.y) / 2;
+          const rightShoulderEyeY = (rightShoulder.y + rightEye.y) / 2;
+          topY = ((leftShoulderEyeY + rightShoulderEyeY) / 2);
+          topY = Math.max(h * 0.04, Math.min(topY, Math.min(leftBottomY, rightBottomY) - 8));
+
+          const innerShift = Math.max(22, wristOffset * 0.28);
+          leftInnerX = leftEdgeX + innerShift;
+          rightInnerX = rightEdgeX - innerShift;
         } else {
           const leftShoulder = selectedSetLandmarks[11] || leftAnchor;
           const rightShoulder = selectedSetLandmarks[12] || rightAnchor;

@@ -4183,6 +4183,23 @@ function createTrackingControls(trackingController) {
     }
   }
 
+  function readPersistedCalibrationIndex() {
+    try {
+      const stored = localStorage.getItem(settingsStorageKey);
+      if (!stored) {
+        return null;
+      }
+      const parsed = JSON.parse(stored);
+      if (!parsed || typeof parsed !== 'object') {
+        return null;
+      }
+      const candidate = Number(parsed.calibrationSetIndex);
+      return Number.isInteger(candidate) ? candidate : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
   function persistSettingsState() {
     try {
       const snapshot = {
@@ -4553,9 +4570,11 @@ function createTrackingControls(trackingController) {
       calibrationSetSelect.appendChild(option);
     });
 
+    const persistedIndex = readPersistedCalibrationIndex();
+    const hasPersisted = Number.isInteger(persistedIndex) && persistedIndex >= 0 && persistedIndex < poseSets.length;
     const parsedCurrent = Number(currentValue);
     const hasCurrent = Number.isInteger(parsedCurrent) && parsedCurrent >= 0 && parsedCurrent < poseSets.length;
-    selectedCalibrationSetIndex = hasCurrent ? parsedCurrent : poseSets.length - 1;
+    selectedCalibrationSetIndex = hasPersisted ? persistedIndex : (hasCurrent ? parsedCurrent : poseSets.length - 1);
     calibrationSetSelect.value = String(selectedCalibrationSetIndex);
     if (calibrationSetChangeHandler) {
       calibrationSetChangeHandler(selectedCalibrationSetIndex);
@@ -4751,6 +4770,7 @@ function createTrackingControls(trackingController) {
     if (calibrationSetChangeHandler) {
       calibrationSetChangeHandler(selectedCalibrationSetIndex);
     }
+    persistSettingsState();
   });
 
   calibrationStrictnessSlider.addEventListener('input', () => {
@@ -5103,13 +5123,21 @@ export function initApp() {
 
   const levelCanvas = document.createElement('canvas');
   levelCanvas.className = 'level-overlay';
-  levelCanvas.style.pointerEvents = 'auto';
+  levelCanvas.style.pointerEvents = 'none';
   levelCanvas.style.position = 'absolute';
   levelCanvas.style.left = '0';
   levelCanvas.style.top = '0';
   levelCanvas.style.width = '100%';
   levelCanvas.style.height = '100%';
   stageFrame.appendChild(levelCanvas);
+
+  const syncLevelCanvasPointerState = () => {
+    const exerciseFieldActive = uiState.activeChapter === 6
+      && Number.isInteger(uiState.activeLevel)
+      && uiState.activeLevel >= 0
+      && uiState.activeLevel <= 4;
+    levelCanvas.style.pointerEvents = exerciseFieldActive ? 'auto' : 'none';
+  };
 
   const levelManager = new LevelManager(levelCanvas);
   levelCanvas.addEventListener('pointerdown', (event) => {
@@ -5139,7 +5167,10 @@ export function initApp() {
     levelManager.endExerciseFieldDrag();
   });
   canvasElement.addEventListener('pointerdown', (event) => {
-    if (uiState.activeChapter !== 1 || uiState.activeLevel !== 1 || !levelManager.pointExerciseEditMode) {
+    if (uiState.activeChapter !== 1
+      || uiState.activeLevel !== 1
+      || !levelManager.pointExerciseEditMode
+      || levelManager.exerciseFieldVisible) {
       return;
     }
 
@@ -5332,6 +5363,7 @@ export function initApp() {
 
   onChapterChange((chapter) => {
     levelManager.setChapter(chapter);
+    syncLevelCanvasPointerState();
     const isFigureChapter = chapter === 3;
     const isDynamicFigureChapter = chapter === 4;
     const isHandIndependenceChapter = chapter === 5;
@@ -5373,6 +5405,7 @@ export function initApp() {
 
   onLevelChange((level) => {
     levelManager.setLevel(level);
+    syncLevelCanvasPointerState();
     if (level !== null) {
       setLevelActive(true);
       clearHoverDescription();

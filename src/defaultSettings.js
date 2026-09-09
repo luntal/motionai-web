@@ -146,10 +146,40 @@ export function getMotionAiStorageSnapshot() {
   return snapshot;
 }
 
+export const MOTIONAI_DEFAULTS_INITIALIZED_KEY = 'motionai.defaults-initialized';
+
+export function hasMotionAiDefaultsInitialized() {
+  try {
+    return localStorage.getItem(MOTIONAI_DEFAULTS_INITIALIZED_KEY) === 'true';
+  } catch (error) {
+    return false;
+  }
+}
+
+export function markMotionAiDefaultsInitialized() {
+  try {
+    localStorage.setItem(MOTIONAI_DEFAULTS_INITIALIZED_KEY, 'true');
+  } catch (error) {
+    // Ignore storage failures.
+  }
+}
+
+export function clearMotionAiDefaultsInitialized() {
+  try {
+    localStorage.removeItem(MOTIONAI_DEFAULTS_INITIALIZED_KEY);
+  } catch (error) {
+    // Ignore storage failures.
+  }
+}
+
+export function shouldInitializeMotionAiDefaults() {
+  return !hasMotionAiDefaultsInitialized() && !hasMotionAiStorageState();
+}
+
 export function hasMotionAiStorageState() {
   try {
     for (const key of Object.keys(localStorage)) {
-      if (key.startsWith('motionai.')) {
+      if (key.startsWith('motionai.') && key !== MOTIONAI_DEFAULTS_INITIALIZED_KEY) {
         return true;
       }
     }

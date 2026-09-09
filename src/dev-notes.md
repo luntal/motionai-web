@@ -8,9 +8,11 @@
 
 - Schweif, der die Bewegungslinie nachfährt
 - Linke und Rechte hand farbig angleichen.
-- Visuelles Feedback wenn die entsprechende hand im korrekten Bereich ist. 
-
-- linke und rechte hand wieder vertauscht
+✅ Visuelles Feedback wenn die entsprechende hand im korrekten Bereich ist. 
 
 - zurücksetzen auf werkseinstellungen für die einzelnen Kapitel ermöglichen.
-- Bewegungspunkt läuft bei Handunabhängigkeit in den Zweiviertel und Dreiviertel verschoben zur Figur.
+
+- Defaults laden nicht.
+✅ callibration wird nicht übernommen nach kallibrierung.
+✅ hand landmarks werden nicht als Grenzen für forte verwendet. 
+✅ Punkte erzeugen durch klicken funktioniert nicht
