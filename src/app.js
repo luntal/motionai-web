@@ -5123,13 +5123,21 @@ export function initApp() {
 
   const levelCanvas = document.createElement('canvas');
   levelCanvas.className = 'level-overlay';
-  levelCanvas.style.pointerEvents = 'auto';
+  levelCanvas.style.pointerEvents = 'none';
   levelCanvas.style.position = 'absolute';
   levelCanvas.style.left = '0';
   levelCanvas.style.top = '0';
   levelCanvas.style.width = '100%';
   levelCanvas.style.height = '100%';
   stageFrame.appendChild(levelCanvas);
+
+  const syncLevelCanvasPointerState = () => {
+    const exerciseFieldActive = uiState.activeChapter === 6
+      && Number.isInteger(uiState.activeLevel)
+      && uiState.activeLevel >= 0
+      && uiState.activeLevel <= 4;
+    levelCanvas.style.pointerEvents = exerciseFieldActive ? 'auto' : 'none';
+  };
 
   const levelManager = new LevelManager(levelCanvas);
   levelCanvas.addEventListener('pointerdown', (event) => {
@@ -5159,7 +5167,10 @@ export function initApp() {
     levelManager.endExerciseFieldDrag();
   });
   canvasElement.addEventListener('pointerdown', (event) => {
-    if (uiState.activeChapter !== 1 || uiState.activeLevel !== 1 || !levelManager.pointExerciseEditMode) {
+    if (uiState.activeChapter !== 1
+      || uiState.activeLevel !== 1
+      || !levelManager.pointExerciseEditMode
+      || levelManager.exerciseFieldVisible) {
       return;
     }
 
@@ -5352,6 +5363,7 @@ export function initApp() {
 
   onChapterChange((chapter) => {
     levelManager.setChapter(chapter);
+    syncLevelCanvasPointerState();
     const isFigureChapter = chapter === 3;
     const isDynamicFigureChapter = chapter === 4;
     const isHandIndependenceChapter = chapter === 5;
@@ -5393,6 +5405,7 @@ export function initApp() {
 
   onLevelChange((level) => {
     levelManager.setLevel(level);
+    syncLevelCanvasPointerState();
     if (level !== null) {
       setLevelActive(true);
       clearHoverDescription();

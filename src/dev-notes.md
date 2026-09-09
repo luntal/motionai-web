@@ -13,6 +13,6 @@
 - zurücksetzen auf werkseinstellungen für die einzelnen Kapitel ermöglichen.
 
 - Defaults laden nicht.
-- callibration wird nicht übernommen nach kallibrierung.
-- hand landmarks werden nicht als Grenzen für forte verwendet. 
-- Punkte erzeugen durch klicken funktioniert nicht
+✅ callibration wird nicht übernommen nach kallibrierung.
+✅ hand landmarks werden nicht als Grenzen für forte verwendet. 
+✅ Punkte erzeugen durch klicken funktioniert nicht
