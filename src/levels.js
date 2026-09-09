@@ -2638,6 +2638,22 @@ export class LevelManager {
     this.requestRender();
   }
 
+  getPointPresetSequence(value) {
+    if (Array.isArray(value)) {
+      return value;
+    }
+    if (!value || typeof value !== 'object') {
+      return [];
+    }
+    if (Array.isArray(value.sequence)) {
+      return value.sequence;
+    }
+    if (Array.isArray(value.points)) {
+      return value.points;
+    }
+    return [];
+  }
+
   setPointExerciseSelectedSlot(value) {
     const next = Number(value);
     if (!Number.isInteger(next) || next < 1 || next > 8) {
@@ -2645,10 +2661,13 @@ export class LevelManager {
     }
     this.pointExerciseSelectedSlot = next;
     const saved = this.pointExerciseSavedSlots[next];
-    const savedSequence = Array.isArray(saved)
-      ? saved
-      : (saved && typeof saved === 'object' && Array.isArray(saved.sequence) ? saved.sequence : []);
+    const savedSequence = this.getPointPresetSequence(saved);
     if (savedSequence.length > 0 && !this.pointExerciseEditMode) {
+      const savedPreset = saved && typeof saved === 'object' ? saved : {};
+      const nextHand = ['left', 'right', 'auto'].includes(savedPreset.hand)
+        ? savedPreset.hand
+        : this.pointExerciseHand;
+      this.pointExerciseHand = nextHand;
       this.pointExerciseSequence = this.sanitizePointSequence(savedSequence);
       if (this.chapter === 1 && Number.isInteger(this.level) && this.level === 1) {
         this.setupLevel();
@@ -2873,7 +2892,24 @@ export class LevelManager {
   }
 
   setPointExerciseSequence(value) {
-    this.pointExerciseSequence = this.sanitizePointSequence(value);
+    const restored = Array.isArray(value)
+      ? value.reduce((sequence, point) => {
+          if (!point || !Number.isFinite(Number(point.row)) || !Number.isFinite(Number(point.col))) {
+            return sequence;
+          }
+          const row = Number(point.row);
+          const col = Number(point.col);
+          const hand = ['left', 'right', 'auto'].includes(point.hand) ? point.hand : this.pointExerciseHand;
+          const key = `${row}:${col}:${hand}`;
+          if (sequence.seen.has(key)) {
+            return sequence;
+          }
+          sequence.seen.add(key);
+          sequence.items.push({ row, col, hand });
+          return sequence;
+        }, { items: [], seen: new Set() }).items
+      : [];
+    this.pointExerciseSequence = restored;
     this.resetPointExerciseTraversalState();
     this.nextTargetByHand = { left: 0, right: 0 };
     if (!this.pointExerciseSequence.some((point) => ['left', 'right'].includes(point.hand))) {
@@ -2910,14 +2946,30 @@ export class LevelManager {
         return;
       }
       if (slot && typeof slot === 'object') {
-        const sequence = Array.isArray(slot.sequence) ? this.sanitizePointSequence(slot.sequence) : [];
+        const sequence = Array.isArray(slot.sequence)
+          ? slot.sequence.reduce((items, point) => {
+              if (!point || !Number.isFinite(Number(point.row)) || !Number.isFinite(Number(point.col))) {
+                return items;
+              }
+              const row = Number(point.row);
+              const col = Number(point.col);
+              const hand = ['left', 'right', 'auto'].includes(point.hand) ? point.hand : this.pointExerciseHand;
+              const key = `${row}:${col}:${hand}`;
+              if (items.seen.has(key)) {
+                return items;
+              }
+              items.seen.add(key);
+              items.list.push({ row, col, hand });
+              return items;
+            }, { list: [], seen: new Set() }).list
+          : [];
         const gridResolution = Number.isFinite(Number(slot.gridResolution))
           ? Math.max(8, Math.min(24, Math.round(Number(slot.gridResolution) / 2) * 2))
           : (this.chapter1GridResolution || this.squareExerciseGridResolution || 8);
         const resolution = Number.isFinite(Number(slot.resolution))
           ? Math.min(1.0, Math.max(0.55, Number(slot.resolution)))
           : (this.chapter1CircleDiameter || this.squareExerciseResolution || 1);
-        const hand = ['left', 'right'].includes(slot.hand) ? slot.hand : this.pointExerciseHand;
+        const hand = ['left', 'right', 'auto'].includes(slot.hand) ? slot.hand : this.pointExerciseHand;
         const sequentialMode = ['independent', 'sequential', 'simultaneous'].includes(slot.sequentialMode)
           ? slot.sequentialMode
           : (['independent', 'sequential', 'simultaneous'].includes(slot.sequenceMode)

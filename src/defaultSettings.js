@@ -15,7 +15,8 @@ export const DEFAULT_MOTIONAI_STORAGE = {
     videoSofteningEnabled: true,
     videoSofteningBlurPx: 5,
     videoSofteningBrightness: 0.75,
-    poseWarningLandmarksVisible: false
+    poseWarningLandmarksVisible: false,
+    createdAt: '2026-09-09T00:00:00.000Z'
   },
   'motionai.silhouette-enabled': false,
   'motionai.silhouette-opacity': 0.2,
