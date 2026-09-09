@@ -25,6 +25,7 @@ import {
   onCanvasResize
 } from './tracking.js';
 import { LevelManager } from './levels.js';
+import { DEFAULT_MOTIONAI_STORAGE } from './defaultSettings.js';
 import { getLevelCountForChapter, uiElementDescriptions } from './constants.js';
 
 function normalizeHelpKey(value) {
@@ -2231,6 +2232,10 @@ function createSquareExercisePanel() {
   const pointStorageKey = 'motionai.point-exercise-saved-slots';
   const pointSessionStorageKey = `${storageKey}-points`;
 
+  const debugPointPresetLog = (label, payload) => {
+    console.log(`[Point Preset Debug] ${label}`, JSON.parse(JSON.stringify(payload)));
+  };
+
   const sanitizePointSequence = (value) => {
     if (!Array.isArray(value)) {
       return [];
@@ -2254,10 +2259,48 @@ function createSquareExercisePanel() {
     return normalized;
   };
 
+  const restoreAbsolutePointSequence = (value) => {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+    const restored = [];
+    const seen = new Set();
+    value.forEach((point) => {
+      if (!point || !Number.isFinite(Number(point.row)) || !Number.isFinite(Number(point.col))) {
+        return;
+      }
+      const row = Number(point.row);
+      const col = Number(point.col);
+      const hand = ['left', 'right', 'auto'].includes(point.hand) ? point.hand : pointSelectedHand;
+      const key = `${row}:${col}:${hand}`;
+      if (seen.has(key)) {
+        return;
+      }
+      seen.add(key);
+      restored.push({ row, col, hand });
+    });
+    return restored;
+  };
+
+  const resolvePointPresetSequence = (value) => {
+    if (Array.isArray(value)) {
+      return value;
+    }
+    if (value && typeof value === 'object') {
+      if (Array.isArray(value.sequence)) {
+        return value.sequence;
+      }
+      if (Array.isArray(value.points)) {
+        return value.points;
+      }
+    }
+    return [];
+  };
+
   const normalizePointPresetEntry = (value) => {
     if (Array.isArray(value)) {
       return {
-        sequence: sanitizePointSequence(value),
+        sequence: restoreAbsolutePointSequence(value),
         gridResolution: selectedGridResolution,
         resolution: selectedResolution,
         hand: pointSelectedHand,
@@ -2266,7 +2309,7 @@ function createSquareExercisePanel() {
       };
     }
     if (value && typeof value === 'object') {
-      const sequence = sanitizePointSequence(Array.isArray(value.sequence) ? value.sequence : []);
+      const sequence = restoreAbsolutePointSequence(resolvePointPresetSequence(value));
       const gridResolution = Number.isFinite(Number(value.gridResolution))
         ? Math.max(8, Math.min(24, Math.round(Number(value.gridResolution) / 2) * 2))
         : selectedGridResolution;
@@ -2332,7 +2375,8 @@ function createSquareExercisePanel() {
   if (typeof storedPointPanelState.pointPalindromMode === 'boolean' || typeof storedPointPanelState.pointPalindromeMode === 'boolean') {
     pointPalindromMode = Boolean(storedPointPanelState.pointPalindromMode ?? storedPointPanelState.pointPalindromeMode);
   }
-  const savedSelectedSequence = Array.isArray(pointSavedSlots[pointSelectedSlot]) ? pointSavedSlots[pointSelectedSlot] : [];
+  const savedSelectedPreset = normalizePointPresetEntry(pointSavedSlots[pointSelectedSlot]);
+  const savedSelectedSequence = resolvePointPresetSequence(savedSelectedPreset);
   if (!pointEditMode && savedSelectedSequence.length > 0) {
     pointSequence = sanitizePointSequence(savedSelectedSequence);
   }
@@ -2709,9 +2753,20 @@ function createSquareExercisePanel() {
     const normalizedSlot = normalizePointSlot(slotNumber);
     const savedPreset = pointSavedSlots[normalizedSlot] || { sequence: [], gridResolution: selectedGridResolution, resolution: selectedResolution, hand: pointSelectedHand };
     const presetEntry = normalizePointPresetEntry(savedPreset);
-    const savedPattern = presetEntry.sequence;
+    const savedPattern = restoreAbsolutePointSequence(presetEntry.sequence);
+    debugPointPresetLog(`load slot ${normalizedSlot}`, {
+      slot: normalizedSlot,
+      savedPreset,
+      presetEntry,
+      sequence: savedPattern
+    });
     if ((force || !pointEditMode) && savedPattern.length > 0) {
-      pointSequence = sanitizePointSequence(savedPattern);
+      pointSelectedHand = ['left', 'right', 'auto'].includes(presetEntry.hand) ? presetEntry.hand : pointSelectedHand;
+      pointSequence = savedPattern.map((item) => ({
+        row: Number(item.row),
+        col: Number(item.col),
+        hand: ['left', 'right', 'auto'].includes(item.hand) ? item.hand : pointSelectedHand
+      }));
       pointSequenceMode = normalizePointSequenceMode(presetEntry.sequentialMode);
       pointPalindromMode = Boolean(presetEntry.palindromMode ?? false);
       pointHandOptions.forEach((radio) => {
@@ -2862,10 +2917,7 @@ function createSquareExercisePanel() {
       return;
     }
 
-    pointSelectedSlot = slotNumber;
-    pointSequenceMode = normalizedSequenceMode;
-    pointSymmetryMode = pointSymmetryInput.checked;
-    pointSavedSlots[pointSelectedSlot] = {
+    const nextPresetEntry = {
       sequence: sanitizePointSequence(pointSequence),
       gridResolution: selectedGridResolution,
       resolution: selectedResolution,
@@ -2873,6 +2925,16 @@ function createSquareExercisePanel() {
       sequentialMode: pointSequenceMode,
       palindromMode: pointPalindromMode
     };
+
+    pointSelectedSlot = slotNumber;
+    pointSequenceMode = normalizedSequenceMode;
+    pointSymmetryMode = pointSymmetryInput.checked;
+    pointSavedSlots[pointSelectedSlot] = nextPresetEntry;
+    debugPointPresetLog(`save slot ${pointSelectedSlot}`, {
+      slot: pointSelectedSlot,
+      preset: nextPresetEntry,
+      sequence: nextPresetEntry.sequence
+    });
     pointSlotLabels.forEach((radio) => {
       radio.checked = Number(radio.value) === pointSelectedSlot;
     });
@@ -3632,7 +3694,13 @@ function createSquareExercisePanel() {
         }
         const selectedSavedPreset = pointSavedSlots[pointSelectedSlot];
         const selectedSavedEntry = normalizePointPresetEntry(selectedSavedPreset);
-        const selectedSavedSequence = selectedSavedEntry.sequence;
+        const selectedSavedSequence = restoreAbsolutePointSequence(selectedSavedEntry.sequence);
+        if (['left', 'right', 'auto'].includes(selectedSavedEntry.hand)) {
+          pointSelectedHand = selectedSavedEntry.hand;
+        }
+        if (['left', 'right', 'auto'].includes(pointSelectedHand)) {
+          managerRef.setPointExerciseHand(pointSelectedHand);
+        }
         pointSequenceMode = normalizePointSequenceMode(selectedSavedEntry.sequentialMode);
         pointPalindromMode = Boolean(selectedSavedEntry.palindromMode ?? false);
         if (typeof managerRef.pointExerciseSequentialMode === 'boolean' || typeof managerRef.pointExerciseSequentialMode === 'string') {
@@ -3642,8 +3710,8 @@ function createSquareExercisePanel() {
           pointPalindromMode = managerRef.pointExercisePalindromMode;
         }
         const restoredPointSequence = (!pointEditMode && selectedSavedSequence.length > 0)
-          ? sanitizePointSequence(selectedSavedSequence)
-          : sanitizePointSequence(managerRef.pointExerciseSequence || pointSequence);
+          ? restoreAbsolutePointSequence(selectedSavedSequence)
+          : restoreAbsolutePointSequence(managerRef.pointExerciseSequence || pointSequence);
         pointSequence = restoredPointSequence;
         if (!pointEditMode && selectedSavedSequence.length > 0) {
           setGridResolution(selectedSavedEntry.gridResolution);
@@ -3686,8 +3754,9 @@ function createSquareExercisePanel() {
         managerRef.setSquareExerciseShape(selectedShape);
         managerRef.setSquareExerciseHandMode(selectedHandMode);
         managerRef.setSquareExerciseSyncMode(selectedSyncMode);
-        managerRef.setSquareExerciseResolution(selectedResolution);
-        managerRef.setSquareExerciseGridResolution(selectedGridResolution);
+        const currentPointPreset = normalizePointPresetEntry(pointSavedSlots[pointSelectedSlot]);
+        managerRef.setSquareExerciseResolution(currentPointPreset.resolution || selectedResolution);
+        managerRef.setSquareExerciseGridResolution(currentPointPreset.gridResolution || selectedGridResolution);
         managerRef.setSquareExerciseCenterDistance(selectedCenterDistance);
         managerRef.setAlternatingExerciseScaleMode?.(selectedAlternatingScale);
         managerRef.setAlternatingExerciseStartNote?.(selectedAlternatingStartNote);
@@ -3701,7 +3770,7 @@ function createSquareExercisePanel() {
         if (!pointEditMode && pointSelectedSlot) {
           const selectedPreset = normalizePointPresetEntry(pointSavedSlots[pointSelectedSlot]);
           if (selectedPreset.sequence.length > 0) {
-            pointSequence = sanitizePointSequence(selectedPreset.sequence);
+            pointSequence = restoreAbsolutePointSequence(selectedPreset.sequence);
             setGridResolution(selectedPreset.gridResolution);
             setResolution(selectedPreset.resolution);
             managerRef.setPointExerciseSequence(pointSequence);
@@ -4200,6 +4269,39 @@ function createTrackingControls(trackingController) {
     }
   }
 
+  function getDefaultCreatedAtValue() {
+    const saved = readSavedSettings();
+    const candidate = saved && typeof saved.createdAt === 'string' ? saved.createdAt : DEFAULT_MOTIONAI_STORAGE['motionai.settings-panel-state'].createdAt;
+    if (!candidate) {
+      return null;
+    }
+
+    const parsed = new Date(candidate);
+    if (Number.isNaN(parsed.getTime())) {
+      return candidate;
+    }
+
+    return parsed.toISOString();
+  }
+
+  function getCreatedAtDisplayText() {
+    const raw = getDefaultCreatedAtValue();
+    if (!raw) {
+      return 'Erstellungsdatum: –';
+    }
+
+    const date = new Date(raw);
+    if (Number.isNaN(date.getTime())) {
+      return `Erstellungsdatum: ${raw}`;
+    }
+
+    return `Erstellungsdatum: ${date.toLocaleDateString('de-DE', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    })}`;
+  }
+
   function persistSettingsState() {
     try {
       const snapshot = {
@@ -4219,9 +4321,13 @@ function createTrackingControls(trackingController) {
         videoSofteningEnabled,
         videoSofteningBlurPx,
         videoSofteningBrightness,
-        poseWarningLandmarksVisible
+        poseWarningLandmarksVisible,
+        createdAt: getDefaultCreatedAtValue()
       };
       localStorage.setItem(settingsStorageKey, JSON.stringify(snapshot));
+      if (defaultCreatedAtText) {
+        defaultCreatedAtText.textContent = getCreatedAtDisplayText();
+      }
     } catch (error) {
       // Ignore storage failures for local settings.
     }
@@ -4673,6 +4779,12 @@ function createTrackingControls(trackingController) {
     }
   });
 
+  const defaultCreatedAtText = document.createElement('div');
+  defaultCreatedAtText.className = 'tracking-controls-inline-value';
+  defaultCreatedAtText.textContent = getCreatedAtDisplayText();
+  defaultCreatedAtText.style.marginTop = '0.25rem';
+  defaultCreatedAtText.style.opacity = '0.8';
+
   function updatePoseWarningLandmarksLabel() {
     poseWarningLandmarksButton.textContent = poseWarningLandmarksVisible ? 'Pose Warning Landmarks: ON' : 'Pose Warning Landmarks: OFF';
     poseWarningLandmarksButton.setAttribute('aria-pressed', String(poseWarningLandmarksVisible));
@@ -4936,6 +5048,7 @@ function createTrackingControls(trackingController) {
   container.appendChild(silhouetteOpacityRow);
   container.appendChild(silhouetteOpacitySlider);
   container.appendChild(restoreDefaultsButton);
+  container.appendChild(defaultCreatedAtText);
   container.appendChild(poseWarningLandmarksButton);
   container.appendChild(videoSofteningDivider);
   container.appendChild(videoSofteningButton);

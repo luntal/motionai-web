@@ -36,6 +36,15 @@ if (typeof window !== 'undefined') {
 
   window.exportDefaults = () => {
     const snapshot = getMotionAiStorageSnapshot();
+    const settingsState = snapshot['motionai.settings-panel-state'];
+    const exportedAt = new Date().toISOString();
+
+    if (settingsState && typeof settingsState === 'object') {
+      settingsState.createdAt = exportedAt;
+    } else {
+      snapshot['motionai.settings-panel-state'] = { createdAt: exportedAt };
+    }
+
     const payload = JSON.stringify(snapshot, null, 2);
     const blob = new Blob([payload], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
