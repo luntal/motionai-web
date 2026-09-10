@@ -4492,12 +4492,11 @@ export class LevelManager {
 
     const tokens = pathData.match(/[A-Za-z]|-?\d*\.?\d+(?:e[-+]?\d+)?/g) || [];
     const segments = [];
-    
+
     let current = { x: 0, y: 0 };
     let start = { x: 0, y: 0 };
     let command = null;
     let args = [];
-
 
     const flushCurrentCommand = () => {
       if (!command) {
@@ -4544,7 +4543,42 @@ export class LevelManager {
     });
 
     flushCurrentCommand();
-    return segments;
+
+    if (segments.length === 0) {
+      return segments;
+    }
+
+    const firstPoint = segments[0]?.start || { x: 0, y: 0 };
+    const offsetX = firstPoint.x;
+    const offsetY = firstPoint.y;
+
+    const shiftPoint = (point) => ({
+      x: (point?.x ?? 0) - offsetX,
+      y: (point?.y ?? 0) - offsetY
+    });
+
+    const normalizeSegment = (segment) => {
+      if (!segment) {
+        return segment;
+      }
+
+      if (segment.type === 'combined' && Array.isArray(segment.segments)) {
+        return {
+          ...segment,
+          segments: segment.segments.map(normalizeSegment)
+        };
+      }
+
+      return {
+        ...segment,
+        start: shiftPoint(segment.start),
+        end: shiftPoint(segment.end),
+        ...(segment.control1 ? { control1: shiftPoint(segment.control1) } : {}),
+        ...(segment.control2 ? { control2: shiftPoint(segment.control2) } : {})
+      };
+    };
+
+    return segments.map(normalizeSegment);
   }
 
   getCurrentFigureRenderState() {
