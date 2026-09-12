@@ -129,10 +129,90 @@ function bindFigurePanelDescriptions(panel, sectionName) {
   attachPanelHoverHelp(panel);
 }
 
+function createLevelSettingsVisibilityController(panel, { chapterId = null, levelResolver = () => uiState.activeLevel } = {}) {
+  const storageKey = 'motionai.levelSettingsVisibility';
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'figure-side-panel-settings-button';
+  button.setAttribute('aria-label', 'Einstellungen ein-/ausblenden');
+  button.title = 'Einstellungen ein-/ausblenden';
+  button.textContent = '⚙';
+
+  const writeState = (visible) => {
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(Boolean(visible)));
+    } catch (error) {
+      return;
+    }
+  };
+
+  const readVisibleState = () => {
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (raw === null) {
+        return false;
+      }
+      if (raw === 'true' || raw === 'false') {
+        return raw === 'true';
+      }
+      const parsed = JSON.parse(raw);
+      if (typeof parsed === 'boolean') {
+        return parsed;
+      }
+      if (parsed && typeof parsed === 'object') {
+        return Boolean(parsed.visible ?? parsed.value ?? false);
+      }
+      return false;
+    } catch (error) {
+      return false;
+    }
+  };
+
+  const sync = () => {
+    const isVisible = readVisibleState();
+    button.setAttribute('aria-pressed', String(isVisible));
+    button.classList.toggle('active', isVisible);
+    button.title = isVisible ? 'Einstellungen ausblenden' : 'Einstellungen einblenden';
+
+    Array.from(panel.children).forEach((node) => {
+      if (node === button || node.classList.contains('figure-side-panel-header')) {
+        return;
+      }
+
+      const isPresetHost = node.matches('.dynamic-figure-presets, .hand-independence-preset-panel');
+      if (isPresetHost) {
+        node.style.display = '';
+        node.querySelectorAll('.dynamic-figure-preset-action, .dynamic-figure-preset-actions').forEach((presetAction) => {
+          presetAction.style.display = isVisible ? '' : 'none';
+        });
+        return;
+      }
+
+      node.style.display = isVisible ? '' : 'none';
+    });
+  };
+
+  button.addEventListener('click', () => {
+    const nextVisible = !readVisibleState();
+    writeState(nextVisible);
+    sync();
+  });
+
+  return {
+    button,
+    sync,
+    setVisible: (visible) => {
+      writeState(Boolean(visible));
+      sync();
+    }
+  };
+}
+
 function createFigureModePanel(initialManager, options = {}) {
   const figureSettingsStorageKey = options.settingsKey || 'motionai.figure-panel-settings';
   const initialTitle = options.initialTitle || 'Grundfigur';
   const defaultVariant = options.defaultVariant || 'soft';
+  const chapterId = Number(options.chapterId ?? 3);
   let storedFigureSettings = {};
   try {
     const stored = localStorage.getItem(figureSettingsStorageKey);
@@ -144,9 +224,19 @@ function createFigureModePanel(initialManager, options = {}) {
   const panel = document.createElement('aside');
   panel.className = 'figure-side-panel hidden';
 
+  const titleRow = document.createElement('div');
+  titleRow.className = 'figure-side-panel-header';
   const title = document.createElement('div');
   title.className = 'figure-side-panel-title';
   title.textContent = initialTitle;
+  const levelSettingsVisibility = createLevelSettingsVisibilityController(panel, {
+    chapterId,
+    levelResolver: () => uiState.activeLevel
+  });
+  titleRow.appendChild(title);
+  titleRow.appendChild(levelSettingsVisibility.button);
+  panel.appendChild(titleRow);
+  levelSettingsVisibility.sync();
 
   function setTitle(nextTitle) {
     title.textContent = nextTitle === 'extended'
@@ -654,7 +744,6 @@ function createFigureModePanel(initialManager, options = {}) {
   softTransitionWrap.appendChild(softTransitionSlider);
   softTransitionWrap.appendChild(softTransitionValue);
 
-  panel.appendChild(title);
   panel.appendChild(presetDivider);
   panel.appendChild(presetPanel);
   panel.appendChild(createPanelDivider());
@@ -699,6 +788,7 @@ function createFigureModePanel(initialManager, options = {}) {
   panel.appendChild(createPanelDivider());
   panel.appendChild(strokeWrap);
   panel.appendChild(createPanelDivider());
+  levelSettingsVisibility.sync();
 
   function updateMotionControlVisibility() {
     const isHard = selectedVariant === 'hard';
@@ -708,6 +798,8 @@ function createFigureModePanel(initialManager, options = {}) {
 
   function setVisible(visible) {
     panel.classList.toggle('hidden', !visible);
+    levelSettingsVisibility.sync();
+    levelSettingsVisibility.sync();
   }
 
   function setLevelManager(manager) {
@@ -1013,6 +1105,7 @@ function createFigureModePanel(initialManager, options = {}) {
 
 function createDynamicFigureModePanel() {
   const basePanel = createFigureModePanel(null, {
+    chapterId: 4,
     settingsKey: 'motionai.dynamic-figure-panel-settings',
     initialTitle: 'Dynamikebenen',
     defaultVariant: 'hard'
@@ -1077,14 +1170,14 @@ function createDynamicFigureModePanel() {
   presetDivider.className = 'figure-panel-divider';
   presetDivider.style.marginBottom = '0.35rem';
 
-  const titleNode = basePanel.panel.querySelector('.figure-side-panel-title');
-  if (titleNode) {
-    const existingDividerAfterTitle = titleNode.nextElementSibling;
-    if (existingDividerAfterTitle && existingDividerAfterTitle.classList.contains('figure-panel-divider')) {
-      existingDividerAfterTitle.remove();
+  const titleHeaderNode = basePanel.panel.querySelector('.figure-side-panel-header');
+  if (titleHeaderNode) {
+    const existingDividerAfterHeader = titleHeaderNode.nextElementSibling;
+    if (existingDividerAfterHeader && existingDividerAfterHeader.classList.contains('figure-panel-divider')) {
+      existingDividerAfterHeader.remove();
     }
-    basePanel.panel.insertBefore(presetDivider, titleNode.nextSibling);
-    basePanel.panel.insertBefore(presetPanel, titleNode.nextSibling);
+    basePanel.panel.insertBefore(presetDivider, titleHeaderNode.nextSibling);
+    basePanel.panel.insertBefore(presetPanel, titleHeaderNode.nextSibling);
   }
 
   const pointPanel = document.createElement('div');
@@ -1553,7 +1646,16 @@ function createExerciseFieldPanel() {
   const title = document.createElement('div');
   title.className = 'figure-side-panel-title';
   title.textContent = 'Einsatzfelder';
-  panel.appendChild(title);
+  const titleRow = document.createElement('div');
+  titleRow.className = 'figure-side-panel-header';
+  const levelSettingsVisibility = createLevelSettingsVisibilityController(panel, {
+    chapterId: 6,
+    levelResolver: () => uiState.activeLevel
+  });
+  titleRow.appendChild(title);
+  titleRow.appendChild(levelSettingsVisibility.button);
+  panel.appendChild(titleRow);
+  levelSettingsVisibility.sync();
 
   const presetPanel = document.createElement('div');
   presetPanel.className = 'hand-independence-preset-panel';
@@ -4004,6 +4106,16 @@ function createHandIndependencePanel() {
   const title = document.createElement('div');
   title.className = 'figure-side-panel-title';
   title.textContent = 'Handunabhängigkeit';
+  const titleRow = document.createElement('div');
+  titleRow.className = 'figure-side-panel-header';
+  const levelSettingsVisibility = createLevelSettingsVisibilityController(panel, {
+    chapterId: 5,
+    levelResolver: () => uiState.activeLevel
+  });
+  titleRow.appendChild(title);
+  titleRow.appendChild(levelSettingsVisibility.button);
+  panel.appendChild(titleRow);
+  levelSettingsVisibility.sync();
 
   const presetPanel = document.createElement('div');
   presetPanel.className = 'hand-independence-preset-panel';
@@ -4030,7 +4142,7 @@ function createHandIndependencePanel() {
   presetActions.append(presetSaveButton, presetResetButton);
   presetPanel.append(presetHeader, presetSlots, presetActions);
 
-  panel.append(title, presetPanel);
+  panel.append(presetPanel);
 
   const motionDistanceDivider = document.createElement('div');
   motionDistanceDivider.className = 'figure-panel-divider';
@@ -4425,6 +4537,7 @@ function createHandIndependencePanel() {
   bindUiDescription(motionDistanceStrictnessWrap, 'Handunabhängigkeit', 'DistanzStrenge');
   bindUiDescription(motionMetricsPanel, 'Handunabhängigkeit', 'Bewertungsmetriken');
   attachPanelHoverHelp(panel);
+  levelSettingsVisibility.sync();
 
   function persist() { try { localStorage.setItem(storageKey, JSON.stringify(settings)); } catch (error) { return; } }
   function apply(next) {

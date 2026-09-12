@@ -707,13 +707,54 @@ canvas {
   display: none;
 }
 
+.figure-side-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+  margin-bottom: 0.7rem;
+}
+
 .figure-side-panel-title {
-  margin: 0 0 0.7rem;
+  margin: 0;
   font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: rgba(217, 231, 247, 0.7);
+}
+
+.figure-side-panel-settings-button {
+  width: 2rem;
+  min-width: 2rem;
+  height: 2rem;
+  min-height: 2rem;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #edf7ff;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.figure-side-panel-settings-button.active {
+  background: rgba(79, 182, 127, 0.75);
+  border-color: rgba(130, 230, 170, 0.95);
+  color: #052414;
+}
+
+.figure-side-panel-settings-button:hover,
+.figure-side-panel-settings-button:focus-visible {
+  background: rgba(79, 182, 127, 0.75);
+  border-color: rgba(130, 230, 170, 0.95);
+  color: #052414;
+  outline: none;
 }
 
 .figure-mode-group {

@@ -6,7 +6,7 @@
     "resolutionPreset": "high",
     "hoverHelpEnabled": false,
     "playbackMode": "one",
-    "calibrationSetIndex": 0,
+    "calibrationSetIndex": 5,
     "calibrationStrictness": 60,
     "stabilizationEnabled": false,
     "landmarkDrawingVisible": false,
@@ -17,7 +17,7 @@
     "videoSofteningBlurPx": 18,
     "videoSofteningBrightness": 0.25,
     "poseWarningLandmarksVisible": true,
-    "createdAt": "2026-09-09T20:39:33.226Z"
+    "createdAt": "2026-09-12T21:20:26.691Z"
   },
   "motionai.dynamic-figure-presets": {
     "0": {
@@ -77,12 +77,12 @@
       "0": {
         "figureVariant": "hard",
         "figureSide": "both",
-        "figureScale": 0.2,
-        "figureStrokeWidth": 0.28,
+        "figureScale": 0.51,
+        "figureStrokeWidth": 0.06,
         "figureHorizontalOffset": 0.17,
         "figureYPosition": 0.79,
         "figureTempoBpm": 30,
-        "figureHardLinearity": 0,
+        "figureHardLinearity": 65,
         "figureSoftTransitionPercent": 0,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": false,
@@ -97,19 +97,42 @@
         "figureVariant": "hard",
         "figureSide": "both",
         "figureScale": 0.2,
-        "figureStrokeWidth": 0.28,
+        "figureStrokeWidth": 0.06,
         "figureHorizontalOffset": 0.17,
         "figureYPosition": 0.79,
         "figureTempoBpm": 30,
-        "figureHardLinearity": 0,
+        "figureHardLinearity": 33,
         "figureSoftTransitionPercent": 0,
         "figureDynamicsVisible": false,
-        "figureCountTimesVisible": false,
+        "figureCountTimesVisible": true,
+        "motionDistanceVisible": true,
+        "motionDistanceStrictness": 78,
         "dynamicFigureCornerHeights": [
+          -6.5,
           -25,
-          -25,
-          -25,
+          0.6,
           -25
+        ]
+      },
+      "2": {
+        "figureVariant": "soft",
+        "figureSide": "both",
+        "figureScale": 0.43,
+        "figureStrokeWidth": 0.15,
+        "figureHorizontalOffset": 0.25,
+        "figureYPosition": 0.76,
+        "figureTempoBpm": 56,
+        "figureHardLinearity": 29,
+        "figureSoftTransitionPercent": 14,
+        "figureDynamicsVisible": false,
+        "figureCountTimesVisible": false,
+        "motionDistanceVisible": true,
+        "motionDistanceStrictness": 78,
+        "dynamicFigureCornerHeights": [
+          0.6,
+          -10.714285714285715,
+          8.8,
+          -10.714285714285715
         ]
       }
     },
@@ -117,79 +140,218 @@
       "0": {
         "figureVariant": "hard",
         "figureSide": "both",
-        "figureScale": 0.5,
-        "figureStrokeWidth": 0.24,
-        "figureHorizontalOffset": 0.39,
-        "figureYPosition": 0.7,
-        "figureTempoBpm": 30,
-        "figureHardLinearity": 22,
-        "figureSoftTransitionPercent": 0,
+        "figureScale": 0.31,
+        "figureStrokeWidth": 0.08,
+        "figureHorizontalOffset": 0.41,
+        "figureYPosition": 0.8,
+        "figureTempoBpm": 43,
+        "figureHardLinearity": 14,
+        "figureSoftTransitionPercent": 7,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": false,
+        "motionDistanceVisible": true,
+        "motionDistanceStrictness": 78,
         "dynamicFigureCornerHeights": [
-          -25,
-          -25,
-          -25,
-          -25,
-          -25,
-          -25
+          -13.7,
+          -11.6,
+          -8.9,
+          -7.9,
+          -3.2,
+          -17.857142857142858
+        ]
+      },
+      "1": {
+        "figureVariant": "hard",
+        "figureSide": "both",
+        "figureScale": 0.44,
+        "figureStrokeWidth": 0.08,
+        "figureHorizontalOffset": 0.38,
+        "figureYPosition": 0.78,
+        "figureTempoBpm": 43,
+        "figureHardLinearity": 14,
+        "figureSoftTransitionPercent": 7,
+        "figureDynamicsVisible": false,
+        "figureCountTimesVisible": false,
+        "motionDistanceVisible": true,
+        "motionDistanceStrictness": 78,
+        "dynamicFigureCornerHeights": [
+          -13.3,
+          -17.857142857142858,
+          -8.3,
+          -17.857142857142858,
+          -17.857142857142858,
+          -17.857142857142858
+        ]
+      },
+      "2": {
+        "figureVariant": "soft",
+        "figureSide": "both",
+        "figureScale": 0.43,
+        "figureStrokeWidth": 0.15,
+        "figureHorizontalOffset": 0.4,
+        "figureYPosition": 0.84,
+        "figureTempoBpm": 56,
+        "figureHardLinearity": 29,
+        "figureSoftTransitionPercent": 14,
+        "figureDynamicsVisible": false,
+        "figureCountTimesVisible": true,
+        "motionDistanceVisible": true,
+        "motionDistanceStrictness": 78,
+        "dynamicFigureCornerHeights": [
+          0.1,
+          -10.714285714285715,
+          5.1,
+          -10.714285714285715,
+          -10.714285714285715,
+          -10.714285714285715
+        ]
+      },
+      "3": {
+        "figureVariant": "hard",
+        "figureSide": "both",
+        "figureScale": 0.54,
+        "figureStrokeWidth": 0.22,
+        "figureHorizontalOffset": 0.52,
+        "figureYPosition": 0.83,
+        "figureTempoBpm": 69,
+        "figureHardLinearity": 43,
+        "figureSoftTransitionPercent": 21,
+        "figureDynamicsVisible": false,
+        "figureCountTimesVisible": false,
+        "motionDistanceVisible": true,
+        "motionDistanceStrictness": 78,
+        "dynamicFigureCornerHeights": [
+          -3.571428571428573,
+          -3.571428571428573,
+          -3.571428571428573,
+          -3.571428571428573,
+          -3.571428571428573,
+          -3.571428571428573
         ]
       }
     },
     "3": {
       "0": {
-        "figureVariant": "soft",
+        "figureVariant": "hard",
         "figureSide": "both",
-        "figureScale": 0.55,
-        "figureStrokeWidth": 0.21,
-        "figureHorizontalOffset": 0.39,
-        "figureYPosition": 0.78,
-        "figureTempoBpm": 30,
-        "figureHardLinearity": 0,
-        "figureSoftTransitionPercent": 0,
+        "figureScale": 0.31,
+        "figureStrokeWidth": 0.08,
+        "figureHorizontalOffset": 0.29,
+        "figureYPosition": 0.83,
+        "figureTempoBpm": 43,
+        "figureHardLinearity": 14,
+        "figureSoftTransitionPercent": 7,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
+        "motionDistanceVisible": true,
+        "motionDistanceStrictness": 78,
         "dynamicFigureCornerHeights": [
-          -0.5,
-          1.6,
-          3.2,
-          5.3,
-          6.9,
-          7.9,
-          11.4,
-          -2.1
+          -7.2,
+          -12.1,
+          -3.7,
+          -8.1,
+          0.4,
+          -3.5,
+          4.5,
+          -17.857142857142858
+        ]
+      },
+      "1": {
+        "figureVariant": "hard",
+        "figureSide": "both",
+        "figureScale": 0.31,
+        "figureStrokeWidth": 0.08,
+        "figureHorizontalOffset": 0.29,
+        "figureYPosition": 0.86,
+        "figureTempoBpm": 43,
+        "figureHardLinearity": 14,
+        "figureSoftTransitionPercent": 7,
+        "figureDynamicsVisible": false,
+        "figureCountTimesVisible": false,
+        "motionDistanceVisible": true,
+        "motionDistanceStrictness": 78,
+        "dynamicFigureCornerHeights": [
+          -17.857142857142858,
+          -17.857142857142858,
+          -17.857142857142858,
+          -17.857142857142858,
+          -17.857142857142858,
+          -17.857142857142858,
+          -17.857142857142858,
+          -17.857142857142858
+        ]
+      },
+      "2": {
+        "figureVariant": "hard",
+        "figureSide": "both",
+        "figureScale": 0.44,
+        "figureStrokeWidth": 0.15,
+        "figureHorizontalOffset": 0.4,
+        "figureYPosition": 0.82,
+        "figureTempoBpm": 56,
+        "figureHardLinearity": 29,
+        "figureSoftTransitionPercent": 14,
+        "figureDynamicsVisible": false,
+        "figureCountTimesVisible": true,
+        "motionDistanceVisible": true,
+        "motionDistanceStrictness": 78,
+        "dynamicFigureCornerHeights": [
+          -4.8,
+          -10.714285714285715,
+          -0.9,
+          -16.3,
+          -10.714285714285715,
+          -10.9,
+          -7.1,
+          -10.714285714285715
         ]
       }
     }
   },
   "motionai.hand-independence-panel-settings": {
-    "variant": "hard",
+    "variant": "soft",
     "reverse": true,
-    "strokeWidth": 0.15,
-    "scale": 0.38,
+    "strokeWidth": 0.06,
+    "scale": 0.28,
     "figureSoftTransitionPercent": 41,
-    "sharedX": 0.3,
-    "dynamicsVisible": true,
-    "sharedTempoBpm": 30,
-    "sharedY": 0.81,
-    "corner0": 5.9,
+    "sharedX": 0.26,
+    "dynamicsVisible": false,
+    "sharedTempoBpm": 32,
+    "sharedY": 0.79,
+    "corner0": 5.7,
     "length": 24.8,
     "rotation": -90,
     "figureLevel": 1,
-    "tempoRatio": "0.25:1",
+    "tempoRatio": "1:1",
     "figureHardLinearity": 57,
     "countTimesVisible": true,
-    "corner2": 8.2,
-    "corner1": 6.9,
+    "corner2": 14.3,
+    "corner1": 0.1,
     "corner4": 11.3,
     "corner5": -1,
-    "corner3": -11.3,
+    "corner3": -4.9,
     "countVisible": true,
-    "shape": "square",
-    "width": 30.2
+    "shape": "line",
+    "width": 16.8,
+    "motionDistanceVisible": true,
+    "height": 17.8,
+    "motionDistanceStrictness": 100,
+    "figureVariation": 1,
+    "cornerHeights": [
+      5.7,
+      0.1,
+      14.3,
+      -4.9,
+      11.3,
+      -1,
+      0,
+      0
+    ],
+    "corner6": 0,
+    "corner7": 0
   },
   "motionai.figure-selected-presets": {
-    "0": 6,
+    "0": 1,
     "1": 0,
     "2": 0,
     "3": 0,
@@ -213,128 +375,536 @@
   },
   "motionai.video-softening-enabled": true,
   "motionai.dynamic-figure-selected-presets": {
-    "0": 0,
-    "1": 0,
-    "2": 1,
-    "3": 1
+    "0": 1,
+    "1": 2,
+    "2": 0,
+    "3": 2
   },
   "motionai.exercise-field-presets": {
     "0": {
-      "enabled": true,
-      "scale": 0.65,
-      "xOffset": 0,
-      "strikeCount": 2,
-      "strikeRadius": 35,
-      "fieldSide": "left",
-      "fieldVertical": "bottom",
-      "fieldBeat": 1,
-      "mode": "free",
-      "tempoBpm": 58,
-      "metronomeEnabled": true,
-      "strikePositions": {
-        "left": [
-          {
-            "x": 566.4915797914996,
-            "y": 448.9214113873296
-          },
-          {
-            "x": 453.223736968725,
-            "y": 447.0449077786688
-          }
-        ],
-        "right": [
-          {
-            "x": 713.5084202085004,
-            "y": 448.9214113873296
-          },
-          {
-            "x": 826.776263031275,
-            "y": 447.0449077786688
-          }
-        ]
-      }
+      "0": {
+        "enabled": true,
+        "scale": 0.65,
+        "xOffset": 0,
+        "strikeCount": 2,
+        "strikeRadius": 35,
+        "fieldSide": "left",
+        "fieldVertical": "bottom",
+        "fieldBeat": 1,
+        "mode": "free",
+        "tempoBpm": 58,
+        "metronomeEnabled": true,
+        "strikePositions": {
+          "left": [
+            {
+              "x": 566.4915797914996,
+              "y": 448.9214113873296
+            },
+            {
+              "x": 453.223736968725,
+              "y": 447.0449077786688
+            }
+          ],
+          "right": [
+            {
+              "x": 713.5084202085004,
+              "y": 448.9214113873296
+            },
+            {
+              "x": 826.776263031275,
+              "y": 447.0449077786688
+            }
+          ]
+        }
+      },
+      "1": {
+        "enabled": true,
+        "scale": 0.65,
+        "xOffset": 0,
+        "strikeCount": 2,
+        "strikeRadius": 35,
+        "fieldSide": "right",
+        "fieldVertical": "bottom",
+        "fieldBeat": 1,
+        "mode": "free",
+        "tempoBpm": 58,
+        "metronomeEnabled": true,
+        "strikePositions": {
+          "left": [
+            {
+              "x": 566.4915797914996,
+              "y": 448.9214113873296
+            },
+            {
+              "x": 453.223736968725,
+              "y": 447.0449077786688
+            }
+          ],
+          "right": [
+            {
+              "x": 713.5084202085004,
+              "y": 448.9214113873296
+            },
+            {
+              "x": 826.776263031275,
+              "y": 447.0449077786688
+            }
+          ]
+        }
+      },
+      "2": {
+        "enabled": true,
+        "scale": 0.65,
+        "xOffset": 0,
+        "strikeCount": 2,
+        "strikeRadius": 35,
+        "fieldSide": "left",
+        "fieldVertical": "top",
+        "fieldBeat": 1,
+        "mode": "free",
+        "tempoBpm": 58,
+        "metronomeEnabled": true,
+        "strikePositions": {
+          "left": [
+            {
+              "x": 566.4915797914996,
+              "y": 448.9214113873296
+            },
+            {
+              "x": 453.223736968725,
+              "y": 447.0449077786688
+            }
+          ],
+          "right": [
+            {
+              "x": 713.5084202085004,
+              "y": 448.9214113873296
+            },
+            {
+              "x": 826.776263031275,
+              "y": 447.0449077786688
+            }
+          ]
+        }
+      },
+      "3": {
+        "enabled": true,
+        "scale": 0.65,
+        "xOffset": 0,
+        "strikeCount": 2,
+        "strikeRadius": 35,
+        "fieldSide": "right",
+        "fieldVertical": "top",
+        "fieldBeat": 1,
+        "mode": "free",
+        "tempoBpm": 58,
+        "metronomeEnabled": true,
+        "strikePositions": {
+          "left": [
+            {
+              "x": 566.4915797914996,
+              "y": 448.9214113873296
+            },
+            {
+              "x": 453.223736968725,
+              "y": 447.0449077786688
+            }
+          ],
+          "right": [
+            {
+              "x": 713.5084202085004,
+              "y": 448.9214113873296
+            },
+            {
+              "x": 826.776263031275,
+              "y": 447.0449077786688
+            }
+          ]
+        }
+      },
+      "selectedSlot": 0
     },
     "1": {
-      "enabled": true,
-      "scale": 0.6,
-      "xOffset": 0.15,
-      "strikeCount": 3,
-      "strikeRadius": 20,
-      "fieldSide": "left",
-      "fieldVertical": "top",
-      "fieldBeat": 1,
-      "mode": "free",
-      "tempoBpm": 60,
-      "strikePositions": {
-        "left": [
-          {
-            "x": 476.4153969526865,
-            "y": 487.40577385725743
-          },
-          {
-            "x": 408.5124298315958,
-            "y": 489.83159582999195
-          },
-          {
-            "x": 557.2534081796312,
-            "y": 490.2566158781074
-          }
-        ],
-        "right": [
-          {
-            "x": 803.5846030473135,
-            "y": 487.40577385725743
-          },
-          {
-            "x": 871.4875701684042,
-            "y": 489.83159582999195
-          },
-          {
-            "x": 722.7465918203688,
-            "y": 490.2566158781074
-          }
-        ]
-      }
+      "0": {
+        "enabled": true,
+        "scale": 0.85,
+        "xOffset": 0.15,
+        "strikeCount": 3,
+        "strikeRadius": 20,
+        "fieldSide": "left",
+        "fieldVertical": "bottom",
+        "fieldBeat": 1,
+        "mode": "free",
+        "tempoBpm": 60,
+        "metronomeEnabled": false,
+        "strikePositions": {
+          "left": [
+            {
+              "x": 476.4153969526865,
+              "y": 487.40577385725743
+            },
+            {
+              "x": 408.5124298315958,
+              "y": 489.83159582999195
+            },
+            {
+              "x": 557.2534081796312,
+              "y": 490.2566158781074
+            }
+          ],
+          "right": [
+            {
+              "x": 803.5846030473135,
+              "y": 487.40577385725743
+            },
+            {
+              "x": 871.4875701684042,
+              "y": 489.83159582999195
+            },
+            {
+              "x": 722.7465918203688,
+              "y": 490.2566158781074
+            }
+          ]
+        }
+      },
+      "1": {
+        "enabled": true,
+        "scale": 0.85,
+        "xOffset": 0.15,
+        "strikeCount": 3,
+        "strikeRadius": 20,
+        "fieldSide": "right",
+        "fieldVertical": "bottom",
+        "fieldBeat": 1,
+        "mode": "free",
+        "tempoBpm": 60,
+        "metronomeEnabled": false,
+        "strikePositions": {
+          "left": [
+            {
+              "x": 476.4153969526865,
+              "y": 487.40577385725743
+            },
+            {
+              "x": 408.5124298315958,
+              "y": 489.83159582999195
+            },
+            {
+              "x": 557.2534081796312,
+              "y": 490.2566158781074
+            }
+          ],
+          "right": [
+            {
+              "x": 803.5846030473135,
+              "y": 487.40577385725743
+            },
+            {
+              "x": 871.4875701684042,
+              "y": 489.83159582999195
+            },
+            {
+              "x": 722.7465918203688,
+              "y": 490.2566158781074
+            }
+          ]
+        }
+      },
+      "2": {
+        "enabled": true,
+        "scale": 0.85,
+        "xOffset": 0.15,
+        "strikeCount": 3,
+        "strikeRadius": 20,
+        "fieldSide": "left",
+        "fieldVertical": "top",
+        "fieldBeat": 1,
+        "mode": "free",
+        "tempoBpm": 60,
+        "metronomeEnabled": false,
+        "strikePositions": {
+          "left": [
+            {
+              "x": 476.4153969526865,
+              "y": 487.40577385725743
+            },
+            {
+              "x": 408.5124298315958,
+              "y": 489.83159582999195
+            },
+            {
+              "x": 557.2534081796312,
+              "y": 490.2566158781074
+            }
+          ],
+          "right": [
+            {
+              "x": 803.5846030473135,
+              "y": 487.40577385725743
+            },
+            {
+              "x": 871.4875701684042,
+              "y": 489.83159582999195
+            },
+            {
+              "x": 722.7465918203688,
+              "y": 490.2566158781074
+            }
+          ]
+        }
+      },
+      "3": {
+        "enabled": true,
+        "scale": 0.85,
+        "xOffset": 0.15,
+        "strikeCount": 3,
+        "strikeRadius": 20,
+        "fieldSide": "right",
+        "fieldVertical": "top",
+        "fieldBeat": 1,
+        "mode": "free",
+        "tempoBpm": 60,
+        "metronomeEnabled": false,
+        "strikePositions": {
+          "left": [
+            {
+              "x": 476.4153969526865,
+              "y": 487.40577385725743
+            },
+            {
+              "x": 408.5124298315958,
+              "y": 489.83159582999195
+            },
+            {
+              "x": 557.2534081796312,
+              "y": 490.2566158781074
+            }
+          ],
+          "right": [
+            {
+              "x": 803.5846030473135,
+              "y": 487.40577385725743
+            },
+            {
+              "x": 871.4875701684042,
+              "y": 489.83159582999195
+            },
+            {
+              "x": 722.7465918203688,
+              "y": 490.2566158781074
+            }
+          ]
+        }
+      },
+      "selectedSlot": 0
     },
     "2": {
-      "enabled": true,
-      "scale": 0.25,
-      "xOffset": 0,
-      "strikeCount": 3,
-      "strikeRadius": 20,
-      "fieldSide": "left",
-      "fieldVertical": "top",
-      "fieldBeat": 1,
-      "strikePositions": {
-        "left": [
-          {
-            "x": 135.49088359046277,
-            "y": 347.78401122019636
-          },
-          {
-            "x": 139.78260869565224,
-            "y": 135.16830294530155
-          },
-          {
-            "x": 133.82187938288916,
-            "y": 601.7180925666199
-          }
-        ],
-        "right": [
-          {
-            "x": 1144.5091164095372,
-            "y": 347.78401122019636
-          },
-          {
-            "x": 1140.2173913043478,
-            "y": 135.16830294530155
-          },
-          {
-            "x": 1146.1781206171108,
-            "y": 601.7180925666199
-          }
-        ]
-      }
+      "0": {
+        "enabled": true,
+        "scale": 0.7,
+        "xOffset": 0.3,
+        "strikeCount": 4,
+        "strikeRadius": 20,
+        "fieldSide": "left",
+        "fieldVertical": "top",
+        "fieldBeat": 1,
+        "mode": "free",
+        "tempoBpm": 60,
+        "metronomeEnabled": true,
+        "strikePositions": {
+          "left": [
+            {
+              "x": 417.46190858059344,
+              "y": 493.03127506014437
+            },
+            {
+              "x": 353.3440256615878,
+              "y": 491.7802726543705
+            },
+            {
+              "x": 484.40256615878104,
+              "y": 493.8652766639936
+            },
+            {
+              "x": 559.206094627105,
+              "y": 494.5348837209302
+            }
+          ],
+          "right": [
+            {
+              "x": 862.5380914194066,
+              "y": 493.03127506014437
+            },
+            {
+              "x": 926.6559743384122,
+              "y": 491.7802726543705
+            },
+            {
+              "x": 795.597433841219,
+              "y": 493.8652766639936
+            },
+            {
+              "x": 720.793905372895,
+              "y": 494.5348837209302
+            }
+          ]
+        }
+      },
+      "1": {
+        "enabled": true,
+        "scale": 0.7,
+        "xOffset": 0.3,
+        "strikeCount": 4,
+        "strikeRadius": 20,
+        "fieldSide": "right",
+        "fieldVertical": "top",
+        "fieldBeat": 1,
+        "mode": "free",
+        "tempoBpm": 60,
+        "metronomeEnabled": true,
+        "strikePositions": {
+          "left": [
+            {
+              "x": 417.46190858059344,
+              "y": 493.03127506014437
+            },
+            {
+              "x": 353.3440256615878,
+              "y": 491.7802726543705
+            },
+            {
+              "x": 484.40256615878104,
+              "y": 493.8652766639936
+            },
+            {
+              "x": 559.206094627105,
+              "y": 494.5348837209302
+            }
+          ],
+          "right": [
+            {
+              "x": 862.5380914194066,
+              "y": 493.03127506014437
+            },
+            {
+              "x": 926.6559743384122,
+              "y": 491.7802726543705
+            },
+            {
+              "x": 795.597433841219,
+              "y": 493.8652766639936
+            },
+            {
+              "x": 720.793905372895,
+              "y": 494.5348837209302
+            }
+          ]
+        }
+      },
+      "2": {
+        "enabled": true,
+        "scale": 0.7,
+        "xOffset": 0.3,
+        "strikeCount": 4,
+        "strikeRadius": 20,
+        "fieldSide": "right",
+        "fieldVertical": "bottom",
+        "fieldBeat": 1,
+        "mode": "free",
+        "tempoBpm": 60,
+        "metronomeEnabled": true,
+        "strikePositions": {
+          "left": [
+            {
+              "x": 417.46190858059344,
+              "y": 493.03127506014437
+            },
+            {
+              "x": 353.3440256615878,
+              "y": 491.7802726543705
+            },
+            {
+              "x": 484.40256615878104,
+              "y": 493.8652766639936
+            },
+            {
+              "x": 559.206094627105,
+              "y": 494.5348837209302
+            }
+          ],
+          "right": [
+            {
+              "x": 862.5380914194066,
+              "y": 493.03127506014437
+            },
+            {
+              "x": 926.6559743384122,
+              "y": 491.7802726543705
+            },
+            {
+              "x": 795.597433841219,
+              "y": 493.8652766639936
+            },
+            {
+              "x": 720.793905372895,
+              "y": 494.5348837209302
+            }
+          ]
+        }
+      },
+      "3": {
+        "enabled": true,
+        "scale": 0.7,
+        "xOffset": 0.3,
+        "strikeCount": 4,
+        "strikeRadius": 20,
+        "fieldSide": "left",
+        "fieldVertical": "bottom",
+        "fieldBeat": 1,
+        "mode": "free",
+        "tempoBpm": 60,
+        "metronomeEnabled": true,
+        "strikePositions": {
+          "left": [
+            {
+              "x": 417.46190858059344,
+              "y": 493.03127506014437
+            },
+            {
+              "x": 353.3440256615878,
+              "y": 491.7802726543705
+            },
+            {
+              "x": 484.40256615878104,
+              "y": 493.8652766639936
+            },
+            {
+              "x": 559.206094627105,
+              "y": 494.5348837209302
+            }
+          ],
+          "right": [
+            {
+              "x": 862.5380914194066,
+              "y": 493.03127506014437
+            },
+            {
+              "x": 926.6559743384122,
+              "y": 491.7802726543705
+            },
+            {
+              "x": 795.597433841219,
+              "y": 493.8652766639936
+            },
+            {
+              "x": 720.793905372895,
+              "y": 494.5348837209302
+            }
+          ]
+        }
+      },
+      "selectedSlot": 0
     },
     "3": {
       "enabled": true,
@@ -422,18 +992,20 @@
     "figureSide": "both",
     "figureScale": 0.31,
     "figureStrokeWidth": 0.08,
-    "figureHorizontalOffset": 0.29,
-    "figureYPosition": 0.77,
+    "figureHorizontalOffset": 0.41,
+    "figureYPosition": 0.8,
     "figureTempoBpm": 43,
     "figureHardLinearity": 14,
     "figureSoftTransitionPercent": 7,
     "figureDynamicsVisible": false,
-    "figureCountTimesVisible": false
+    "figureCountTimesVisible": false,
+    "motionDistanceVisible": true,
+    "motionDistanceStrictness": 78
   },
   "motionai.consistency-panel-settings": {
     "tempoBpm": 35,
-    "strictnessPercent": 160,
-    "motionBlendPercent": 10
+    "strictnessPercent": 70,
+    "motionBlendPercent": 100
   },
   "motionai.memory-debug": [
     {
@@ -8149,12 +8721,12 @@
   ],
   "motionai.exercise-field-panel-settings": {
     "enabled": true,
-    "scale": 1.25,
+    "scale": 0.65,
     "xOffset": 0,
     "strikeCount": 2,
     "strikeRadius": 35,
     "fieldSide": "left",
-    "fieldVertical": "top",
+    "fieldVertical": "bottom",
     "fieldBeat": 1,
     "mode": "free",
     "tempoBpm": 58,
@@ -8162,22 +8734,22 @@
     "strikePositions": {
       "left": [
         {
-          "x": 486.8123496391339,
-          "y": 502.8909382518043
+          "x": 566.4915797914996,
+          "y": 448.9214113873296
         },
         {
-          "x": 386.2830793905373,
-          "y": 498.6327185244587
+          "x": 453.223736968725,
+          "y": 447.0449077786688
         }
       ],
       "right": [
         {
-          "x": 793.1876503608661,
-          "y": 502.8909382518043
+          "x": 713.5084202085004,
+          "y": 448.9214113873296
         },
         {
-          "x": 893.7169206094627,
-          "y": 498.6327185244587
+          "x": 826.776263031275,
+          "y": 447.0449077786688
         }
       ]
     }
@@ -8186,20 +8758,22 @@
   "motionai.figure-panel-settings": {
     "figureVariant": "soft",
     "figureSide": "both",
-    "figureScale": 0.5,
-    "figureStrokeWidth": 0.09,
-    "figureHorizontalOffset": 0.26,
-    "figureYPosition": 0.77,
+    "figureScale": 0.31,
+    "figureStrokeWidth": 0.08,
+    "figureHorizontalOffset": 0.4,
+    "figureYPosition": 0.66,
     "figureTempoBpm": 30,
-    "figureHardLinearity": 0,
-    "figureSoftTransitionPercent": 0,
+    "figureHardLinearity": 14,
+    "figureSoftTransitionPercent": 15,
     "figureDynamicsVisible": false,
-    "figureCountTimesVisible": false
+    "figureCountTimesVisible": true,
+    "motionDistanceVisible": true,
+    "motionDistanceStrictness": 29
   },
   "motionai.dynamic-figure-corner-heights": {
     "0": [
-      -25,
-      -25,
+      -17.857142857142858,
+      -17.857142857142858,
       0,
       0,
       0,
@@ -8208,34 +8782,34 @@
       0
     ],
     "1": [
-      -25,
-      -25,
-      -25,
-      -25,
+      0.6,
+      -10.714285714285715,
+      8.8,
+      -10.714285714285715,
       0,
       0,
       0,
       0
     ],
     "2": [
-      -17.857142857142858,
-      -17.857142857142858,
-      -17.857142857142858,
-      -17.857142857142858,
-      -17.857142857142858,
+      -13.7,
+      -11.6,
+      -8.9,
+      -7.9,
+      -3.2,
       -17.857142857142858,
       0,
       0
     ],
     "3": [
-      -17.857142857142858,
-      -17.857142857142858,
-      -17.857142857142858,
-      -17.857142857142858,
-      -17.857142857142858,
-      -17.857142857142858,
-      -17.857142857142858,
-      -17.857142857142858
+      -4.8,
+      -10.714285714285715,
+      -0.9,
+      -16.3,
+      -10.714285714285715,
+      -10.9,
+      -7.1,
+      -10.714285714285715
     ]
   },
   "motionai.video-softening-settings": {
@@ -9559,6 +10133,35 @@
   },
   "motionai.hand-independence-presets": {
     "0": {
+      "0": {
+        "variant": "soft",
+        "reverse": true,
+        "strokeWidth": 0.22,
+        "scale": 0.62,
+        "figureSoftTransitionPercent": 41,
+        "sharedX": 0.26,
+        "dynamicsVisible": false,
+        "sharedTempoBpm": 32,
+        "sharedY": 0.71,
+        "corner0": 0.2,
+        "length": 24.8,
+        "rotation": -90,
+        "figureLevel": 0,
+        "tempoRatio": "1:1",
+        "figureHardLinearity": 57,
+        "countTimesVisible": true,
+        "corner2": 8.2,
+        "corner1": 6.9,
+        "corner4": 11.3,
+        "corner5": -1,
+        "corner3": -11.3,
+        "countVisible": true,
+        "shape": "line",
+        "width": 16.8,
+        "motionDistanceVisible": true,
+        "height": 17.8,
+        "motionDistanceStrictness": 100
+      },
       "variant": "hard",
       "reverse": true,
       "strokeWidth": 0.15,
@@ -9579,33 +10182,244 @@
       "corner1": 6.9,
       "corner4": 11.3,
       "corner5": -1,
-      "corner3": -11.3
+      "corner3": -11.3,
+      "selectedSlot": 0
     },
     "1": {
-      "variant": "hard",
-      "reverse": true,
-      "strokeWidth": 0.15,
-      "scale": 0.38,
-      "figureSoftTransitionPercent": 41,
-      "sharedX": 0.3,
-      "dynamicsVisible": true,
-      "sharedTempoBpm": 30,
-      "sharedY": 0.81,
-      "corner0": 5.9,
-      "length": 24.8,
-      "rotation": -90,
-      "figureLevel": 2,
-      "tempoRatio": "0.25:1",
-      "figureHardLinearity": 100,
-      "countTimesVisible": false,
-      "corner2": 8.2,
-      "corner1": 6.9,
-      "corner4": 11.3,
-      "corner5": -1,
-      "corner3": -11.3,
-      "countVisible": true
+      "0": {
+        "figureLevel": 1,
+        "figureVariation": 1,
+        "variant": "soft",
+        "reverse": true,
+        "dynamicsVisible": false,
+        "countTimesVisible": true,
+        "motionDistanceVisible": true,
+        "motionDistanceStrictness": 100,
+        "tempoRatio": "1:1",
+        "shape": "line",
+        "scale": 0.42,
+        "strokeWidth": 0.06,
+        "sharedX": 0.26,
+        "sharedY": 0.79,
+        "sharedTempoBpm": 32,
+        "figureHardLinearity": 57,
+        "figureSoftTransitionPercent": 41,
+        "length": 24.8,
+        "width": 16.8,
+        "height": 17.8,
+        "rotation": -90,
+        "cornerHeights": [
+          0,
+          0.7,
+          0.7,
+          -11.3,
+          11.3,
+          -1,
+          0,
+          0
+        ]
+      },
+      "1": {
+        "figureLevel": 1,
+        "figureVariation": 1,
+        "variant": "soft",
+        "reverse": true,
+        "dynamicsVisible": false,
+        "countTimesVisible": true,
+        "motionDistanceVisible": true,
+        "motionDistanceStrictness": 100,
+        "tempoRatio": "1:1",
+        "shape": "line",
+        "scale": 0.28,
+        "strokeWidth": 0.06,
+        "sharedX": 0.26,
+        "sharedY": 0.79,
+        "sharedTempoBpm": 32,
+        "figureHardLinearity": 57,
+        "figureSoftTransitionPercent": 41,
+        "length": 24.8,
+        "width": 16.8,
+        "height": 17.8,
+        "rotation": -90,
+        "cornerHeights": [
+          5.7,
+          0.1,
+          14.3,
+          -4.9,
+          11.3,
+          -1,
+          0,
+          0
+        ]
+      },
+      "2": {
+        "figureLevel": 1,
+        "figureVariation": 1,
+        "variant": "soft",
+        "reverse": true,
+        "dynamicsVisible": false,
+        "countTimesVisible": true,
+        "motionDistanceVisible": true,
+        "motionDistanceStrictness": 100,
+        "tempoRatio": "1:1",
+        "shape": "line",
+        "scale": 0.42,
+        "strokeWidth": 0.06,
+        "sharedX": 0.26,
+        "sharedY": 0.79,
+        "sharedTempoBpm": 32,
+        "figureHardLinearity": 57,
+        "figureSoftTransitionPercent": 41,
+        "length": 24.8,
+        "width": 16.8,
+        "height": 17.8,
+        "rotation": -90,
+        "cornerHeights": [
+          5.7,
+          0,
+          5.3,
+          0,
+          11.3,
+          -1,
+          0,
+          0
+        ]
+      },
+      "selectedSlot": 1
     },
     "2": {
+      "0": {
+        "figureLevel": 2,
+        "figureVariation": 1,
+        "variant": "hard",
+        "reverse": true,
+        "dynamicsVisible": false,
+        "countTimesVisible": true,
+        "motionDistanceVisible": true,
+        "motionDistanceStrictness": 100,
+        "tempoRatio": "1:1",
+        "shape": "line",
+        "scale": 0.38,
+        "strokeWidth": 0.16,
+        "sharedX": 0.26,
+        "sharedY": 0.71,
+        "sharedTempoBpm": 32,
+        "figureHardLinearity": 57,
+        "figureSoftTransitionPercent": 41,
+        "length": 42.5,
+        "width": 16.8,
+        "height": 17.8,
+        "rotation": -90,
+        "cornerHeights": [
+          0,
+          0,
+          0,
+          0.2,
+          0,
+          -0.4,
+          0,
+          0
+        ]
+      },
+      "1": {
+        "figureLevel": 2,
+        "figureVariation": 1,
+        "variant": "hard",
+        "reverse": true,
+        "dynamicsVisible": false,
+        "countTimesVisible": true,
+        "motionDistanceVisible": true,
+        "motionDistanceStrictness": 100,
+        "tempoRatio": "1:1",
+        "shape": "line",
+        "scale": 0.38,
+        "strokeWidth": 0.16,
+        "sharedX": 0.26,
+        "sharedY": 0.75,
+        "sharedTempoBpm": 32,
+        "figureHardLinearity": 57,
+        "figureSoftTransitionPercent": 41,
+        "length": 42.5,
+        "width": 16.8,
+        "height": 17.8,
+        "rotation": -90,
+        "cornerHeights": [
+          5.7,
+          6.9,
+          11.3,
+          0.2,
+          5,
+          -0.4,
+          0,
+          0
+        ]
+      },
+      "2": {
+        "figureLevel": 2,
+        "figureVariation": 1,
+        "variant": "hard",
+        "reverse": true,
+        "dynamicsVisible": false,
+        "countTimesVisible": true,
+        "motionDistanceVisible": true,
+        "motionDistanceStrictness": 100,
+        "tempoRatio": "1:1",
+        "shape": "line",
+        "scale": 0.38,
+        "strokeWidth": 0.16,
+        "sharedX": 0.26,
+        "sharedY": 0.71,
+        "sharedTempoBpm": 32,
+        "figureHardLinearity": 63,
+        "figureSoftTransitionPercent": 41,
+        "length": 42.5,
+        "width": 16.8,
+        "height": 17.8,
+        "rotation": -90,
+        "cornerHeights": [
+          -0.7,
+          4.1,
+          4.6,
+          8,
+          10.5,
+          -0.4,
+          0,
+          0
+        ]
+      },
+      "3": {
+        "figureLevel": 2,
+        "figureVariation": 1,
+        "variant": "hard",
+        "reverse": true,
+        "dynamicsVisible": false,
+        "countTimesVisible": true,
+        "motionDistanceVisible": true,
+        "motionDistanceStrictness": 100,
+        "tempoRatio": "1:1",
+        "shape": "line",
+        "scale": 0.56,
+        "strokeWidth": 0.16,
+        "sharedX": 0.26,
+        "sharedY": 0.71,
+        "sharedTempoBpm": 32,
+        "figureHardLinearity": 63,
+        "figureSoftTransitionPercent": 41,
+        "length": 37,
+        "width": 16.8,
+        "height": 17.8,
+        "rotation": -126,
+        "cornerHeights": [
+          -0.7,
+          -2.5,
+          4.6,
+          1.8,
+          10.5,
+          -1,
+          0,
+          0
+        ]
+      },
       "variant": "soft",
       "reverse": true,
       "strokeWidth": 0.15,
@@ -9627,9 +10441,76 @@
       "corner4": 11.3,
       "corner5": -1,
       "corner3": -11.3,
-      "countVisible": false
+      "countVisible": false,
+      "selectedSlot": 3
     },
     "3": {
+      "0": {
+        "figureLevel": 3,
+        "figureVariation": 2,
+        "variant": "soft",
+        "reverse": true,
+        "dynamicsVisible": false,
+        "countTimesVisible": true,
+        "motionDistanceVisible": true,
+        "motionDistanceStrictness": 100,
+        "tempoRatio": "1:1",
+        "shape": "line",
+        "scale": 0.53,
+        "strokeWidth": 0.05,
+        "sharedX": 0.51,
+        "sharedY": 0.71,
+        "sharedTempoBpm": 32,
+        "figureHardLinearity": 57,
+        "figureSoftTransitionPercent": 41,
+        "length": 42.5,
+        "width": 16.8,
+        "height": 17.8,
+        "rotation": -51,
+        "cornerHeights": [
+          0,
+          0.1,
+          -0.1,
+          0,
+          0,
+          0.1,
+          0,
+          0
+        ]
+      },
+      "1": {
+        "figureLevel": 3,
+        "figureVariation": 2,
+        "variant": "hard",
+        "reverse": true,
+        "dynamicsVisible": false,
+        "countTimesVisible": true,
+        "motionDistanceVisible": true,
+        "motionDistanceStrictness": 100,
+        "tempoRatio": "1:1",
+        "shape": "line",
+        "scale": 0.53,
+        "strokeWidth": 0.05,
+        "sharedX": 0.51,
+        "sharedY": 0.71,
+        "sharedTempoBpm": 32,
+        "figureHardLinearity": 57,
+        "figureSoftTransitionPercent": 41,
+        "length": 26.5,
+        "width": 16.8,
+        "height": 17.8,
+        "rotation": 0,
+        "cornerHeights": [
+          0,
+          0.1,
+          -0.1,
+          0,
+          0,
+          0.1,
+          0,
+          0
+        ]
+      },
       "variant": "soft",
       "reverse": true,
       "strokeWidth": 0.15,
@@ -9651,7 +10532,8 @@
       "corner4": 11.3,
       "corner5": -1,
       "corner3": -11.3,
-      "countVisible": true
+      "countVisible": true,
+      "selectedSlot": 1
     }
   },
   "motionai.figure-presets": {
@@ -9663,11 +10545,13 @@
         "figureStrokeWidth": 0.21,
         "figureHorizontalOffset": 0.43,
         "figureYPosition": 0.74,
-        "figureTempoBpm": 31,
+        "figureTempoBpm": 30,
         "figureHardLinearity": 66,
         "figureSoftTransitionPercent": 42,
         "figureDynamicsVisible": false,
-        "figureCountTimesVisible": true
+        "figureCountTimesVisible": true,
+        "motionDistanceVisible": true,
+        "motionDistanceStrictness": 29
       },
       "1": {
         "figureVariant": "soft",
@@ -9834,247 +10718,6 @@
     "pointSequenceMode": "independent",
     "pointSymmetryMode": true,
     "pointPalindromMode": true,
-    "pointSequence": [
-      {
-        "row": 15,
-        "col": 7,
-        "hand": "right"
-      },
-      {
-        "row": 15,
-        "col": 22,
-        "hand": "left"
-      },
-      {
-        "row": 15,
-        "col": 8,
-        "hand": "right"
-      },
-      {
-        "row": 15,
-        "col": 21,
-        "hand": "left"
-      },
-      {
-        "row": 15,
-        "col": 9,
-        "hand": "right"
-      },
-      {
-        "row": 15,
-        "col": 20,
-        "hand": "left"
-      },
-      {
-        "row": 15,
-        "col": 10,
-        "hand": "right"
-      },
-      {
-        "row": 15,
-        "col": 19,
-        "hand": "left"
-      },
-      {
-        "row": 15,
-        "col": 11,
-        "hand": "right"
-      },
-      {
-        "row": 15,
-        "col": 18,
-        "hand": "left"
-      },
-      {
-        "row": 15,
-        "col": 12,
-        "hand": "right"
-      },
-      {
-        "row": 15,
-        "col": 17,
-        "hand": "left"
-      },
-      {
-        "row": 14,
-        "col": 12,
-        "hand": "right"
-      },
-      {
-        "row": 14,
-        "col": 17,
-        "hand": "left"
-      },
-      {
-        "row": 14,
-        "col": 11,
-        "hand": "right"
-      },
-      {
-        "row": 14,
-        "col": 18,
-        "hand": "left"
-      },
-      {
-        "row": 14,
-        "col": 10,
-        "hand": "right"
-      },
-      {
-        "row": 14,
-        "col": 19,
-        "hand": "left"
-      },
-      {
-        "row": 14,
-        "col": 9,
-        "hand": "right"
-      },
-      {
-        "row": 14,
-        "col": 20,
-        "hand": "left"
-      },
-      {
-        "row": 14,
-        "col": 8,
-        "hand": "right"
-      },
-      {
-        "row": 14,
-        "col": 21,
-        "hand": "left"
-      },
-      {
-        "row": 14,
-        "col": 7,
-        "hand": "right"
-      },
-      {
-        "row": 14,
-        "col": 22,
-        "hand": "left"
-      },
-      {
-        "row": 13,
-        "col": 7,
-        "hand": "right"
-      },
-      {
-        "row": 13,
-        "col": 22,
-        "hand": "left"
-      },
-      {
-        "row": 13,
-        "col": 8,
-        "hand": "right"
-      },
-      {
-        "row": 13,
-        "col": 21,
-        "hand": "left"
-      },
-      {
-        "row": 13,
-        "col": 9,
-        "hand": "right"
-      },
-      {
-        "row": 13,
-        "col": 20,
-        "hand": "left"
-      },
-      {
-        "row": 13,
-        "col": 10,
-        "hand": "right"
-      },
-      {
-        "row": 13,
-        "col": 19,
-        "hand": "left"
-      },
-      {
-        "row": 13,
-        "col": 11,
-        "hand": "right"
-      },
-      {
-        "row": 13,
-        "col": 18,
-        "hand": "left"
-      },
-      {
-        "row": 13,
-        "col": 12,
-        "hand": "right"
-      },
-      {
-        "row": 13,
-        "col": 17,
-        "hand": "left"
-      },
-      {
-        "row": 12,
-        "col": 12,
-        "hand": "right"
-      },
-      {
-        "row": 12,
-        "col": 17,
-        "hand": "left"
-      },
-      {
-        "row": 11,
-        "col": 12,
-        "hand": "right"
-      },
-      {
-        "row": 11,
-        "col": 17,
-        "hand": "left"
-      },
-      {
-        "row": 10,
-        "col": 12,
-        "hand": "right"
-      },
-      {
-        "row": 10,
-        "col": 17,
-        "hand": "left"
-      },
-      {
-        "row": 9,
-        "col": 12,
-        "hand": "right"
-      },
-      {
-        "row": 9,
-        "col": 17,
-        "hand": "left"
-      },
-      {
-        "row": 8,
-        "col": 12,
-        "hand": "right"
-      },
-      {
-        "row": 8,
-        "col": 17,
-        "hand": "left"
-      },
-      {
-        "row": 7,
-        "col": 12,
-        "hand": "right"
-      },
-      {
-        "row": 7,
-        "col": 17,
-        "hand": "left"
-      }
-    ]
+    "pointSequence": []
   }
 }
