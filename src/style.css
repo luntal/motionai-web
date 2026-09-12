@@ -199,6 +199,20 @@ canvas {
   gap: 0.35rem;
 }
 
+.hand-independence-figure-variation-group {
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.hand-independence-taktgebung-title {
+  margin-top: 0.35rem;
+  margin-bottom: 0.2rem;
+}
+
+.hand-independence-figure-variation-hidden {
+  display: none !important;
+}
+
 .hand-independence-panel .figure-mode-option {
   flex: 1;
   padding: 0.45rem 0.5rem;

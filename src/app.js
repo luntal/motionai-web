@@ -906,6 +906,7 @@ function createFigureModePanel(initialManager, options = {}) {
     selectedPreset = Number.isInteger(slot) && slot >= 0 && slot < presetCount ? slot : 0;
     selectedPresetByLevel[String(currentLevel)] = selectedPreset;
     persistSelectedPresets();
+    renderPresetSlots();
 
     const preset = getPreset(currentLevel, selectedPreset);
     setSettings(preset);
@@ -1142,10 +1143,11 @@ function createDynamicFigureModePanel() {
     if (!Number.isInteger(currentLevel)) {
       return;
     }
-    selectedPreset = slot;
-    selectedPresetByLevel[String(currentLevel)] = slot;
+    selectedPreset = Number.isInteger(slot) && slot >= 0 && slot < presetCount ? slot : 0;
+    selectedPresetByLevel[String(currentLevel)] = selectedPreset;
     persistSelectedPresets();
-    const preset = getPreset(currentLevel, slot);
+    renderPresetSlots();
+    const preset = getPreset(currentLevel, selectedPreset);
     const variant = preset.figureVariant === 'soft' ? 'soft' : 'hard';
     basePanel.setSettings(preset);
     basePanel.setVariant(variant);
@@ -1200,9 +1202,16 @@ function createDynamicFigureModePanel() {
   });
 
   presetResetButton.addEventListener('click', () => {
+    if (!Number.isInteger(currentLevel)) {
+      return;
+    }
     presetData = {};
+    selectedPreset = 0;
+    selectedPresetByLevel[String(currentLevel)] = 0;
     persistPresets();
-    applyPreset(selectedPreset);
+    persistSelectedPresets();
+    renderPresetSlots();
+    applyPreset(0);
   });
 
   function setLevel(level, applySelectedPreset = true) {
@@ -1267,6 +1276,17 @@ function createDynamicFigureModePanel() {
   };
 }
 
+const sanitizeExerciseFieldStrikeCount = (value) => {
+  const next = Number(value);
+  return [2, 3, 4].includes(next) ? next : 2;
+};
+
+const getExerciseFieldLevelStrikeCount = (level) => {
+  const normalizedLevel = Number.isInteger(Number(level)) ? Number(level) : 0;
+  const valueByLevel = [2, 3, 4];
+  return sanitizeExerciseFieldStrikeCount(valueByLevel[Math.max(0, Math.min(2, normalizedLevel))] ?? 2);
+};
+
 function createExerciseFieldPanel() {
   const panel = document.createElement('aside');
   panel.className = 'figure-side-panel hidden exercise-field-panel';
@@ -1274,10 +1294,9 @@ function createExerciseFieldPanel() {
   const presetsKey = 'motionai.exercise-field-presets';
   let managerRef = null;
 
-  const sanitizeStrikeCount = (value) => {
-    const next = Number(value);
-    return [2, 3, 4].includes(next) ? next : 2;
-  };
+  const sanitizeStrikeCount = (value) => sanitizeExerciseFieldStrikeCount(value);
+
+  const getExerciseLevelStrikeCount = (level) => getExerciseFieldLevelStrikeCount(level);
 
   const readPresetMap = () => {
     try {
@@ -1297,11 +1316,14 @@ function createExerciseFieldPanel() {
     return Math.max(1, Math.min(normalized, Math.round(next)));
   };
 
-  const sanitizeExerciseFieldStrikePositions = (value) => {
+  const sanitizeExerciseFieldStrikePositions = (value, strikeCountOverride = null) => {
     const next = value && typeof value === 'object' ? value : { left: [], right: [] };
     const left = Array.isArray(next.left) ? next.left : [];
     const right = Array.isArray(next.right) ? next.right : [];
-    const count = Math.max(2, Math.min(4, left.length || right.length || 2));
+    const preferredCount = Number.isFinite(Number(strikeCountOverride))
+      ? Number(strikeCountOverride)
+      : (left.length || right.length || 2);
+    const count = Math.max(2, Math.min(4, sanitizeStrikeCount(preferredCount)));
     const normalizePoint = (point, fallbackX = 0, fallbackY = 0) => ({
       x: Number.isFinite(Number(point && point.x)) ? Number(point.x) : fallbackX,
       y: Number.isFinite(Number(point && point.y)) ? Number(point.y) : fallbackY
@@ -1350,7 +1372,7 @@ function createExerciseFieldPanel() {
         mode,
         tempoBpm: Number.isFinite(bpm) ? Math.min(180, Math.max(30, bpm)) : 60,
         metronomeEnabled,
-        strikePositions: sanitizeExerciseFieldStrikePositions(stored.strikePositions)
+        strikePositions: sanitizeExerciseFieldStrikePositions(stored.strikePositions, sanitizeStrikeCount(strikeCount))
       };
     } catch (error) {
       return {
@@ -1373,25 +1395,30 @@ function createExerciseFieldPanel() {
   const isPresetRunning = () => uiState.activeChapter === 6
     && Number.isInteger(uiState.activeLevel)
     && uiState.activeLevel >= 0
-    && uiState.activeLevel <= 4;
+    && uiState.activeLevel <= 2;
 
-  const getCurrentState = () => ({
-    enabled: isPresetRunning() || Boolean(toggleInput.checked),
-    scale: Number(sizeSlider.value),
-    xOffset: Number(xOffsetSlider.value),
-    strikeCount: sanitizeStrikeCount(strikeCountInputs.find((input) => input.checked)?.value ?? 2),
-    strikeRadius: Number(circleSizeSlider.value),
-    fieldSide: fieldSideInputs.find((input) => input.checked)?.value || 'left',
-    fieldVertical: fieldVerticalInputs.find((input) => input.checked)?.value || 'top',
-    fieldBeat: sanitizeAssignmentBeat(fieldBeatInputs.find((input) => input.checked)?.value ?? 1, sanitizeStrikeCount(strikeCountInputs.find((input) => input.checked)?.value ?? 2)),
-    mode: selectedMode === 'tempo' ? 'tempo' : 'free',
-    tempoBpm: Number(challengeTempoSlider.value),
-    metronomeEnabled: Boolean(metronomeToggle.checked),
-    strikePositions: managerRef && managerRef.exerciseFieldStrikePositions ? {
-      left: (managerRef.exerciseFieldStrikePositions.left || []).map((point) => ({ x: Number(point.x), y: Number(point.y) })),
-      right: (managerRef.exerciseFieldStrikePositions.right || []).map((point) => ({ x: Number(point.x), y: Number(point.y) }))
-    } : { left: [], right: [] }
-  });
+  const getCurrentState = () => {
+    const currentStrikeCount = Number.isFinite(Number(managerRef?.exerciseFieldStrikeCount))
+      ? Number(managerRef.exerciseFieldStrikeCount)
+      : getExerciseLevelStrikeCount(uiState.activeLevel ?? 0);
+    return {
+      enabled: isPresetRunning() || Boolean(toggleInput.checked),
+      scale: Number(sizeSlider.value),
+      xOffset: Number(xOffsetSlider.value),
+      strikeCount: sanitizeStrikeCount(currentStrikeCount),
+      strikeRadius: Number(circleSizeSlider.value),
+      fieldSide: fieldSideInputs.find((input) => input.checked)?.value || 'left',
+      fieldVertical: fieldVerticalInputs.find((input) => input.checked)?.value || 'top',
+      fieldBeat: sanitizeAssignmentBeat(fieldBeatInputs.find((input) => input.checked)?.value ?? 1, sanitizeStrikeCount(currentStrikeCount)),
+      mode: selectedMode === 'tempo' ? 'tempo' : 'free',
+      tempoBpm: Number(challengeTempoSlider.value),
+      metronomeEnabled: Boolean(metronomeToggle.checked),
+      strikePositions: managerRef && managerRef.exerciseFieldStrikePositions ? {
+        left: (managerRef.exerciseFieldStrikePositions.left || []).map((point) => ({ x: Number(point.x), y: Number(point.y) })),
+        right: (managerRef.exerciseFieldStrikePositions.right || []).map((point) => ({ x: Number(point.x), y: Number(point.y) }))
+      } : { left: [], right: [] }
+    };
+  };
 
   const saveSettings = () => {
     try {
@@ -1407,7 +1434,10 @@ function createExerciseFieldPanel() {
   };
 
   const syncAssignmentBeatInputs = (strikeCount) => {
-    const normalizedStrikeCount = sanitizeStrikeCount(strikeCount);
+    const canonicalLevelStrikeCount = uiState.activeChapter === 6 && Number.isInteger(uiState.activeLevel)
+      ? getExerciseFieldLevelStrikeCount(uiState.activeLevel)
+      : null;
+    const normalizedStrikeCount = sanitizeStrikeCount(canonicalLevelStrikeCount ?? strikeCount);
     const selectedBeat = sanitizeAssignmentBeat(
       fieldBeatInputs.find((input) => input.checked)?.value ?? 1,
       normalizedStrikeCount
@@ -1433,16 +1463,28 @@ function createExerciseFieldPanel() {
         if (!input.checked) {
           return;
         }
+        const nextBeat = sanitizeAssignmentBeat(
+          input.value,
+          sanitizeStrikeCount(Number(managerRef?.exerciseFieldStrikeCount) || getExerciseLevelStrikeCount(uiState.activeLevel ?? 0))
+        );
         managerRef?.setExerciseFieldAssignment?.({
           side: fieldSideInputs.find((item) => item.checked)?.value || 'left',
           vertical: fieldVerticalInputs.find((item) => item.checked)?.value || 'top',
-          beatIndex: sanitizeAssignmentBeat(input.value, sanitizeStrikeCount(strikeCountInputs.find((item) => item.checked)?.value ?? 2))
+          beatIndex: nextBeat
         });
         saveSettings();
       });
       bindUiDescription(option, 'Einsätze geben', 'Einsatz');
       bindUiDescription(input, 'Einsätze geben', 'Einsatz');
     }
+
+    const currentBeatValue = sanitizeAssignmentBeat(
+      fieldBeatInputs.find((input) => input.checked)?.value ?? selectedBeat,
+      normalizedStrikeCount
+    );
+    fieldBeatInputs.forEach((input) => {
+      input.checked = Number(input.value) === currentBeatValue;
+    });
   };
 
   const setControlsFromState = (state) => {
@@ -1451,7 +1493,9 @@ function createExerciseFieldPanel() {
     const enabled = forceVisible || (typeof safeState.enabled === 'boolean' ? safeState.enabled : true);
     const scale = Number.isFinite(Number(safeState.scale)) ? Number(safeState.scale) : 1;
     const xOffset = Number.isFinite(Number(safeState.xOffset)) ? Number(safeState.xOffset) : 0;
-    const strikeCount = sanitizeStrikeCount(safeState.strikeCount ?? 2);
+    const strikeCount = uiState.activeChapter === 6 && Number.isInteger(uiState.activeLevel)
+      ? getExerciseFieldLevelStrikeCount(uiState.activeLevel)
+      : sanitizeStrikeCount(safeState.strikeCount ?? 2);
     const strikeRadius = clampExerciseFieldStrikeRadius(safeState.strikeRadius ?? EXERCISE_FIELD_STRIKE_RADIUS_MIN);
     const fieldSide = safeState.fieldSide === 'right' ? 'right' : 'left';
     const fieldVertical = safeState.fieldVertical === 'bottom' ? 'bottom' : 'top';
@@ -1461,7 +1505,7 @@ function createExerciseFieldPanel() {
       ? Math.min(180, Math.max(30, Number(safeState.tempoBpm)))
       : 60;
     const nextMetronomeEnabled = typeof safeState.metronomeEnabled === 'boolean' ? safeState.metronomeEnabled : false;
-    const strikePositions = sanitizeExerciseFieldStrikePositions(safeState.strikePositions);
+    const strikePositions = sanitizeExerciseFieldStrikePositions(safeState.strikePositions, strikeCount);
 
     selectedMode = nextMode;
     challengeTempoSlider.value = String(nextTempoBpm);
@@ -1471,9 +1515,6 @@ function createExerciseFieldPanel() {
     xOffsetSlider.value = String(Math.min(1, Math.max(0, xOffset)));
     syncCircleSliderRange();
     circleSizeSlider.value = String(clampExerciseFieldStrikeRadius(strikeRadius));
-    strikeCountInputs.forEach((input) => {
-      input.checked = Number(input.value) === strikeCount;
-    });
     syncAssignmentBeatInputs(strikeCount);
     fieldSideInputs.forEach((input) => {
       input.checked = input.value === fieldSide;
@@ -1513,6 +1554,107 @@ function createExerciseFieldPanel() {
   title.className = 'figure-side-panel-title';
   title.textContent = 'Einsatzfelder';
   panel.appendChild(title);
+
+  const presetPanel = document.createElement('div');
+  presetPanel.className = 'hand-independence-preset-panel';
+  const presetHeader = document.createElement('div');
+  presetHeader.className = 'hand-independence-preset-header';
+  const presetTitle = document.createElement('div');
+  presetTitle.className = 'figure-panel-section-title';
+  presetTitle.textContent = 'Presets';
+  const presetSlots = document.createElement('div');
+  presetSlots.className = 'figure-preset-slots dynamic-figure-preset-slots';
+  const presetActions = document.createElement('div');
+  presetActions.className = 'dynamic-figure-preset-actions';
+  const presetSaveButton = document.createElement('button');
+  presetSaveButton.type = 'button';
+  presetSaveButton.className = 'dynamic-figure-preset-action';
+  presetSaveButton.textContent = 'Speichern';
+  presetSaveButton.title = 'Aktuelle Einstellungen im Preset-Slot für diese Übung speichern';
+  const presetResetButton = document.createElement('button');
+  presetResetButton.type = 'button';
+  presetResetButton.className = 'dynamic-figure-preset-action';
+  presetResetButton.textContent = 'Zurücksetzen';
+  presetResetButton.title = 'Die Presets für diese Übung auf Werkseinstellungen zurücksetzen';
+  presetHeader.append(presetTitle);
+  presetActions.append(presetSaveButton, presetResetButton);
+  presetPanel.append(presetHeader, presetSlots, presetActions);
+  panel.appendChild(presetPanel);
+
+  let selectedPresetSlot = 0;
+  const getPresetBucketForLevel = (exerciseLevel = uiState.activeLevel ?? 0) => {
+    const safeLevel = Number.isInteger(Number(exerciseLevel)) ? Math.max(0, Math.min(2, Number(exerciseLevel))) : 0;
+    const presets = readPresetMap();
+    const bucket = presets[String(safeLevel)] || {};
+    if (bucket && typeof bucket === 'object' && !Array.isArray(bucket)) {
+      const slotKeys = ['0', '1', '2', '3'];
+      const hasSlotData = slotKeys.some((key) => Object.prototype.hasOwnProperty.call(bucket, key));
+      if (hasSlotData || Object.prototype.hasOwnProperty.call(bucket, 'selectedSlot')) {
+        return bucket;
+      }
+      if (Object.prototype.hasOwnProperty.call(bucket, 'enabled') || Object.prototype.hasOwnProperty.call(bucket, 'scale') || Object.prototype.hasOwnProperty.call(bucket, 'strikeCount')) {
+        return { selectedSlot: 0, '0': { ...bucket } };
+      }
+    }
+    const nextBucket = { selectedSlot: 0 };
+    presets[String(safeLevel)] = nextBucket;
+    localStorage.setItem(presetsKey, JSON.stringify(presets));
+    return nextBucket;
+  };
+
+  const renderPresetSlots = () => {
+    const exerciseLevel = Number.isInteger(Number(uiState.activeLevel)) ? Math.max(0, Math.min(2, Number(uiState.activeLevel))) : 0;
+    const presetBucket = getPresetBucketForLevel(exerciseLevel);
+    const activeSlot = Number.isInteger(Number(presetBucket.selectedSlot)) ? Number(presetBucket.selectedSlot) : 0;
+    selectedPresetSlot = Math.max(0, Math.min(3, activeSlot));
+    presetSlots.innerHTML = '';
+    for (let slot = 0; slot < 4; slot += 1) {
+      const option = document.createElement('label');
+      option.className = 'dynamic-figure-preset-option';
+      const input = document.createElement('input');
+      input.type = 'radio';
+      input.name = 'exercise-field-preset';
+      input.value = String(slot);
+      input.checked = slot === selectedPresetSlot;
+      input.addEventListener('change', () => {
+        if (!input.checked) {
+          return;
+        }
+        const currentExerciseLevel = Number.isInteger(Number(uiState.activeLevel)) ? Math.max(0, Math.min(2, Number(uiState.activeLevel))) : 0;
+        const currentBucket = getPresetBucketForLevel(currentExerciseLevel);
+        selectedPresetSlot = slot;
+        currentBucket.selectedSlot = slot;
+        const presets = readPresetMap();
+        presets[String(currentExerciseLevel)] = currentBucket;
+        localStorage.setItem(presetsKey, JSON.stringify(presets));
+        const nextPreset = currentBucket[String(slot)];
+        if (nextPreset && typeof nextPreset === 'object') {
+          setControlsFromState(nextPreset);
+        }
+      });
+      const caption = document.createElement('span');
+      caption.textContent = String(slot + 1);
+      option.append(input, caption);
+      presetSlots.appendChild(option);
+    }
+  };
+
+  presetSaveButton.addEventListener('click', () => {
+    const savedSlot = savePresetFromPrompt();
+    if (Number.isInteger(savedSlot)) {
+      selectedPresetSlot = savedSlot;
+      renderPresetSlots();
+    }
+  });
+
+  presetResetButton.addEventListener('click', () => {
+    const exerciseLevel = Number.isInteger(Number(uiState.activeLevel)) ? Math.max(0, Math.min(2, Number(uiState.activeLevel))) : 0;
+    const presets = readPresetMap();
+    presets[String(exerciseLevel)] = { selectedSlot: 0 };
+    selectedPresetSlot = 0;
+    localStorage.setItem(presetsKey, JSON.stringify(presets));
+    renderPresetSlots();
+  });
 
   const toggleInput = document.createElement('input');
   toggleInput.type = 'checkbox';
@@ -1726,35 +1868,6 @@ function createExerciseFieldPanel() {
   bindUiDescription(circleSizeLabel, 'Einsätze geben', 'Kreisgröße');
   bindUiDescription(circleSizeSlider, 'Einsätze geben', 'Kreisgröße');
 
-  const strikeCountWrap = document.createElement('div');
-  strikeCountWrap.className = 'figure-side-group';
-
-  const strikeCountTitle = document.createElement('div');
-  strikeCountTitle.className = 'figure-size-label';
-  strikeCountTitle.textContent = 'Schlaganzahl';
-  strikeCountWrap.appendChild(strikeCountTitle);
-
-  const strikeCountGroup = document.createElement('div');
-  strikeCountGroup.className = 'figure-mode-group';
-  const strikeCountInputs = [2, 3, 4].map((value) => {
-    const option = document.createElement('label');
-    option.className = 'figure-mode-option';
-    const input = document.createElement('input');
-    input.type = 'radio';
-    input.name = 'exercise-field-strike-count';
-    input.value = String(value);
-    input.checked = sanitizeStrikeCount(readSavedSettings().strikeCount) === value;
-    option.appendChild(input);
-    option.appendChild(document.createTextNode(String(value)));
-    strikeCountGroup.appendChild(option);
-    return input;
-  });
-  strikeCountWrap.appendChild(strikeCountGroup);
-  panel.appendChild(strikeCountWrap);
-  bindUiDescription(strikeCountTitle, 'Einsätze geben', 'Schlaganzahl');
-  strikeCountInputs.forEach((input) => bindUiDescription(input, 'Einsätze geben', 'Schlaganzahl'));
-  bindUiGroupDescription([...strikeCountGroup.querySelectorAll('label, input')], 'Einsätze geben', 'Schlaganzahl');
-
   const fieldSideWrap = document.createElement('div');
   fieldSideWrap.className = 'figure-side-group';
   const fieldSideTitle = document.createElement('div');
@@ -1926,27 +2039,6 @@ function createExerciseFieldPanel() {
     saveSettings();
   });
 
-  strikeCountInputs.forEach((input) => {
-    input.addEventListener('change', () => {
-      if (!input.checked) {
-        return;
-      }
-      const nextValue = sanitizeStrikeCount(input.value);
-      syncAssignmentBeatInputs(nextValue);
-      const activeBeat = sanitizeAssignmentBeat(
-        fieldBeatInputs.find((item) => item.checked)?.value ?? 1,
-        nextValue
-      );
-      managerRef?.setExerciseFieldStrikeCount?.(nextValue);
-      managerRef?.setExerciseFieldAssignment?.({
-        side: fieldSideInputs.find((item) => item.checked)?.value || 'left',
-        vertical: fieldVerticalInputs.find((item) => item.checked)?.value || 'top',
-        beatIndex: activeBeat
-      });
-      saveSettings();
-    });
-  });
-
   fieldSideInputs.forEach((input) => {
     input.addEventListener('change', () => {
       if (!input.checked) {
@@ -1955,7 +2047,7 @@ function createExerciseFieldPanel() {
       managerRef?.setExerciseFieldAssignment?.({
         side: input.value,
         vertical: fieldVerticalInputs.find((item) => item.checked)?.value || 'top',
-        beatIndex: sanitizeAssignmentBeat(fieldBeatInputs.find((item) => item.checked)?.value ?? 1, sanitizeStrikeCount(strikeCountInputs.find((item) => item.checked)?.value ?? 2))
+        beatIndex: sanitizeAssignmentBeat(fieldBeatInputs.find((item) => item.checked)?.value ?? 1, sanitizeStrikeCount(Number(managerRef?.exerciseFieldStrikeCount) || getExerciseLevelStrikeCount(uiState.activeLevel ?? 0)))
       });
       saveSettings();
     });
@@ -1969,61 +2061,63 @@ function createExerciseFieldPanel() {
       managerRef?.setExerciseFieldAssignment?.({
         side: fieldSideInputs.find((item) => item.checked)?.value || 'left',
         vertical: input.value,
-        beatIndex: sanitizeAssignmentBeat(fieldBeatInputs.find((item) => item.checked)?.value ?? 1, sanitizeStrikeCount(strikeCountInputs.find((item) => item.checked)?.value ?? 2))
+        beatIndex: sanitizeAssignmentBeat(fieldBeatInputs.find((item) => item.checked)?.value ?? 1, sanitizeStrikeCount(Number(managerRef?.exerciseFieldStrikeCount) || getExerciseLevelStrikeCount(uiState.activeLevel ?? 0)))
       });
       saveSettings();
     });
   });
 
-  const applyPreset = (slot) => {
-    const normalizedSlot = Number(slot);
-    const presetIndex = Number.isInteger(normalizedSlot) && normalizedSlot >= 0 && normalizedSlot <= 4
-      ? normalizedSlot
-      : 0;
-    const presets = readPresetMap();
-    const preset = presets[String(presetIndex)] || {};
+  const applyPreset = (exerciseLevel = uiState.activeLevel ?? 0, slotOverride = null) => {
+    const normalizedLevel = Number.isInteger(Number(exerciseLevel)) ? Math.max(0, Math.min(2, Number(exerciseLevel))) : 0;
+    const presetBucket = getPresetBucketForLevel(normalizedLevel);
+    const normalizedSlot = Number.isInteger(Number(slotOverride)) ? Number(slotOverride) : Number(presetBucket.selectedSlot);
+    const activeSlot = Number.isInteger(normalizedSlot) && normalizedSlot >= 0 && normalizedSlot <= 3 ? normalizedSlot : 0;
+    const preset = presetBucket[String(activeSlot)] || {};
     const currentSettings = readSavedSettings();
-    const savedStrikePositions = sanitizeExerciseFieldStrikePositions(preset.strikePositions ?? currentSettings.strikePositions);
+    const fallbackStrikeCount = getExerciseLevelStrikeCount(normalizedLevel);
+    const strikeCount = fallbackStrikeCount;
+    const savedStrikePositions = sanitizeExerciseFieldStrikePositions(
+      preset.strikePositions ?? currentSettings.strikePositions,
+      strikeCount
+    );
     const nextState = {
       enabled: typeof preset.enabled === 'boolean' ? preset.enabled : currentSettings.enabled,
       scale: Number.isFinite(Number(preset.scale)) ? Number(preset.scale) : currentSettings.scale,
       xOffset: Number.isFinite(Number(preset.xOffset)) ? Number(preset.xOffset) : currentSettings.xOffset,
-      strikeCount: sanitizeStrikeCount(preset.strikeCount ?? currentSettings.strikeCount),
+      strikeCount,
       strikeRadius: Number.isFinite(Number(preset.strikeRadius)) ? Number(preset.strikeRadius) : currentSettings.strikeRadius,
       fieldSide: preset.fieldSide === 'right' ? 'right' : 'left',
       fieldVertical: preset.fieldVertical === 'bottom' ? 'bottom' : 'top',
-      fieldBeat: sanitizeAssignmentBeat(preset.fieldBeat ?? currentSettings.fieldBeat, sanitizeStrikeCount(preset.strikeCount ?? currentSettings.strikeCount)),
+      fieldBeat: sanitizeAssignmentBeat(preset.fieldBeat ?? currentSettings.fieldBeat ?? 1, strikeCount),
       mode: preset.mode === 'tempo' ? 'tempo' : 'free',
       tempoBpm: Number.isFinite(Number(preset.tempoBpm)) ? Math.min(180, Math.max(30, Number(preset.tempoBpm))) : (Number.isFinite(Number(currentSettings.tempoBpm)) ? Number(currentSettings.tempoBpm) : 60),
       metronomeEnabled: typeof preset.metronomeEnabled === 'boolean' ? preset.metronomeEnabled : (typeof currentSettings.metronomeEnabled === 'boolean' ? currentSettings.metronomeEnabled : false),
       strikePositions: savedStrikePositions
     };
 
-    console.group(`Exercise Field preset ${presetIndex}`);
-    console.log('saved preset state:', JSON.parse(JSON.stringify(preset)));
-    console.log('saved strike positions from preset:', JSON.parse(JSON.stringify(savedStrikePositions)));
-    console.log('before restore rendered positions:', JSON.parse(JSON.stringify(managerRef?.exerciseFieldStrikePositions || { left: [], right: [] })));
-
     setControlsFromState(nextState);
-
-    const renderedPositions = managerRef?.exerciseFieldStrikePositions || { left: [], right: [] };
-    console.log('after restore rendered positions:', JSON.parse(JSON.stringify(renderedPositions)));
-    console.log('after restore current state positions:', JSON.parse(JSON.stringify(getCurrentState().strikePositions)));
-    console.groupEnd();
+    selectedPresetSlot = activeSlot;
+    renderPresetSlots();
     return true;
   };
 
   const savePresetFromPrompt = () => {
-    const requestedSlot = window.prompt('In welchen Preset-Slot möchten Sie die aktuellen Einstellungen speichern? (1-5)');
+    const requestedSlot = window.prompt('In welchen Preset-Slot möchten Sie die aktuellen Einstellungen speichern? (1-4)', String(selectedPresetSlot + 1));
     const slot = Number(requestedSlot);
-    if (!Number.isInteger(slot) || slot < 1 || slot > 5) {
+    if (!Number.isInteger(slot) || slot < 1 || slot > 4) {
       return null;
     }
 
+    const exerciseLevel = Number.isInteger(Number(uiState.activeLevel)) ? Math.max(0, Math.min(2, Number(uiState.activeLevel))) : 0;
+    const presetBucket = getPresetBucketForLevel(exerciseLevel);
     const presetIndex = slot - 1;
+    presetBucket[String(presetIndex)] = getCurrentState();
+    presetBucket.selectedSlot = presetIndex;
     const presets = readPresetMap();
-    presets[String(presetIndex)] = getCurrentState();
+    presets[String(exerciseLevel)] = presetBucket;
     localStorage.setItem(presetsKey, JSON.stringify(presets));
+    selectedPresetSlot = presetIndex;
+    renderPresetSlots();
     return presetIndex;
   };
 
@@ -2055,7 +2149,12 @@ function createExerciseFieldPanel() {
         metronomeEnabled: false
       };
       const nextPresets = defaults['motionai.exercise-field-presets'] || {};
-      const defaultPresetState = nextPresets[String(0)] || nextPanelSettings;
+      const activeExerciseLevel = Number.isInteger(uiState?.activeLevel) && uiState.activeLevel >= 0 && uiState.activeLevel <= 2
+        ? uiState.activeLevel
+        : 0;
+      const resetBucket = { selectedSlot: 0 };
+      const defaultsBucket = nextPresets[String(activeExerciseLevel)] || { selectedSlot: 0 };
+      const activePreset = defaultsBucket[String(Number(defaultsBucket.selectedSlot ?? 0))] || defaultsBucket['0'] || nextPanelSettings || {};
 
       localStorage.setItem(storageKey, JSON.stringify({
         enabled: typeof nextPanelSettings.enabled === 'boolean' ? nextPanelSettings.enabled : true,
@@ -2069,12 +2168,10 @@ function createExerciseFieldPanel() {
         mode: nextPanelSettings.mode === 'tempo' ? 'tempo' : 'free',
         tempoBpm: Number.isFinite(Number(nextPanelSettings.tempoBpm)) ? Math.min(180, Math.max(30, Number(nextPanelSettings.tempoBpm))) : 60
       }));
-      localStorage.setItem(presetsKey, JSON.stringify(nextPresets));
+      const nextPresetMap = readPresetMap();
+      nextPresetMap[String(activeExerciseLevel)] = { ...resetBucket, ...defaultsBucket, selectedSlot: 0 };
+      localStorage.setItem(presetsKey, JSON.stringify(nextPresetMap));
 
-      const activePresetIndex = Number.isInteger(uiState?.activeLevel) && uiState.activeLevel >= 0 && uiState.activeLevel <= 4
-        ? uiState.activeLevel
-        : 0;
-      const activePreset = nextPresets[String(activePresetIndex)] || defaultPresetState || {};
       setControlsFromState({
         enabled: typeof activePreset.enabled === 'boolean' ? activePreset.enabled : true,
         scale: Number.isFinite(Number(activePreset.scale)) ? Number(activePreset.scale) : 1,
@@ -2086,9 +2183,9 @@ function createExerciseFieldPanel() {
         fieldBeat: sanitizeAssignmentBeat(activePreset.fieldBeat ?? 1, sanitizeStrikeCount(activePreset.strikeCount ?? 2)),
         mode: activePreset.mode === 'tempo' ? 'tempo' : 'free',
         tempoBpm: Number.isFinite(Number(activePreset.tempoBpm)) ? Math.min(180, Math.max(30, Number(activePreset.tempoBpm))) : 60,
-        strikePositions: sanitizeExerciseFieldStrikePositions(activePreset.strikePositions || {})
+        strikePositions: sanitizeExerciseFieldStrikePositions(activePreset.strikePositions || {}, sanitizeStrikeCount(activePreset.strikeCount ?? 2))
       });
-      applyPreset(activePresetIndex);
+      applyPreset(activeExerciseLevel, 0);
       window.alert('Die Presets für das Kapitel „Einsätze geben“ wurden auf die Werkseinstellungen zurückgesetzt.');
       return true;
     } catch (error) {
@@ -2115,7 +2212,9 @@ function createExerciseFieldPanel() {
       const restoredScale = Number.isFinite(savedSettings.scale) ? savedSettings.scale : 1;
       const restoredOffset = Number.isFinite(savedSettings.xOffset) ? savedSettings.xOffset : 0;
       const restoredEnabled = typeof savedSettings.enabled === 'boolean' ? savedSettings.enabled : true;
-      const restoredStrikeCount = sanitizeStrikeCount(savedSettings.strikeCount ?? 2);
+      const restoredStrikeCount = uiState.activeChapter === 6 && Number.isInteger(uiState.activeLevel)
+        ? getExerciseFieldLevelStrikeCount(uiState.activeLevel)
+        : sanitizeStrikeCount(savedSettings.strikeCount ?? 2);
       const restoredStrikeRadius = clampExerciseFieldStrikeRadius(savedSettings.strikeRadius ?? EXERCISE_FIELD_STRIKE_RADIUS_MIN);
       const restoredFieldSide = savedSettings.fieldSide === 'right' ? 'right' : 'left';
       const restoredFieldVertical = savedSettings.fieldVertical === 'bottom' ? 'bottom' : 'top';
@@ -2171,9 +2270,6 @@ function createExerciseFieldPanel() {
       challengeModeInputs.forEach((input) => {
         input.checked = input.value === selectedMode;
       });
-      strikeCountInputs.forEach((input) => {
-        input.checked = Number(input.value) === restoredStrikeCount;
-      });
       syncAssignmentBeatInputs(restoredStrikeCount);
       fieldSideInputs.forEach((input) => {
         input.checked = input.value === restoredFieldSide;
@@ -2209,7 +2305,7 @@ function createExerciseFieldPanel() {
       tempoBpm: Number(challengeTempoSlider.value),
       accuracy: 0,
       activeIndex: 0,
-      strikeCount: sanitizeStrikeCount(strikeCountInputs.find((input) => input.checked)?.value ?? 2)
+      strikeCount: sanitizeStrikeCount(Number(managerRef?.exerciseFieldStrikeCount) || getExerciseLevelStrikeCount(uiState.activeLevel ?? 0))
     },
     setScale: (value) => {
       const next = Number(value);
@@ -2228,10 +2324,11 @@ function createExerciseFieldPanel() {
       saveSettings();
     },
     setStrikeCount: (value) => {
-      const nextValue = sanitizeStrikeCount(value);
-      strikeCountInputs.forEach((input) => {
-        input.checked = Number(input.value) === nextValue;
-      });
+      const canonicalLevelStrikeCount = uiState.activeChapter === 6 && Number.isInteger(uiState.activeLevel)
+        ? getExerciseFieldLevelStrikeCount(uiState.activeLevel)
+        : null;
+      const nextValue = sanitizeStrikeCount(canonicalLevelStrikeCount ?? value);
+      syncAssignmentBeatInputs(nextValue);
       managerRef?.setExerciseFieldStrikeCount?.(nextValue);
       saveSettings();
     },
@@ -3907,7 +4004,33 @@ function createHandIndependencePanel() {
   const title = document.createElement('div');
   title.className = 'figure-side-panel-title';
   title.textContent = 'Handunabhängigkeit';
-  panel.appendChild(title);
+
+  const presetPanel = document.createElement('div');
+  presetPanel.className = 'hand-independence-preset-panel';
+  const presetHeader = document.createElement('div');
+  presetHeader.className = 'hand-independence-preset-header';
+  const presetTitle = document.createElement('div');
+  presetTitle.className = 'figure-panel-section-title';
+  presetTitle.textContent = 'Presets';
+  const presetSlots = document.createElement('div');
+  presetSlots.className = 'figure-preset-slots dynamic-figure-preset-slots';
+  const presetActions = document.createElement('div');
+  presetActions.className = 'dynamic-figure-preset-actions';
+  const presetSaveButton = document.createElement('button');
+  presetSaveButton.type = 'button';
+  presetSaveButton.className = 'dynamic-figure-preset-action';
+  presetSaveButton.textContent = 'Speichern';
+  presetSaveButton.title = 'Aktuelle Einstellungen im Preset-Slot für diese Übung speichern';
+  const presetResetButton = document.createElement('button');
+  presetResetButton.type = 'button';
+  presetResetButton.className = 'dynamic-figure-preset-action';
+  presetResetButton.textContent = 'Zurücksetzen';
+  presetResetButton.title = 'Die Presets für diese Übung auf Werkseinstellungen zurücksetzen';
+  presetHeader.appendChild(presetTitle);
+  presetActions.append(presetSaveButton, presetResetButton);
+  presetPanel.append(presetHeader, presetSlots, presetActions);
+
+  panel.append(title, presetPanel);
 
   const motionDistanceDivider = document.createElement('div');
   motionDistanceDivider.className = 'figure-panel-divider';
@@ -3983,6 +4106,63 @@ function createHandIndependencePanel() {
 
   let selectedPresetSlot = 0;
 
+  const getPresetBucketForLevel = (figureLevel = settings.figureLevel) => {
+    const safeLevel = Number.isInteger(Number(figureLevel)) ? Number(figureLevel) : 0;
+    const value = presets[String(safeLevel)];
+    return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  };
+
+  function renderPresetSlots() {
+    const figureLevel = Number.isInteger(Number(settings.figureLevel)) ? Number(settings.figureLevel) : 0;
+    const presetBucket = getPresetBucketForLevel(figureLevel);
+    const activeSlot = Number.isInteger(Number(presetBucket.selectedSlot))
+      ? Number(presetBucket.selectedSlot)
+      : selectedPresetSlot;
+    selectedPresetSlot = Math.max(0, Math.min(3, activeSlot));
+    presetSlots.innerHTML = '';
+    for (let slot = 0; slot < 4; slot += 1) {
+      const option = document.createElement('label');
+      option.className = 'dynamic-figure-preset-option';
+      const input = document.createElement('input');
+      input.type = 'radio';
+      input.name = 'hand-independence-preset';
+      input.value = String(slot);
+      input.checked = slot === selectedPresetSlot;
+      input.addEventListener('change', () => {
+        if (!input.checked) return;
+        selectedPresetSlot = slot;
+        const bucket = getPresetBucketForLevel(settings.figureLevel);
+        bucket.selectedSlot = slot;
+        presets[String(settings.figureLevel)] = bucket;
+        persist();
+        const nextPreset = bucket[String(slot)];
+        if (nextPreset && typeof nextPreset === 'object') {
+          apply(nextPreset);
+        }
+      });
+      const caption = document.createElement('span');
+      caption.textContent = String(slot + 1);
+      option.append(input, caption);
+      presetSlots.appendChild(option);
+    }
+  }
+
+  presetSaveButton.addEventListener('click', () => {
+    const savedSlot = savePresetFromPrompt();
+    if (Number.isInteger(savedSlot)) {
+      selectedPresetSlot = savedSlot;
+      renderPresetSlots();
+    }
+  });
+
+  presetResetButton.addEventListener('click', () => {
+    const figureLevel = Number.isInteger(Number(settings.figureLevel)) ? Number(settings.figureLevel) : 0;
+    presets[String(figureLevel)] = {};
+    selectedPresetSlot = 0;
+    localStorage.setItem(presetKey, JSON.stringify(presets));
+    renderPresetSlots();
+  });
+
   const createSection = (label) => {
     const heading = document.createElement('div');
     heading.className = 'figure-panel-section-title';
@@ -4015,6 +4195,38 @@ function createHandIndependencePanel() {
     });
     wrap.append(caption, input, value); target.appendChild(wrap); controls[key] = input; controlWraps[key] = wrap;
     return group;
+  };
+
+  const capturePresetSnapshot = () => {
+    const activeVariant = variantGroup.querySelector('input:checked')?.value || settings.variant || 'hard';
+    const activeVariation = variationGroup.querySelector('input:checked')?.value || String(settings.figureVariation ?? 1);
+    const presetSnapshot = {
+      figureLevel: Number.isInteger(Number(settings.figureLevel)) ? Number(settings.figureLevel) : 0,
+      figureVariation: Number(activeVariation) === 2 ? 2 : 1,
+      variant: activeVariant,
+      reverse: Boolean(controls.reverse?.checked ?? settings.reverse ?? false),
+      dynamicsVisible: Boolean(dynamicsInput.checked),
+      countTimesVisible: Boolean(countInput.checked),
+      motionDistanceVisible: Boolean(motionDistanceInput.checked),
+      motionDistanceStrictness: Number(motionDistanceStrictnessSlider.value ?? settings.motionDistanceStrictness ?? 100),
+      tempoRatio: ratioSelect.value || settings.tempoRatio || '1:1',
+      shape: select.value || settings.shape || 'line',
+      scale: Number(controls.scale?.value ?? settings.scale ?? managerRef?.handIndependenceFigureScale ?? 1 / 3),
+      strokeWidth: Number(controls.strokeWidth?.value ?? settings.strokeWidth ?? managerRef?.handIndependenceFigureStrokeWidth ?? 0.4),
+      sharedX: Number(controls.sharedX?.value ?? settings.sharedX ?? managerRef?.handIndependenceFigureX ?? 0),
+      sharedY: Number(controls.sharedY?.value ?? settings.sharedY ?? managerRef?.handIndependenceFigureY ?? 0.5),
+      sharedTempoBpm: Number(controls.sharedTempoBpm?.value ?? settings.sharedTempoBpm ?? managerRef?.handIndependenceSharedTempoBpm ?? 60),
+      figureHardLinearity: Number(controls.figureHardLinearity?.value ?? settings.figureHardLinearity ?? managerRef?.handIndependenceFigureHardLinearity ?? 10),
+      figureSoftTransitionPercent: Number(controls.figureSoftTransitionPercent?.value ?? settings.figureSoftTransitionPercent ?? managerRef?.handIndependenceFigureSoftTransitionPercent ?? 0),
+      length: Number(controls.length?.value ?? settings.length ?? managerRef?.handIndependenceShapeLength ?? 12),
+      width: Number(controls.width?.value ?? settings.width ?? managerRef?.handIndependenceShapeWidth ?? 8),
+      height: Number(controls.height?.value ?? settings.height ?? managerRef?.handIndependenceShapeHeight ?? 8),
+      rotation: Number(controls.rotation?.value ?? settings.rotation ?? managerRef?.handIndependenceShapeRotation ?? 0),
+      cornerHeights: Array.from({ length: 8 }, (_, index) => Number(managerRef?.handIndependenceFigureCornerHeights?.[index] ?? settings[`corner${index}`] ?? 0))
+    };
+
+    Object.assign(settings, presetSnapshot);
+    return presetSnapshot;
   };
   const addToggle = (key, label) => {
     const wrap = document.createElement('label'); wrap.className = 'figure-dynamics-toggle';
@@ -4069,25 +4281,41 @@ function createHandIndependencePanel() {
   panel.appendChild(ratioSelect);
   controls.tempoRatio = ratioSelect;
   addDivider();
-  createSection('Taktgebung');
-  const figureSelect = document.createElement('select');
-  figureSelect.className = 'hand-independence-figure-select';
-  ['Einserfigur', 'Zweierfigur', 'Dreierfigur', 'Viererfigur', 'Vierviertel', 'Dreiviertel', 'Zweiviertel'].forEach((figureName, index) => {
-    const option = document.createElement('option');
-    option.value = String(index);
-    option.textContent = figureName;
-    figureSelect.appendChild(option);
+  const taktgebungDivider = document.createElement('div');
+  taktgebungDivider.className = 'figure-panel-divider';
+  panel.appendChild(taktgebungDivider);
+
+  const taktgebungTitle = document.createElement('div');
+  taktgebungTitle.className = 'figure-panel-section-title hand-independence-taktgebung-title';
+  taktgebungTitle.textContent = 'Taktgebung';
+  panel.appendChild(taktgebungTitle);
+
+  const variationGroup = document.createElement('div');
+  variationGroup.className = 'figure-mode-group hand-independence-figure-variation-group';
+  const variationInputs = {};
+  ['1', '2'].forEach((variation) => {
+    const label = document.createElement('label');
+    label.className = 'figure-mode-option';
+    const input = document.createElement('input');
+    input.type = 'radio';
+    input.name = 'hand-independence-figure-variation';
+    input.value = variation;
+    input.checked = String(settings.figureVariation ?? 1) === variation;
+    variationInputs[variation] = input;
+    input.addEventListener('change', () => {
+      if (!input.checked) return;
+      settings.figureVariation = Number(input.value);
+      managerRef?.setHandIndependenceFigureVariation(Number(input.value));
+      persist();
+    });
+    label.append(input, document.createTextNode(`Variation ${variation}`));
+    variationGroup.appendChild(label);
   });
-  figureSelect.value = String(Number(settings.figureLevel ?? 0));
-  figureSelect.addEventListener('change', () => {
-    settings.figureLevel = Number(figureSelect.value);
-    managerRef?.setHandIndependenceFigureLevel(settings.figureLevel);
-    rebuildCornerControls(settings.figureLevel);
-    persist();
-  });
-  panel.appendChild(figureSelect);
-  controls.figureLevel = figureSelect;
-  bindUiGroupDescription([figureSelect], 'Handunabhängigkeit', 'Taktgebung');
+  panel.appendChild(variationGroup);
+  const updateFigureVariationVisibility = () => {
+    const activeLevel = Number.isInteger(Number(settings.figureLevel)) ? Number(settings.figureLevel) : 0;
+    variationGroup.classList.toggle('hand-independence-figure-variation-hidden', activeLevel === 0);
+  };
   const variantGroup = document.createElement('div'); variantGroup.className = 'figure-mode-group';
   const variantInputs = {};
   ['soft', 'hard'].forEach((variant) => {
@@ -4099,6 +4327,7 @@ function createHandIndependencePanel() {
     label.append(input, document.createTextNode(variant === 'soft' ? 'Weich' : 'Hart')); variantGroup.appendChild(label);
   });
   panel.appendChild(variantGroup);
+  bindUiGroupDescription([...variationGroup.querySelectorAll('label, input')], 'Handunabhängigkeit', 'Variation');
   bindUiGroupDescription([...variantGroup.querySelectorAll('label, input')], 'Handunabhängigkeit', 'weichHart');
   const countToggle = document.createElement('label');
   countToggle.className = 'figure-dynamics-toggle';
@@ -4209,9 +4438,16 @@ function createHandIndependencePanel() {
       input.checked = variant === selectedVariant;
     });
     if (Number.isInteger(Number(safeNext.figureLevel))) {
-      const figureLevel = Math.max(0, Math.min(6, Number(safeNext.figureLevel)));
+      const figureLevel = Math.max(0, Math.min(3, Number(safeNext.figureLevel)));
       settings.figureLevel = figureLevel;
-      figureSelect.value = String(figureLevel);
+      selectedPresetSlot = Number(getPresetBucketForLevel(settings.figureLevel).selectedSlot ?? 0);
+      renderPresetSlots();
+    }
+    if (Number.isInteger(Number(safeNext.figureVariation))) {
+      settings.figureVariation = Number(safeNext.figureVariation) === 2 ? 2 : 1;
+      Object.entries(variationInputs).forEach(([variation, input]) => {
+        input.checked = Number(variation) === settings.figureVariation;
+      });
     }
     if (typeof safeNext.countTimesVisible === 'boolean') {
       settings.countTimesVisible = safeNext.countTimesVisible;
@@ -4233,6 +4469,9 @@ function createHandIndependencePanel() {
       countInput.checked = Boolean(settings.countTimesVisible);
     }
     if (safeNext.variant) managerRef?.setHandIndependenceVariant(safeNext.variant);
+    if (Number.isInteger(Number(safeNext.figureVariation))) {
+      managerRef?.setHandIndependenceFigureVariation(Number(safeNext.figureVariation));
+    }
     if (Number.isInteger(Number(safeNext.figureLevel))) {
       managerRef?.setHandIndependenceFigureLevel(Number(safeNext.figureLevel));
     }
@@ -4247,42 +4486,66 @@ function createHandIndependencePanel() {
       managerRef?.setMotionDistanceStrictness(settings.motionDistanceStrictness);
     }
     if (safeNext.tempoRatio) managerRef?.setHandIndependenceTempoRatio(safeNext.tempoRatio);
+    if (Array.isArray(safeNext.cornerHeights)) {
+      safeNext.cornerHeights.forEach((value, index) => {
+        const nextValue = Number(value);
+        if (Number.isFinite(nextValue)) {
+          managerRef?.setHandIndependenceFigureCornerHeight(index, nextValue);
+          settings[`corner${index}`] = nextValue;
+          const control = controls[`corner${index}`];
+          if (control) {
+            control.value = String(nextValue);
+          }
+        }
+      });
+    }
     Object.entries(safeNext).forEach(([key, value]) => {
-      if (key !== 'variant' && key !== 'reverse') {
+      if (key !== 'variant' && key !== 'reverse' && key !== 'cornerHeights') {
         managerRef?.setHandIndependenceFigureParameter(key, value);
         managerRef?.setHandIndependenceShapeParameter(key, value);
       }
     });
     updateShapeControlVisibility();
     updateFigureMotionControlVisibility();
+    updateFigureVariationVisibility();
     rebuildCornerControls(settings.figureLevel);
     persist();
   }
   function savePresetFromPrompt() {
-    const requestedSlot = window.prompt('In welchen Preset-Slot sollen die aktuellen Einstellungen gespeichert werden? (1-8)');
+    const requestedSlot = window.prompt('In welchen Preset-Slot sollen die aktuellen Einstellungen gespeichert werden? (1-4)', String(selectedPresetSlot + 1));
     const slot = Number(requestedSlot) - 1;
-    if (!Number.isInteger(slot) || slot < 0 || slot >= 8) {
+    if (!Number.isInteger(slot) || slot < 0 || slot >= 4) {
       return null;
     }
-    presets[String(slot)] = { ...settings };
+    const figureLevel = Number.isInteger(Number(settings.figureLevel)) ? Number(settings.figureLevel) : 0;
+    const presetBucket = getPresetBucketForLevel(figureLevel);
+    const presetSnapshot = capturePresetSnapshot();
+    presetBucket[String(slot)] = presetSnapshot;
+    presetBucket.selectedSlot = slot;
+    presets[String(figureLevel)] = presetBucket;
     selectedPresetSlot = slot;
     localStorage.setItem(presetKey, JSON.stringify(presets));
+    renderPresetSlots();
     return slot;
   }
   function resetPresets() {
-    presets = {};
-    localStorage.setItem(presetKey, '{}');
+    const figureLevel = Number.isInteger(Number(settings.figureLevel)) ? Number(settings.figureLevel) : 0;
+    presets[String(figureLevel)] = {};
+    selectedPresetSlot = 0;
+    localStorage.setItem(presetKey, JSON.stringify(presets));
+    renderPresetSlots();
   }
   function rebuildCornerControls(figureLevelOverride = settings.figureLevel) {
+    updateFigureVariationVisibility();
     cornerPanel.replaceChildren();
     Object.keys(controls)
       .filter((key) => key.startsWith('corner'))
       .forEach((key) => delete controls[key]);
 
     const figureLevel = Number.isInteger(Number(figureLevelOverride))
-      ? Math.max(0, Math.min(6, Number(figureLevelOverride)))
+      ? Math.max(0, Math.min(3, Number(figureLevelOverride)))
       : 0;
-    const handIndependenceBeatCounts = [1, 2, 3, 4, 4, 3, 2];
+    const handIndependenceBeatCounts = [1, 2, 3, 4];
     const beatCount = handIndependenceBeatCounts[figureLevel] || 1;
     const count = beatCount * 2;
     for (let displayIndex = 0; displayIndex < count; displayIndex += 1) {
@@ -4301,7 +4564,9 @@ function createHandIndependencePanel() {
       );
       const input = controls[`corner${pointIndex}`];
       input.addEventListener('input', () => {
-        managerRef?.setHandIndependenceFigureCornerHeight(pointIndex, Number(input.value));
+        const nextValue = Number(input.value);
+        settings[`corner${pointIndex}`] = nextValue;
+        managerRef?.setHandIndependenceFigureCornerHeight(pointIndex, nextValue);
       });
     }
   }
@@ -4312,18 +4577,31 @@ function createHandIndependencePanel() {
     setLevelManager: (manager) => {
       managerRef = manager || null;
       apply(settings);
+      renderPresetSlots();
       syncCountTimesState();
       managerRef?.setMotionDistanceVisible(motionDistanceInput.checked);
       managerRef?.setMotionDistanceStrictness(Number(motionDistanceStrictnessSlider.value));
       updateMotionMetrics();
       if (!motionMetricsInterval) motionMetricsInterval = window.setInterval(updateMotionMetrics, 100);
     },
-    setLevel: rebuildCornerControls,
-    applyPreset: (slot) => {
-      selectedPresetSlot = Math.max(0, Math.min(7, Number(slot) || 0));
-      if (presets[String(selectedPresetSlot)]) {
-        apply(presets[String(selectedPresetSlot)]);
+    setLevel: () => {
+      updateFigureVariationVisibility();
+      rebuildCornerControls();
+    },
+    applyPreset: (level) => {
+      const figureLevel = Number.isInteger(Number(level)) ? Math.max(0, Math.min(3, Number(level))) : Number(settings.figureLevel ?? 0);
+      const presetBucket = getPresetBucketForLevel(figureLevel);
+      const activeSlot = Number.isInteger(Number(presetBucket.selectedSlot)) ? Number(presetBucket.selectedSlot) : 0;
+      selectedPresetSlot = Math.max(0, Math.min(3, activeSlot));
+      settings.figureLevel = figureLevel;
+      managerRef?.setHandIndependenceFigureLevel(figureLevel);
+      const preset = presetBucket[String(selectedPresetSlot)];
+      if (preset && typeof preset === 'object') {
+        apply(preset);
+      } else {
+        apply({ figureLevel });
       }
+      renderPresetSlots();
     },
     savePresetFromPrompt,
     resetPresets
@@ -5433,7 +5711,7 @@ export function initApp() {
     const exerciseFieldActive = uiState.activeChapter === 6
       && Number.isInteger(uiState.activeLevel)
       && uiState.activeLevel >= 0
-      && uiState.activeLevel <= 4;
+      && uiState.activeLevel <= 2;
     levelCanvas.style.pointerEvents = exerciseFieldActive ? 'auto' : 'none';
   };
 
@@ -5601,6 +5879,7 @@ export function initApp() {
   handIndependencePanel.setLevelManager({
     setHandIndependenceVariant: (value) => levelManager.setHandIndependenceVariant(value),
     setHandIndependenceFigureLevel: (value) => levelManager.setHandIndependenceFigureLevel(value),
+    setHandIndependenceFigureVariation: (value) => levelManager.setHandIndependenceFigureVariation(value),
     setHandIndependenceReverse: (value) => levelManager.setHandIndependenceReverse(value),
     setHandIndependenceDynamicsVisible: (value) => levelManager.setHandIndependenceDynamicsVisible(value),
     setHandIndependenceCountTimesVisible: (value) => levelManager.setHandIndependenceCountTimesVisible(value),
@@ -5675,7 +5954,7 @@ export function initApp() {
     const showSquareExercisePanel = chapter === 1 && exerciseVisibility.square;
     const showSymmetricExercisePanel = chapter === 1 && exerciseVisibility.symmetric;
     const showPointsExercisePanel = chapter === 1 && exerciseVisibility.points;
-    const showExerciseFieldPanel = chapter === 6 && Number.isInteger(uiState.activeLevel) && uiState.activeLevel >= 0 && uiState.activeLevel <= 4;
+    const showExerciseFieldPanel = chapter === 6 && Number.isInteger(uiState.activeLevel) && uiState.activeLevel >= 0 && uiState.activeLevel <= 2;
     const selectedSquareMode = showPointsExercisePanel
       ? 'points'
       : showSymmetricExercisePanel
@@ -5724,7 +6003,7 @@ export function initApp() {
     const blankChapter1ExercisePanel = uiState.activeChapter === 1 && Number.isInteger(level) && [3, 4].includes(level);
     const freeMovementExercisePanel = uiState.activeChapter === 1 && Number.isInteger(level) && level === 2;
     const alternatingExercisePanel = uiState.activeChapter === 1 && Number.isInteger(level) && level === 2 && false;
-    const showExerciseFieldPanel = uiState.activeChapter === 6 && Number.isInteger(level) && level >= 0 && level <= 4;
+    const showExerciseFieldPanel = uiState.activeChapter === 6 && Number.isInteger(level) && level >= 0 && level <= 2;
     const squareExerciseTitle = uiState.activeChapter === 1 && Number.isInteger(level) && level >= 0 && level < chapter1ExerciseTitles.length
       ? chapter1ExerciseTitles[level]
       : 'Ziffern';
@@ -5738,8 +6017,11 @@ export function initApp() {
       handIndependencePanel.setVisible(false);
       squareExercisePanel.setVisible(false);
       exerciseFieldPanel.setVisible(showExerciseFieldPanel);
-      if (Number.isInteger(level) && level >= 0 && level <= 4) {
-        exerciseFieldPanel.applyPreset(level);
+      if (Number.isInteger(level) && level >= 0 && level <= 2) {
+        const nextStrikeCount = getExerciseFieldLevelStrikeCount(level);
+        exerciseFieldPanel.setStrikeCount(nextStrikeCount);
+        exerciseFieldPanel.applyPreset(level, null);
+        exerciseFieldPanel.setStrikeCount(nextStrikeCount);
       }
       if (!showExerciseFieldPanel) {
         levelManager.setExerciseFieldVisible(false);

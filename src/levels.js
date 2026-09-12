@@ -182,6 +182,7 @@ export class LevelManager {
     this.dynamicFigureActive = false;
     this.handIndependenceActive = false;
     this.handIndependenceVariant = 'hard';
+    this.handIndependenceFigureVariation = 1;
     this.handIndependenceReverse = false;
     this.handIndependenceDynamicsVisible = false;
     this.handIndependenceCountTimesVisible = false;
@@ -408,12 +409,13 @@ export class LevelManager {
     }
 
     const safeValue = [2, 3, 4].includes(next) ? next : 2;
-    if (this.exerciseFieldStrikeCount === safeValue) {
+    const previousLeft = Array.isArray(this.exerciseFieldStrikePositions.left) ? this.exerciseFieldStrikePositions.left : [];
+    const previousRight = Array.isArray(this.exerciseFieldStrikePositions.right) ? this.exerciseFieldStrikePositions.right : [];
+    const hasMatchingLength = previousLeft.length === safeValue && previousRight.length === safeValue;
+    if (this.exerciseFieldStrikeCount === safeValue && hasMatchingLength) {
       return;
     }
 
-    const previousLeft = this.exerciseFieldStrikePositions.left || [];
-    const previousRight = this.exerciseFieldStrikePositions.right || [];
     const defaultPositions = this.getExerciseFieldStrikeDefaults(safeValue);
 
     this.exerciseFieldStrikeCount = safeValue;
@@ -3936,13 +3938,23 @@ export class LevelManager {
       'Zweiviertel'
     ];
     const beatCounts = [1, 2, 3, 4, 4, 3, 2];
+    const variationMap = {
+      1: 'Zweiviertel',
+      2: 'Dreiviertel',
+      3: 'Vierviertel'
+    };
     const figureIndex = Number(level);
     if (!Number.isInteger(figureIndex) || figureIndex < 0 || figureIndex >= figureNames.length) {
       return null;
     }
 
-    const figureName = figureNames[figureIndex];
-    const figureSet = figureIndex <= 3 ? basicFigurePaths : basicFigurePathsStyle2;
+    const isBasicPathFigure = figureIndex === 0 || this.handIndependenceFigureVariation !== 2;
+    const figureName = figureIndex === 0
+      ? figureNames[figureIndex]
+      : (this.handIndependenceFigureVariation === 2 && figureIndex <= 3
+        ? variationMap[figureIndex] || figureNames[figureIndex]
+        : figureNames[figureIndex]);
+    const figureSet = isBasicPathFigure ? basicFigurePaths : basicFigurePathsStyle2;
     const variantKey = this.handIndependenceVariant === 'soft' ? 'softD' : 'hardD';
     const pathData = figureSet[figureName]?.[variantKey] || null;
     const beatCount = beatCounts[figureIndex] || 1;
@@ -3957,6 +3969,12 @@ export class LevelManager {
 
   setHandIndependenceVariant(variant) {
     this.handIndependenceVariant = variant === 'soft' ? 'soft' : 'hard';
+    this.requestRender();
+  }
+
+  setHandIndependenceFigureVariation(variation) {
+    const next = Number(variation) === 2 ? 2 : 1;
+    this.handIndependenceFigureVariation = next;
     this.requestRender();
   }
 
@@ -4433,19 +4451,20 @@ export class LevelManager {
     const shapeOffsetX = Number(settings.xPosition) || 0;
     const offsetY = Number(settings.yPosition) || 0;
     const anchor = this.getPathAnchorPoint(state.renderSegments);
+    const rotatedLocalX = Math.cos(angle) * point.x - Math.sin(angle) * point.y;
+    const rotatedLocalY = Math.sin(angle) * point.x + Math.cos(angle) * point.y;
+    const rotatedAnchorX = Math.cos(angle) * anchor.x - Math.sin(angle) * anchor.y;
+    const rotatedAnchorY = Math.sin(angle) * anchor.x + Math.cos(angle) * anchor.y;
+
     state.figureConfigs.forEach(({ mirrorX, offsetX: figureOffsetX }) => {
-      const localX = point.x * state.scaleX;
-      const localY = point.y * state.scaleY;
-      const rotatedX = Math.cos(angle) * localX - Math.sin(angle) * localY;
-      const rotatedY = Math.sin(angle) * localX + Math.cos(angle) * localY;
-      const mirroredX = mirrorX ? -rotatedX : rotatedX;
-      const anchorX = mirrorX ? -anchor.x : anchor.x;
+      const mirroredX = mirrorX ? -rotatedLocalX : rotatedLocalX;
       const x = state.centerX
         + figureOffsetX
         + (mirrorX ? -shapeOffsetX : shapeOffsetX)
-        + (mirroredX - anchorX * state.scaleX)
-        + anchorX * state.scaleX;
-      const y = state.centerY + this.getCanvasVerticalOffsetFromNormalized(offsetY) + rotatedY - anchor.y * state.scaleY + anchor.y * state.scaleY;
+        + (mirroredX - (mirrorX ? -rotatedAnchorX : rotatedAnchorX)) * state.scaleX;
+      const y = state.centerY
+        + this.getCanvasVerticalOffsetFromNormalized(offsetY)
+        + (rotatedLocalY - rotatedAnchorY) * state.scaleY;
       const hand = mirrorX ? 'right' : 'left';
       const feedback = this.getMotionDistanceMetrics(hand, { x, y });
       this.recordMotionDistanceTarget(hand, { x, y });
@@ -5742,7 +5761,7 @@ export class LevelManager {
     }
 
     if (this.chapter === 6) {
-      this.active = Number.isInteger(this.level) && this.level >= 0 && this.level <= 4;
+      this.active = Number.isInteger(this.level) && this.level >= 0 && this.level <= 2;
       this.figureActive = false;
       this.dynamicFigureActive = false;
       this.handIndependenceActive = false;
@@ -6505,8 +6524,9 @@ export class LevelManager {
       const drawStrikeCircle = (point, side) => {
         const isLeft = side === 'left';
         const isCurrentSequenceTarget = index === activeSequenceIndex;
-        const shouldHideAssignedBeat = side === assignmentSide && index === assignmentBeatIndex - 1;
-        if (shouldHideAssignedBeat) {
+        const isAssignedBeat = side === assignmentSide && index === assignmentBeatIndex - 1;
+
+        if (isAssignedBeat) {
           return;
         }
 
@@ -6527,16 +6547,20 @@ export class LevelManager {
 
         this.ctx.beginPath();
         this.ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
-        this.ctx.fillStyle = isLeft
-          ? (isActive ? 'rgba(82, 156, 255, 0.38)' : 'rgba(82, 156, 255, 0.16)')
-          : (isActive ? 'rgba(255, 163, 92, 0.38)' : 'rgba(255, 163, 92, 0.16)');
-        this.ctx.shadowBlur = isActive || isCurrentSequenceTarget ? 18 : 0;
+        this.ctx.fillStyle = isAssignedBeat
+          ? (isLeft ? 'rgba(255, 244, 168, 0.34)' : 'rgba(255, 214, 127, 0.34)')
+          : (isLeft
+            ? (isActive ? 'rgba(82, 156, 255, 0.38)' : 'rgba(82, 156, 255, 0.16)')
+            : (isActive ? 'rgba(255, 163, 92, 0.38)' : 'rgba(255, 163, 92, 0.16)'));
+        this.ctx.shadowBlur = isAssignedBeat || isActive || isCurrentSequenceTarget ? 18 : 0;
         this.ctx.shadowColor = isLeft ? 'rgba(82, 156, 255, 0.9)' : 'rgba(255, 163, 92, 0.9)';
         this.ctx.fill();
-        this.ctx.lineWidth = isCurrentSequenceTarget ? 3.2 : (isActive ? 2.4 : 1.5);
-        this.ctx.strokeStyle = isCurrentSequenceTarget
+        this.ctx.lineWidth = isAssignedBeat ? 3.2 : (isCurrentSequenceTarget ? 3.2 : (isActive ? 2.4 : 1.5));
+        this.ctx.strokeStyle = isAssignedBeat
           ? (isLeft ? 'rgba(255, 244, 168, 0.98)' : 'rgba(255, 214, 127, 0.98)')
-          : (isLeft ? 'rgba(128, 204, 255, 0.9)' : 'rgba(255, 201, 129, 0.9)');
+          : (isCurrentSequenceTarget
+            ? (isLeft ? 'rgba(255, 244, 168, 0.98)' : 'rgba(255, 214, 127, 0.98)')
+            : (isLeft ? 'rgba(128, 204, 255, 0.9)' : 'rgba(255, 201, 129, 0.9)'));
         this.ctx.stroke();
         this.ctx.shadowBlur = 0;
         this.ctx.fillStyle = isLeft ? '#dbeeff' : '#ffe4c2';
@@ -6655,7 +6679,9 @@ export class LevelManager {
       const shapeState = this.getHandIndependenceShapeState();
       const tempoPair = this.getHandIndependenceTempoPair();
       if (dynamicState) {
-        if (this.handIndependenceDynamicsVisible) this.drawFigureDynamics();
+        if (this.handIndependenceDynamicsVisible) {
+          this.drawFigureDynamics(this.handIndependenceDynamicsVisible);
+        }
         this.drawFigurePath(dynamicState, dynamicState.handIndependenceSettings);
         this.drawHandIndependenceCountTimes(dynamicState);
         this.drawHandIndependenceMotionPoint(dynamicState, {
@@ -6683,7 +6709,7 @@ export class LevelManager {
       return;
     }
 
-    if (this.chapter === 6 && Number.isInteger(this.level) && this.level >= 0 && this.level <= 4) {
+    if (this.chapter === 6 && Number.isInteger(this.level) && this.level >= 0 && this.level <= 2) {
       this.drawExerciseFieldZones();
       this.drawExerciseFieldTimingOverlay();
       this.renderPoseAlignmentFeedback();

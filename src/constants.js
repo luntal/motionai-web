@@ -1,6 +1,6 @@
 export const CHAPTER_COUNT = 8;
 export const LEVEL_COUNT = 5;
-export const chapterLevelCounts = [3, 5, 6, 7, 4, 8, 5, 5];
+export const chapterLevelCounts = [3, 5, 6, 7, 4, 4, 3, 5];
 
 export function getLevelCountForChapter(chapter) {
   if (!Number.isInteger(chapter) || chapter < 0 || chapter >= chapterLevelCounts.length) {
@@ -37,8 +37,8 @@ export const levelTitles = [
   ['Rechte Linie', 'Linke Linie', 'Synchron', 'Versetzt', '2:1 Tempo', 'Ellipsen'],
   ['Einserfigur', 'Zweierfigur', 'Dreierfigur', 'Viererfigur', 'Fünferfigur', 'Sechserfigur', 'Siebenerfigur'],
   ['Einsertakt', 'Zweiertakt', 'Dreiertakt', 'Vierertakt'],
-  ['Preset 1', 'Preset 2', 'Preset 3', 'Preset 4', 'Preset 5', 'Preset 6', 'Preset 7', 'Preset 8'],
-  ['Preset 1', 'Preset 2', 'Preset 3', 'Preset 4', 'Preset 5'],
+  ['Einserfigur', 'Zweierfigur', 'Dreierfigur', 'Viererfigur'],
+  ['Zweivierteltakt', 'Dreivierteltakt', 'Viervierteltakt'],
   ['Preset 1', 'Preset 2', 'Preset 3', 'Preset 4', 'Preset 5']
 ];
 
@@ -78,13 +78,16 @@ export const levelDescriptions = [
     'Dreierfigur: Dreierfigur mit spezifischer Dynamik für einzelne Zählzeiten.',
     'Viererfigur: Viererfigur mit spezifischer Dynamik für einzelne Zählzeiten.'
   ],
-  ['Preset 1', 'Preset 2', 'Preset 3', 'Preset 4', 'Preset 5', 'Preset 6', 'Preset 7', 'Preset 8'],
   [
-    'Preset 1: Konfiguriere die Einsatzfelder und Speichere die Einstellungen für die erste Übung.',
-    'Preset 2: Konfiguriere die Einsatzfelder und Speichere die Einstellungen für die zweite Übung.',
-    'Preset 3: Konfiguriere die Einsatzfelder und Speichere die Einstellungen für die dritte Übung.',
-    'Preset 4: Konfiguriere die Einsatzfelder und Speichere die Einstellungen für die vierte Übung.',
-    'Preset 5: Konfiguriere die Einsatzfelder und Speichere die Einstellungen für die fünfte Übung.'
+    'Einserfigur: Übe die einfache Einserfigur mit den Konfigurations- und Preset-Optionen rechts.',
+    'Zweierfigur: Übe die Zweierfigur mit dem passenden Taktgebungs-Setup und gespeicherten Presets.',
+    'Dreierfigur: Übe die Dreierfigur mit derselben rechten Seitenspalte und den jeweiligen Presets.',
+    'Viererfigur: Übe die Viererfigur mit unterschiedlichen Wechseln und abgespeicherten Varianten.'
+  ],
+  [
+    'Zweivierteltakt: Wählt den Zweierviertel-Takt und setzt die Schlaganzahl auf 2.',
+    'Dreivierteltakt: Wählt den Dreierviertel-Takt und setzt die Schlaganzahl auf 3.',
+    'Viervierteltakt: Wählt den Vierviertel-Takt und setzt die Schlaganzahl auf 4.'
   ],
   [
     'Preset 1: Konfiguriere die Einsatzfelder und speichere die Einstellungen für die erste Übung.',
@@ -238,6 +241,7 @@ export const uiElementDescriptions = {
     BPMSlider: 'Stellt die Bewegungsgeschwindigkeit in Beats pro Minute ein.',
     Geschwindigkeitsverhältnis: 'Stellt das Verhältnis der Geschwindigkeit zwischen den beiden Händen ein.',
     Taktgebung: 'Stellt die Form der Taktgebung ein. Dafür kann eine der Grundfiguren ausgewählt werden, zum Beispiel Einserfigur, Zweierfigur oder eine andere Figur, die als rhythmischer Leitpfad für die Bewegung dient.',
+    Variation: 'Wählt zwischen der Standardvariante und der alternativen zweiten Variation für Zweier-, Drei- und Viererfigur.',
     weichHart: 'Stellt die Art der Bewegung ein. Weiche Bewegungen sind fließend und rund, während harte Bewegungen kantig und abrupt sind.',
     Zählzeiten: 'Blendet die Zählzeiten ein oder aus, die an der Grundfigur angezeigt werden.',
     Grösse: 'Stellt die Größe der Grundfigur ein, um die Bewegungsreichweite und damit die Dynamik zu bestimmen.',
