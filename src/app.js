@@ -193,6 +193,76 @@ function createFigureModePanel(initialManager, options = {}) {
   presetPanel.appendChild(presetSlots);
   presetPanel.appendChild(presetActions);
   const presetDivider = createPanelDivider();
+  const motionDistanceToggle = document.createElement('label');
+  motionDistanceToggle.className = 'figure-dynamics-toggle';
+  const motionDistanceInput = document.createElement('input');
+  motionDistanceInput.type = 'checkbox';
+  motionDistanceInput.checked = storedFigureSettings.motionDistanceVisible === true;
+  motionDistanceToggle.append(motionDistanceInput, document.createTextNode('Distanzdiagramm'));
+  const motionDistanceStrictnessWrap = document.createElement('label');
+  motionDistanceStrictnessWrap.className = 'figure-size-wrap';
+  const motionDistanceStrictnessLabel = document.createElement('div');
+  motionDistanceStrictnessLabel.className = 'figure-size-label';
+  motionDistanceStrictnessLabel.textContent = 'Strenge';
+  const motionDistanceStrictnessSlider = document.createElement('input');
+  motionDistanceStrictnessSlider.type = 'range';
+  motionDistanceStrictnessSlider.min = '0';
+  motionDistanceStrictnessSlider.max = '100';
+  motionDistanceStrictnessSlider.step = '1';
+  motionDistanceStrictnessSlider.value = String(Number.isFinite(Number(storedFigureSettings.motionDistanceStrictness))
+    ? Math.min(100, Math.max(0, Number(storedFigureSettings.motionDistanceStrictness)))
+    : 100);
+  const motionDistanceStrictnessValue = document.createElement('div');
+  motionDistanceStrictnessValue.className = 'figure-size-value';
+  motionDistanceStrictnessValue.textContent = `${motionDistanceStrictnessSlider.value}%`;
+  motionDistanceStrictnessSlider.addEventListener('input', () => {
+    const next = Number(motionDistanceStrictnessSlider.value);
+    motionDistanceStrictnessValue.textContent = `${next}%`;
+    managerRef?.setMotionDistanceStrictness(next);
+    persistFigureSettings();
+  });
+  motionDistanceStrictnessWrap.append(
+    motionDistanceStrictnessLabel,
+    motionDistanceStrictnessSlider,
+    motionDistanceStrictnessValue
+  );
+  const motionMetricsPanel = document.createElement('div');
+  motionMetricsPanel.className = 'motion-distance-metrics';
+  const motionMetricsTitle = document.createElement('div');
+  motionMetricsTitle.className = 'figure-panel-section-title';
+  motionMetricsTitle.textContent = 'Bewertung';
+  motionMetricsPanel.appendChild(motionMetricsTitle);
+  const motionMetricRows = {};
+  const metricLabels = { score: 'Gesamtscore', pathScore: 'Bahnabstand', timingScore: 'Timing', directionScore: 'Richtung' };
+  Object.entries(metricLabels).forEach(([key, label]) => {
+    const row = document.createElement('div');
+    row.className = 'motion-distance-metric-row';
+    const labelNode = document.createElement('span');
+    labelNode.textContent = label;
+    const valueNode = document.createElement('span');
+    valueNode.textContent = 'L - | R -';
+    row.append(labelNode, valueNode);
+    motionMetricsPanel.appendChild(row);
+    motionMetricRows[key] = valueNode;
+  });
+  const updateMotionMetrics = () => {
+    const summary = managerRef?.getMotionDistanceSummary?.();
+    if (!summary) return;
+    Object.keys(motionMetricRows).forEach((key) => {
+      const format = (hand) => {
+        const current = summary[hand]?.current?.[key];
+        const average = summary[hand]?.average?.[key];
+        return `${current == null ? '-' : current.toFixed(0)} / ${average == null ? '-' : average.toFixed(0)}`;
+      };
+      motionMetricRows[key].textContent = `L ${format('left')} | R ${format('right')}`;
+    });
+  };
+  motionDistanceInput.addEventListener('change', () => {
+    if (managerRef) {
+      managerRef.setMotionDistanceVisible(motionDistanceInput.checked);
+    }
+    persistFigureSettings();
+  });
 
   const movementTitle = document.createElement('div');
   movementTitle.className = 'figure-panel-section-title';
@@ -481,6 +551,7 @@ function createFigureModePanel(initialManager, options = {}) {
     ? storedFigureSettings.figureSide
     : 'left';
   let managerRef = initialManager || null;
+  let motionMetricsInterval = null;
 
   function persistFigureSettings() {
     try {
@@ -495,7 +566,9 @@ function createFigureModePanel(initialManager, options = {}) {
         figureHardLinearity: Number(hardLinearitySlider.value),
         figureSoftTransitionPercent: Number(softTransitionSlider.value),
         figureDynamicsVisible: dynamicsToggle.checked,
-        figureCountTimesVisible: countTimesToggle.checked
+        figureCountTimesVisible: countTimesToggle.checked,
+        motionDistanceVisible: motionDistanceInput.checked,
+        motionDistanceStrictness: Number(motionDistanceStrictnessSlider.value)
       }));
     } catch (error) {
       return;
@@ -585,6 +658,9 @@ function createFigureModePanel(initialManager, options = {}) {
   panel.appendChild(presetDivider);
   panel.appendChild(presetPanel);
   panel.appendChild(createPanelDivider());
+  panel.appendChild(motionDistanceToggle);
+  panel.appendChild(motionDistanceStrictnessWrap);
+  panel.appendChild(motionMetricsPanel);
   radioGroup.style.marginTop = '0.45rem';
   panel.appendChild(radioGroup);
   panel.appendChild(createPanelDivider());
@@ -614,6 +690,9 @@ function createFigureModePanel(initialManager, options = {}) {
   bindUiGroupDescription(variantOptions, 'Grundfiguren', 'weichHart');
   const sideOptions = [...sideGroup.querySelectorAll('label, input')];
   bindUiGroupDescription(sideOptions, 'Grundfiguren', 'Hand');
+  bindUiDescription(motionDistanceToggle, 'Grundfiguren', 'Distanzdiagramm');
+  bindUiDescription(motionDistanceStrictnessWrap, 'Grundfiguren', 'DistanzStrenge');
+  bindUiDescription(motionMetricsPanel, 'Grundfiguren', 'Bewertungsmetriken');
   attachPanelHoverHelp(panel);
   panel.appendChild(hardLinearityWrap);
   panel.appendChild(softTransitionWrap);
@@ -643,6 +722,10 @@ function createFigureModePanel(initialManager, options = {}) {
       managerRef.setFigureSoftTransitionPercent(Number(softTransitionSlider.value));
       managerRef.setFigureDynamicsVisible(dynamicsToggle.checked);
       managerRef.setFigureCountTimesVisible(countTimesToggle.checked);
+      managerRef.setMotionDistanceVisible(motionDistanceInput.checked);
+      managerRef.setMotionDistanceStrictness(Number(motionDistanceStrictnessSlider.value));
+      updateMotionMetrics();
+      if (!motionMetricsInterval) motionMetricsInterval = window.setInterval(updateMotionMetrics, 100);
       sizeSlider.value = String(managerRef.figureScale ?? 1 / 3);
       sizeValue.textContent = `${Number(sizeSlider.value).toFixed(2)}x`;
       strokeSlider.value = String(managerRef.figureStrokeWidth ?? 0.5);
@@ -697,7 +780,9 @@ function createFigureModePanel(initialManager, options = {}) {
       figureHardLinearity: Number(hardLinearitySlider.value),
       figureSoftTransitionPercent: Number(softTransitionSlider.value),
       figureDynamicsVisible: dynamicsToggle.checked,
-      figureCountTimesVisible: countTimesToggle.checked
+      figureCountTimesVisible: countTimesToggle.checked,
+      motionDistanceVisible: motionDistanceInput.checked,
+      motionDistanceStrictness: Number(motionDistanceStrictnessSlider.value)
     };
   }
 
@@ -724,6 +809,13 @@ function createFigureModePanel(initialManager, options = {}) {
     if (typeof settings.figureCountTimesVisible === 'boolean') {
       countTimesToggle.checked = settings.figureCountTimesVisible;
     }
+    if (typeof settings.motionDistanceVisible === 'boolean') {
+      motionDistanceInput.checked = settings.motionDistanceVisible;
+    }
+    if (Number.isFinite(Number(settings.motionDistanceStrictness))) {
+      motionDistanceStrictnessSlider.value = String(Math.min(100, Math.max(0, Number(settings.motionDistanceStrictness))));
+      motionDistanceStrictnessValue.textContent = `${motionDistanceStrictnessSlider.value}%`;
+    }
     setVariant(settings.figureVariant || selectedVariant);
     setSide(settings.figureSide || selectedSide);
     if (managerRef) {
@@ -736,6 +828,8 @@ function createFigureModePanel(initialManager, options = {}) {
       managerRef.setFigureSoftTransitionPercent(Number(softTransitionSlider.value));
       managerRef.setFigureDynamicsVisible(dynamicsToggle.checked);
       managerRef.setFigureCountTimesVisible(countTimesToggle.checked);
+      managerRef.setMotionDistanceVisible(motionDistanceInput.checked);
+      managerRef.setMotionDistanceStrictness(Number(motionDistanceStrictnessSlider.value));
     }
     persistFigureSettings();
   }
@@ -3787,6 +3881,7 @@ function createHandIndependencePanel() {
   const storageKey = 'motionai.hand-independence-panel-settings';
   const presetKey = 'motionai.hand-independence-presets';
   let managerRef = null;
+  let motionMetricsInterval = null;
   let settings = {};
   let presets = {};
   try {
@@ -3794,6 +3889,10 @@ function createHandIndependencePanel() {
     settings = storedSettings && typeof storedSettings === 'object' ? storedSettings : {};
   } catch (error) { settings = {}; }
   settings.sharedX = settings.sharedX ?? 0;
+  settings.motionDistanceVisible = settings.motionDistanceVisible === true;
+  settings.motionDistanceStrictness = Number.isFinite(Number(settings.motionDistanceStrictness))
+    ? Math.min(100, Math.max(0, Number(settings.motionDistanceStrictness)))
+    : 100;
   if (typeof settings.countTimesVisible !== 'boolean' && typeof settings.countVisible === 'boolean') {
     settings.countTimesVisible = settings.countVisible;
   }
@@ -3809,6 +3908,78 @@ function createHandIndependencePanel() {
   title.className = 'figure-side-panel-title';
   title.textContent = 'Handunabhängigkeit';
   panel.appendChild(title);
+
+  const motionDistanceDivider = document.createElement('div');
+  motionDistanceDivider.className = 'figure-panel-divider';
+  const motionDistanceToggle = document.createElement('label');
+  motionDistanceToggle.className = 'figure-dynamics-toggle';
+  const motionDistanceInput = document.createElement('input');
+  motionDistanceInput.type = 'checkbox';
+  motionDistanceInput.checked = settings.motionDistanceVisible;
+  motionDistanceToggle.append(motionDistanceInput, document.createTextNode('Distanzdiagramm'));
+  const motionDistanceStrictnessWrap = document.createElement('label');
+  motionDistanceStrictnessWrap.className = 'figure-size-wrap';
+  const motionDistanceStrictnessLabel = document.createElement('div');
+  motionDistanceStrictnessLabel.className = 'figure-size-label';
+  motionDistanceStrictnessLabel.textContent = 'Strenge';
+  const motionDistanceStrictnessSlider = document.createElement('input');
+  motionDistanceStrictnessSlider.type = 'range';
+  motionDistanceStrictnessSlider.min = '0';
+  motionDistanceStrictnessSlider.max = '100';
+  motionDistanceStrictnessSlider.step = '1';
+  motionDistanceStrictnessSlider.value = String(settings.motionDistanceStrictness);
+  const motionDistanceStrictnessValue = document.createElement('div');
+  motionDistanceStrictnessValue.className = 'figure-size-value';
+  motionDistanceStrictnessValue.textContent = `${settings.motionDistanceStrictness}%`;
+  motionDistanceStrictnessSlider.addEventListener('input', () => {
+    const next = Number(motionDistanceStrictnessSlider.value);
+    settings.motionDistanceStrictness = next;
+    motionDistanceStrictnessValue.textContent = `${next}%`;
+    managerRef?.setMotionDistanceStrictness(next);
+    persist();
+  });
+  motionDistanceStrictnessWrap.append(
+    motionDistanceStrictnessLabel,
+    motionDistanceStrictnessSlider,
+    motionDistanceStrictnessValue
+  );
+  const motionMetricsPanel = document.createElement('div');
+  motionMetricsPanel.className = 'motion-distance-metrics';
+  const motionMetricsTitle = document.createElement('div');
+  motionMetricsTitle.className = 'figure-panel-section-title';
+  motionMetricsTitle.textContent = 'Bewertung';
+  motionMetricsPanel.appendChild(motionMetricsTitle);
+  const motionMetricRows = {};
+  const metricLabels = { score: 'Gesamtscore', pathScore: 'Bahnabstand', timingScore: 'Timing', directionScore: 'Richtung' };
+  Object.entries(metricLabels).forEach(([key, label]) => {
+    const row = document.createElement('div');
+    row.className = 'motion-distance-metric-row';
+    const labelNode = document.createElement('span');
+    labelNode.textContent = label;
+    const valueNode = document.createElement('span');
+    valueNode.textContent = 'L - | R -';
+    row.append(labelNode, valueNode);
+    motionMetricsPanel.appendChild(row);
+    motionMetricRows[key] = valueNode;
+  });
+  const updateMotionMetrics = () => {
+    const summary = managerRef?.getMotionDistanceSummary?.();
+    if (!summary) return;
+    Object.keys(motionMetricRows).forEach((key) => {
+      const format = (hand) => {
+        const current = summary[hand]?.current?.[key];
+        const average = summary[hand]?.average?.[key];
+        return `${current == null ? '-' : current.toFixed(0)} / ${average == null ? '-' : average.toFixed(0)}`;
+      };
+      motionMetricRows[key].textContent = `L ${format('left')} | R ${format('right')}`;
+    });
+  };
+  motionDistanceInput.addEventListener('change', () => {
+    settings.motionDistanceVisible = motionDistanceInput.checked;
+    managerRef?.setMotionDistanceVisible(motionDistanceInput.checked);
+    persist();
+  });
+  panel.append(motionDistanceDivider, motionDistanceToggle, motionDistanceStrictnessWrap, motionMetricsPanel);
 
   let selectedPresetSlot = 0;
 
@@ -4021,6 +4192,9 @@ function createHandIndependencePanel() {
   bindUiGroupDescription([title], 'Handunabhängigkeit', 'Taktgebung');
   bindUiGroupDescription([tempoRatioTitle], 'Handunabhängigkeit', 'Geschwindigkeitsverhältnis');
   bindUiGroupDescription([ratioSelect], 'Handunabhängigkeit', 'Geschwindigkeitsverhältnis');
+  bindUiDescription(motionDistanceToggle, 'Handunabhängigkeit', 'Distanzdiagramm');
+  bindUiDescription(motionDistanceStrictnessWrap, 'Handunabhängigkeit', 'DistanzStrenge');
+  bindUiDescription(motionMetricsPanel, 'Handunabhängigkeit', 'Bewertungsmetriken');
   attachPanelHoverHelp(panel);
 
   function persist() { try { localStorage.setItem(storageKey, JSON.stringify(settings)); } catch (error) { return; } }
@@ -4065,6 +4239,13 @@ function createHandIndependencePanel() {
     if (typeof safeNext.reverse === 'boolean') managerRef?.setHandIndependenceReverse(safeNext.reverse);
     if (typeof safeNext.dynamicsVisible === 'boolean') managerRef?.setHandIndependenceDynamicsVisible(safeNext.dynamicsVisible);
     if (typeof safeNext.countTimesVisible === 'boolean') managerRef?.setHandIndependenceCountTimesVisible(safeNext.countTimesVisible);
+    if (typeof safeNext.motionDistanceVisible === 'boolean') managerRef?.setMotionDistanceVisible(safeNext.motionDistanceVisible);
+    if (Number.isFinite(Number(safeNext.motionDistanceStrictness))) {
+      settings.motionDistanceStrictness = Math.min(100, Math.max(0, Number(safeNext.motionDistanceStrictness)));
+      motionDistanceStrictnessSlider.value = String(settings.motionDistanceStrictness);
+      motionDistanceStrictnessValue.textContent = `${settings.motionDistanceStrictness}%`;
+      managerRef?.setMotionDistanceStrictness(settings.motionDistanceStrictness);
+    }
     if (safeNext.tempoRatio) managerRef?.setHandIndependenceTempoRatio(safeNext.tempoRatio);
     Object.entries(safeNext).forEach(([key, value]) => {
       if (key !== 'variant' && key !== 'reverse') {
@@ -4132,6 +4313,10 @@ function createHandIndependencePanel() {
       managerRef = manager || null;
       apply(settings);
       syncCountTimesState();
+      managerRef?.setMotionDistanceVisible(motionDistanceInput.checked);
+      managerRef?.setMotionDistanceStrictness(Number(motionDistanceStrictnessSlider.value));
+      updateMotionMetrics();
+      if (!motionMetricsInterval) motionMetricsInterval = window.setInterval(updateMotionMetrics, 100);
     },
     setLevel: rebuildCornerControls,
     applyPreset: (slot) => {
@@ -5403,6 +5588,9 @@ export function initApp() {
     setFigureSoftTransitionPercent: (value) => levelManager.setDynamicFigureSoftTransitionPercent(value),
     setFigureDynamicsVisible: (value) => levelManager.setDynamicFigureDynamicsVisible(value),
     setFigureCountTimesVisible: (value) => levelManager.setDynamicFigureCountTimesVisible(value),
+    setMotionDistanceVisible: (value) => levelManager.setMotionDistanceVisible(value),
+    setMotionDistanceStrictness: (value) => levelManager.setMotionDistanceStrictness(value),
+    getMotionDistanceSummary: () => levelManager.getMotionDistanceSummary(),
     setFigureVariant: (value) => levelManager.setDynamicFigureVariant(value),
     setFigureSide: (value) => levelManager.setDynamicFigureSide(value),
     setDynamicFigureCornerHeight: (index, value) => levelManager.setDynamicFigureCornerHeight(index, value),
@@ -5416,6 +5604,9 @@ export function initApp() {
     setHandIndependenceReverse: (value) => levelManager.setHandIndependenceReverse(value),
     setHandIndependenceDynamicsVisible: (value) => levelManager.setHandIndependenceDynamicsVisible(value),
     setHandIndependenceCountTimesVisible: (value) => levelManager.setHandIndependenceCountTimesVisible(value),
+    setMotionDistanceVisible: (value) => levelManager.setMotionDistanceVisible(value),
+    setMotionDistanceStrictness: (value) => levelManager.setMotionDistanceStrictness(value),
+    getMotionDistanceSummary: () => levelManager.getMotionDistanceSummary(),
     setHandIndependenceTempoRatio: (value) => levelManager.setHandIndependenceTempoRatio(value),
     setHandIndependenceFigureParameter: (name, value) => levelManager.setHandIndependenceFigureParameter(name, value),
     setHandIndependenceFigureCornerHeight: (index, value) => levelManager.setHandIndependenceFigureCornerHeight(index, value),

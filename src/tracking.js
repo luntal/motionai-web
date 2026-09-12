@@ -747,11 +747,25 @@ export function startTracking(videoElement, canvasElement, options = {}) {
     const RIGHT_PINKY_INDEX = 18;
     const LEFT_INDEX_FINGER = 19;
     const RIGHT_INDEX_FINGER = 20;
+    const VISIBILITY_THRESHOLD = 0.5;
+    const FRAME_BOUNDS_MARGIN = 0.02;
 
     const leftPinky = poseLandmarks[LEFT_PINKY_INDEX];
     const leftIndex = poseLandmarks[LEFT_INDEX_FINGER];
     const rightPinky = poseLandmarks[RIGHT_PINKY_INDEX];
     const rightIndex = poseLandmarks[RIGHT_INDEX_FINGER];
+
+    // Pose landmarks are estimated even when off-screen; use visibility + normalized
+    // bounds to tell whether a tip is actually within the camera frame.
+    const isLandmarkInFrame = (landmark) => {
+      if (!landmark) {
+        return false;
+      }
+      const visibility = typeof landmark.visibility === 'number' ? landmark.visibility : 1;
+      return visibility >= VISIBILITY_THRESHOLD
+        && landmark.x >= -FRAME_BOUNDS_MARGIN && landmark.x <= 1 + FRAME_BOUNDS_MARGIN
+        && landmark.y >= -FRAME_BOUNDS_MARGIN && landmark.y <= 1 + FRAME_BOUNDS_MARGIN;
+    };
 
     const pseudoHands = [];
 
@@ -764,6 +778,7 @@ export function startTracking(videoElement, canvasElement, options = {}) {
         z: leftTipMidpoint.z
       };
       leftHand.side = 'left';
+      leftHand.inFrame = isLandmarkInFrame(leftPinky) && isLandmarkInFrame(leftIndex);
       pseudoHands.push(leftHand);
     }
 
@@ -776,6 +791,7 @@ export function startTracking(videoElement, canvasElement, options = {}) {
         z: rightTipMidpoint.z
       };
       rightHand.side = 'right';
+      rightHand.inFrame = isLandmarkInFrame(rightPinky) && isLandmarkInFrame(rightIndex);
       pseudoHands.push(rightHand);
     }
 
@@ -1014,7 +1030,9 @@ export function startTracking(videoElement, canvasElement, options = {}) {
 
   async function recoverFromModelAbort(error) {
     const message = error && error.message ? error.message : String(error || '');
-    if (!/abort|aborted|RuntimeError|wasm/i.test(message)) {
+    // MediaPipe's WASM data-file loader throws a bare TypeError (no "abort"/"wasm" text)
+    // when model init is interrupted, so also treat that pattern as recoverable.
+    if (!/abort|aborted|RuntimeError|wasm|buffer|createDataFile|createPreloadedFile|preloadedFile/i.test(message)) {
       throw error;
     }
 

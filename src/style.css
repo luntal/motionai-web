@@ -1006,6 +1006,27 @@ canvas {
   margin-top: 0.55rem;
 }
 
+.motion-distance-metrics {
+  margin-top: 0.55rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.motion-distance-metric-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.3rem;
+  color: rgba(237, 247, 255, 0.82);
+  font-size: 0.7rem;
+}
+
+.motion-distance-metric-row span:last-child {
+  color: rgba(255, 255, 255, 0.96);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .figure-size-label {
   font-size: 0.72rem;
   font-weight: 700;

@@ -14,6 +14,8 @@ export class LevelManager {
     this.nextTargetByHand = { left: 0, right: 0 };
     this.rightTip = null;
     this.leftTip = null;
+    this.leftTipInFrame = true;
+    this.rightTipInFrame = true;
     this.completed = false;
     this.grid = [];
     this.circleScales = [];
@@ -204,6 +206,14 @@ export class LevelManager {
     this.handIndependenceShapeTempoBpm = 60;
     this.handIndependenceShapeLinearity = 0;
     this.handIndependenceAnimationStart = performance.now();
+    this.motionDistanceVisible = false;
+    this.motionDistanceStrictness = 100;
+    this.motionDistanceHistory = { left: [], right: [] };
+    this.motionDistanceFrameTargets = [];
+    this.motionDistanceCurrent = { left: null, right: null };
+    this.motionDistancePrevious = { left: null, right: null };
+    this.motionDistanceKinematicsPrevious = { left: null, right: null };
+    this.motionDistanceFrameMetrics = { left: null, right: null };
     this.pointExerciseEditMode = false;
     this.pointExerciseSelectedSlot = 0;
     this.pointExerciseHand = 'right';
@@ -4171,6 +4181,243 @@ export class LevelManager {
     };
   }
 
+  setMotionDistanceVisible(visible) {
+    this.motionDistanceVisible = Boolean(visible);
+    if (!this.motionDistanceVisible) {
+      this.motionDistanceFrameTargets = [];
+      this.motionDistanceHistory = { left: [], right: [] };
+      this.motionDistanceCurrent = { left: null, right: null };
+      this.motionDistancePrevious = { left: null, right: null };
+      this.motionDistanceKinematicsPrevious = { left: null, right: null };
+      this.motionDistanceFrameMetrics = { left: null, right: null };
+    }
+    this.requestRender();
+  }
+
+  setMotionDistanceStrictness(strictness) {
+    const next = Number(strictness);
+    if (!Number.isFinite(next)) {
+      return;
+    }
+    this.motionDistanceStrictness = Math.min(100, Math.max(0, next));
+    this.requestRender();
+  }
+
+  getHandTipDistance(hand, targetPoint) {
+    const tip = hand === 'left' ? this.leftTip : this.rightTip;
+    const tipInFrame = hand === 'left' ? this.leftTipInFrame : this.rightTipInFrame;
+    if (!tip || !tipInFrame || !targetPoint || !this.canvas
+      || !this.canvas.width || !this.canvas.height
+      || !Number.isFinite(targetPoint.x) || !Number.isFinite(targetPoint.y)) {
+      return null;
+    }
+    const normalizedX = (tip.x - targetPoint.x) / this.canvas.width;
+    const normalizedY = (tip.y - targetPoint.y) / this.canvas.height;
+    return Math.min(1, Math.hypot(normalizedX, normalizedY) / Math.SQRT2);
+  }
+
+  getMotionDistanceFeedback(hand, targetPoint) {
+    const distance = this.getHandTipDistance(hand, targetPoint);
+    if (distance === null) {
+      return { distance: null, pathScore: null, color: 'rgba(255, 255, 255, 0.96)' };
+    }
+
+    const strictness = Math.min(100, Math.max(0, Number(this.motionDistanceStrictness) || 0));
+    const strictnessRatio = Math.min(1, Math.max(0, strictness / 100));
+    // Stronger contrast between low and high strictness: low values are much more forgiving,
+    // while very high values remain sharply precise.
+    const lowEndForgiveness = Math.pow(1 - strictnessRatio, 3.2);
+    const tolerance = 0.04 + lowEndForgiveness * 3.5 + Math.pow(1 - strictnessRatio, 7) * 1.1;
+    const pathScore = Math.max(0, Math.min(100, 100 * Math.exp(-distance / tolerance)));
+    const tipColor = hand === 'left' ? [82, 156, 255] : [255, 163, 92];
+    const mix = pathScore / 100;
+    const red = Math.round(255 + (tipColor[0] - 255) * mix);
+    const green = Math.round(255 + (tipColor[1] - 255) * mix);
+    const blue = Math.round(255 + (tipColor[2] - 255) * mix);
+    return {
+      distance,
+      pathScore,
+      color: `rgba(${red}, ${green}, ${blue}, 0.96)`
+    };
+  }
+
+  getMotionDistanceMetrics(hand, targetPoint) {
+    if (this.motionDistanceFrameMetrics[hand]) {
+      return this.motionDistanceFrameMetrics[hand];
+    }
+
+    const tip = hand === 'left' ? this.leftTip : this.rightTip;
+    const feedback = this.getMotionDistanceFeedback(hand, targetPoint);
+    if (!tip || !feedback || feedback.pathScore === null) {
+      return null;
+    }
+
+    const previous = this.motionDistanceKinematicsPrevious[hand];
+    const currentTip = { x: tip.x / this.canvas.width, y: tip.y / this.canvas.height };
+    const currentTarget = { x: targetPoint.x / this.canvas.width, y: targetPoint.y / this.canvas.height };
+    const smoothingAlpha = 0.2;
+    const smoothedTip = previous
+      ? {
+          x: previous.tip.x + (currentTip.x - previous.tip.x) * smoothingAlpha,
+          y: previous.tip.y + (currentTip.y - previous.tip.y) * smoothingAlpha
+        }
+      : currentTip;
+    const smoothedTarget = previous
+      ? {
+          x: previous.target.x + (currentTarget.x - previous.target.x) * smoothingAlpha,
+          y: previous.target.y + (currentTarget.y - previous.target.y) * smoothingAlpha
+        }
+      : currentTarget;
+    let timingScore = 100;
+    let directionScore = 100;
+    if (previous) {
+      const handDelta = { x: smoothedTip.x - previous.tip.x, y: smoothedTip.y - previous.tip.y };
+      const targetDelta = { x: smoothedTarget.x - previous.target.x, y: smoothedTarget.y - previous.target.y };
+      const handSpeed = Math.hypot(handDelta.x, handDelta.y);
+      const targetSpeed = Math.hypot(targetDelta.x, targetDelta.y);
+      if (targetSpeed > 0.00001) {
+        const speedRatio = Math.max(0.01, handSpeed / targetSpeed);
+        const timingError = Math.abs(Math.log(speedRatio));
+        timingScore = Math.max(0, Math.min(100, 100 * Math.exp(-timingError / 1.15)));
+        const cosine = (handDelta.x * targetDelta.x + handDelta.y * targetDelta.y)
+          / Math.max(handSpeed * targetSpeed, 0.00001);
+        directionScore = Math.max(0, Math.min(100, ((cosine + 1) / 2) * 100));
+      }
+    }
+
+    const score = feedback.pathScore * 0.45 + timingScore * 0.3 + directionScore * 0.25;
+    const scoreMix = score / 100;
+    const tipColor = hand === 'left' ? [82, 156, 255] : [255, 163, 92];
+    const scoreColor = `rgba(${Math.round(255 + (tipColor[0] - 255) * scoreMix)}, ${Math.round(255 + (tipColor[1] - 255) * scoreMix)}, ${Math.round(255 + (tipColor[2] - 255) * scoreMix)}, 0.96)`;
+    const metrics = {
+      score,
+      pathScore: feedback.pathScore,
+      timingScore,
+      directionScore,
+      distance: feedback.distance,
+      color: scoreColor,
+      tip: smoothedTip,
+      target: smoothedTarget
+    };
+    this.motionDistanceFrameMetrics[hand] = metrics;
+    return metrics;
+  }
+
+  recordMotionDistanceTarget(hand, point) {
+    if (this.motionDistanceVisible && (hand === 'left' || hand === 'right') && point) {
+      this.motionDistanceFrameTargets.push({ hand, point });
+    }
+  }
+
+  getMotionDistanceWindowMs() {
+    let beatCount = 1;
+    let bpm = 60;
+    if (this.chapter === 3 || this.chapter === 4) {
+      const state = this.chapter === 3
+        ? this.getCurrentFigureRenderState()
+        : this.getCurrentDynamicFigureRenderState();
+      beatCount = Math.max(1, Math.ceil((state?.renderSegments?.length || 2) / 2));
+      bpm = this.chapter === 3 ? this.figureTempoBpm : this.dynamicFigureTempoBpm;
+    } else if (this.chapter === 5) {
+      const state = this.getHandIndependenceDynamicState();
+      beatCount = Math.max(1, Math.ceil((state?.renderSegments?.length || 2) / 2));
+      bpm = this.handIndependenceSharedTempoBpm;
+    }
+    return Math.max(1000, (60000 / Math.max(1, Number(bpm) || 60)) * beatCount * 4);
+  }
+
+  finishMotionDistanceFrame() {
+    if (!this.motionDistanceVisible) {
+      return;
+    }
+
+    const nowMs = performance.now();
+    const latestByHand = new Map();
+    this.motionDistanceFrameTargets.forEach(({ hand, point }) => latestByHand.set(hand, point));
+    ['left', 'right'].forEach((hand) => {
+      const point = latestByHand.get(hand);
+      const metrics = point
+        ? (this.motionDistanceFrameMetrics[hand] || this.getMotionDistanceMetrics(hand, point))
+        : null;
+      if (metrics) {
+        this.motionDistanceCurrent[hand] = metrics;
+        this.motionDistanceHistory[hand].push({ time: nowMs, ...metrics });
+        this.motionDistancePrevious[hand] = { tip: metrics.tip, target: metrics.target };
+        this.motionDistanceKinematicsPrevious[hand] = { tip: metrics.tip, target: metrics.target };
+      }
+      const cutoff = nowMs - this.getMotionDistanceWindowMs();
+      this.motionDistanceHistory[hand] = this.motionDistanceHistory[hand].filter((sample) => sample.time >= cutoff);
+    });
+    this.motionDistanceFrameTargets = [];
+    this.motionDistanceFrameMetrics = { left: null, right: null };
+  }
+
+  drawMotionDistanceChart() {
+    if (!this.motionDistanceVisible || !this.ctx || !this.canvas) {
+      return;
+    }
+
+    const chartHeight = Math.min(86, Math.max(64, this.canvas.height * 0.13));
+    const chartTop = this.canvas.height - chartHeight - 8;
+    const chartWidth = this.canvas.width / 2;
+    const colors = { left: 'rgba(128, 204, 255, 0.95)', right: 'rgba(255, 201, 129, 0.95)' };
+
+    this.ctx.save();
+    this.ctx.fillStyle = 'rgba(5, 13, 22, 0.72)';
+    this.ctx.fillRect(0, chartTop, this.canvas.width, chartHeight + 8);
+    ['left', 'right'].forEach((hand, sideIndex) => {
+      const history = this.motionDistanceHistory[hand];
+      const chartLeft = sideIndex * chartWidth + 12;
+      const innerWidth = chartWidth - 24;
+      const mean = history.length > 0
+        ? history.reduce((sum, sample) => sum + sample.score, 0) / history.length
+        : null;
+      this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+      this.ctx.lineWidth = 1;
+      this.ctx.beginPath();
+      this.ctx.moveTo(chartLeft, chartTop + chartHeight - 12);
+      this.ctx.lineTo(chartLeft + innerWidth, chartTop + chartHeight - 12);
+      this.ctx.stroke();
+      if (history.length > 0) {
+        this.ctx.beginPath();
+        history.forEach((sample, index) => {
+          const x = chartLeft + (index / Math.max(1, history.length - 1)) * innerWidth;
+          const y = chartTop + chartHeight - 12 - (sample.score / 100) * (chartHeight - 28);
+          if (index === 0) this.ctx.moveTo(x, y);
+          else this.ctx.lineTo(x, y);
+        });
+        this.ctx.strokeStyle = colors[hand];
+        this.ctx.lineWidth = 2;
+        this.ctx.stroke();
+      }
+      this.ctx.fillStyle = colors[hand];
+      this.ctx.font = '700 12px sans-serif';
+      this.ctx.textAlign = 'left';
+      this.ctx.fillText(`${hand === 'left' ? 'Links' : 'Rechts'} Ø ${mean === null ? '–' : `${mean.toFixed(1)}%`}`, chartLeft, chartTop + 16);
+    });
+    this.ctx.restore();
+  }
+
+  getMotionDistanceSummary() {
+    const summary = {};
+    ['left', 'right'].forEach((hand) => {
+      const history = this.motionDistanceHistory[hand];
+      const average = (key) => history.length > 0
+        ? history.reduce((sum, sample) => sum + sample[key], 0) / history.length
+        : null;
+      summary[hand] = {
+        current: this.motionDistanceCurrent[hand],
+        average: {
+          score: average('score'),
+          pathScore: average('pathScore'),
+          timingScore: average('timingScore'),
+          directionScore: average('directionScore')
+        }
+      };
+    });
+    return summary;
+  }
+
   drawHandIndependenceMotionPoint(state, settings) {
     const motionState = this.getFigureMotionState(state.renderSegments, state.scaleX, {
       variant: settings.variant,
@@ -4199,13 +4446,24 @@ export class LevelManager {
         + (mirroredX - anchorX * state.scaleX)
         + anchorX * state.scaleX;
       const y = state.centerY + this.getCanvasVerticalOffsetFromNormalized(offsetY) + rotatedY - anchor.y * state.scaleY + anchor.y * state.scaleY;
+      const hand = mirrorX ? 'right' : 'left';
+      const feedback = this.getMotionDistanceMetrics(hand, { x, y });
+      this.recordMotionDistanceTarget(hand, { x, y });
       this.ctx.save();
-      this.ctx.fillStyle = 'rgba(255, 255, 255, 0.96)';
-      this.ctx.shadowColor = 'rgba(255, 255, 255, 0.9)';
+      this.ctx.fillStyle = this.motionDistanceVisible && feedback ? feedback.color : 'rgba(255, 255, 255, 0.96)';
+      this.ctx.shadowColor = this.motionDistanceVisible && feedback ? feedback.color : 'rgba(255, 255, 255, 0.9)';
       this.ctx.shadowBlur = 14;
       this.ctx.beginPath();
       this.ctx.arc(x, y, Math.max(6, Math.min(this.canvas.width, this.canvas.height) * 0.016), 0, Math.PI * 2);
       this.ctx.fill();
+      if (this.motionDistanceVisible && feedback) {
+        this.ctx.shadowBlur = 0;
+        this.ctx.fillStyle = '#101820';
+        this.ctx.font = '700 11px sans-serif';
+        this.ctx.textAlign = 'center';
+        this.ctx.textBaseline = 'middle';
+        this.ctx.fillText(`${Math.round(feedback.score)}`, x, y);
+      }
       this.ctx.restore();
     });
   }
@@ -5154,9 +5412,12 @@ export class LevelManager {
       const localMotionX = mirrorX ? -motionPoint.x : motionPoint.x;
       const x = state.centerX + offsetX + (localMotionX - anchorX) * state.scaleX;
       const y = state.centerY + this.getCanvasVerticalOffsetFromNormalized(this.dynamicFigureYPosition) + (motionPoint.y - anchorY) * state.scaleY;
+      const hand = mirrorX ? 'right' : 'left';
+      const feedback = this.getMotionDistanceMetrics(hand, { x, y });
+      this.recordMotionDistanceTarget(hand, { x, y });
 
       this.ctx.save();
-      this.ctx.fillStyle = 'rgba(255, 255, 255, 0.96)';
+      this.ctx.fillStyle = this.motionDistanceVisible && feedback ? feedback.color : 'rgba(255, 255, 255, 0.96)';
       this.ctx.strokeStyle = 'rgba(20, 28, 38, 0.55)';
       this.ctx.lineWidth = 2;
       this.ctx.shadowColor = 'rgba(255, 255, 255, 0.9)';
@@ -5164,6 +5425,14 @@ export class LevelManager {
       this.ctx.beginPath();
       this.ctx.arc(x, y, pointRadius, 0, Math.PI * 2);
       this.ctx.fill();
+      if (this.motionDistanceVisible && feedback) {
+        this.ctx.shadowBlur = 0;
+        this.ctx.fillStyle = '#101820';
+        this.ctx.font = '700 11px sans-serif';
+        this.ctx.textAlign = 'center';
+        this.ctx.textBaseline = 'middle';
+        this.ctx.fillText(`${Math.round(feedback.score)}`, x, y);
+      }
       this.ctx.shadowBlur = 0;
       this.ctx.stroke();
       this.ctx.restore();
@@ -5222,9 +5491,12 @@ export class LevelManager {
       const localMotionX = mirrorX ? -motionPoint.x : motionPoint.x;
       const x = state.centerX + offsetX + (localMotionX - anchorX) * state.scaleX;
       const y = state.centerY + this.getCanvasVerticalOffsetFromNormalized(this.figureYPosition) + (motionPoint.y - anchor.y) * state.scaleY;
+      const hand = mirrorX ? 'right' : 'left';
+      const feedback = this.getMotionDistanceMetrics(hand, { x, y });
+      this.recordMotionDistanceTarget(hand, { x, y });
 
       this.ctx.save();
-      this.ctx.fillStyle = 'rgba(255, 255, 255, 0.96)';
+      this.ctx.fillStyle = this.motionDistanceVisible && feedback ? feedback.color : 'rgba(255, 255, 255, 0.96)';
       this.ctx.strokeStyle = 'rgba(20, 28, 38, 0.55)';
       this.ctx.lineWidth = 2;
       this.ctx.shadowColor = 'rgba(255, 255, 255, 0.9)';
@@ -5232,6 +5504,14 @@ export class LevelManager {
       this.ctx.beginPath();
       this.ctx.arc(x, y, pointRadius, 0, Math.PI * 2);
       this.ctx.fill();
+      if (this.motionDistanceVisible && feedback) {
+        this.ctx.shadowBlur = 0;
+        this.ctx.fillStyle = '#101820';
+        this.ctx.font = '700 11px sans-serif';
+        this.ctx.textAlign = 'center';
+        this.ctx.textBaseline = 'middle';
+        this.ctx.fillText(`${Math.round(feedback.score)}`, x, y);
+      }
       this.ctx.shadowBlur = 0;
       this.ctx.stroke();
 
@@ -5377,6 +5657,10 @@ export class LevelManager {
   }
 
   setupLevel() {
+    this.motionDistanceHistory = { left: [], right: [] };
+    this.motionDistanceFrameTargets = [];
+    this.motionDistanceCurrent = { left: null, right: null };
+    this.motionDistancePrevious = { left: null, right: null };
     this.targets = [];
     this.targetIndexByCircle.clear();
     this.nextTarget = 0;
@@ -6314,6 +6598,7 @@ export class LevelManager {
       return;
     }
     this.clear();
+    this.motionDistanceFrameTargets = [];
 
     if (this.calibrationActive) {
       this.setCalibrationPanelVisible(true);
@@ -6340,6 +6625,8 @@ export class LevelManager {
       this.drawFigurePath(figureState);
       this.drawFigureCountTimes(figureState);
       this.drawFigureMotionPoints(figureState);
+      this.finishMotionDistanceFrame();
+      this.drawMotionDistanceChart();
       this.renderPoseAlignmentFeedback();
       this.requestRender();
       return;
@@ -6356,6 +6643,8 @@ export class LevelManager {
       });
       this.drawDynamicFigureCountTimes(dynamicFigureState);
       this.drawDynamicFigureMotionPoints(dynamicFigureState);
+      this.finishMotionDistanceFrame();
+      this.drawMotionDistanceChart();
       this.renderPoseAlignmentFeedback();
       this.requestRender();
       return;
@@ -6387,6 +6676,8 @@ export class LevelManager {
           rotation: this.handIndependenceShapeRotation
         });
       }
+      this.finishMotionDistanceFrame();
+      this.drawMotionDistanceChart();
       this.renderPoseAlignmentFeedback();
       this.requestRender();
       return;
@@ -7904,6 +8195,8 @@ export class LevelManager {
   updateHands(hands) {
     this.leftTip = null;
     this.rightTip = null;
+    this.leftTipInFrame = true;
+    this.rightTipInFrame = true;
 
     for (const hand of hands) {
       if (!hand || hand.length < 9) continue;
@@ -7912,11 +8205,15 @@ export class LevelManager {
 
       const explicitSide = hand.side === 'left' || hand.side === 'right' ? hand.side : null;
       const side = explicitSide || (tip.x < this.canvas.width * 0.5 ? 'right' : 'left');
+      // Pose-model tips carry an `inFrame` flag; hands-model tips are only ever emitted when visible.
+      const inFrame = typeof hand.inFrame === 'boolean' ? hand.inFrame : true;
 
       if (side === 'left') {
         this.leftTip = tip;
+        this.leftTipInFrame = inFrame;
       } else if (side === 'right') {
         this.rightTip = tip;
+        this.rightTipInFrame = inFrame;
       }
     }
 

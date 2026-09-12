@@ -204,6 +204,9 @@ export const uiElementDescriptions = {
     Linearität: 'Stellt die Linearität der Bewegung ein. Linearität = 100 hält das Bewegungsgeschwindigkeit konstant, während Linearität = 0 die Geschwindigkeit an den Zählzeit-Eckpunkten der Bewegung beschleunigt, um ein abfedern der Bewegung zu erzeugen.',
     Übergangslänge: 'Stellt die Übergangslänge für die Bewegungsgeschwindigkeit zwischen den farblich markierten Segmanten ein. Da jedes Segment unterschiedlich lang ist, aber die Zeit, in der es durchlaufen wird, gleich bleibt, braucht jedes Segment eine eigene Bewegungsgeschwindigkeit. Damit es keine Geschwindigkeitssprünge gibt, kann mit der Übergangslänge die Geschwindigkeit sanft von einem Segment auf das nächste abgeändert/angepasst werden. Die Übergangslänge bestimmt, wie lange es dauert, bis die Bewegungsgeschwindigkeit von einem Segment auf das nächste übergeht.',
     Stroke: 'Bestimmmt die Strichstärke der Grundfigur.',
+    Distanzdiagramm: 'Blendet die normierte Bewertungsanzeige und den Verlauf der letzten vier Takte ein oder aus.',
+    DistanzStrenge: 'Bestimmt die Toleranz der weichen Score-Kurve. Niedrigere Werte führen bei größeren Abweichungen zu höheren Scores.',
+    Bewertungsmetriken: 'Zeigt je Hand den aktuellen Wert und den Durchschnitt der Gesamtbewertung, des Bahnabstands, des Timings und der Bewegungsrichtung.',
   },
   'Dynamikebenen': {
     weichHart: 'Wähle die Art der Bewegung aus, die du üben möchtest. Weiche Bewegungen sind fließend und rund, während harte Bewegungen kantig und abrupt sind.',
@@ -222,6 +225,9 @@ export const uiElementDescriptions = {
     Presets: 'Wählt ein vorgegebenes Preset aus.',
     Speichern: 'Speichert die aktuelle Konfiguration.',
     Zurücksetzen: 'Setzt die Konfiguration auf den Standard zurück.',
+    Distanzdiagramm: 'Blendet die normierte Bewertungsanzeige und den Verlauf der letzten vier Takte ein oder aus.',
+    DistanzStrenge: 'Bestimmt die Toleranz der weichen Score-Kurve. Niedrigere Werte führen bei größeren Abweichungen zu höheren Scores.',
+    Bewertungsmetriken: 'Zeigt je Hand den aktuellen Wert und den Durchschnitt der Gesamtbewertung, des Bahnabstands, des Timings und der Bewegungsrichtung.',
   },
   'Handunabhängigkeit': {
     Umkehren: 'Vertauscht die Formen der linken und rechten Hand. Eine Form ist immer die Taktgebung (Grundfigur im vorgegebenen Takt), die andere Form ist die Handunabhängigkeit (freie Form, die in der Handunabhängigkeit geübt wird).',
@@ -241,6 +247,9 @@ export const uiElementDescriptions = {
     Gegensatz: 'Stellt die Form für die zweite Hand ein, die eine gegensätzliche Form zur ersten Hand darstellt. Die erste Hand ist die Taktgebung, die zweite Hand ist die Handunabhängigkeit.',
     Länge: 'Stellt die Länge der Gegensatzfigur ein.',
     Rotation: 'Stellt die Rotation der Gegensatzfigur ein.',
+    Distanzdiagramm: 'Blendet die normierte Bewertungsanzeige und den Verlauf der letzten vier Takte ein oder aus.',
+    DistanzStrenge: 'Bestimmt die Toleranz der weichen Score-Kurve. Niedrigere Werte führen bei größeren Abweichungen zu höheren Scores.',
+    Bewertungsmetriken: 'Zeigt je Hand den aktuellen Wert und den Durchschnitt der Gesamtbewertung, des Bahnabstands, des Timings und der Bewegungsrichtung.',
   },
   'Einsätze geben': {
     ModusFrei: 'Hier kann mit eigener freier Tempowahl geübt werden. Führe die Dirigierbewegung so aus, dass auf die Zählzeiten die Kreise mit der entsprechenden Nummerierung berührt werden. Das Einsatzfeld auf dem der Einsatz gegeben werden soll ist durch die Nummer markiert. Hier musst du aus der Dirigierfigur ausbrechen um mit einer Hand den Einsatz zu geben. Du erhälst die Durchschnittliche Synchronität zwischen linker und rechter Hand als große Anzeige mit ø markiert und die Tempogleichmäßigkeit mit dem Symbol ~. Direkt im Kreis wird in Millisekunden angezeigt, wie die zeitliche Abweichung zwischen linker und rechter Hand ist.',
