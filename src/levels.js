@@ -1,6 +1,124 @@
 import { basicFigurePaths, basicFigurePathsStyle2, extendedFigurePaths } from './constants.js';
 import { registerHoverHelp } from './ui.js';
 
+function applyLevelSettingsVisibilityToPanel(panel, visible) {
+  if (!(panel instanceof Element)) {
+    return;
+  }
+
+  const presetActionSelector = '.dynamic-figure-preset-action, .dynamic-figure-preset-actions, .consistency-preset-actions, .consistency-preset-save, .consistency-preset-reset';
+
+  Array.from(panel.children).forEach((node) => {
+    if (!(node instanceof Element)) {
+      return;
+    }
+
+    if (node === panel.querySelector('.figure-side-panel-settings-button') || node.classList.contains('figure-side-panel-header')) {
+      return;
+    }
+
+    const isPresetHost = node.matches('.dynamic-figure-presets, .hand-independence-preset-panel, .consistency-preset-panel');
+    if (isPresetHost) {
+      node.style.display = '';
+      node.querySelectorAll(presetActionSelector).forEach((presetAction) => {
+        presetAction.style.display = visible ? '' : 'none';
+      });
+      return;
+    }
+
+    node.style.display = visible ? '' : 'none';
+  });
+}
+
+function readLevelSettingsVisibilityState() {
+  const storageKey = 'motionai.levelSettingsVisibility';
+
+  try {
+    const raw = localStorage.getItem(storageKey);
+    if (raw === null) {
+      return false;
+    }
+    if (raw === 'true' || raw === 'false') {
+      return raw === 'true';
+    }
+    const parsed = JSON.parse(raw);
+    if (typeof parsed === 'boolean') {
+      return parsed;
+    }
+    if (parsed && typeof parsed === 'object') {
+      return Boolean(parsed.visible ?? parsed.value ?? false);
+    }
+    return false;
+  } catch (error) {
+    return false;
+  }
+}
+
+function writeLevelSettingsVisibilityState(visible) {
+  const storageKey = 'motionai.levelSettingsVisibility';
+  const nextValue = Boolean(visible);
+
+  try {
+    localStorage.setItem(storageKey, JSON.stringify(nextValue));
+  } catch (error) {
+    // ignore storage errors
+  }
+
+  document.querySelectorAll('.figure-side-panel-settings-button').forEach((button) => {
+    const panel = button.closest('.figure-side-panel, .consistency-info-panel');
+    if (!panel) {
+      return;
+    }
+    button.setAttribute('aria-pressed', String(nextValue));
+    button.classList.toggle('active', nextValue);
+    button.title = nextValue ? 'Einstellungen ausblenden' : 'Einstellungen einblenden';
+    applyLevelSettingsVisibilityToPanel(panel, nextValue);
+  });
+
+  window.dispatchEvent(new CustomEvent('motionai:levelSettingsVisibilityChanged', {
+    detail: { visible: nextValue }
+  }));
+}
+
+function createConsistencyLevelSettingsVisibilityController(panel) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'figure-side-panel-settings-button';
+  button.setAttribute('aria-label', 'Einstellungen ein-/ausblenden');
+  button.title = 'Einstellungen ein-/ausblenden';
+  button.textContent = '⚙';
+
+  const sync = () => {
+    const isVisible = readLevelSettingsVisibilityState();
+    button.setAttribute('aria-pressed', String(isVisible));
+    button.classList.toggle('active', isVisible);
+    button.title = isVisible ? 'Einstellungen ausblenden' : 'Einstellungen einblenden';
+    applyLevelSettingsVisibilityToPanel(panel, isVisible);
+  };
+
+  const handleGlobalChange = () => sync();
+  window.addEventListener('motionai:levelSettingsVisibilityChanged', handleGlobalChange);
+
+  button.addEventListener('click', () => {
+    const nextVisible = !readLevelSettingsVisibilityState();
+    writeLevelSettingsVisibilityState(nextVisible);
+    sync();
+  });
+
+  button.addEventListener('remove', () => {
+    window.removeEventListener('motionai:levelSettingsVisibilityChanged', handleGlobalChange);
+  });
+
+  return {
+    button,
+    sync,
+    setVisible: (visible) => {
+      writeLevelSettingsVisibilityState(Boolean(visible));
+      sync();
+    }
+  };
+}
+
 export class LevelManager {
   constructor(overlayCanvas) {
     this.canvas = overlayCanvas;
@@ -80,6 +198,7 @@ export class LevelManager {
     this.consistencyStrictnessPercent = 100;
     this.consistencyMotionBlendPercent = 0;
     this.consistencySettingsStorageKey = 'motionai.consistency-panel-settings';
+    this.consistencyPresetStorageKey = 'motionai.consistency-presets';
     this.consistencyTouchStateByHand = {
       left: { active: false, startedAt: 0, lastTouchAt: 0, scale: 1 },
       right: { active: false, startedAt: 0, lastTouchAt: 0, scale: 1 }
@@ -2142,41 +2261,185 @@ export class LevelManager {
     `;
   }
 
-  loadConsistencySettings() {
+  readConsistencySettingsMap() {
     try {
-      const stored = JSON.parse(localStorage.getItem(this.consistencySettingsStorageKey) || '{}');
-      if (!stored || typeof stored !== 'object') {
-        return;
+      const raw = localStorage.getItem(this.consistencySettingsStorageKey);
+      const parsed = raw ? JSON.parse(raw) : {};
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return {};
       }
+      const hasLevelBuckets = Object.keys(parsed).some((key) => /^\d+$/.test(key));
+      if (!hasLevelBuckets && Object.prototype.hasOwnProperty.call(parsed, 'tempoBpm')) {
+        return {
+          '0': {
+            tempoBpm: Number(parsed.tempoBpm),
+            strictnessPercent: Number(parsed.strictnessPercent),
+            motionBlendPercent: Number(parsed.motionBlendPercent)
+          }
+        };
+      }
+      return parsed;
+    } catch (error) {
+      return {};
+    }
+  }
 
-      const nextTempo = Number(stored.tempoBpm);
-      const nextStrictness = Number(stored.strictnessPercent);
-      const nextMotion = Number(stored.motionBlendPercent);
-
-      if (Number.isFinite(nextTempo)) {
-        this.consistencyTempoBpm = Math.min(170, Math.max(30, nextTempo));
-      }
-      if (Number.isFinite(nextStrictness)) {
-        this.consistencyStrictnessPercent = Math.min(160, Math.max(70, nextStrictness));
-      }
-      if (Number.isFinite(nextMotion)) {
-        this.consistencyMotionBlendPercent = Math.min(100, Math.max(0, nextMotion));
-      }
+  writeConsistencySettingsMap(map) {
+    try {
+      localStorage.setItem(this.consistencySettingsStorageKey, JSON.stringify(map));
     } catch (error) {
       // Ignore storage failures for local settings.
     }
   }
 
-  persistConsistencySettings() {
-    try {
-      localStorage.setItem(this.consistencySettingsStorageKey, JSON.stringify({
-        tempoBpm: this.consistencyTempoBpm,
-        strictnessPercent: this.consistencyStrictnessPercent,
-        motionBlendPercent: this.consistencyMotionBlendPercent
-      }));
-    } catch (error) {
-      // Ignore storage failures for local settings.
+  getConsistencySettingsBucket(levelIndex) {
+    const safeLevel = Number.isInteger(levelIndex) ? Math.max(0, Math.min(5, levelIndex)) : 0;
+    const settings = this.readConsistencySettingsMap();
+    const levelKey = String(safeLevel);
+    const bucket = settings[levelKey];
+
+    if (bucket && typeof bucket === 'object' && !Array.isArray(bucket)) {
+      return bucket;
     }
+
+    const nextBucket = {
+      tempoBpm: 100,
+      strictnessPercent: 100,
+      motionBlendPercent: 0
+    };
+    settings[levelKey] = nextBucket;
+    this.writeConsistencySettingsMap(settings);
+    return nextBucket;
+  }
+
+  loadConsistencySettings(levelIndex = this.level) {
+    const safeLevel = Number.isInteger(levelIndex) ? Math.max(0, Math.min(5, levelIndex)) : 0;
+    const bucket = this.getConsistencySettingsBucket(safeLevel);
+
+    const nextTempo = Number(bucket.tempoBpm);
+    const nextStrictness = Number(bucket.strictnessPercent);
+    const nextMotion = Number(bucket.motionBlendPercent);
+
+    if (Number.isFinite(nextTempo)) {
+      this.consistencyTempoBpm = Math.min(170, Math.max(30, nextTempo));
+    }
+    if (Number.isFinite(nextStrictness)) {
+      this.consistencyStrictnessPercent = Math.min(160, Math.max(70, nextStrictness));
+    }
+    if (Number.isFinite(nextMotion)) {
+      this.consistencyMotionBlendPercent = Math.min(100, Math.max(0, nextMotion));
+    }
+  }
+
+  persistConsistencySettings(levelIndex = this.level) {
+    const safeLevel = Number.isInteger(levelIndex) ? Math.max(0, Math.min(5, levelIndex)) : 0;
+    const settings = this.readConsistencySettingsMap();
+    settings[String(safeLevel)] = {
+      tempoBpm: this.consistencyTempoBpm,
+      strictnessPercent: this.consistencyStrictnessPercent,
+      motionBlendPercent: this.consistencyMotionBlendPercent
+    };
+    this.writeConsistencySettingsMap(settings);
+  }
+
+  readConsistencyPresetMap() {
+    try {
+      const raw = localStorage.getItem(this.consistencyPresetStorageKey);
+      const parsed = raw ? JSON.parse(raw) : {};
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return {};
+      }
+      const hasLevelBuckets = Object.keys(parsed).some((key) => /^\d+$/.test(key));
+      if (!hasLevelBuckets && Object.prototype.hasOwnProperty.call(parsed, 'selectedSlot')) {
+        return { '0': parsed };
+      }
+      return parsed;
+    } catch (error) {
+      return {};
+    }
+  }
+
+  writeConsistencyPresetMap(map) {
+    try {
+      localStorage.setItem(this.consistencyPresetStorageKey, JSON.stringify(map));
+    } catch (error) {
+      // Ignore storage failures for local presets.
+    }
+  }
+
+  getConsistencyPresetBucket(levelIndex) {
+    const safeLevel = Number.isInteger(levelIndex) ? Math.max(0, Math.min(5, levelIndex)) : 0;
+    const presets = this.readConsistencyPresetMap();
+    const levelKey = String(safeLevel);
+    const bucket = presets[levelKey];
+    if (bucket && typeof bucket === 'object' && !Array.isArray(bucket)) {
+      return bucket;
+    }
+
+    const nextBucket = { selectedSlot: 0 };
+    presets[levelKey] = nextBucket;
+    this.writeConsistencyPresetMap(presets);
+    return nextBucket;
+  }
+
+  applyConsistencyPreset(levelIndex, slotIndex) {
+    const safeLevel = Number.isInteger(levelIndex) ? Math.max(0, Math.min(5, levelIndex)) : 0;
+    const safeSlot = Number.isInteger(Number(slotIndex)) ? Math.max(0, Math.min(3, Number(slotIndex))) : 0;
+    const bucket = this.getConsistencyPresetBucket(safeLevel);
+    const preset = bucket[String(safeSlot)] || {};
+
+    if (preset && typeof preset === 'object') {
+      if (Number.isFinite(Number(preset.tempoBpm))) {
+        this.consistencyTempoBpm = Math.min(170, Math.max(30, Number(preset.tempoBpm)));
+      }
+      if (Number.isFinite(Number(preset.strictnessPercent))) {
+        this.consistencyStrictnessPercent = Math.min(160, Math.max(70, Number(preset.strictnessPercent)));
+      }
+      if (Number.isFinite(Number(preset.motionBlendPercent))) {
+        this.consistencyMotionBlendPercent = Math.min(100, Math.max(0, Number(preset.motionBlendPercent)));
+      }
+    }
+
+    bucket.selectedSlot = safeSlot;
+    const presets = this.readConsistencyPresetMap();
+    presets[String(safeLevel)] = bucket;
+    this.writeConsistencyPresetMap(presets);
+    this.persistConsistencySettings();
+    this.updateConsistencyPanelContent();
+  }
+
+  saveConsistencyPreset() {
+    const safeLevel = Number.isInteger(this.level) ? Math.max(0, Math.min(5, this.level)) : 0;
+    const bucket = this.getConsistencyPresetBucket(safeLevel);
+    const requestedSlot = window.prompt('In welchen Preset-Slot möchten Sie die aktuellen Einstellungen speichern? (1-4)', String((Number(bucket.selectedSlot) || 0) + 1));
+    const slot = Number(requestedSlot);
+    if (!Number.isInteger(slot) || slot < 1 || slot > 4) {
+      return;
+    }
+
+    const presetIndex = slot - 1;
+    bucket[String(presetIndex)] = {
+      tempoBpm: this.consistencyTempoBpm,
+      strictnessPercent: this.consistencyStrictnessPercent,
+      motionBlendPercent: this.consistencyMotionBlendPercent
+    };
+    bucket.selectedSlot = presetIndex;
+    const presets = this.readConsistencyPresetMap();
+    presets[String(safeLevel)] = bucket;
+    this.writeConsistencyPresetMap(presets);
+    this.updateConsistencyPanelContent();
+  }
+
+  resetConsistencyPreset() {
+    const safeLevel = Number.isInteger(this.level) ? Math.max(0, Math.min(5, this.level)) : 0;
+    const buckets = this.readConsistencyPresetMap();
+    buckets[String(safeLevel)] = { selectedSlot: 0 };
+    this.writeConsistencyPresetMap(buckets);
+    this.consistencyTempoBpm = 100;
+    this.consistencyStrictnessPercent = 100;
+    this.consistencyMotionBlendPercent = 0;
+    this.persistConsistencySettings();
+    this.updateConsistencyPanelContent();
   }
 
   createConsistencyInfoPanel() {
@@ -2199,6 +2462,9 @@ export class LevelManager {
     if (shouldShow) {
       this.updateConsistencyPanelPosition();
       this.updateConsistencyPanelContent();
+      if (this.consistencyInfoEl.__levelSettingsVisibilityController) {
+        this.consistencyInfoEl.__levelSettingsVisibilityController.sync();
+      }
     }
   }
 
@@ -2225,12 +2491,27 @@ export class LevelManager {
       '2:1 Tempo',
       'Ellipsen'
     ];
-    const levelName = levelNames[this.level] || `Level ${this.level + 1}`;
+    const safeLevel = Number.isInteger(this.level) ? Math.max(0, Math.min(5, this.level)) : 0;
+    const levelSettings = this.getConsistencySettingsBucket(safeLevel);
+    this.consistencyTempoBpm = Number.isFinite(Number(levelSettings.tempoBpm)) ? Math.min(170, Math.max(30, Number(levelSettings.tempoBpm))) : this.consistencyTempoBpm;
+    this.consistencyStrictnessPercent = Number.isFinite(Number(levelSettings.strictnessPercent)) ? Math.min(160, Math.max(70, Number(levelSettings.strictnessPercent))) : this.consistencyStrictnessPercent;
+    this.consistencyMotionBlendPercent = Number.isFinite(Number(levelSettings.motionBlendPercent)) ? Math.min(100, Math.max(0, Number(levelSettings.motionBlendPercent))) : this.consistencyMotionBlendPercent;
+    const levelName = levelNames[safeLevel] || `Level ${safeLevel + 1}`;
     const scorePercent = Math.round(this.consistencyAccuracy * 100);
 
     if (!this.consistencyInfoEl.querySelector('.consistency-score-value')) {
       this.consistencyInfoEl.innerHTML = `
-        <h3 class="consistency-title"></h3>
+        <div class="consistency-title-row figure-side-panel-header">
+          <h3 class="consistency-title"></h3>
+        </div>
+        <div class="consistency-preset-panel">
+          <div class="figure-size-label consistency-preset-label">Presets</div>
+          <div class="consistency-preset-slots"></div>
+          <div class="dynamic-figure-preset-actions consistency-preset-actions">
+            <button type="button" class="dynamic-figure-preset-action consistency-preset-save">Speichern</button>
+            <button type="button" class="dynamic-figure-preset-action consistency-preset-reset">Zurücksetzen</button>
+          </div>
+        </div>
         <p>Folge den bewegten Punkten so präzise und gleichmäßig wie möglich.</p>
         <div class="consistency-score-row">
           <span>Genauigkeit (letzte 3s)</span>
@@ -2269,6 +2550,16 @@ export class LevelManager {
       const speedValue = this.consistencyInfoEl.querySelector('.consistency-speed-value');
       const strictnessValue = this.consistencyInfoEl.querySelector('.consistency-strictness-value');
       const motionValue = this.consistencyInfoEl.querySelector('.consistency-motion-value');
+      const saveButton = this.consistencyInfoEl.querySelector('.consistency-preset-save');
+      const resetButton = this.consistencyInfoEl.querySelector('.consistency-preset-reset');
+
+      if (saveButton) {
+        saveButton.addEventListener('click', () => this.saveConsistencyPreset());
+      }
+      if (resetButton) {
+        resetButton.addEventListener('click', () => this.resetConsistencyPreset());
+      }
+
       if (speedSlider) {
         speedSlider.value = String(this.consistencyTempoBpm);
         speedSlider.addEventListener('input', (event) => {
@@ -2293,6 +2584,14 @@ export class LevelManager {
           this.persistConsistencySettings();
         });
       }
+      const titleRow = this.consistencyInfoEl.querySelector('.consistency-title-row');
+      const levelSettingsVisibility = createConsistencyLevelSettingsVisibilityController(this.consistencyInfoEl);
+      this.consistencyInfoEl.__levelSettingsVisibilityController = levelSettingsVisibility;
+      if (titleRow && !titleRow.querySelector('.figure-side-panel-settings-button')) {
+        titleRow.appendChild(levelSettingsVisibility.button);
+      }
+      levelSettingsVisibility.sync();
+
       const consistencyDescriptions = {
         Tempo: 'Stelle das Tempo der Bewegung ein.',
         Strenge: 'Es wird ein Score angezeigt, der die Ausführungsgenauigkeit der Bewegung bewertet. Hier kannst du seine Strenge einstellen.',
@@ -2311,12 +2610,55 @@ export class LevelManager {
     }
 
     const titleEl = this.consistencyInfoEl.querySelector('.consistency-title');
+    const presetSlots = this.consistencyInfoEl.querySelector('.consistency-preset-slots');
     const scoreEl = this.consistencyInfoEl.querySelector('.consistency-score-value');
+    const speedSliderEl = this.consistencyInfoEl.querySelector('#consistency-speed-slider');
+    const strictnessSliderEl = this.consistencyInfoEl.querySelector('#consistency-strictness-slider');
+    const motionSliderEl = this.consistencyInfoEl.querySelector('#consistency-motion-slider');
     const speedValueEl = this.consistencyInfoEl.querySelector('.consistency-speed-value');
     const strictnessValueEl = this.consistencyInfoEl.querySelector('.consistency-strictness-value');
     const motionValueEl = this.consistencyInfoEl.querySelector('.consistency-motion-value');
     if (titleEl) {
-      titleEl.textContent = `Gleichmäßigkeit - ${levelName}`;
+      titleEl.textContent = levelName;
+    }
+    if (speedSliderEl) {
+      speedSliderEl.value = String(this.consistencyTempoBpm);
+    }
+    if (strictnessSliderEl) {
+      strictnessSliderEl.value = String(this.consistencyStrictnessPercent);
+    }
+    if (motionSliderEl) {
+      motionSliderEl.value = String(this.consistencyMotionBlendPercent);
+    }
+    if (presetSlots) {
+      const presetBucket = this.getConsistencyPresetBucket(safeLevel);
+      const activeSlot = Number.isInteger(Number(presetBucket.selectedSlot)) ? Math.max(0, Math.min(3, Number(presetBucket.selectedSlot))) : 0;
+      const uniqueGroupName = `consistency-preset-${safeLevel}`;
+      const groupNameMatches = presetSlots.dataset.groupName === uniqueGroupName;
+      const existingInputs = Array.from(presetSlots.querySelectorAll('input'));
+
+      if (!groupNameMatches || existingInputs.length !== 4) {
+        presetSlots.dataset.groupName = uniqueGroupName;
+        presetSlots.innerHTML = Array.from({ length: 4 }, (_, slot) => `
+          <label class="consistency-preset-option">
+            <input type="radio" name="${uniqueGroupName}" value="${slot}" ${slot === activeSlot ? 'checked' : ''} />
+            <span>${slot + 1}</span>
+          </label>
+        `).join('');
+
+        presetSlots.querySelectorAll('input').forEach((input) => {
+          input.addEventListener('change', () => {
+            if (!input.checked) {
+              return;
+            }
+            this.applyConsistencyPreset(safeLevel, Number(input.value));
+          });
+        });
+      } else {
+        existingInputs.forEach((input) => {
+          input.checked = Number(input.value) === activeSlot;
+        });
+      }
     }
     if (scoreEl) {
       scoreEl.textContent = `${scorePercent}%`;
@@ -7998,7 +8340,7 @@ export class LevelManager {
           { type: 'line', x: rightX, topY, bottomY }
         ],
         movingTargets: [
-          { hand: 'left', x: leftX, y: yAt(0, 2), color: 'rgba(96, 160, 255, 0.98)' },
+          { hand: 'left', x: leftX, y: yAt(0.5, 2), color: 'rgba(96, 160, 255, 0.98)' },
           { hand: 'right', x: rightX, y: yAt(0, 1), color: 'rgba(255, 148, 84, 0.98)' }
         ]
       };

@@ -129,8 +129,86 @@ function bindFigurePanelDescriptions(panel, sectionName) {
   attachPanelHoverHelp(panel);
 }
 
-function createLevelSettingsVisibilityController(panel, { chapterId = null, levelResolver = () => uiState.activeLevel } = {}) {
+function applyLevelSettingsVisibilityToPanel(panel, visible) {
+  if (!(panel instanceof Element)) {
+    return;
+  }
+
+  const presetActionSelector = '.dynamic-figure-preset-action, .dynamic-figure-preset-actions, .consistency-preset-actions, .consistency-preset-save, .consistency-preset-reset';
+
+  Array.from(panel.children).forEach((node) => {
+    if (!(node instanceof Element)) {
+      return;
+    }
+
+    if (node === panel.querySelector('.figure-side-panel-settings-button') || node.classList.contains('figure-side-panel-header')) {
+      return;
+    }
+
+    const isPresetHost = node.matches('.dynamic-figure-presets, .hand-independence-preset-panel, .consistency-preset-panel');
+    if (isPresetHost) {
+      node.style.display = '';
+      node.querySelectorAll(presetActionSelector).forEach((presetAction) => {
+        presetAction.style.display = visible ? '' : 'none';
+      });
+      return;
+    }
+
+    node.style.display = visible ? '' : 'none';
+  });
+}
+
+function readLevelSettingsVisibilityState() {
   const storageKey = 'motionai.levelSettingsVisibility';
+
+  try {
+    const raw = localStorage.getItem(storageKey);
+    if (raw === null) {
+      return false;
+    }
+    if (raw === 'true' || raw === 'false') {
+      return raw === 'true';
+    }
+    const parsed = JSON.parse(raw);
+    if (typeof parsed === 'boolean') {
+      return parsed;
+    }
+    if (parsed && typeof parsed === 'object') {
+      return Boolean(parsed.visible ?? parsed.value ?? false);
+    }
+    return false;
+  } catch (error) {
+    return false;
+  }
+}
+
+function writeLevelSettingsVisibilityState(visible) {
+  const storageKey = 'motionai.levelSettingsVisibility';
+  const nextValue = Boolean(visible);
+
+  try {
+    localStorage.setItem(storageKey, JSON.stringify(nextValue));
+  } catch (error) {
+    // ignore storage errors
+  }
+
+  document.querySelectorAll('.figure-side-panel-settings-button').forEach((button) => {
+    const panel = button.closest('.figure-side-panel, .consistency-info-panel');
+    if (!panel) {
+      return;
+    }
+    button.setAttribute('aria-pressed', String(nextValue));
+    button.classList.toggle('active', nextValue);
+    button.title = nextValue ? 'Einstellungen ausblenden' : 'Einstellungen einblenden';
+    applyLevelSettingsVisibilityToPanel(panel, nextValue);
+  });
+
+  window.dispatchEvent(new CustomEvent('motionai:levelSettingsVisibilityChanged', {
+    detail: { visible: nextValue }
+  }));
+}
+
+function createLevelSettingsVisibilityController(panel, { chapterId = null, levelResolver = () => uiState.activeLevel } = {}) {
   const button = document.createElement('button');
   button.type = 'button';
   button.className = 'figure-side-panel-settings-button';
@@ -138,71 +216,32 @@ function createLevelSettingsVisibilityController(panel, { chapterId = null, leve
   button.title = 'Einstellungen ein-/ausblenden';
   button.textContent = '⚙';
 
-  const writeState = (visible) => {
-    try {
-      localStorage.setItem(storageKey, JSON.stringify(Boolean(visible)));
-    } catch (error) {
-      return;
-    }
-  };
-
-  const readVisibleState = () => {
-    try {
-      const raw = localStorage.getItem(storageKey);
-      if (raw === null) {
-        return false;
-      }
-      if (raw === 'true' || raw === 'false') {
-        return raw === 'true';
-      }
-      const parsed = JSON.parse(raw);
-      if (typeof parsed === 'boolean') {
-        return parsed;
-      }
-      if (parsed && typeof parsed === 'object') {
-        return Boolean(parsed.visible ?? parsed.value ?? false);
-      }
-      return false;
-    } catch (error) {
-      return false;
-    }
-  };
-
   const sync = () => {
-    const isVisible = readVisibleState();
+    const isVisible = readLevelSettingsVisibilityState();
     button.setAttribute('aria-pressed', String(isVisible));
     button.classList.toggle('active', isVisible);
     button.title = isVisible ? 'Einstellungen ausblenden' : 'Einstellungen einblenden';
-
-    Array.from(panel.children).forEach((node) => {
-      if (node === button || node.classList.contains('figure-side-panel-header')) {
-        return;
-      }
-
-      const isPresetHost = node.matches('.dynamic-figure-presets, .hand-independence-preset-panel');
-      if (isPresetHost) {
-        node.style.display = '';
-        node.querySelectorAll('.dynamic-figure-preset-action, .dynamic-figure-preset-actions').forEach((presetAction) => {
-          presetAction.style.display = isVisible ? '' : 'none';
-        });
-        return;
-      }
-
-      node.style.display = isVisible ? '' : 'none';
-    });
+    applyLevelSettingsVisibilityToPanel(panel, isVisible);
   };
 
+  const handleGlobalChange = () => sync();
+  window.addEventListener('motionai:levelSettingsVisibilityChanged', handleGlobalChange);
+
   button.addEventListener('click', () => {
-    const nextVisible = !readVisibleState();
-    writeState(nextVisible);
+    const nextVisible = !readLevelSettingsVisibilityState();
+    writeLevelSettingsVisibilityState(nextVisible);
     sync();
+  });
+
+  button.addEventListener('remove', () => {
+    window.removeEventListener('motionai:levelSettingsVisibilityChanged', handleGlobalChange);
   });
 
   return {
     button,
     sync,
     setVisible: (visible) => {
-      writeState(Boolean(visible));
+      writeLevelSettingsVisibilityState(Boolean(visible));
       sync();
     }
   };
