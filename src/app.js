@@ -2637,6 +2637,7 @@ function createSquareExercisePanel() {
         resolution: selectedResolution,
         hand: pointSelectedHand,
         sequentialMode: pointSequenceMode,
+        symmetryMode: pointSymmetryMode,
         palindromMode: pointPalindromMode
       };
     }
@@ -2650,12 +2651,15 @@ function createSquareExercisePanel() {
         : selectedResolution;
       const hand = ['left', 'right', 'auto'].includes(value.hand) ? value.hand : pointSelectedHand;
       const sequentialMode = normalizePointSequenceMode(typeof value.sequentialMode === 'boolean' || typeof value.sequentialMode === 'string' ? value.sequentialMode : (typeof value.sequenceMode === 'boolean' || typeof value.sequenceMode === 'string' ? value.sequenceMode : pointSequenceMode));
+      const symmetryMode = typeof value.symmetryMode === 'boolean'
+        ? value.symmetryMode
+        : (typeof value.symmetricMode === 'boolean' ? value.symmetricMode : pointSymmetryMode);
       const palindromMode = typeof value.palindromMode === 'boolean'
         ? value.palindromMode
         : (typeof value.palindromeMode === 'boolean' ? value.palindromeMode : pointPalindromMode);
-      return { sequence, gridResolution, resolution, hand, sequentialMode, palindromMode };
+      return { sequence, gridResolution, resolution, hand, sequentialMode, symmetryMode, palindromMode };
     }
-    return { sequence: [], gridResolution: selectedGridResolution, resolution: selectedResolution, hand: pointSelectedHand, sequentialMode: pointSequenceMode, palindromMode: pointPalindromMode };
+    return { sequence: [], gridResolution: selectedGridResolution, resolution: selectedResolution, hand: pointSelectedHand, sequentialMode: pointSequenceMode, symmetryMode: pointSymmetryMode, palindromMode: pointPalindromMode };
   };
 
   const readStoredPointSlots = () => {
@@ -2917,6 +2921,7 @@ function createSquareExercisePanel() {
       gridResolution: selectedGridResolution,
       centerDistance: selectedCenterDistance
     };
+    squarePresetData.selectedPresetSlot = normalizedSlot;
     selectedSquarePresetSlot = normalizedSlot;
     persistSquarePresetData();
     squarePresetInputs.forEach((input) => {
@@ -3032,6 +3037,10 @@ function createSquareExercisePanel() {
   if (Number.isInteger(Number(squarePresetData.selectedPresetSlot))) {
     selectedSquarePresetSlot = normalizeSquarePresetSlot(squarePresetData.selectedPresetSlot);
   }
+  if (!squarePresetData.selectedPresetSlot) {
+    squarePresetData.selectedPresetSlot = selectedSquarePresetSlot;
+    persistSquarePresetData();
+  }
 
   const squarePresetTitle = document.createElement('div');
   squarePresetTitle.className = 'figure-panel-section-title';
@@ -3068,6 +3077,75 @@ function createSquareExercisePanel() {
     squarePresetInputs.push(input);
   }
 
+  const squarePresetDialog = document.createElement('div');
+  squarePresetDialog.className = 'figure-point-slot-dialog hidden';
+  squarePresetDialog.setAttribute('role', 'dialog');
+  squarePresetDialog.setAttribute('aria-modal', 'true');
+
+  const squarePresetDialogCard = document.createElement('div');
+  squarePresetDialogCard.className = 'figure-point-slot-dialog-card';
+
+  const squarePresetDialogTitle = document.createElement('div');
+  squarePresetDialogTitle.className = 'figure-point-slot-dialog-title';
+  squarePresetDialogTitle.textContent = 'Preset speichern';
+
+  const squarePresetDialogText = document.createElement('div');
+  squarePresetDialogText.className = 'figure-point-slot-dialog-text';
+  squarePresetDialogText.textContent = 'In welchen Preset-Slot 1-8 möchten Sie die aktuelle Konfiguration speichern?';
+
+  const squarePresetDialogInput = document.createElement('input');
+  squarePresetDialogInput.type = 'number';
+  squarePresetDialogInput.min = '1';
+  squarePresetDialogInput.max = '8';
+  squarePresetDialogInput.step = '1';
+  squarePresetDialogInput.value = String(selectedSquarePresetSlot);
+  squarePresetDialogInput.className = 'figure-point-slot-dialog-input';
+
+  const squarePresetDialogActions = document.createElement('div');
+  squarePresetDialogActions.className = 'figure-point-slot-dialog-actions';
+
+  const squarePresetDialogCancel = document.createElement('button');
+  squarePresetDialogCancel.type = 'button';
+  squarePresetDialogCancel.className = 'figure-point-action';
+  squarePresetDialogCancel.textContent = 'Abbrechen';
+
+  const squarePresetDialogConfirm = document.createElement('button');
+  squarePresetDialogConfirm.type = 'button';
+  squarePresetDialogConfirm.className = 'figure-point-action primary';
+  squarePresetDialogConfirm.textContent = 'Speichern';
+
+  const closeSquarePresetDialog = () => {
+    squarePresetDialog.classList.add('hidden');
+    squarePresetDialogInput.value = String(selectedSquarePresetSlot);
+  };
+
+  squarePresetDialogCancel.addEventListener('click', closeSquarePresetDialog);
+  squarePresetDialog.addEventListener('click', (event) => {
+    if (event.target === squarePresetDialog) {
+      closeSquarePresetDialog();
+    }
+  });
+
+  squarePresetDialogConfirm.addEventListener('click', () => {
+    const slotNumber = Number.parseInt(squarePresetDialogInput.value, 10);
+    if (!Number.isInteger(slotNumber) || slotNumber < 1 || slotNumber > squarePresetCount) {
+      window.alert('Bitte wählen Sie einen gültigen Slot von 1 bis 8.');
+      return;
+    }
+
+    saveSquarePreset(slotNumber);
+    closeSquarePresetDialog();
+  });
+
+  squarePresetDialogActions.appendChild(squarePresetDialogCancel);
+  squarePresetDialogActions.appendChild(squarePresetDialogConfirm);
+  squarePresetDialogCard.appendChild(squarePresetDialogTitle);
+  squarePresetDialogCard.appendChild(squarePresetDialogText);
+  squarePresetDialogCard.appendChild(squarePresetDialogInput);
+  squarePresetDialogCard.appendChild(squarePresetDialogActions);
+  squarePresetDialog.appendChild(squarePresetDialogCard);
+  document.body.appendChild(squarePresetDialog);
+
   const squarePresetActions = document.createElement('div');
   squarePresetActions.className = 'figure-point-action-row';
   squarePresetActions.hidden = !pointEditMode;
@@ -3078,7 +3156,8 @@ function createSquareExercisePanel() {
   squarePresetSaveButton.className = 'figure-point-action primary';
   squarePresetSaveButton.textContent = 'Speichern';
   squarePresetSaveButton.addEventListener('click', () => {
-    saveSquarePreset(selectedSquarePresetSlot);
+    squarePresetDialogInput.value = String(selectedSquarePresetSlot);
+    squarePresetDialog.classList.remove('hidden');
   });
 
   const squarePresetResetButton = document.createElement('button');
@@ -3087,6 +3166,7 @@ function createSquareExercisePanel() {
   squarePresetResetButton.textContent = 'Zurücksetzen';
   squarePresetResetButton.addEventListener('click', () => {
     squarePresetData = {};
+    squarePresetData.selectedPresetSlot = 1;
     selectedSquarePresetSlot = 1;
     persistSquarePresetData();
     squarePresetInputs.forEach((input) => {
@@ -3618,6 +3698,7 @@ function createSquareExercisePanel() {
       resolution: selectedResolution,
       hand: pointSelectedHand,
       sequentialMode: pointSequenceMode,
+      symmetryMode: pointSymmetryInput.checked,
       palindromMode: pointPalindromMode
     };
 
