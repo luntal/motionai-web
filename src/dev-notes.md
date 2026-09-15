@@ -16,3 +16,10 @@
 ✅ callibration wird nicht übernommen nach kallibrierung.
 ✅ hand landmarks werden nicht als Grenzen für forte verwendet. 
 ✅ Punkte erzeugen durch klicken funktioniert nicht
+
+
+Youtube links:
+- Dirigieren lernen (Taktart 4/4, 3/4, 2/4 und 6/8). Channel: dirigierenlernen.de
+- https://www.youtube.com/watch?v=4BZcPDSFRe8
+- https://www.youtube.com/watch?v=csm4W4j33M8
+- https://www.youtube.com/watch?v=3Kuth10ceYw
