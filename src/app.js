@@ -4689,6 +4689,29 @@ function createSquareExercisePanel() {
     setExerciseMode: (mode) => {
       setChapter1ExerciseMode(mode);
     },
+    initializeCurrentPointPreset: () => {
+      const currentSlot = pointSelectedSlot || normalizePointSlot(pointSavedSlots[1] ? 1 : pointSelectedSlot);
+      const selectedPreset = pointSavedSlots[currentSlot] || pointSavedSlots[1] || {};
+      const entry = normalizePointPresetEntry(selectedPreset);
+      const hasPresetSequence = Array.isArray(entry.sequence) && entry.sequence.length > 0;
+      if (!pointEditMode && hasPresetSequence) {
+        loadPointPresetIntoCurrentSequence(currentSlot, { force: true });
+        return true;
+      }
+      if (!pointEditMode && currentSlot && (!hasPresetSequence || pointSequence.length === 0)) {
+        pointSelectedSlot = normalizePointSlot(currentSlot);
+        pointSequence = restoreAbsolutePointSequence(entry.sequence);
+        if (pointSequence.length > 0) {
+          loadPointPresetIntoCurrentSequence(pointSelectedSlot, { force: true });
+          return true;
+        }
+      }
+      if (!pointEditMode && pointSelectedSlot) {
+        loadPointPresetIntoCurrentSequence(pointSelectedSlot, { force: true });
+        return true;
+      }
+      return false;
+    },
     setTitle: (nextTitle) => {
       const normalizedTitle = typeof nextTitle === 'string' ? nextTitle.trim() : '';
       if (!normalizedTitle) {
@@ -7110,6 +7133,9 @@ export function initApp() {
                   ? 'alternating'
                   : 'square'
       );
+      if (showPointsExercisePanel) {
+        squareExercisePanel.initializeCurrentPointPreset?.();
+      }
     } else {
       figurePanel.setVisible(false);
       dynamicFigurePanel.setVisible(false);
