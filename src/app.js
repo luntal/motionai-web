@@ -2513,6 +2513,7 @@ function createSquareExercisePanel() {
     : 0.5;
   let selectedShape = ['0', '1', '2', '3', '4', '5'].includes(settings.shape) ? settings.shape : '0';
   let selectedSyncMode = ['asynchronous', 'synchronous'].includes(settings.syncMode) ? settings.syncMode : 'asynchronous';
+  let selectedSquarePalindromMode = Boolean(settings.squarePalindromMode);
   let selectedAlternatingScale = ['chromatic', 'major', 'pentatonic'].includes(settings.alternatingScale) ? settings.alternatingScale : 'chromatic';
   let selectedAlternatingStartNote = Number.isFinite(Number(settings.alternatingStartNote))
     ? Math.max(36, Math.min(60, Math.round(Number(settings.alternatingStartNote))))
@@ -2743,6 +2744,7 @@ function createSquareExercisePanel() {
       shape: selectedShape,
       handMode: selectedHandMode,
       syncMode: selectedSyncMode,
+      squarePalindromMode: selectedSquarePalindromMode,
       resolution: selectedResolution,
       gridResolution: selectedGridResolution,
       centerDistance: selectedCenterDistance,
@@ -2905,6 +2907,7 @@ function createSquareExercisePanel() {
     shape: '0',
     handMode: 'right',
     syncMode: 'asynchronous',
+    palindromMode: false,
     resolution: 1.0,
     gridResolution: 8,
     centerDistance: 0.5
@@ -2917,6 +2920,7 @@ function createSquareExercisePanel() {
       shape: selectedShape,
       handMode: selectedHandMode,
       syncMode: selectedSyncMode,
+      palindromMode: selectedSquarePalindromMode,
       resolution: selectedResolution,
       gridResolution: selectedGridResolution,
       centerDistance: selectedCenterDistance
@@ -2924,9 +2928,7 @@ function createSquareExercisePanel() {
     squarePresetData.selectedPresetSlot = normalizedSlot;
     selectedSquarePresetSlot = normalizedSlot;
     persistSquarePresetData();
-    squarePresetInputs.forEach((input) => {
-      input.checked = Number(input.value) === selectedSquarePresetSlot;
-    });
+    syncSquarePresetSelectionUI();
   };
 
   const applySquarePreset = (slotNumber, { silent = false } = {}) => {
@@ -2937,6 +2939,9 @@ function createSquareExercisePanel() {
     selectedShape = String(preset.shape ?? selectedShape);
     selectedHandMode = ['right', 'left', 'both'].includes(preset.handMode) ? preset.handMode : selectedHandMode;
     selectedSyncMode = ['asynchronous', 'synchronous'].includes(preset.syncMode) ? preset.syncMode : selectedSyncMode;
+    selectedSquarePalindromMode = typeof preset.palindromMode === 'boolean'
+      ? preset.palindromMode
+      : selectedSquarePalindromMode;
     selectedResolution = Number.isFinite(Number(preset.resolution))
       ? Math.min(1.0, Math.max(0.55, Number(preset.resolution)))
       : selectedResolution;
@@ -2975,11 +2980,13 @@ function createSquareExercisePanel() {
     if (typeof centerDistanceSlider !== 'undefined') {
       setCenterDistance(selectedCenterDistance);
     }
+    if (squarePalindromInput) {
+      squarePalindromInput.checked = selectedSquarePalindromMode;
+    }
 
-    squarePresetInputs.forEach((input) => {
-      input.checked = Number(input.value) === selectedSquarePresetSlot;
-    });
+    syncSquarePresetSelectionUI();
     updateSyncVisibility();
+    updateSquarePresetInfo();
     updatePointPanelVisibility();
     setChapter1ExerciseMode(squareExerciseMode);
     if (pointEditMode && squareExerciseMode === 'square') {
@@ -3022,14 +3029,23 @@ function createSquareExercisePanel() {
         }
       });
     }
+    updateSquarePresetInfo();
     if (!silent) {
       persistSettings();
       managerRef?.setSquareExerciseShape(selectedShape);
       managerRef?.setSquareExerciseHandMode(selectedHandMode);
       managerRef?.setSquareExerciseSyncMode(selectedSyncMode);
+      managerRef?.setSquareExercisePalindromMode(selectedSquarePalindromMode);
       managerRef?.setSquareExerciseResolution(selectedResolution);
       managerRef?.setSquareExerciseGridResolution(selectedGridResolution);
       managerRef?.setSquareExerciseCenterDistance(selectedCenterDistance);
+      updateSquarePresetInputsState();
+      if (squarePalindromInput) {
+        squarePalindromInput.checked = selectedSquarePalindromMode;
+      }
+      if (squarePresetInfo) {
+        updateSquarePresetInfo();
+      }
     }
   };
 
@@ -3053,7 +3069,22 @@ function createSquareExercisePanel() {
   squarePresetRow.hidden = false;
   squarePresetRow.style.display = '';
 
+  const squarePresetInfo = document.createElement('div');
+  squarePresetInfo.className = 'figure-point-preset-info';
+  squarePresetInfo.textContent = 'Aktuelles Preset: Asynchron';
+
+  const updateSquarePresetInfo = () => {
+    const palindromStateText = selectedSquarePalindromMode ? 'Palindrom ein' : 'Palindrom aus';
+    squarePresetInfo.textContent = `Aktuelles Preset: ${selectedSyncMode === 'synchronous' ? 'Synchron' : 'Asynchron'} • Reihenfolge: ${palindromStateText}`;
+  };
+
   const squarePresetInputs = [];
+  const syncSquarePresetSelectionUI = () => {
+    squarePresetInputs.forEach((input) => {
+      input.checked = Number(input.value) === selectedSquarePresetSlot;
+    });
+  };
+
   for (let slotIndex = 1; slotIndex <= squarePresetCount; slotIndex += 1) {
     const option = document.createElement('label');
     option.className = 'figure-point-slot-option';
@@ -3076,6 +3107,15 @@ function createSquareExercisePanel() {
     squarePresetRow.appendChild(option);
     squarePresetInputs.push(input);
   }
+
+  const updateSquarePresetInputsState = () => {
+    squarePresetInputs.forEach((input) => {
+      const isSquareMode = squareExerciseMode === 'square';
+      const disabled = !isSquareMode;
+      input.disabled = disabled;
+      input.setAttribute('aria-disabled', String(disabled));
+    });
+  };
 
   const squarePresetDialog = document.createElement('div');
   squarePresetDialog.className = 'figure-point-slot-dialog hidden';
@@ -3156,8 +3196,12 @@ function createSquareExercisePanel() {
   squarePresetSaveButton.className = 'figure-point-action primary';
   squarePresetSaveButton.textContent = 'Speichern';
   squarePresetSaveButton.addEventListener('click', () => {
-    squarePresetDialogInput.value = String(selectedSquarePresetSlot);
-    squarePresetDialog.classList.remove('hidden');
+    const requestedSlot = window.prompt('In welchen Preset-Slot möchten Sie die aktuelle Konfiguration speichern? (1-8)', String(selectedSquarePresetSlot));
+    const slotNumber = Number.parseInt(requestedSlot, 10);
+    if (!Number.isInteger(slotNumber) || slotNumber < 1 || slotNumber > squarePresetCount) {
+      return;
+    }
+    saveSquarePreset(slotNumber);
   });
 
   const squarePresetResetButton = document.createElement('button');
@@ -3181,11 +3225,29 @@ function createSquareExercisePanel() {
 
   panel.insertBefore(squarePresetTitle, shapeTitle);
   panel.insertBefore(squarePresetRow, shapeTitle);
+  panel.insertBefore(squarePresetInfo, shapeTitle);
   panel.insertBefore(squarePresetActions, shapeTitle);
   bindUiGroupDescription([squarePresetTitle], 'Eingewöhnung', 'Presets');
   bindUiGroupDescription([...squarePresetRow.querySelectorAll('label, input')], 'Eingewöhnung', 'PresetSlots');
   bindUiGroupDescription([squarePresetSaveButton], 'Eingewöhnung', 'PresetSpeichern');
   bindUiGroupDescription([squarePresetResetButton], 'Eingewöhnung', 'PresetZurücksetzen');
+
+  const squarePalindromWrap = document.createElement('label');
+  squarePalindromWrap.className = 'figure-dynamics-toggle';
+  squarePalindromWrap.hidden = true;
+  const squarePalindromInput = document.createElement('input');
+  squarePalindromInput.type = 'checkbox';
+  squarePalindromInput.checked = selectedSquarePalindromMode;
+  squarePalindromWrap.appendChild(squarePalindromInput);
+  squarePalindromWrap.appendChild(document.createTextNode('Palindrom'));
+  bindUiGroupDescription([squarePalindromWrap, squarePalindromInput], 'Eingewöhnung', 'Palindrom');
+
+  squarePalindromInput.addEventListener('change', () => {
+    selectedSquarePalindromMode = squarePalindromInput.checked;
+    updateSquarePresetInfo();
+    persistSettings();
+    managerRef?.setSquareExercisePalindromMode?.(selectedSquarePalindromMode);
+  });
 
   const syncOptions = [
     { value: 'asynchronous', label: 'Asynchron' },
@@ -3207,6 +3269,7 @@ function createSquareExercisePanel() {
         return;
       }
       selectedSyncMode = value;
+      updateSquarePresetInfo();
       persistSettings();
       managerRef?.setSquareExerciseSyncMode(selectedSyncMode);
     });
@@ -3299,11 +3362,17 @@ function createSquareExercisePanel() {
 
   const updateSyncVisibility = () => {
     const isSquareEditMode = pointEditMode && squareExerciseMode === 'square';
+    const isDigitShape = /^\d$/.test(String(selectedShape));
     const isBoth = selectedHandMode === 'both';
     const shouldShowSyncControls = isSquareEditMode || isBoth;
+    const shouldShowPalindromToggle = isSquareEditMode && isDigitShape;
+    updateSquarePresetInfo();
     syncTitle.hidden = !shouldShowSyncControls;
     syncGroup.hidden = !shouldShowSyncControls;
     syncSection.hidden = !shouldShowSyncControls;
+    squarePalindromWrap.hidden = !shouldShowPalindromToggle;
+    squarePalindromWrap.style.display = shouldShowPalindromToggle ? '' : 'none';
+    squarePalindromInput.checked = selectedSquarePalindromMode;
 
     handTitle.hidden = false;
     handGroup.hidden = false;
@@ -3321,6 +3390,11 @@ function createSquareExercisePanel() {
   };
 
   panel.appendChild(syncSection);
+  panel.appendChild(squarePalindromWrap);
+
+  updateSquarePresetInfo();
+  updateSquarePresetInputsState();
+  syncSquarePresetSelectionUI();
 
   const pointSection = document.createElement('div');
   pointSection.className = 'figure-panel-section points-panel-section';
@@ -3356,6 +3430,7 @@ function createSquareExercisePanel() {
     if (!pointEditMode) {
       loadPointPresetIntoCurrentSequence(pointSelectedSlot, { force: true });
     }
+    updateSquarePresetInputsState();
     managerRef?.setPointExerciseSequentialMode?.(pointSequenceMode);
     syncPointToggleButton();
   });
@@ -3375,6 +3450,7 @@ function createSquareExercisePanel() {
     if (!pointEditMode) {
       loadPointPresetIntoCurrentSequence(pointSelectedSlot, { force: true });
     }
+    updateSquarePresetInputsState();
     managerRef?.setPointExerciseSequentialMode?.(pointSequenceMode);
     syncPointToggleButton();
   });
@@ -3567,6 +3643,13 @@ function createSquareExercisePanel() {
     return false;
   };
 
+  const updatePointPresetInputsState = () => {
+    pointSlotLabels.forEach((input) => {
+      input.disabled = pointEditMode;
+      input.setAttribute('aria-disabled', String(pointEditMode));
+    });
+  };
+
   const pointSlotLabels = Array.from({ length: 8 }, (_, slotIndex) => {
     const slotNumber = slotIndex + 1;
     const option = document.createElement('label');
@@ -3744,8 +3827,41 @@ function createSquareExercisePanel() {
       return;
     }
 
-    pointSaveDialogInput.value = String(pointSelectedSlot);
-    pointSaveDialog.classList.remove('hidden');
+    const requestedSlot = window.prompt('In welchen Slot 1-8 möchten Sie die aktuelle Folge speichern?', String(pointSelectedSlot));
+    const slotNumber = Number.parseInt(requestedSlot, 10);
+    if (!Number.isInteger(slotNumber) || slotNumber < 1 || slotNumber > 8) {
+      return;
+    }
+
+    const normalizedSequenceMode = normalizePointSequenceMode(pointSequenceModeInputs.find((radio) => radio.checked)?.value || pointSequenceMode);
+    const nextPresetEntry = {
+      sequence: sanitizePointSequence(pointSequence),
+      gridResolution: selectedGridResolution,
+      resolution: selectedResolution,
+      hand: pointSelectedHand,
+      sequentialMode: pointSequenceMode,
+      symmetryMode: pointSymmetryInput.checked,
+      palindromMode: pointPalindromMode
+    };
+
+    pointSelectedSlot = slotNumber;
+    pointSequenceMode = normalizedSequenceMode;
+    pointSymmetryMode = pointSymmetryInput.checked;
+    pointSavedSlots[pointSelectedSlot] = nextPresetEntry;
+    debugPointPresetLog(`save slot ${pointSelectedSlot}`, {
+      slot: pointSelectedSlot,
+      preset: nextPresetEntry,
+      sequence: nextPresetEntry.sequence
+    });
+    pointSlotLabels.forEach((radio) => {
+      radio.checked = Number(radio.value) === pointSelectedSlot;
+    });
+    persistPointState();
+    managerRef?.setPointExerciseSelectedSlot(pointSelectedSlot);
+    managerRef?.setPointExerciseSavedSlots(pointSavedSlots);
+    managerRef?.setPointExerciseSequentialMode?.(pointSequenceMode);
+    managerRef?.setPointExerciseSymmetryMode?.(pointSymmetryMode);
+    renderPointList();
   });
 
   pointActions.appendChild(pointSaveButton);
@@ -3807,6 +3923,7 @@ function createSquareExercisePanel() {
     pointPresetInfo.hidden = !showPresetInfo;
     pointPresetInfo.style.display = showPresetInfo ? '' : 'none';
     updatePointPresetInfo();
+    updatePointPresetInputsState();
     pointSlotLabels.forEach((radio) => {
       radio.hidden = !showPresetRow;
       radio.style.display = showPresetRow ? '' : 'none';
@@ -3877,6 +3994,7 @@ function createSquareExercisePanel() {
     squarePresetRow.style.display = squareShowPresetControls && !isPoints ? '' : 'none';
     squarePresetActions.hidden = !squareShowEditControls || isPoints;
     squarePresetActions.style.display = squareShowEditControls && !isPoints ? '' : 'none';
+    updateSquarePresetInputsState();
 
     pointToggleInput.checked = pointEditMode;
     pointToggleWrap.classList.toggle('is-active', pointEditMode);
@@ -4479,6 +4597,18 @@ function createSquareExercisePanel() {
       squarePresetRow.hidden = !shouldShowSquarePresetRow;
       squarePresetRow.style.display = shouldShowSquarePresetRow ? '' : 'none';
     }
+    if (squarePresetInfo) {
+      const shouldShowSquarePresetInfo = !isPoints && !hideUnusedSquareControls && squareShowPresetControls;
+      squarePresetInfo.hidden = !shouldShowSquarePresetInfo;
+      squarePresetInfo.style.display = shouldShowSquarePresetInfo ? '' : 'none';
+    }
+    if (squarePalindromWrap) {
+      const shouldShowSquarePalindromToggle = !isPoints && !isSymmetric && !isAlternating && !isBlank && !isFreeMovement && activeEditMode && /^\d$/.test(String(selectedShape));
+      squarePalindromWrap.hidden = !shouldShowSquarePalindromToggle;
+      squarePalindromWrap.style.display = shouldShowSquarePalindromToggle ? '' : 'none';
+      squarePalindromInput.checked = selectedSquarePalindromMode;
+    }
+    syncSquarePresetSelectionUI();
     if (squarePresetActions) {
       const shouldShowSquarePresetActions = !hideUnusedSquareControls && squareShowEditControls;
       squarePresetActions.hidden = !shouldShowSquarePresetActions;
@@ -5782,7 +5912,11 @@ function createTrackingControls(trackingController) {
     videoSofteningButton.textContent = videoSofteningEnabled ? 'Weichzeichnen: ON' : 'Weichzeichnen: OFF';
     videoSofteningButton.setAttribute('aria-pressed', String(videoSofteningEnabled));
     if (videoCanvas) {
-      videoCanvas.style.filter = 'none';
+      const filterValue = videoSofteningEnabled
+        ? `blur(${videoSofteningBlurPx}px) brightness(${videoSofteningBrightness})`
+        : 'none';
+      videoCanvas.style.filter = filterValue;
+      videoCanvas.style.webkitFilter = filterValue;
       videoCanvas.style.transition = 'filter 180ms ease';
     }
     setVideoSofteningEnabled(videoSofteningEnabled);
@@ -5838,6 +5972,13 @@ function createTrackingControls(trackingController) {
     blurSlider.disabled = !videoSofteningEnabled;
     brightnessSlider.disabled = !videoSofteningEnabled;
     setVideoSofteningStyle(videoSofteningBlurPx, videoSofteningBrightness);
+    if (videoCanvas) {
+      const filterValue = videoSofteningEnabled
+        ? `blur(${videoSofteningBlurPx}px) brightness(${videoSofteningBrightness})`
+        : 'none';
+      videoCanvas.style.filter = filterValue;
+      videoCanvas.style.webkitFilter = filterValue;
+    }
   }
 
   const modeLabel = document.createElement('div');
@@ -5888,9 +6029,88 @@ function createTrackingControls(trackingController) {
     return `${baseName} - ${formattedDate}`;
   }
 
+  function isFallbackCalibrationSet(entry) {
+    if (!entry || typeof entry !== 'object') {
+      return false;
+    }
+
+    const rawName = typeof entry.name === 'string' ? entry.name.trim() : '';
+    if (rawName === 'default-fallback') {
+      return true;
+    }
+
+    return Number(entry.timestamp) === 0 && !rawName;
+  }
+
+  function isManualCalibrationSet(entry) {
+    if (!entry || typeof entry !== 'object') {
+      return false;
+    }
+
+    const rawName = typeof entry.name === 'string' ? entry.name.trim() : '';
+    if (!rawName || rawName === 'default-fallback') {
+      return false;
+    }
+
+    return rawName === 'callibration_date' || rawName.toLowerCase().startsWith('callibration_date -');
+  }
+
+  function resolvePreferredCalibrationIndex(poseSets = [], explicitIndex = null) {
+    if (!Array.isArray(poseSets) || poseSets.length === 0) {
+      return null;
+    }
+
+    const visibleSets = poseSets.filter((entry) => !isFallbackCalibrationSet(entry));
+    const effectivePool = visibleSets.length > 0
+      ? visibleSets.map((entry, index) => ({ entry, index: poseSets.indexOf(entry) }))
+      : poseSets.map((entry, index) => ({ entry, index }));
+
+    const manualMatches = effectivePool.filter(({ entry }) => isManualCalibrationSet(entry));
+    const candidatePool = manualMatches.length > 0 ? manualMatches : effectivePool;
+
+    if (Number.isInteger(explicitIndex) && explicitIndex >= 0 && explicitIndex < poseSets.length) {
+      const explicitEntry = poseSets[explicitIndex];
+      if (isFallbackCalibrationSet(explicitEntry)) {
+        if (visibleSets.length > 0) {
+          return null;
+        }
+      } else if (manualMatches.length === 0 || isManualCalibrationSet(explicitEntry)) {
+        return explicitIndex;
+      }
+    }
+
+    let best = candidatePool[0];
+    candidatePool.slice(1).forEach((candidate) => {
+      const currentTimestamp = Number(candidate.entry?.timestamp) || 0;
+      const bestTimestamp = Number(best.entry?.timestamp) || 0;
+      if (currentTimestamp > bestTimestamp) {
+        best = candidate;
+      }
+    });
+
+    return best ? best.index : null;
+  }
+
   function setCalibrationPoseSets(poseSets = []) {
     const currentValue = calibrationSetSelect.value;
     calibrationSetSelect.innerHTML = '';
+
+    const visiblePoseSets = Array.isArray(poseSets)
+      ? poseSets.filter((entry) => !isFallbackCalibrationSet(entry))
+      : [];
+
+    if (!Array.isArray(poseSets) || poseSets.length === 0 || (visiblePoseSets.length === 0 && poseSets.some((entry) => isFallbackCalibrationSet(entry)))) {
+      const option = document.createElement('option');
+      option.value = '';
+      option.textContent = 'No saved calibration yet';
+      calibrationSetSelect.appendChild(option);
+      calibrationSetSelect.disabled = true;
+      selectedCalibrationSetIndex = null;
+      if (calibrationSetChangeHandler) {
+        calibrationSetChangeHandler(null);
+      }
+      return;
+    }
 
     if (!Array.isArray(poseSets) || poseSets.length === 0) {
       const option = document.createElement('option');
@@ -5906,18 +6126,25 @@ function createTrackingControls(trackingController) {
     }
 
     calibrationSetSelect.disabled = false;
-    poseSets.forEach((entry, index) => {
+    visiblePoseSets.forEach((entry, index) => {
       const option = document.createElement('option');
-      option.value = String(index);
-      option.textContent = formatCalibrationSetOption(entry, index);
+      const originalIndex = poseSets.indexOf(entry);
+      option.value = String(originalIndex);
+      option.textContent = formatCalibrationSetOption(entry, originalIndex);
       calibrationSetSelect.appendChild(option);
     });
 
     const persistedIndex = readPersistedCalibrationIndex();
-    const hasPersisted = Number.isInteger(persistedIndex) && persistedIndex >= 0 && persistedIndex < poseSets.length;
     const parsedCurrent = Number(currentValue);
+    const preferredIndex = resolvePreferredCalibrationIndex(poseSets, persistedIndex);
     const hasCurrent = Number.isInteger(parsedCurrent) && parsedCurrent >= 0 && parsedCurrent < poseSets.length;
-    selectedCalibrationSetIndex = hasPersisted ? persistedIndex : (hasCurrent ? parsedCurrent : poseSets.length - 1);
+    const currentEntry = hasCurrent ? poseSets[parsedCurrent] : null;
+    const currentIsVisible = !!currentEntry && !isFallbackCalibrationSet(currentEntry);
+    selectedCalibrationSetIndex = preferredIndex ?? (
+      currentIsVisible
+        ? parsedCurrent
+        : (visiblePoseSets.length > 0 ? poseSets.indexOf(visiblePoseSets[visiblePoseSets.length - 1]) : null)
+    );
     calibrationSetSelect.value = String(selectedCalibrationSetIndex);
     if (calibrationSetChangeHandler) {
       calibrationSetChangeHandler(selectedCalibrationSetIndex);
@@ -6177,6 +6404,13 @@ function createTrackingControls(trackingController) {
     videoSofteningBlurPx = Number(blurSlider.value);
     blurValue.textContent = `${videoSofteningBlurPx}px`;
     setVideoSofteningStyle(videoSofteningBlurPx, videoSofteningBrightness);
+    if (videoCanvas) {
+      const filterValue = videoSofteningEnabled
+        ? `blur(${videoSofteningBlurPx}px) brightness(${videoSofteningBrightness})`
+        : 'none';
+      videoCanvas.style.filter = filterValue;
+      videoCanvas.style.webkitFilter = filterValue;
+    }
     persistVideoSofteningSettings();
     persistSettingsState();
   });
@@ -6185,6 +6419,13 @@ function createTrackingControls(trackingController) {
     videoSofteningBrightness = Number(brightnessSlider.value);
     brightnessValue.textContent = Number(videoSofteningBrightness).toFixed(2);
     setVideoSofteningStyle(videoSofteningBlurPx, videoSofteningBrightness);
+    if (videoCanvas) {
+      const filterValue = videoSofteningEnabled
+        ? `blur(${videoSofteningBlurPx}px) brightness(${videoSofteningBrightness})`
+        : 'none';
+      videoCanvas.style.filter = filterValue;
+      videoCanvas.style.webkitFilter = filterValue;
+    }
     persistVideoSofteningSettings();
     persistSettingsState();
   });
@@ -6556,6 +6797,7 @@ export function initApp() {
     setSquareExerciseShape: (value) => levelManager.setSquareExerciseShape(value),
     setSquareExerciseHandMode: (value) => levelManager.setSquareExerciseHandMode(value),
     setSquareExerciseSyncMode: (value) => levelManager.setSquareExerciseSyncMode(value),
+    setSquareExercisePalindromMode: (value) => levelManager.setSquareExercisePalindromMode(value),
     setSquareExerciseResolution: (value) => {
       syncChapter1Resolution(value);
     },

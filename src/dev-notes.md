@@ -12,10 +12,19 @@
 
 - zurücksetzen auf werkseinstellungen für die einzelnen Kapitel ermöglichen.
 
-- Defaults laden nicht.
+- Defaults laden nicht?
+    - Defaults für alle Levels erstelen
 ✅ callibration wird nicht übernommen nach kallibrierung.
 ✅ hand landmarks werden nicht als Grenzen für forte verwendet. 
 ✅ Punkte erzeugen durch klicken funktioniert nicht
+
+
+- Kallibrierung
+    - Rechteck für Augen muss grün werden, wenn Augen im korrekten Bereich sind. 
+    - Countdown und Snapshot müssen stärker hervorgehoben werden
+- Downloadbutton für exportDefault() in den Einstellungen.
+- Profile einarbeiten. 
+- Tooltips überarbeiten (vor allem bei Ziffern und Punkte nochmal drüberschauen).
 
 
 Youtube links:

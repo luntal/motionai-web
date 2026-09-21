@@ -352,6 +352,8 @@ export class LevelManager {
     this.pointExerciseFlashDurationMs = 350;
     this.squareExerciseHandMode = 'right';
     this.squareExerciseSyncMode = 'asynchronous';
+    this.squareExercisePalindromMode = false;
+    this.squareExerciseTraversalDirection = 1;
     this.squareExerciseResolution = 1;
     this.squareExerciseGridResolution = 8;
     this.squareExerciseShape = '0';
@@ -1597,12 +1599,80 @@ export class LevelManager {
     };
   }
 
+  isManualCalibrationPoseSet(entry) {
+    if (!entry || typeof entry !== 'object') {
+      return false;
+    }
+
+    const rawName = typeof entry.name === 'string' ? entry.name.trim() : '';
+    if (!rawName || rawName === 'default-fallback') {
+      return false;
+    }
+
+    return rawName === 'callibration_date' || rawName.toLowerCase().startsWith('callibration_date -');
+  }
+
+  isFallbackCalibrationPoseSetEntry(entry) {
+    if (!entry || typeof entry !== 'object') {
+      return false;
+    }
+
+    const rawName = typeof entry.name === 'string' ? entry.name.trim() : '';
+    if (rawName === 'default-fallback') {
+      return true;
+    }
+
+    return Number(entry.timestamp) === 0 && !rawName;
+  }
+
+  resolvePreferredCalibrationSetIndex(explicitIndex = null) {
+    if (!Array.isArray(this.calibrationPoseSets) || this.calibrationPoseSets.length === 0) {
+      return null;
+    }
+
+    const realEntries = this.calibrationPoseSets
+      .map((entry, index) => ({ entry, index }))
+      .filter(({ entry }) => !this.isFallbackCalibrationPoseSetEntry(entry));
+
+    const candidatePool = realEntries.length > 0
+      ? realEntries.filter(({ entry }) => this.isManualCalibrationPoseSet(entry) || true)
+      : this.calibrationPoseSets.map((entry, index) => ({ entry, index }));
+
+    const manualCandidates = candidatePool.filter(({ entry }) => this.isManualCalibrationPoseSet(entry));
+    const effectivePool = manualCandidates.length > 0 ? manualCandidates : candidatePool;
+
+    if (Number.isInteger(explicitIndex) && explicitIndex >= 0 && explicitIndex < this.calibrationPoseSets.length) {
+      const explicitEntry = this.calibrationPoseSets[explicitIndex];
+      if (this.isFallbackCalibrationPoseSetEntry(explicitEntry)) {
+        if (realEntries.length > 0) {
+          return null;
+        }
+      } else if (manualCandidates.length === 0 || this.isManualCalibrationPoseSet(explicitEntry)) {
+        return explicitIndex;
+      }
+    }
+
+    let best = effectivePool[0];
+    effectivePool.slice(1).forEach((candidate) => {
+      const currentTimestamp = Number(candidate.entry?.timestamp) || 0;
+      const bestTimestamp = Number(best.entry?.timestamp) || 0;
+      if (currentTimestamp > bestTimestamp) {
+        best = candidate;
+      }
+    });
+
+    return best ? best.index : null;
+  }
+
   getSelectedCalibrationPoseSet() {
     if (this.calibrationPoseSets.length === 0) {
       return this.getFallbackCalibrationPoseSet();
     }
 
-    if (!Number.isInteger(this.selectedCalibrationPoseSetIndex)) {
+    const preferredIndex = this.resolvePreferredCalibrationSetIndex(this.selectedCalibrationPoseSetIndex);
+    if (Number.isInteger(preferredIndex) && preferredIndex >= 0 && preferredIndex < this.calibrationPoseSets.length) {
+      this.selectedCalibrationPoseSetIndex = preferredIndex;
+    } else if (!Number.isInteger(this.selectedCalibrationPoseSetIndex)) {
       this.selectedCalibrationPoseSetIndex = this.calibrationPoseSets.length - 1;
     }
 
@@ -2718,6 +2788,17 @@ export class LevelManager {
       this.nextTarget = 0;
       this.nextTargetByHand = { left: 0, right: 0 };
       this.completed = false;
+    }
+    this.requestRender();
+  }
+
+  setSquareExercisePalindromMode(value) {
+    this.squareExercisePalindromMode = Boolean(value);
+    if (this.chapter === 1 && Number.isInteger(this.level) && this.level === 0) {
+      this.squareExerciseTraversalDirection = 1;
+      if (this.targets.length > 0) {
+        this.nextTarget = 0;
+      }
     }
     this.requestRender();
   }
@@ -6025,6 +6106,7 @@ export class LevelManager {
     this.targets = [];
     this.targetIndexByCircle.clear();
     this.nextTarget = 0;
+    this.squareExerciseTraversalDirection = 1;
     this.nextTargetByHand = { left: 0, right: 0 };
     this.completed = false;
 
@@ -6200,6 +6282,7 @@ export class LevelManager {
       const selectedHands = isBoth ? ['left', 'right'] : [this.squareExerciseHandMode || 'right'];
       const isDigitShape = /^\d$/.test(String(this.squareExerciseShape));
       const isCircle = this.squareExerciseShape === 'circle';
+      this.squareExerciseTraversalDirection = 1;
 
       const pushTarget = (side, cx, cy, radius, steps) => {
         for (let step = 0; step < steps; step += 1) {
@@ -8718,6 +8801,87 @@ export class LevelManager {
       return;
     }
 
+    if (this.chapter === 1 && Number.isInteger(this.level) && this.level === 0 && /^\d$/.test(String(this.squareExerciseShape))) {
+      if (this.squareExerciseHandMode === 'both') {
+        const leftCurrentTarget = this.getCurrentTargetForHand('left');
+        const rightCurrentTarget = this.getCurrentTargetForHand('right');
+        const leftTouched = leftCurrentTarget && this.leftTip && this.getCircleIndex(this.leftTip) === leftCurrentTarget.index;
+        const rightTouched = rightCurrentTarget && this.rightTip && this.getCircleIndex(this.rightTip) === rightCurrentTarget.index;
+
+        const advanceHandProgress = (hand, touched) => {
+          if (!touched) {
+            return;
+          }
+
+          const handTargets = this.targets.filter((target) => target && target.hand === hand);
+          if (handTargets.length === 0) {
+            return;
+          }
+
+          const currentProgress = this.nextTargetByHand[hand] ?? 0;
+
+          if (!this.squareExercisePalindromMode) {
+            this.nextTargetByHand[hand] = (currentProgress + 1) % handTargets.length;
+            return;
+          }
+
+          let nextProgress = currentProgress + this.squareExerciseTraversalDirection;
+          if (nextProgress >= handTargets.length) {
+            this.squareExerciseTraversalDirection = -1;
+            nextProgress = handTargets.length - 1;
+          }
+          if (nextProgress < 0) {
+            this.squareExerciseTraversalDirection = 1;
+            nextProgress = 0;
+          }
+          this.nextTargetByHand[hand] = nextProgress;
+        };
+
+        if (this.squareExerciseSyncMode === 'synchronous') {
+          if (leftTouched && rightTouched) {
+            advanceHandProgress('left', true);
+            advanceHandProgress('right', true);
+          }
+        } else {
+          advanceHandProgress('left', leftTouched);
+          advanceHandProgress('right', rightTouched);
+        }
+
+        this.requestRender();
+        return;
+      }
+
+      const currentTarget = this.targets[this.nextTarget] || null;
+      const activeTip = this.squareExerciseHandMode === 'left' ? this.leftTip : this.rightTip;
+      const touched = !!currentTarget && !!activeTip && this.getCircleIndex(activeTip) === currentTarget.index;
+
+      if (touched) {
+        if (!this.squareExercisePalindromMode) {
+          this.nextTarget += 1;
+          if (this.nextTarget >= this.targets.length) {
+            this.nextTarget = 0;
+          }
+        } else {
+          if (this.squareExerciseTraversalDirection === 1 && this.nextTarget >= this.targets.length - 1) {
+            this.squareExerciseTraversalDirection = -1;
+          }
+          if (this.squareExerciseTraversalDirection === -1 && this.nextTarget <= 0) {
+            this.squareExerciseTraversalDirection = 1;
+          }
+          this.nextTarget += this.squareExerciseTraversalDirection;
+          if (this.nextTarget < 0) {
+            this.nextTarget = 0;
+          }
+          if (this.nextTarget >= this.targets.length) {
+            this.nextTarget = this.targets.length - 1;
+          }
+        }
+      }
+
+      this.requestRender();
+      return;
+    }
+
     if (this.chapter === 1 && Number.isInteger(this.level) && this.level === 1 && ['sequential', 'simultaneous'].includes(this.pointExerciseSequentialMode)) {
       const currentTarget = this.targets[this.nextTarget] || null;
       this.pointExerciseCurrentIndex = this.nextTarget;
@@ -8767,18 +8931,7 @@ export class LevelManager {
       return;
     }
 
-    const currentTarget = this.targets[this.nextTarget];
-    const activeTargets = this.squareExerciseHandMode === 'both' && currentTarget && currentTarget.hand !== 'both'
-      ? ['left', 'right']
-          .map((hand) => this.getCurrentTargetForHand(hand))
-          .filter(Boolean)
-      : [currentTarget].filter(Boolean);
-
-    if (activeTargets.length === 0) {
-      this.requestRender();
-      return;
-    }
-
+    const currentTarget = this.targets[this.nextTarget] || null;
     const leftCurrentTarget = this.squareExerciseHandMode === 'both' ? this.getCurrentTargetForHand('left') : null;
     const rightCurrentTarget = this.squareExerciseHandMode === 'both' ? this.getCurrentTargetForHand('right') : null;
     const leftTouched = leftCurrentTarget && this.leftTip ? this.getCircleIndex(this.leftTip) === leftCurrentTarget.index : false;
@@ -8793,41 +8946,27 @@ export class LevelManager {
       return;
     }
 
-    for (const target of activeTargets) {
-      let touched = false;
-      if (target.hand === 'left') {
-        const tip = this.leftTip;
-        if (tip) touched = this.getCircleIndex(tip) === target.index;
-      } else if (target.hand === 'right') {
-        const tip = this.rightTip;
-        if (tip) touched = this.getCircleIndex(tip) === target.index;
-      } else if (target.hand === 'both') {
-        const leftIdx = this.leftTip ? this.getCircleIndex(this.leftTip) : -1;
-        const rightIdx = this.rightTip ? this.getCircleIndex(this.rightTip) : -1;
-        const leftMatch = leftIdx !== -1 && leftIdx === target.leftIndex;
-        const rightMatch = rightIdx !== -1 && rightIdx === target.rightIndex;
-        touched = leftMatch && rightMatch;
-      }
-
+    if (this.squareExerciseHandMode !== 'both') {
+      const activeTip = this.squareExerciseHandMode === 'left' ? this.leftTip : this.rightTip;
+      const touched = !!currentTarget && !!activeTip && this.getCircleIndex(activeTip) === currentTarget.index;
       if (touched) {
-        if (this.pointExercisePalindromMode) {
-          this.advancePointExerciseTarget([target]);
-        } else if (target.hand === 'both') {
-          this.nextTarget += 1;
-          if (this.nextTarget >= this.targets.length) {
-            this.nextTarget = 0;
-            this.completed = false;
-          }
-        } else if (this.squareExerciseHandMode === 'both') {
-          this.advanceTargetForHand(target.hand);
-        } else {
-          this.nextTarget += 1;
-          if (this.nextTarget >= this.targets.length) {
-            this.nextTarget = 0;
-            this.completed = false;
-          }
+        this.nextTarget += 1;
+        if (this.nextTarget >= this.targets.length) {
+          this.nextTarget = 0;
+          this.completed = false;
         }
       }
+      this.requestRender();
+      return;
+    }
+
+    const leftTarget = leftCurrentTarget;
+    const rightTarget = rightCurrentTarget;
+    if (leftTarget && leftTouched) {
+      this.advanceTargetForHand('left');
+    }
+    if (rightTarget && rightTouched) {
+      this.advanceTargetForHand('right');
     }
 
     this.requestRender();
