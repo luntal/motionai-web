@@ -174,6 +174,8 @@ export class LevelManager {
     this.calibrationSnapshotIntervalMs = 120;
     this.calibrationCaptureThreshold = 0.9;
     this.calibrationMinSnapshots = 8;
+    this.calibrationSnapshotFlashStartedAt = 0;
+    this.calibrationSnapshotFlashUntilMs = 0;
     this.calibrationSaveFeedbackText = '';
     this.calibrationSaveFeedbackUntilMs = 0;
     this.calibrationComparisonStrictnessPercent = 60;
@@ -2002,6 +2004,8 @@ export class LevelManager {
     this.calibrationSaveFeedbackText = `Kallibrierung abgeschlossen: ${entry.name} (${savedAt})`;
     this.calibrationSaveFeedbackUntilMs = performance.now() + 5000;
     this.calibrationSuccess = true;
+    this.calibrationSnapshotFlashStartedAt = performance.now();
+    this.calibrationSnapshotFlashUntilMs = this.calibrationSnapshotFlashStartedAt + 1000;
 
     this.invalidateScaledCalibrationCache();
 
@@ -2030,6 +2034,23 @@ export class LevelManager {
     }
 
     if (this.calibrationSavedInCurrentHighWindow) {
+      return;
+    }
+
+    if (stableHoldReached) {
+      if (!this.calibrationCaptureActive) {
+        this.calibrationCaptureActive = true;
+        this.calibrationSnapshotBuffer = [];
+        this.calibrationLastSnapshotAt = 0;
+      }
+
+      const snapshot = this.poseLandmarks.map((landmark) => ({ ...landmark }));
+      while (this.calibrationSnapshotBuffer.length < this.calibrationMinSnapshots) {
+        this.calibrationSnapshotBuffer.push(snapshot);
+      }
+      this.calibrationLastSnapshotAt = nowMs;
+      this.finalizeCalibrationSnapshotCapture();
+      this.calibrationSavedInCurrentHighWindow = true;
       return;
     }
 
@@ -7419,6 +7440,14 @@ export class LevelManager {
     const headSpan = this.distance(leftEye, rightEye);
     const bodyCenterX = (eyeCenter.x + shoulderCenter.x + hipCenter.x) / 3;
     const centerScore = this.scoreByDistance(bodyCenterX, centerX, w * 0.1);
+    const verticalAxisVector = { x: 0, y: 1 };
+    const eyeAxisVector = leftEye && rightEye ? { x: rightEye.x - leftEye.x, y: rightEye.y - leftEye.y } : null;
+    const shoulderAxisVector = leftShoulder && rightShoulder ? { x: rightShoulder.x - leftShoulder.x, y: rightShoulder.y - leftShoulder.y } : null;
+    const hipAxisVector = leftHip && rightHip ? { x: rightHip.x - leftHip.x, y: rightHip.y - leftHip.y } : null;
+    const eyeAxisDeviation = eyeAxisVector ? Math.abs(90 - this.angleBetweenVectors(eyeAxisVector, verticalAxisVector)) : 180;
+    const shoulderAxisDeviation = shoulderAxisVector ? Math.abs(90 - this.angleBetweenVectors(shoulderAxisVector, verticalAxisVector)) : 180;
+    const hipAxisDeviation = hipAxisVector ? Math.abs(90 - this.angleBetweenVectors(hipAxisVector, verticalAxisVector)) : 180;
+    const axisDeviationTolerance = 20;
 
     const headRect = this.createRectFromPair(
       leftEye,
@@ -7455,6 +7484,10 @@ export class LevelManager {
       height: Math.max(36, h * 0.12)
     };
 
+    const axisAligned = eyeAxisDeviation <= axisDeviationTolerance
+      && shoulderAxisDeviation <= axisDeviationTolerance
+      && hipAxisDeviation <= axisDeviationTolerance;
+
     const bodyScore = (
       centerScore * 0.35
       + this.scoreSegmentInRect(leftEye, rightEye, eyeZone) * 0.35
@@ -7464,7 +7497,8 @@ export class LevelManager {
     const bodyAligned = bodyScore >= 0.78
       && this.scoreSegmentInRect(leftEye, rightEye, eyeZone) >= 0.8
       && this.scoreSegmentInRect(leftHip, rightHip, hipZone) >= 0.8
-      && centerScore >= 0.8;
+      && centerScore >= 0.8
+      && axisAligned;
 
     const leftArmSpreadVector = leftShoulder && leftElbow ? {
       x: leftElbow.x - leftShoulder.x,
@@ -7531,6 +7565,9 @@ export class LevelManager {
       rightShoulderAngle: rightArmMetrics.angle,
       leftElbowAngle: leftArmMetrics.elbowAngle,
       rightElbowAngle: rightArmMetrics.elbowAngle,
+      eyeAxisDeviation,
+      shoulderAxisDeviation,
+      hipAxisDeviation,
       bodyAligned,
       armAligned,
       leftGuide: bodyAligned && leftShoulder ? {
@@ -7580,10 +7617,18 @@ export class LevelManager {
   }
 
   renderUpperBodyCalibration() {
+    const nowMs = performance.now();
     const w = this.canvas.width;
     const h = this.canvas.height;
     const centerX = w * 0.5;
     const eyeZoneWidth = w * 0.36;
+    const countdownSeconds = this.calibrationAligned && this.calibrationAlignedSince && !this.calibrationSuccess
+      ? Math.max(0, 3 - (nowMs - this.calibrationAlignedSince) / 1000)
+      : 0;
+    const flashElapsed = this.calibrationSnapshotFlashStartedAt > 0 ? Math.max(0, nowMs - this.calibrationSnapshotFlashStartedAt) : 0;
+    const flashAlpha = this.calibrationSnapshotFlashStartedAt > 0 && flashElapsed <= 1000
+      ? Math.max(0, 1 - flashElapsed / 1000)
+      : 0;
     const shoulderZoneWidth = w * 0.44;
     const hipZoneWidth = w * 0.4;
     const eyeZone = {
@@ -7617,6 +7662,7 @@ export class LevelManager {
     const rightEyeRef = this.calibrationMetrics?.rightEye || null;
     const leftHipRef = this.calibrationMetrics?.leftHip || null;
     const rightHipRef = this.calibrationMetrics?.rightHip || null;
+    const eyesInEyeZone = !!leftEyeRef && !!rightEyeRef && this.isSegmentInRect(leftEyeRef, rightEyeRef, eyeZone);
 
     const drawLargePrompt = (text, rect, color) => {
       if (!rect) return;
@@ -7652,9 +7698,11 @@ export class LevelManager {
     this.ctx.stroke();
     this.ctx.setLineDash([]);
 
-    this.ctx.strokeStyle = 'rgba(255, 111, 145, 0.95)';
+    const eyeZoneColor = eyesInEyeZone ? 'rgba(99, 224, 149, 0.95)' : 'rgba(255, 111, 145, 0.95)';
+    const eyeZoneFill = eyesInEyeZone ? 'rgba(99, 224, 149, 0.2)' : 'rgba(255, 111, 145, 0.2)';
+    this.ctx.strokeStyle = eyeZoneColor;
     this.ctx.lineWidth = 2;
-    this.ctx.fillStyle = 'rgba(255, 111, 145, 0.2)';
+    this.ctx.fillStyle = eyeZoneFill;
     this.ctx.fillRect(eyeZone.x, eyeZone.y, eyeZone.width, eyeZone.height);
     this.ctx.strokeRect(eyeZone.x, eyeZone.y, eyeZone.width, eyeZone.height);
 
@@ -7711,7 +7759,10 @@ export class LevelManager {
         leftShoulderAngle,
         rightShoulderAngle,
         leftElbowAngle,
-        rightElbowAngle
+        rightElbowAngle,
+        eyeAxisDeviation: eyeAxisDeviationValue,
+        shoulderAxisDeviation: shoulderAxisDeviationValue,
+        hipAxisDeviation: hipAxisDeviationValue
       } = this.calibrationMetrics;
 
       this.ctx.save();
@@ -7734,8 +7785,9 @@ export class LevelManager {
       this.ctx.lineWidth = 2.5;
 
       if (leftEye && rightEye) {
+        const eyeLineOk = Number.isFinite(eyeAxisDeviationValue) ? eyeAxisDeviationValue <= 20 : this.isSegmentInRect(leftEye, rightEye, eyeZone);
         this.ctx.beginPath();
-        this.ctx.strokeStyle = this.isSegmentInRect(leftEye, rightEye, eyeZone)
+        this.ctx.strokeStyle = (eyeLineOk && this.isSegmentInRect(leftEye, rightEye, eyeZone))
           ? 'rgba(99, 224, 149, 0.95)'
           : 'rgba(255, 106, 137, 0.95)';
         this.ctx.moveTo(leftEye.x, leftEye.y);
@@ -7744,8 +7796,9 @@ export class LevelManager {
       }
 
       if (bodyAligned && leftShoulder && rightShoulder) {
+        const shoulderLineOk = Number.isFinite(shoulderAxisDeviationValue) ? shoulderAxisDeviationValue <= 20 : this.isSegmentInRect(leftShoulder, rightShoulder, shoulderZone);
         this.ctx.beginPath();
-        this.ctx.strokeStyle = this.isSegmentInRect(leftShoulder, rightShoulder, shoulderZone)
+        this.ctx.strokeStyle = (shoulderLineOk && this.isSegmentInRect(leftShoulder, rightShoulder, shoulderZone))
           ? 'rgba(99, 224, 149, 0.95)'
           : 'rgba(255, 106, 137, 0.95)';
         this.ctx.moveTo(leftShoulder.x, leftShoulder.y);
@@ -7754,8 +7807,9 @@ export class LevelManager {
       }
 
       if (leftHip && rightHip) {
+        const hipLineOk = Number.isFinite(hipAxisDeviationValue) ? hipAxisDeviationValue <= 20 : this.isSegmentInRect(leftHip, rightHip, hipZone);
         this.ctx.beginPath();
-        this.ctx.strokeStyle = this.isSegmentInRect(leftHip, rightHip, hipZone)
+        this.ctx.strokeStyle = (hipLineOk && this.isSegmentInRect(leftHip, rightHip, hipZone))
           ? 'rgba(99, 224, 149, 0.95)'
           : 'rgba(255, 106, 137, 0.95)';
         this.ctx.moveTo(leftHip.x, leftHip.y);
@@ -7825,6 +7879,33 @@ export class LevelManager {
         });
         this.ctx.restore();
       }
+    }
+
+    if (flashAlpha > 0) {
+      this.ctx.fillStyle = `rgba(255, 255, 255, ${Math.min(0.95, flashAlpha)})`;
+      this.ctx.fillRect(0, 0, w, h);
+    }
+
+    if (this.calibrationAligned && !this.calibrationSuccess && countdownSeconds > 0) {
+      const countdownValue = countdownSeconds.toFixed(1);
+      this.ctx.save();
+      this.ctx.translate(w * 0.5, h * 0.5);
+      this.ctx.fillStyle = 'rgba(6, 14, 22, 0.88)';
+      this.ctx.beginPath();
+      this.ctx.roundRect(-86, -80, 172, 160, 24);
+      this.ctx.fill();
+      this.ctx.strokeStyle = 'rgba(122, 236, 176, 0.95)';
+      this.ctx.lineWidth = 4;
+      this.ctx.stroke();
+      this.ctx.fillStyle = '#f4fbff';
+      this.ctx.textAlign = 'center';
+      this.ctx.textBaseline = 'middle';
+      this.ctx.font = '700 64px Arial';
+      this.ctx.fillText(countdownValue, 0, 6);
+      this.ctx.font = '600 18px Arial';
+      this.ctx.fillStyle = 'rgba(244, 251, 255, 0.82)';
+      this.ctx.fillText('KALIBRIERUNG', 0, 44);
+      this.ctx.restore();
     }
 
     this.updateCalibrationPanelPosition();

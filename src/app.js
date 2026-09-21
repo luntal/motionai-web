@@ -5657,15 +5657,15 @@ function createTrackingControls(trackingController) {
   function getCreatedAtDisplayText() {
     const raw = getDefaultCreatedAtValue();
     if (!raw) {
-      return 'Erstellungsdatum: –';
+      return 'Erstellungsdatum der Werkeinstellungen: –';
     }
 
     const date = new Date(raw);
     if (Number.isNaN(date.getTime())) {
-      return `Erstellungsdatum: ${raw}`;
+      return `Erstellungsdatum der Werkeinstellungen: ${raw}`;
     }
 
-    return `Erstellungsdatum: ${date.toLocaleDateString('de-DE', {
+    return `Erstellungsdatum der Werkeinstellungen: ${date.toLocaleDateString('de-DE', {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric'
@@ -5794,6 +5794,11 @@ function createTrackingControls(trackingController) {
   const calibrationStrictnessValue = document.createElement('div');
   calibrationStrictnessValue.className = 'tracking-controls-inline-value';
   calibrationStrictnessValue.textContent = '60%';
+
+  const calibrationStrictnessRow = document.createElement('div');
+  calibrationStrictnessRow.className = 'tracking-controls-row';
+  calibrationStrictnessRow.appendChild(calibrationStrictnessLabel);
+  calibrationStrictnessRow.appendChild(calibrationStrictnessValue);
 
   const stabilizationButton = document.createElement('button');
   stabilizationButton.type = 'button';
@@ -6220,6 +6225,21 @@ function createTrackingControls(trackingController) {
     updateSilhouetteOpacityControl();
   });
 
+  const exportDefaultsButton = document.createElement('button');
+  exportDefaultsButton.type = 'button';
+  exportDefaultsButton.className = 'tracking-controls-button';
+  exportDefaultsButton.textContent = 'Defaults exportieren';
+  exportDefaultsButton.addEventListener('click', () => {
+    try {
+      if (typeof window.exportDefaults === 'function') {
+        window.exportDefaults();
+      }
+    } catch (error) {
+      console.error('Failed to export defaults:', error);
+      window.alert('Das Herunterladen der Defaults ist fehlgeschlagen.');
+    }
+  });
+
   const restoreDefaultsButton = document.createElement('button');
   restoreDefaultsButton.type = 'button';
   restoreDefaultsButton.className = 'tracking-controls-button';
@@ -6501,6 +6521,7 @@ function createTrackingControls(trackingController) {
   bindUiGroupDescription([silhouetteButton], 'Einstellungen', 'Silhouette');
   bindUiGroupDescription([eyesButton], 'Einstellungen', 'Silhouette');
   bindUiGroupDescription([silhouetteOpacityLabel, silhouetteOpacityValueLabel, silhouetteOpacitySlider], 'Einstellungen', 'Silhouette Deckkraft');
+  bindUiGroupDescription([exportDefaultsButton], 'Einstellungen', 'Defaults exportieren');
   bindUiGroupDescription([restoreDefaultsButton], 'Einstellungen', 'Werkseinstellung');
   bindUiGroupDescription([videoSofteningButton], 'Einstellungen', 'Weichzeichnen');
   bindUiGroupDescription([blurLabel, blurSlider], 'Einstellungen', 'Weichzeichnen');
@@ -6517,9 +6538,8 @@ function createTrackingControls(trackingController) {
   container.appendChild(hoverHelpToggleButton);
   container.appendChild(calibrationSetLabel);
   container.appendChild(calibrationSetSelect);
-  container.appendChild(calibrationStrictnessLabel);
+  container.appendChild(calibrationStrictnessRow);
   container.appendChild(calibrationStrictnessSlider);
-  container.appendChild(calibrationStrictnessValue);
   container.appendChild(modeLabel);
   container.appendChild(modeGroup);
   container.appendChild(stabilizationButton);
@@ -6528,9 +6548,10 @@ function createTrackingControls(trackingController) {
   container.appendChild(eyesButton);
   container.appendChild(silhouetteOpacityRow);
   container.appendChild(silhouetteOpacitySlider);
+  container.appendChild(poseWarningLandmarksButton);
+  container.appendChild(exportDefaultsButton);
   container.appendChild(restoreDefaultsButton);
   container.appendChild(defaultCreatedAtText);
-  container.appendChild(poseWarningLandmarksButton);
   container.appendChild(videoSofteningDivider);
   container.appendChild(videoSofteningButton);
   container.appendChild(blurLabel);
