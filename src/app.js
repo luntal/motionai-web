@@ -2342,7 +2342,10 @@ function createExerciseFieldPanel() {
     panel,
     isEnabled: () => Boolean(toggleInput.checked),
     setVisible: (visible) => {
-      panel.classList.toggle('hidden', !visible);
+      const effectiveVisible = Boolean(visible);
+      panel.classList.toggle('hidden', !effectiveVisible);
+      const settingsVisible = effectiveVisible && readLevelSettingsVisibilityState();
+      applyLevelSettingsVisibilityToPanel(panel, settingsVisible);
     },
     setLevelManager: (manager) => {
       managerRef = manager || null;
