@@ -10,6 +10,43 @@ const landmarksListeners = [];
 const poseListeners = [];
 let resizeCallback = null;
 
+function isSafariBrowser() {
+  const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+  return /Safari/i.test(userAgent)
+    && !/Chrome|CriOS|Chromium|Edg|OPR|Opera/i.test(userAgent);
+}
+
+function applySafariCanvasSoftening(canvasElement) {
+  if (!canvasElement) {
+    return;
+  }
+
+  const filterValue = videoSofteningEnabled
+    ? `blur(${videoSofteningBlurPx}px) brightness(${videoSofteningBrightness})`
+    : 'none';
+
+  canvasElement.style.filter = filterValue;
+  canvasElement.style.webkitFilter = filterValue;
+}
+
+function getSoftenedImageSource(image, width, height) {
+  if (isSafariBrowser()) {
+    return image;
+  }
+
+  const softCanvas = document.createElement('canvas');
+  softCanvas.width = width;
+  softCanvas.height = height;
+  const softCtx = softCanvas.getContext('2d');
+  if (!softCtx) {
+    return image;
+  }
+
+  softCtx.filter = `blur(${videoSofteningBlurPx}px) brightness(${videoSofteningBrightness})`;
+  softCtx.drawImage(image, 0, 0, softCanvas.width, softCanvas.height);
+  return softCanvas;
+}
+
 export function setStabilizationEnabled(enabled) {
   stabilizationEnabled = enabled;
 }
@@ -72,6 +109,25 @@ export function onCanvasResize(callback) {
 
 export function startTracking(videoElement, canvasElement, options = {}) {
   const ctx = canvasElement.getContext('2d');
+  const safariOverlayCanvas = isSafariBrowser() ? document.createElement('canvas') : null;
+  const safariOverlayCtx = safariOverlayCanvas ? safariOverlayCanvas.getContext('2d') : null;
+  const nonSafariOverlayCanvas = !isSafariBrowser() ? document.createElement('canvas') : null;
+  const nonSafariOverlayCtx = nonSafariOverlayCanvas ? nonSafariOverlayCanvas.getContext('2d') : null;
+  const activeOverlayCanvas = isSafariBrowser() ? safariOverlayCanvas : nonSafariOverlayCanvas;
+  const activeOverlayCtx = isSafariBrowser() ? safariOverlayCtx : nonSafariOverlayCtx;
+
+  if (activeOverlayCanvas && canvasElement.parentNode) {
+    activeOverlayCanvas.className = 'tracking-overlay-layer';
+    activeOverlayCanvas.style.position = 'absolute';
+    activeOverlayCanvas.style.left = '0';
+    activeOverlayCanvas.style.top = '0';
+    activeOverlayCanvas.style.width = '100%';
+    activeOverlayCanvas.style.height = '100%';
+    activeOverlayCanvas.style.pointerEvents = 'none';
+    activeOverlayCanvas.style.zIndex = '2';
+    canvasElement.parentNode.insertBefore(activeOverlayCanvas, canvasElement.nextSibling);
+  }
+
   const VIDEO_RESOLUTION_PRESETS = {
     high: { width: 1280, height: 720 },
     low: { width: 640, height: 360 }
@@ -146,6 +202,14 @@ export function startTracking(videoElement, canvasElement, options = {}) {
     if (canvasElement.width !== width || canvasElement.height !== height) {
       canvasElement.width = width;
       canvasElement.height = height;
+      if (safariOverlayCanvas) {
+        safariOverlayCanvas.width = width;
+        safariOverlayCanvas.height = height;
+      }
+      if (nonSafariOverlayCanvas) {
+        nonSafariOverlayCanvas.width = width;
+        nonSafariOverlayCanvas.height = height;
+      }
       if (resizeCallback) {
         resizeCallback(width, height);
       }
@@ -173,10 +237,11 @@ export function startTracking(videoElement, canvasElement, options = {}) {
   }
 
   function drawConnections(landmarks, edges) {
-    ctx.strokeStyle = connectorStyle.color;
-    ctx.lineWidth = connectorStyle.lineWidth;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
+    const drawContext = activeOverlayCtx || ctx;
+    drawContext.strokeStyle = connectorStyle.color;
+    drawContext.lineWidth = connectorStyle.lineWidth;
+    drawContext.lineCap = 'round';
+    drawContext.lineJoin = 'round';
 
     for (const [startIdx, endIdx] of edges) {
       const start = landmarks[startIdx];
@@ -184,10 +249,10 @@ export function startTracking(videoElement, canvasElement, options = {}) {
       if (!start || !end) {
         continue;
       }
-      ctx.beginPath();
-      ctx.moveTo(toMirroredCanvasX(start.x), start.y * canvasElement.height);
-      ctx.lineTo(toMirroredCanvasX(end.x), end.y * canvasElement.height);
-      ctx.stroke();
+      drawContext.beginPath();
+      drawContext.moveTo(toMirroredCanvasX(start.x), start.y * canvasElement.height);
+      drawContext.lineTo(toMirroredCanvasX(end.x), end.y * canvasElement.height);
+      drawContext.stroke();
     }
   }
 
@@ -196,6 +261,7 @@ export function startTracking(videoElement, canvasElement, options = {}) {
       return;
     }
 
+    const drawContext = activeOverlayCtx || ctx;
     const fillColor = `rgba(122, 180, 255, ${silhouetteOpacity})`;
     const strokeColor = `rgba(122, 180, 255, ${Math.min(0.9, Math.max(0.2, silhouetteOpacity * 1.15))})`;
 
@@ -234,10 +300,10 @@ export function startTracking(videoElement, canvasElement, options = {}) {
         })
       );
 
-      ctx.beginPath();
+      drawContext.beginPath();
       const first = points[0];
       const firstStart = pointToward(first, points[points.length - 1], safeRadius);
-      ctx.moveTo(firstStart.x, firstStart.y);
+      drawContext.moveTo(firstStart.x, firstStart.y);
 
       for (let index = 0; index < points.length; index += 1) {
         const current = points[index];
@@ -245,16 +311,16 @@ export function startTracking(videoElement, canvasElement, options = {}) {
         const prev = points[(index - 1 + points.length) % points.length];
         const from = pointToward(current, prev, safeRadius);
         const to = pointToward(current, next, safeRadius);
-        ctx.lineTo(from.x, from.y);
-        ctx.quadraticCurveTo(current.x, current.y, to.x, to.y);
+        drawContext.lineTo(from.x, from.y);
+        drawContext.quadraticCurveTo(current.x, current.y, to.x, to.y);
       }
 
-      ctx.closePath();
-      ctx.fillStyle = fillColor;
-      ctx.fill();
-      ctx.strokeStyle = strokeColor;
-      ctx.lineWidth = 1.25;
-      ctx.stroke();
+      drawContext.closePath();
+      drawContext.fillStyle = fillColor;
+      drawContext.fill();
+      drawContext.strokeStyle = strokeColor;
+      drawContext.lineWidth = 1.25;
+      drawContext.stroke();
     }
 
     function drawSegmentBand(startPoint, endPoint, width = 18) {
@@ -311,13 +377,14 @@ export function startTracking(videoElement, canvasElement, options = {}) {
   }
 
   function drawPoints(landmarks) {
-    ctx.fillStyle = landmarkStyle.fillStyle;
+    const drawContext = activeOverlayCtx || ctx;
+    drawContext.fillStyle = landmarkStyle.fillStyle;
     for (const landmark of landmarks) {
       const x = toMirroredCanvasX(landmark.x);
       const y = landmark.y * canvasElement.height;
-      ctx.beginPath();
-      ctx.arc(x, y, landmarkStyle.radius, 0, Math.PI * 2);
-      ctx.fill();
+      drawContext.beginPath();
+      drawContext.arc(x, y, landmarkStyle.radius, 0, Math.PI * 2);
+      drawContext.fill();
     }
   }
 
@@ -326,6 +393,7 @@ export function startTracking(videoElement, canvasElement, options = {}) {
       return;
     }
 
+    const drawContext = activeOverlayCtx || ctx;
     const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
     const midpoint = (a, b) => ({ x: (a.x + b.x) * 0.5, y: (a.y + b.y) * 0.5 });
     const toCanvasPoint = (landmark) => {
@@ -354,26 +422,26 @@ export function startTracking(videoElement, canvasElement, options = {}) {
         smoothPoints.push(extraEnd);
       }
 
-      ctx.beginPath();
-      ctx.moveTo(smoothPoints[0].x, smoothPoints[0].y);
+      drawContext.beginPath();
+      drawContext.moveTo(smoothPoints[0].x, smoothPoints[0].y);
 
       for (let index = 1; index < smoothPoints.length - 1; index += 1) {
         const current = smoothPoints[index];
         const next = smoothPoints[index + 1];
         const midX = (current.x + next.x) * 0.5;
         const midY = (current.y + next.y) * 0.5;
-        ctx.quadraticCurveTo(current.x, current.y, midX, midY);
+        drawContext.quadraticCurveTo(current.x, current.y, midX, midY);
       }
 
       const last = smoothPoints[smoothPoints.length - 1];
       const first = smoothPoints[0];
-      ctx.quadraticCurveTo(last.x, last.y, first.x, first.y);
-      ctx.closePath();
-      ctx.fillStyle = fillColor;
-      ctx.fill();
-      ctx.strokeStyle = strokeColor;
-      ctx.lineWidth = 1.25;
-      ctx.stroke();
+      drawContext.quadraticCurveTo(last.x, last.y, first.x, first.y);
+      drawContext.closePath();
+      drawContext.fillStyle = fillColor;
+      drawContext.fill();
+      drawContext.strokeStyle = strokeColor;
+      drawContext.lineWidth = 1.25;
+      drawContext.stroke();
     }
 
     function drawRoundedBand(start, end, width) {
@@ -452,17 +520,17 @@ export function startTracking(videoElement, canvasElement, options = {}) {
       const ry = Math.max(6, length * 0.28);
       const angle = Math.atan2(dy, dx);
 
-      ctx.save();
-      ctx.translate(center.x, center.y);
-      ctx.rotate(angle);
-      ctx.beginPath();
-      ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.72)';
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
-      ctx.lineWidth = 1.2;
-      ctx.stroke();
-      ctx.restore();
+      drawContext.save();
+      drawContext.translate(center.x, center.y);
+      drawContext.rotate(angle);
+      drawContext.beginPath();
+      drawContext.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+      drawContext.fillStyle = 'rgba(255, 255, 255, 0.72)';
+      drawContext.fill();
+      drawContext.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+      drawContext.lineWidth = 1.2;
+      drawContext.stroke();
+      drawContext.restore();
     }
 
     if (eyeOverlayEnabled) {
@@ -501,7 +569,7 @@ export function startTracking(videoElement, canvasElement, options = {}) {
       return;
     }
 
-    ctx.save();
+    drawContext.save();
 
     function drawRoundedPolygon(points, radius) {
       if (!Array.isArray(points) || points.length < 3) {
@@ -531,11 +599,11 @@ export function startTracking(videoElement, canvasElement, options = {}) {
         })
       );
 
-      ctx.beginPath();
+      drawContext.beginPath();
       const first = points[0];
       const last = points[points.length - 1];
       const firstStart = pointToward(first, last, safeRadius);
-      ctx.moveTo(firstStart.x, firstStart.y);
+      drawContext.moveTo(firstStart.x, firstStart.y);
 
       for (let index = 0; index < points.length; index += 1) {
         const current = points[index];
@@ -545,16 +613,16 @@ export function startTracking(videoElement, canvasElement, options = {}) {
         const from = pointToward(current, prev, safeRadius);
         const to = pointToward(current, next, safeRadius);
 
-        ctx.lineTo(from.x, from.y);
-        ctx.quadraticCurveTo(current.x, current.y, to.x, to.y);
+        drawContext.lineTo(from.x, from.y);
+        drawContext.quadraticCurveTo(current.x, current.y, to.x, to.y);
       }
 
-      ctx.closePath();
-      ctx.fillStyle = fillColor;
-      ctx.fill();
-      ctx.strokeStyle = strokeColor;
-      ctx.lineWidth = 1.25;
-      ctx.stroke();
+      drawContext.closePath();
+      drawContext.fillStyle = fillColor;
+      drawContext.fill();
+      drawContext.strokeStyle = strokeColor;
+      drawContext.lineWidth = 1.25;
+      drawContext.stroke();
     }
 
     const torsoShape = [
@@ -657,27 +725,27 @@ export function startTracking(videoElement, canvasElement, options = {}) {
     drawArmSegment(rightShoulder, rightElbow, 0.9, 18);
     drawArmSegment(rightElbow, rightWrist || rightShoulder, 0.7, 0);
 
-    ctx.restore();
+    drawContext.restore();
   }
 
   function drawMirroredFrame(image) {
     resizeCanvasIfNeeded();
+
+    if (isSafariBrowser()) {
+      applySafariCanvasSoftening(canvasElement);
+      if (safariOverlayCanvas && safariOverlayCtx) {
+        safariOverlayCtx.clearRect(0, 0, safariOverlayCanvas.width, safariOverlayCanvas.height);
+      }
+    } else if (nonSafariOverlayCanvas && nonSafariOverlayCtx) {
+      nonSafariOverlayCtx.clearRect(0, 0, nonSafariOverlayCanvas.width, nonSafariOverlayCanvas.height);
+    }
+
     const drawSource = (() => {
       if (!videoSofteningEnabled) {
         return image;
       }
 
-      const softCanvas = document.createElement('canvas');
-      softCanvas.width = canvasElement.width;
-      softCanvas.height = canvasElement.height;
-      const softCtx = softCanvas.getContext('2d');
-      if (!softCtx) {
-        return image;
-      }
-
-      softCtx.filter = `blur(${videoSofteningBlurPx}px) brightness(${videoSofteningBrightness})`;
-      softCtx.drawImage(image, 0, 0, softCanvas.width, softCanvas.height);
-      return softCanvas;
+      return getSoftenedImageSource(image, canvasElement.width, canvasElement.height);
     })();
 
     ctx.save();
@@ -697,26 +765,27 @@ export function startTracking(videoElement, canvasElement, options = {}) {
       return;
     }
 
+    const drawContext = activeOverlayCtx || ctx;
     const x = toMirroredCanvasX(normalizedPoint.x);
     const y = normalizedPoint.y * canvasElement.height;
     const radius = triggerStyle.radius;
     const colors = (side && triggerColors[side]) ? triggerColors[side] : triggerColors.default;
     const label = side === 'left' ? 'L' : side === 'right' ? 'R' : null;
 
-    ctx.beginPath();
-    ctx.arc(x, y, radius, 0, Math.PI * 2);
-    ctx.fillStyle = colors.fill;
-    ctx.fill();
+    drawContext.beginPath();
+    drawContext.arc(x, y, radius, 0, Math.PI * 2);
+    drawContext.fillStyle = colors.fill;
+    drawContext.fill();
 
     if (label) {
-      ctx.save();
-      ctx.translate(x, y);
-      ctx.font = `bold ${Math.round(radius * 1.5)}px sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillStyle = '#ffffff';
-      ctx.fillText(label, 0, 0);
-      ctx.restore();
+      drawContext.save();
+      drawContext.translate(x, y);
+      drawContext.font = `bold ${Math.round(radius * 1.5)}px sans-serif`;
+      drawContext.textAlign = 'center';
+      drawContext.textBaseline = 'middle';
+      drawContext.fillStyle = '#ffffff';
+      drawContext.fillText(label, 0, 0);
+      drawContext.restore();
     }
   }
 
@@ -747,11 +816,25 @@ export function startTracking(videoElement, canvasElement, options = {}) {
     const RIGHT_PINKY_INDEX = 18;
     const LEFT_INDEX_FINGER = 19;
     const RIGHT_INDEX_FINGER = 20;
+    const VISIBILITY_THRESHOLD = 0.5;
+    const FRAME_BOUNDS_MARGIN = 0.02;
 
     const leftPinky = poseLandmarks[LEFT_PINKY_INDEX];
     const leftIndex = poseLandmarks[LEFT_INDEX_FINGER];
     const rightPinky = poseLandmarks[RIGHT_PINKY_INDEX];
     const rightIndex = poseLandmarks[RIGHT_INDEX_FINGER];
+
+    // Pose landmarks are estimated even when off-screen; use visibility + normalized
+    // bounds to tell whether a tip is actually within the camera frame.
+    const isLandmarkInFrame = (landmark) => {
+      if (!landmark) {
+        return false;
+      }
+      const visibility = typeof landmark.visibility === 'number' ? landmark.visibility : 1;
+      return visibility >= VISIBILITY_THRESHOLD
+        && landmark.x >= -FRAME_BOUNDS_MARGIN && landmark.x <= 1 + FRAME_BOUNDS_MARGIN
+        && landmark.y >= -FRAME_BOUNDS_MARGIN && landmark.y <= 1 + FRAME_BOUNDS_MARGIN;
+    };
 
     const pseudoHands = [];
 
@@ -764,6 +847,7 @@ export function startTracking(videoElement, canvasElement, options = {}) {
         z: leftTipMidpoint.z
       };
       leftHand.side = 'left';
+      leftHand.inFrame = isLandmarkInFrame(leftPinky) && isLandmarkInFrame(leftIndex);
       pseudoHands.push(leftHand);
     }
 
@@ -776,6 +860,7 @@ export function startTracking(videoElement, canvasElement, options = {}) {
         z: rightTipMidpoint.z
       };
       rightHand.side = 'right';
+      rightHand.inFrame = isLandmarkInFrame(rightPinky) && isLandmarkInFrame(rightIndex);
       pseudoHands.push(rightHand);
     }
 
@@ -1014,7 +1099,9 @@ export function startTracking(videoElement, canvasElement, options = {}) {
 
   async function recoverFromModelAbort(error) {
     const message = error && error.message ? error.message : String(error || '');
-    if (!/abort|aborted|RuntimeError|wasm/i.test(message)) {
+    // MediaPipe's WASM data-file loader throws a bare TypeError (no "abort"/"wasm" text)
+    // when model init is interrupted, so also treat that pattern as recoverable.
+    if (!/abort|aborted|RuntimeError|wasm|buffer|createDataFile|createPreloadedFile|preloadedFile/i.test(message)) {
       throw error;
     }
 

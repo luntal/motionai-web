@@ -1,6 +1,124 @@
 import { basicFigurePaths, basicFigurePathsStyle2, extendedFigurePaths } from './constants.js';
 import { registerHoverHelp } from './ui.js';
 
+function applyLevelSettingsVisibilityToPanel(panel, visible) {
+  if (!(panel instanceof Element)) {
+    return;
+  }
+
+  const presetActionSelector = '.dynamic-figure-preset-action, .dynamic-figure-preset-actions, .consistency-preset-actions, .consistency-preset-save, .consistency-preset-reset';
+
+  Array.from(panel.children).forEach((node) => {
+    if (!(node instanceof Element)) {
+      return;
+    }
+
+    if (node === panel.querySelector('.figure-side-panel-settings-button') || node.classList.contains('figure-side-panel-header')) {
+      return;
+    }
+
+    const isPresetHost = node.matches('.dynamic-figure-presets, .hand-independence-preset-panel, .consistency-preset-panel');
+    if (isPresetHost) {
+      node.style.display = '';
+      node.querySelectorAll(presetActionSelector).forEach((presetAction) => {
+        presetAction.style.display = visible ? '' : 'none';
+      });
+      return;
+    }
+
+    node.style.display = visible ? '' : 'none';
+  });
+}
+
+function readLevelSettingsVisibilityState() {
+  const storageKey = 'motionai.levelSettingsVisibility';
+
+  try {
+    const raw = localStorage.getItem(storageKey);
+    if (raw === null) {
+      return false;
+    }
+    if (raw === 'true' || raw === 'false') {
+      return raw === 'true';
+    }
+    const parsed = JSON.parse(raw);
+    if (typeof parsed === 'boolean') {
+      return parsed;
+    }
+    if (parsed && typeof parsed === 'object') {
+      return Boolean(parsed.visible ?? parsed.value ?? false);
+    }
+    return false;
+  } catch (error) {
+    return false;
+  }
+}
+
+function writeLevelSettingsVisibilityState(visible) {
+  const storageKey = 'motionai.levelSettingsVisibility';
+  const nextValue = Boolean(visible);
+
+  try {
+    localStorage.setItem(storageKey, JSON.stringify(nextValue));
+  } catch (error) {
+    // ignore storage errors
+  }
+
+  document.querySelectorAll('.figure-side-panel-settings-button').forEach((button) => {
+    const panel = button.closest('.figure-side-panel, .consistency-info-panel');
+    if (!panel) {
+      return;
+    }
+    button.setAttribute('aria-pressed', String(nextValue));
+    button.classList.toggle('active', nextValue);
+    button.title = nextValue ? 'Einstellungen ausblenden' : 'Einstellungen einblenden';
+    applyLevelSettingsVisibilityToPanel(panel, nextValue);
+  });
+
+  window.dispatchEvent(new CustomEvent('motionai:levelSettingsVisibilityChanged', {
+    detail: { visible: nextValue }
+  }));
+}
+
+function createConsistencyLevelSettingsVisibilityController(panel) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'figure-side-panel-settings-button';
+  button.setAttribute('aria-label', 'Einstellungen ein-/ausblenden');
+  button.title = 'Einstellungen ein-/ausblenden';
+  button.textContent = '⚙';
+
+  const sync = () => {
+    const isVisible = readLevelSettingsVisibilityState();
+    button.setAttribute('aria-pressed', String(isVisible));
+    button.classList.toggle('active', isVisible);
+    button.title = isVisible ? 'Einstellungen ausblenden' : 'Einstellungen einblenden';
+    applyLevelSettingsVisibilityToPanel(panel, isVisible);
+  };
+
+  const handleGlobalChange = () => sync();
+  window.addEventListener('motionai:levelSettingsVisibilityChanged', handleGlobalChange);
+
+  button.addEventListener('click', () => {
+    const nextVisible = !readLevelSettingsVisibilityState();
+    writeLevelSettingsVisibilityState(nextVisible);
+    sync();
+  });
+
+  button.addEventListener('remove', () => {
+    window.removeEventListener('motionai:levelSettingsVisibilityChanged', handleGlobalChange);
+  });
+
+  return {
+    button,
+    sync,
+    setVisible: (visible) => {
+      writeLevelSettingsVisibilityState(Boolean(visible));
+      sync();
+    }
+  };
+}
+
 export class LevelManager {
   constructor(overlayCanvas) {
     this.canvas = overlayCanvas;
@@ -14,6 +132,8 @@ export class LevelManager {
     this.nextTargetByHand = { left: 0, right: 0 };
     this.rightTip = null;
     this.leftTip = null;
+    this.leftTipInFrame = true;
+    this.rightTipInFrame = true;
     this.completed = false;
     this.grid = [];
     this.circleScales = [];
@@ -54,6 +174,8 @@ export class LevelManager {
     this.calibrationSnapshotIntervalMs = 120;
     this.calibrationCaptureThreshold = 0.9;
     this.calibrationMinSnapshots = 8;
+    this.calibrationSnapshotFlashStartedAt = 0;
+    this.calibrationSnapshotFlashUntilMs = 0;
     this.calibrationSaveFeedbackText = '';
     this.calibrationSaveFeedbackUntilMs = 0;
     this.calibrationComparisonStrictnessPercent = 60;
@@ -78,6 +200,7 @@ export class LevelManager {
     this.consistencyStrictnessPercent = 100;
     this.consistencyMotionBlendPercent = 0;
     this.consistencySettingsStorageKey = 'motionai.consistency-panel-settings';
+    this.consistencyPresetStorageKey = 'motionai.consistency-presets';
     this.consistencyTouchStateByHand = {
       left: { active: false, startedAt: 0, lastTouchAt: 0, scale: 1 },
       right: { active: false, startedAt: 0, lastTouchAt: 0, scale: 1 }
@@ -180,6 +303,7 @@ export class LevelManager {
     this.dynamicFigureActive = false;
     this.handIndependenceActive = false;
     this.handIndependenceVariant = 'hard';
+    this.handIndependenceFigureVariation = 1;
     this.handIndependenceReverse = false;
     this.handIndependenceDynamicsVisible = false;
     this.handIndependenceCountTimesVisible = false;
@@ -204,6 +328,14 @@ export class LevelManager {
     this.handIndependenceShapeTempoBpm = 60;
     this.handIndependenceShapeLinearity = 0;
     this.handIndependenceAnimationStart = performance.now();
+    this.motionDistanceVisible = false;
+    this.motionDistanceStrictness = 100;
+    this.motionDistanceHistory = { left: [], right: [] };
+    this.motionDistanceFrameTargets = [];
+    this.motionDistanceCurrent = { left: null, right: null };
+    this.motionDistancePrevious = { left: null, right: null };
+    this.motionDistanceKinematicsPrevious = { left: null, right: null };
+    this.motionDistanceFrameMetrics = { left: null, right: null };
     this.pointExerciseEditMode = false;
     this.pointExerciseSelectedSlot = 0;
     this.pointExerciseHand = 'right';
@@ -222,6 +354,8 @@ export class LevelManager {
     this.pointExerciseFlashDurationMs = 350;
     this.squareExerciseHandMode = 'right';
     this.squareExerciseSyncMode = 'asynchronous';
+    this.squareExercisePalindromMode = false;
+    this.squareExerciseTraversalDirection = 1;
     this.squareExerciseResolution = 1;
     this.squareExerciseGridResolution = 8;
     this.squareExerciseShape = '0';
@@ -398,12 +532,13 @@ export class LevelManager {
     }
 
     const safeValue = [2, 3, 4].includes(next) ? next : 2;
-    if (this.exerciseFieldStrikeCount === safeValue) {
+    const previousLeft = Array.isArray(this.exerciseFieldStrikePositions.left) ? this.exerciseFieldStrikePositions.left : [];
+    const previousRight = Array.isArray(this.exerciseFieldStrikePositions.right) ? this.exerciseFieldStrikePositions.right : [];
+    const hasMatchingLength = previousLeft.length === safeValue && previousRight.length === safeValue;
+    if (this.exerciseFieldStrikeCount === safeValue && hasMatchingLength) {
       return;
     }
 
-    const previousLeft = this.exerciseFieldStrikePositions.left || [];
-    const previousRight = this.exerciseFieldStrikePositions.right || [];
     const defaultPositions = this.getExerciseFieldStrikeDefaults(safeValue);
 
     this.exerciseFieldStrikeCount = safeValue;
@@ -1466,12 +1601,80 @@ export class LevelManager {
     };
   }
 
+  isManualCalibrationPoseSet(entry) {
+    if (!entry || typeof entry !== 'object') {
+      return false;
+    }
+
+    const rawName = typeof entry.name === 'string' ? entry.name.trim() : '';
+    if (!rawName || rawName === 'default-fallback') {
+      return false;
+    }
+
+    return rawName === 'callibration_date' || rawName.toLowerCase().startsWith('callibration_date -');
+  }
+
+  isFallbackCalibrationPoseSetEntry(entry) {
+    if (!entry || typeof entry !== 'object') {
+      return false;
+    }
+
+    const rawName = typeof entry.name === 'string' ? entry.name.trim() : '';
+    if (rawName === 'default-fallback') {
+      return true;
+    }
+
+    return Number(entry.timestamp) === 0 && !rawName;
+  }
+
+  resolvePreferredCalibrationSetIndex(explicitIndex = null) {
+    if (!Array.isArray(this.calibrationPoseSets) || this.calibrationPoseSets.length === 0) {
+      return null;
+    }
+
+    const realEntries = this.calibrationPoseSets
+      .map((entry, index) => ({ entry, index }))
+      .filter(({ entry }) => !this.isFallbackCalibrationPoseSetEntry(entry));
+
+    const candidatePool = realEntries.length > 0
+      ? realEntries.filter(({ entry }) => this.isManualCalibrationPoseSet(entry) || true)
+      : this.calibrationPoseSets.map((entry, index) => ({ entry, index }));
+
+    const manualCandidates = candidatePool.filter(({ entry }) => this.isManualCalibrationPoseSet(entry));
+    const effectivePool = manualCandidates.length > 0 ? manualCandidates : candidatePool;
+
+    if (Number.isInteger(explicitIndex) && explicitIndex >= 0 && explicitIndex < this.calibrationPoseSets.length) {
+      const explicitEntry = this.calibrationPoseSets[explicitIndex];
+      if (this.isFallbackCalibrationPoseSetEntry(explicitEntry)) {
+        if (realEntries.length > 0) {
+          return null;
+        }
+      } else if (manualCandidates.length === 0 || this.isManualCalibrationPoseSet(explicitEntry)) {
+        return explicitIndex;
+      }
+    }
+
+    let best = effectivePool[0];
+    effectivePool.slice(1).forEach((candidate) => {
+      const currentTimestamp = Number(candidate.entry?.timestamp) || 0;
+      const bestTimestamp = Number(best.entry?.timestamp) || 0;
+      if (currentTimestamp > bestTimestamp) {
+        best = candidate;
+      }
+    });
+
+    return best ? best.index : null;
+  }
+
   getSelectedCalibrationPoseSet() {
     if (this.calibrationPoseSets.length === 0) {
       return this.getFallbackCalibrationPoseSet();
     }
 
-    if (!Number.isInteger(this.selectedCalibrationPoseSetIndex)) {
+    const preferredIndex = this.resolvePreferredCalibrationSetIndex(this.selectedCalibrationPoseSetIndex);
+    if (Number.isInteger(preferredIndex) && preferredIndex >= 0 && preferredIndex < this.calibrationPoseSets.length) {
+      this.selectedCalibrationPoseSetIndex = preferredIndex;
+    } else if (!Number.isInteger(this.selectedCalibrationPoseSetIndex)) {
       this.selectedCalibrationPoseSetIndex = this.calibrationPoseSets.length - 1;
     }
 
@@ -1801,6 +2004,8 @@ export class LevelManager {
     this.calibrationSaveFeedbackText = `Kallibrierung abgeschlossen: ${entry.name} (${savedAt})`;
     this.calibrationSaveFeedbackUntilMs = performance.now() + 5000;
     this.calibrationSuccess = true;
+    this.calibrationSnapshotFlashStartedAt = performance.now();
+    this.calibrationSnapshotFlashUntilMs = this.calibrationSnapshotFlashStartedAt + 1000;
 
     this.invalidateScaledCalibrationCache();
 
@@ -1829,6 +2034,23 @@ export class LevelManager {
     }
 
     if (this.calibrationSavedInCurrentHighWindow) {
+      return;
+    }
+
+    if (stableHoldReached) {
+      if (!this.calibrationCaptureActive) {
+        this.calibrationCaptureActive = true;
+        this.calibrationSnapshotBuffer = [];
+        this.calibrationLastSnapshotAt = 0;
+      }
+
+      const snapshot = this.poseLandmarks.map((landmark) => ({ ...landmark }));
+      while (this.calibrationSnapshotBuffer.length < this.calibrationMinSnapshots) {
+        this.calibrationSnapshotBuffer.push(snapshot);
+      }
+      this.calibrationLastSnapshotAt = nowMs;
+      this.finalizeCalibrationSnapshotCapture();
+      this.calibrationSavedInCurrentHighWindow = true;
       return;
     }
 
@@ -2130,41 +2352,185 @@ export class LevelManager {
     `;
   }
 
-  loadConsistencySettings() {
+  readConsistencySettingsMap() {
     try {
-      const stored = JSON.parse(localStorage.getItem(this.consistencySettingsStorageKey) || '{}');
-      if (!stored || typeof stored !== 'object') {
-        return;
+      const raw = localStorage.getItem(this.consistencySettingsStorageKey);
+      const parsed = raw ? JSON.parse(raw) : {};
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return {};
       }
+      const hasLevelBuckets = Object.keys(parsed).some((key) => /^\d+$/.test(key));
+      if (!hasLevelBuckets && Object.prototype.hasOwnProperty.call(parsed, 'tempoBpm')) {
+        return {
+          '0': {
+            tempoBpm: Number(parsed.tempoBpm),
+            strictnessPercent: Number(parsed.strictnessPercent),
+            motionBlendPercent: Number(parsed.motionBlendPercent)
+          }
+        };
+      }
+      return parsed;
+    } catch (error) {
+      return {};
+    }
+  }
 
-      const nextTempo = Number(stored.tempoBpm);
-      const nextStrictness = Number(stored.strictnessPercent);
-      const nextMotion = Number(stored.motionBlendPercent);
-
-      if (Number.isFinite(nextTempo)) {
-        this.consistencyTempoBpm = Math.min(170, Math.max(30, nextTempo));
-      }
-      if (Number.isFinite(nextStrictness)) {
-        this.consistencyStrictnessPercent = Math.min(160, Math.max(70, nextStrictness));
-      }
-      if (Number.isFinite(nextMotion)) {
-        this.consistencyMotionBlendPercent = Math.min(100, Math.max(0, nextMotion));
-      }
+  writeConsistencySettingsMap(map) {
+    try {
+      localStorage.setItem(this.consistencySettingsStorageKey, JSON.stringify(map));
     } catch (error) {
       // Ignore storage failures for local settings.
     }
   }
 
-  persistConsistencySettings() {
-    try {
-      localStorage.setItem(this.consistencySettingsStorageKey, JSON.stringify({
-        tempoBpm: this.consistencyTempoBpm,
-        strictnessPercent: this.consistencyStrictnessPercent,
-        motionBlendPercent: this.consistencyMotionBlendPercent
-      }));
-    } catch (error) {
-      // Ignore storage failures for local settings.
+  getConsistencySettingsBucket(levelIndex) {
+    const safeLevel = Number.isInteger(levelIndex) ? Math.max(0, Math.min(5, levelIndex)) : 0;
+    const settings = this.readConsistencySettingsMap();
+    const levelKey = String(safeLevel);
+    const bucket = settings[levelKey];
+
+    if (bucket && typeof bucket === 'object' && !Array.isArray(bucket)) {
+      return bucket;
     }
+
+    const nextBucket = {
+      tempoBpm: 100,
+      strictnessPercent: 100,
+      motionBlendPercent: 0
+    };
+    settings[levelKey] = nextBucket;
+    this.writeConsistencySettingsMap(settings);
+    return nextBucket;
+  }
+
+  loadConsistencySettings(levelIndex = this.level) {
+    const safeLevel = Number.isInteger(levelIndex) ? Math.max(0, Math.min(5, levelIndex)) : 0;
+    const bucket = this.getConsistencySettingsBucket(safeLevel);
+
+    const nextTempo = Number(bucket.tempoBpm);
+    const nextStrictness = Number(bucket.strictnessPercent);
+    const nextMotion = Number(bucket.motionBlendPercent);
+
+    if (Number.isFinite(nextTempo)) {
+      this.consistencyTempoBpm = Math.min(170, Math.max(30, nextTempo));
+    }
+    if (Number.isFinite(nextStrictness)) {
+      this.consistencyStrictnessPercent = Math.min(160, Math.max(70, nextStrictness));
+    }
+    if (Number.isFinite(nextMotion)) {
+      this.consistencyMotionBlendPercent = Math.min(100, Math.max(0, nextMotion));
+    }
+  }
+
+  persistConsistencySettings(levelIndex = this.level) {
+    const safeLevel = Number.isInteger(levelIndex) ? Math.max(0, Math.min(5, levelIndex)) : 0;
+    const settings = this.readConsistencySettingsMap();
+    settings[String(safeLevel)] = {
+      tempoBpm: this.consistencyTempoBpm,
+      strictnessPercent: this.consistencyStrictnessPercent,
+      motionBlendPercent: this.consistencyMotionBlendPercent
+    };
+    this.writeConsistencySettingsMap(settings);
+  }
+
+  readConsistencyPresetMap() {
+    try {
+      const raw = localStorage.getItem(this.consistencyPresetStorageKey);
+      const parsed = raw ? JSON.parse(raw) : {};
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return {};
+      }
+      const hasLevelBuckets = Object.keys(parsed).some((key) => /^\d+$/.test(key));
+      if (!hasLevelBuckets && Object.prototype.hasOwnProperty.call(parsed, 'selectedSlot')) {
+        return { '0': parsed };
+      }
+      return parsed;
+    } catch (error) {
+      return {};
+    }
+  }
+
+  writeConsistencyPresetMap(map) {
+    try {
+      localStorage.setItem(this.consistencyPresetStorageKey, JSON.stringify(map));
+    } catch (error) {
+      // Ignore storage failures for local presets.
+    }
+  }
+
+  getConsistencyPresetBucket(levelIndex) {
+    const safeLevel = Number.isInteger(levelIndex) ? Math.max(0, Math.min(5, levelIndex)) : 0;
+    const presets = this.readConsistencyPresetMap();
+    const levelKey = String(safeLevel);
+    const bucket = presets[levelKey];
+    if (bucket && typeof bucket === 'object' && !Array.isArray(bucket)) {
+      return bucket;
+    }
+
+    const nextBucket = { selectedSlot: 0 };
+    presets[levelKey] = nextBucket;
+    this.writeConsistencyPresetMap(presets);
+    return nextBucket;
+  }
+
+  applyConsistencyPreset(levelIndex, slotIndex) {
+    const safeLevel = Number.isInteger(levelIndex) ? Math.max(0, Math.min(5, levelIndex)) : 0;
+    const safeSlot = Number.isInteger(Number(slotIndex)) ? Math.max(0, Math.min(3, Number(slotIndex))) : 0;
+    const bucket = this.getConsistencyPresetBucket(safeLevel);
+    const preset = bucket[String(safeSlot)] || {};
+
+    if (preset && typeof preset === 'object') {
+      if (Number.isFinite(Number(preset.tempoBpm))) {
+        this.consistencyTempoBpm = Math.min(170, Math.max(30, Number(preset.tempoBpm)));
+      }
+      if (Number.isFinite(Number(preset.strictnessPercent))) {
+        this.consistencyStrictnessPercent = Math.min(160, Math.max(70, Number(preset.strictnessPercent)));
+      }
+      if (Number.isFinite(Number(preset.motionBlendPercent))) {
+        this.consistencyMotionBlendPercent = Math.min(100, Math.max(0, Number(preset.motionBlendPercent)));
+      }
+    }
+
+    bucket.selectedSlot = safeSlot;
+    const presets = this.readConsistencyPresetMap();
+    presets[String(safeLevel)] = bucket;
+    this.writeConsistencyPresetMap(presets);
+    this.persistConsistencySettings();
+    this.updateConsistencyPanelContent();
+  }
+
+  saveConsistencyPreset() {
+    const safeLevel = Number.isInteger(this.level) ? Math.max(0, Math.min(5, this.level)) : 0;
+    const bucket = this.getConsistencyPresetBucket(safeLevel);
+    const requestedSlot = window.prompt('In welchen Preset-Slot möchten Sie die aktuellen Einstellungen speichern? (1-4)', String((Number(bucket.selectedSlot) || 0) + 1));
+    const slot = Number(requestedSlot);
+    if (!Number.isInteger(slot) || slot < 1 || slot > 4) {
+      return;
+    }
+
+    const presetIndex = slot - 1;
+    bucket[String(presetIndex)] = {
+      tempoBpm: this.consistencyTempoBpm,
+      strictnessPercent: this.consistencyStrictnessPercent,
+      motionBlendPercent: this.consistencyMotionBlendPercent
+    };
+    bucket.selectedSlot = presetIndex;
+    const presets = this.readConsistencyPresetMap();
+    presets[String(safeLevel)] = bucket;
+    this.writeConsistencyPresetMap(presets);
+    this.updateConsistencyPanelContent();
+  }
+
+  resetConsistencyPreset() {
+    const safeLevel = Number.isInteger(this.level) ? Math.max(0, Math.min(5, this.level)) : 0;
+    const buckets = this.readConsistencyPresetMap();
+    buckets[String(safeLevel)] = { selectedSlot: 0 };
+    this.writeConsistencyPresetMap(buckets);
+    this.consistencyTempoBpm = 100;
+    this.consistencyStrictnessPercent = 100;
+    this.consistencyMotionBlendPercent = 0;
+    this.persistConsistencySettings();
+    this.updateConsistencyPanelContent();
   }
 
   createConsistencyInfoPanel() {
@@ -2187,6 +2553,9 @@ export class LevelManager {
     if (shouldShow) {
       this.updateConsistencyPanelPosition();
       this.updateConsistencyPanelContent();
+      if (this.consistencyInfoEl.__levelSettingsVisibilityController) {
+        this.consistencyInfoEl.__levelSettingsVisibilityController.sync();
+      }
     }
   }
 
@@ -2213,12 +2582,27 @@ export class LevelManager {
       '2:1 Tempo',
       'Ellipsen'
     ];
-    const levelName = levelNames[this.level] || `Level ${this.level + 1}`;
+    const safeLevel = Number.isInteger(this.level) ? Math.max(0, Math.min(5, this.level)) : 0;
+    const levelSettings = this.getConsistencySettingsBucket(safeLevel);
+    this.consistencyTempoBpm = Number.isFinite(Number(levelSettings.tempoBpm)) ? Math.min(170, Math.max(30, Number(levelSettings.tempoBpm))) : this.consistencyTempoBpm;
+    this.consistencyStrictnessPercent = Number.isFinite(Number(levelSettings.strictnessPercent)) ? Math.min(160, Math.max(70, Number(levelSettings.strictnessPercent))) : this.consistencyStrictnessPercent;
+    this.consistencyMotionBlendPercent = Number.isFinite(Number(levelSettings.motionBlendPercent)) ? Math.min(100, Math.max(0, Number(levelSettings.motionBlendPercent))) : this.consistencyMotionBlendPercent;
+    const levelName = levelNames[safeLevel] || `Level ${safeLevel + 1}`;
     const scorePercent = Math.round(this.consistencyAccuracy * 100);
 
     if (!this.consistencyInfoEl.querySelector('.consistency-score-value')) {
       this.consistencyInfoEl.innerHTML = `
-        <h3 class="consistency-title"></h3>
+        <div class="consistency-title-row figure-side-panel-header">
+          <h3 class="consistency-title"></h3>
+        </div>
+        <div class="consistency-preset-panel">
+          <div class="figure-size-label consistency-preset-label">Presets</div>
+          <div class="consistency-preset-slots"></div>
+          <div class="dynamic-figure-preset-actions consistency-preset-actions">
+            <button type="button" class="dynamic-figure-preset-action consistency-preset-save">Speichern</button>
+            <button type="button" class="dynamic-figure-preset-action consistency-preset-reset">Zurücksetzen</button>
+          </div>
+        </div>
         <p>Folge den bewegten Punkten so präzise und gleichmäßig wie möglich.</p>
         <div class="consistency-score-row">
           <span>Genauigkeit (letzte 3s)</span>
@@ -2257,6 +2641,16 @@ export class LevelManager {
       const speedValue = this.consistencyInfoEl.querySelector('.consistency-speed-value');
       const strictnessValue = this.consistencyInfoEl.querySelector('.consistency-strictness-value');
       const motionValue = this.consistencyInfoEl.querySelector('.consistency-motion-value');
+      const saveButton = this.consistencyInfoEl.querySelector('.consistency-preset-save');
+      const resetButton = this.consistencyInfoEl.querySelector('.consistency-preset-reset');
+
+      if (saveButton) {
+        saveButton.addEventListener('click', () => this.saveConsistencyPreset());
+      }
+      if (resetButton) {
+        resetButton.addEventListener('click', () => this.resetConsistencyPreset());
+      }
+
       if (speedSlider) {
         speedSlider.value = String(this.consistencyTempoBpm);
         speedSlider.addEventListener('input', (event) => {
@@ -2281,6 +2675,14 @@ export class LevelManager {
           this.persistConsistencySettings();
         });
       }
+      const titleRow = this.consistencyInfoEl.querySelector('.consistency-title-row');
+      const levelSettingsVisibility = createConsistencyLevelSettingsVisibilityController(this.consistencyInfoEl);
+      this.consistencyInfoEl.__levelSettingsVisibilityController = levelSettingsVisibility;
+      if (titleRow && !titleRow.querySelector('.figure-side-panel-settings-button')) {
+        titleRow.appendChild(levelSettingsVisibility.button);
+      }
+      levelSettingsVisibility.sync();
+
       const consistencyDescriptions = {
         Tempo: 'Stelle das Tempo der Bewegung ein.',
         Strenge: 'Es wird ein Score angezeigt, der die Ausführungsgenauigkeit der Bewegung bewertet. Hier kannst du seine Strenge einstellen.',
@@ -2299,12 +2701,55 @@ export class LevelManager {
     }
 
     const titleEl = this.consistencyInfoEl.querySelector('.consistency-title');
+    const presetSlots = this.consistencyInfoEl.querySelector('.consistency-preset-slots');
     const scoreEl = this.consistencyInfoEl.querySelector('.consistency-score-value');
+    const speedSliderEl = this.consistencyInfoEl.querySelector('#consistency-speed-slider');
+    const strictnessSliderEl = this.consistencyInfoEl.querySelector('#consistency-strictness-slider');
+    const motionSliderEl = this.consistencyInfoEl.querySelector('#consistency-motion-slider');
     const speedValueEl = this.consistencyInfoEl.querySelector('.consistency-speed-value');
     const strictnessValueEl = this.consistencyInfoEl.querySelector('.consistency-strictness-value');
     const motionValueEl = this.consistencyInfoEl.querySelector('.consistency-motion-value');
     if (titleEl) {
-      titleEl.textContent = `Gleichmäßigkeit - ${levelName}`;
+      titleEl.textContent = levelName;
+    }
+    if (speedSliderEl) {
+      speedSliderEl.value = String(this.consistencyTempoBpm);
+    }
+    if (strictnessSliderEl) {
+      strictnessSliderEl.value = String(this.consistencyStrictnessPercent);
+    }
+    if (motionSliderEl) {
+      motionSliderEl.value = String(this.consistencyMotionBlendPercent);
+    }
+    if (presetSlots) {
+      const presetBucket = this.getConsistencyPresetBucket(safeLevel);
+      const activeSlot = Number.isInteger(Number(presetBucket.selectedSlot)) ? Math.max(0, Math.min(3, Number(presetBucket.selectedSlot))) : 0;
+      const uniqueGroupName = `consistency-preset-${safeLevel}`;
+      const groupNameMatches = presetSlots.dataset.groupName === uniqueGroupName;
+      const existingInputs = Array.from(presetSlots.querySelectorAll('input'));
+
+      if (!groupNameMatches || existingInputs.length !== 4) {
+        presetSlots.dataset.groupName = uniqueGroupName;
+        presetSlots.innerHTML = Array.from({ length: 4 }, (_, slot) => `
+          <label class="consistency-preset-option">
+            <input type="radio" name="${uniqueGroupName}" value="${slot}" ${slot === activeSlot ? 'checked' : ''} />
+            <span>${slot + 1}</span>
+          </label>
+        `).join('');
+
+        presetSlots.querySelectorAll('input').forEach((input) => {
+          input.addEventListener('change', () => {
+            if (!input.checked) {
+              return;
+            }
+            this.applyConsistencyPreset(safeLevel, Number(input.value));
+          });
+        });
+      } else {
+        existingInputs.forEach((input) => {
+          input.checked = Number(input.value) === activeSlot;
+        });
+      }
     }
     if (scoreEl) {
       scoreEl.textContent = `${scorePercent}%`;
@@ -2364,6 +2809,17 @@ export class LevelManager {
       this.nextTarget = 0;
       this.nextTargetByHand = { left: 0, right: 0 };
       this.completed = false;
+    }
+    this.requestRender();
+  }
+
+  setSquareExercisePalindromMode(value) {
+    this.squareExercisePalindromMode = Boolean(value);
+    if (this.chapter === 1 && Number.isInteger(this.level) && this.level === 0) {
+      this.squareExerciseTraversalDirection = 1;
+      if (this.targets.length > 0) {
+        this.nextTarget = 0;
+      }
     }
     this.requestRender();
   }
@@ -3926,13 +4382,23 @@ export class LevelManager {
       'Zweiviertel'
     ];
     const beatCounts = [1, 2, 3, 4, 4, 3, 2];
+    const variationMap = {
+      1: 'Zweiviertel',
+      2: 'Dreiviertel',
+      3: 'Vierviertel'
+    };
     const figureIndex = Number(level);
     if (!Number.isInteger(figureIndex) || figureIndex < 0 || figureIndex >= figureNames.length) {
       return null;
     }
 
-    const figureName = figureNames[figureIndex];
-    const figureSet = figureIndex <= 3 ? basicFigurePaths : basicFigurePathsStyle2;
+    const isBasicPathFigure = figureIndex === 0 || this.handIndependenceFigureVariation !== 2;
+    const figureName = figureIndex === 0
+      ? figureNames[figureIndex]
+      : (this.handIndependenceFigureVariation === 2 && figureIndex <= 3
+        ? variationMap[figureIndex] || figureNames[figureIndex]
+        : figureNames[figureIndex]);
+    const figureSet = isBasicPathFigure ? basicFigurePaths : basicFigurePathsStyle2;
     const variantKey = this.handIndependenceVariant === 'soft' ? 'softD' : 'hardD';
     const pathData = figureSet[figureName]?.[variantKey] || null;
     const beatCount = beatCounts[figureIndex] || 1;
@@ -3947,6 +4413,12 @@ export class LevelManager {
 
   setHandIndependenceVariant(variant) {
     this.handIndependenceVariant = variant === 'soft' ? 'soft' : 'hard';
+    this.requestRender();
+  }
+
+  setHandIndependenceFigureVariation(variation) {
+    const next = Number(variation) === 2 ? 2 : 1;
+    this.handIndependenceFigureVariation = next;
     this.requestRender();
   }
 
@@ -4171,6 +4643,243 @@ export class LevelManager {
     };
   }
 
+  setMotionDistanceVisible(visible) {
+    this.motionDistanceVisible = Boolean(visible);
+    if (!this.motionDistanceVisible) {
+      this.motionDistanceFrameTargets = [];
+      this.motionDistanceHistory = { left: [], right: [] };
+      this.motionDistanceCurrent = { left: null, right: null };
+      this.motionDistancePrevious = { left: null, right: null };
+      this.motionDistanceKinematicsPrevious = { left: null, right: null };
+      this.motionDistanceFrameMetrics = { left: null, right: null };
+    }
+    this.requestRender();
+  }
+
+  setMotionDistanceStrictness(strictness) {
+    const next = Number(strictness);
+    if (!Number.isFinite(next)) {
+      return;
+    }
+    this.motionDistanceStrictness = Math.min(100, Math.max(0, next));
+    this.requestRender();
+  }
+
+  getHandTipDistance(hand, targetPoint) {
+    const tip = hand === 'left' ? this.leftTip : this.rightTip;
+    const tipInFrame = hand === 'left' ? this.leftTipInFrame : this.rightTipInFrame;
+    if (!tip || !tipInFrame || !targetPoint || !this.canvas
+      || !this.canvas.width || !this.canvas.height
+      || !Number.isFinite(targetPoint.x) || !Number.isFinite(targetPoint.y)) {
+      return null;
+    }
+    const normalizedX = (tip.x - targetPoint.x) / this.canvas.width;
+    const normalizedY = (tip.y - targetPoint.y) / this.canvas.height;
+    return Math.min(1, Math.hypot(normalizedX, normalizedY) / Math.SQRT2);
+  }
+
+  getMotionDistanceFeedback(hand, targetPoint) {
+    const distance = this.getHandTipDistance(hand, targetPoint);
+    if (distance === null) {
+      return { distance: null, pathScore: null, color: 'rgba(255, 255, 255, 0.96)' };
+    }
+
+    const strictness = Math.min(100, Math.max(0, Number(this.motionDistanceStrictness) || 0));
+    const strictnessRatio = Math.min(1, Math.max(0, strictness / 100));
+    // Stronger contrast between low and high strictness: low values are much more forgiving,
+    // while very high values remain sharply precise.
+    const lowEndForgiveness = Math.pow(1 - strictnessRatio, 3.2);
+    const tolerance = 0.04 + lowEndForgiveness * 3.5 + Math.pow(1 - strictnessRatio, 7) * 1.1;
+    const pathScore = Math.max(0, Math.min(100, 100 * Math.exp(-distance / tolerance)));
+    const tipColor = hand === 'left' ? [82, 156, 255] : [255, 163, 92];
+    const mix = pathScore / 100;
+    const red = Math.round(255 + (tipColor[0] - 255) * mix);
+    const green = Math.round(255 + (tipColor[1] - 255) * mix);
+    const blue = Math.round(255 + (tipColor[2] - 255) * mix);
+    return {
+      distance,
+      pathScore,
+      color: `rgba(${red}, ${green}, ${blue}, 0.96)`
+    };
+  }
+
+  getMotionDistanceMetrics(hand, targetPoint) {
+    if (this.motionDistanceFrameMetrics[hand]) {
+      return this.motionDistanceFrameMetrics[hand];
+    }
+
+    const tip = hand === 'left' ? this.leftTip : this.rightTip;
+    const feedback = this.getMotionDistanceFeedback(hand, targetPoint);
+    if (!tip || !feedback || feedback.pathScore === null) {
+      return null;
+    }
+
+    const previous = this.motionDistanceKinematicsPrevious[hand];
+    const currentTip = { x: tip.x / this.canvas.width, y: tip.y / this.canvas.height };
+    const currentTarget = { x: targetPoint.x / this.canvas.width, y: targetPoint.y / this.canvas.height };
+    const smoothingAlpha = 0.2;
+    const smoothedTip = previous
+      ? {
+          x: previous.tip.x + (currentTip.x - previous.tip.x) * smoothingAlpha,
+          y: previous.tip.y + (currentTip.y - previous.tip.y) * smoothingAlpha
+        }
+      : currentTip;
+    const smoothedTarget = previous
+      ? {
+          x: previous.target.x + (currentTarget.x - previous.target.x) * smoothingAlpha,
+          y: previous.target.y + (currentTarget.y - previous.target.y) * smoothingAlpha
+        }
+      : currentTarget;
+    let timingScore = 100;
+    let directionScore = 100;
+    if (previous) {
+      const handDelta = { x: smoothedTip.x - previous.tip.x, y: smoothedTip.y - previous.tip.y };
+      const targetDelta = { x: smoothedTarget.x - previous.target.x, y: smoothedTarget.y - previous.target.y };
+      const handSpeed = Math.hypot(handDelta.x, handDelta.y);
+      const targetSpeed = Math.hypot(targetDelta.x, targetDelta.y);
+      if (targetSpeed > 0.00001) {
+        const speedRatio = Math.max(0.01, handSpeed / targetSpeed);
+        const timingError = Math.abs(Math.log(speedRatio));
+        timingScore = Math.max(0, Math.min(100, 100 * Math.exp(-timingError / 1.15)));
+        const cosine = (handDelta.x * targetDelta.x + handDelta.y * targetDelta.y)
+          / Math.max(handSpeed * targetSpeed, 0.00001);
+        directionScore = Math.max(0, Math.min(100, ((cosine + 1) / 2) * 100));
+      }
+    }
+
+    const score = feedback.pathScore * 0.45 + timingScore * 0.3 + directionScore * 0.25;
+    const scoreMix = score / 100;
+    const tipColor = hand === 'left' ? [82, 156, 255] : [255, 163, 92];
+    const scoreColor = `rgba(${Math.round(255 + (tipColor[0] - 255) * scoreMix)}, ${Math.round(255 + (tipColor[1] - 255) * scoreMix)}, ${Math.round(255 + (tipColor[2] - 255) * scoreMix)}, 0.96)`;
+    const metrics = {
+      score,
+      pathScore: feedback.pathScore,
+      timingScore,
+      directionScore,
+      distance: feedback.distance,
+      color: scoreColor,
+      tip: smoothedTip,
+      target: smoothedTarget
+    };
+    this.motionDistanceFrameMetrics[hand] = metrics;
+    return metrics;
+  }
+
+  recordMotionDistanceTarget(hand, point) {
+    if (this.motionDistanceVisible && (hand === 'left' || hand === 'right') && point) {
+      this.motionDistanceFrameTargets.push({ hand, point });
+    }
+  }
+
+  getMotionDistanceWindowMs() {
+    let beatCount = 1;
+    let bpm = 60;
+    if (this.chapter === 3 || this.chapter === 4) {
+      const state = this.chapter === 3
+        ? this.getCurrentFigureRenderState()
+        : this.getCurrentDynamicFigureRenderState();
+      beatCount = Math.max(1, Math.ceil((state?.renderSegments?.length || 2) / 2));
+      bpm = this.chapter === 3 ? this.figureTempoBpm : this.dynamicFigureTempoBpm;
+    } else if (this.chapter === 5) {
+      const state = this.getHandIndependenceDynamicState();
+      beatCount = Math.max(1, Math.ceil((state?.renderSegments?.length || 2) / 2));
+      bpm = this.handIndependenceSharedTempoBpm;
+    }
+    return Math.max(1000, (60000 / Math.max(1, Number(bpm) || 60)) * beatCount * 4);
+  }
+
+  finishMotionDistanceFrame() {
+    if (!this.motionDistanceVisible) {
+      return;
+    }
+
+    const nowMs = performance.now();
+    const latestByHand = new Map();
+    this.motionDistanceFrameTargets.forEach(({ hand, point }) => latestByHand.set(hand, point));
+    ['left', 'right'].forEach((hand) => {
+      const point = latestByHand.get(hand);
+      const metrics = point
+        ? (this.motionDistanceFrameMetrics[hand] || this.getMotionDistanceMetrics(hand, point))
+        : null;
+      if (metrics) {
+        this.motionDistanceCurrent[hand] = metrics;
+        this.motionDistanceHistory[hand].push({ time: nowMs, ...metrics });
+        this.motionDistancePrevious[hand] = { tip: metrics.tip, target: metrics.target };
+        this.motionDistanceKinematicsPrevious[hand] = { tip: metrics.tip, target: metrics.target };
+      }
+      const cutoff = nowMs - this.getMotionDistanceWindowMs();
+      this.motionDistanceHistory[hand] = this.motionDistanceHistory[hand].filter((sample) => sample.time >= cutoff);
+    });
+    this.motionDistanceFrameTargets = [];
+    this.motionDistanceFrameMetrics = { left: null, right: null };
+  }
+
+  drawMotionDistanceChart() {
+    if (!this.motionDistanceVisible || !this.ctx || !this.canvas) {
+      return;
+    }
+
+    const chartHeight = Math.min(86, Math.max(64, this.canvas.height * 0.13));
+    const chartTop = this.canvas.height - chartHeight - 8;
+    const chartWidth = this.canvas.width / 2;
+    const colors = { left: 'rgba(128, 204, 255, 0.95)', right: 'rgba(255, 201, 129, 0.95)' };
+
+    this.ctx.save();
+    this.ctx.fillStyle = 'rgba(5, 13, 22, 0.72)';
+    this.ctx.fillRect(0, chartTop, this.canvas.width, chartHeight + 8);
+    ['left', 'right'].forEach((hand, sideIndex) => {
+      const history = this.motionDistanceHistory[hand];
+      const chartLeft = sideIndex * chartWidth + 12;
+      const innerWidth = chartWidth - 24;
+      const mean = history.length > 0
+        ? history.reduce((sum, sample) => sum + sample.score, 0) / history.length
+        : null;
+      this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+      this.ctx.lineWidth = 1;
+      this.ctx.beginPath();
+      this.ctx.moveTo(chartLeft, chartTop + chartHeight - 12);
+      this.ctx.lineTo(chartLeft + innerWidth, chartTop + chartHeight - 12);
+      this.ctx.stroke();
+      if (history.length > 0) {
+        this.ctx.beginPath();
+        history.forEach((sample, index) => {
+          const x = chartLeft + (index / Math.max(1, history.length - 1)) * innerWidth;
+          const y = chartTop + chartHeight - 12 - (sample.score / 100) * (chartHeight - 28);
+          if (index === 0) this.ctx.moveTo(x, y);
+          else this.ctx.lineTo(x, y);
+        });
+        this.ctx.strokeStyle = colors[hand];
+        this.ctx.lineWidth = 2;
+        this.ctx.stroke();
+      }
+      this.ctx.fillStyle = colors[hand];
+      this.ctx.font = '700 12px sans-serif';
+      this.ctx.textAlign = 'left';
+      this.ctx.fillText(`${hand === 'left' ? 'Links' : 'Rechts'} Ø ${mean === null ? '–' : `${mean.toFixed(1)}%`}`, chartLeft, chartTop + 16);
+    });
+    this.ctx.restore();
+  }
+
+  getMotionDistanceSummary() {
+    const summary = {};
+    ['left', 'right'].forEach((hand) => {
+      const history = this.motionDistanceHistory[hand];
+      const average = (key) => history.length > 0
+        ? history.reduce((sum, sample) => sum + sample[key], 0) / history.length
+        : null;
+      summary[hand] = {
+        current: this.motionDistanceCurrent[hand],
+        average: {
+          score: average('score'),
+          pathScore: average('pathScore'),
+          timingScore: average('timingScore'),
+          directionScore: average('directionScore')
+        }
+      };
+    });
+    return summary;
+  }
+
   drawHandIndependenceMotionPoint(state, settings) {
     const motionState = this.getFigureMotionState(state.renderSegments, state.scaleX, {
       variant: settings.variant,
@@ -4186,26 +4895,38 @@ export class LevelManager {
     const shapeOffsetX = Number(settings.xPosition) || 0;
     const offsetY = Number(settings.yPosition) || 0;
     const anchor = this.getPathAnchorPoint(state.renderSegments);
+    const rotatedLocalX = Math.cos(angle) * point.x - Math.sin(angle) * point.y;
+    const rotatedLocalY = Math.sin(angle) * point.x + Math.cos(angle) * point.y;
+    const rotatedAnchorX = Math.cos(angle) * anchor.x - Math.sin(angle) * anchor.y;
+    const rotatedAnchorY = Math.sin(angle) * anchor.x + Math.cos(angle) * anchor.y;
+
     state.figureConfigs.forEach(({ mirrorX, offsetX: figureOffsetX }) => {
-      const localX = point.x * state.scaleX;
-      const localY = point.y * state.scaleY;
-      const rotatedX = Math.cos(angle) * localX - Math.sin(angle) * localY;
-      const rotatedY = Math.sin(angle) * localX + Math.cos(angle) * localY;
-      const mirroredX = mirrorX ? -rotatedX : rotatedX;
-      const anchorX = mirrorX ? -anchor.x : anchor.x;
+      const mirroredX = mirrorX ? -rotatedLocalX : rotatedLocalX;
       const x = state.centerX
         + figureOffsetX
         + (mirrorX ? -shapeOffsetX : shapeOffsetX)
-        + (mirroredX - anchorX * state.scaleX)
-        + anchorX * state.scaleX;
-      const y = state.centerY + this.getCanvasVerticalOffsetFromNormalized(offsetY) + rotatedY - anchor.y * state.scaleY + anchor.y * state.scaleY;
+        + (mirroredX - (mirrorX ? -rotatedAnchorX : rotatedAnchorX)) * state.scaleX;
+      const y = state.centerY
+        + this.getCanvasVerticalOffsetFromNormalized(offsetY)
+        + (rotatedLocalY - rotatedAnchorY) * state.scaleY;
+      const hand = mirrorX ? 'right' : 'left';
+      const feedback = this.getMotionDistanceMetrics(hand, { x, y });
+      this.recordMotionDistanceTarget(hand, { x, y });
       this.ctx.save();
-      this.ctx.fillStyle = 'rgba(255, 255, 255, 0.96)';
-      this.ctx.shadowColor = 'rgba(255, 255, 255, 0.9)';
+      this.ctx.fillStyle = this.motionDistanceVisible && feedback ? feedback.color : 'rgba(255, 255, 255, 0.96)';
+      this.ctx.shadowColor = this.motionDistanceVisible && feedback ? feedback.color : 'rgba(255, 255, 255, 0.9)';
       this.ctx.shadowBlur = 14;
       this.ctx.beginPath();
       this.ctx.arc(x, y, Math.max(6, Math.min(this.canvas.width, this.canvas.height) * 0.016), 0, Math.PI * 2);
       this.ctx.fill();
+      if (this.motionDistanceVisible && feedback) {
+        this.ctx.shadowBlur = 0;
+        this.ctx.fillStyle = '#101820';
+        this.ctx.font = '700 11px sans-serif';
+        this.ctx.textAlign = 'center';
+        this.ctx.textBaseline = 'middle';
+        this.ctx.fillText(`${Math.round(feedback.score)}`, x, y);
+      }
       this.ctx.restore();
     });
   }
@@ -5154,9 +5875,12 @@ export class LevelManager {
       const localMotionX = mirrorX ? -motionPoint.x : motionPoint.x;
       const x = state.centerX + offsetX + (localMotionX - anchorX) * state.scaleX;
       const y = state.centerY + this.getCanvasVerticalOffsetFromNormalized(this.dynamicFigureYPosition) + (motionPoint.y - anchorY) * state.scaleY;
+      const hand = mirrorX ? 'right' : 'left';
+      const feedback = this.getMotionDistanceMetrics(hand, { x, y });
+      this.recordMotionDistanceTarget(hand, { x, y });
 
       this.ctx.save();
-      this.ctx.fillStyle = 'rgba(255, 255, 255, 0.96)';
+      this.ctx.fillStyle = this.motionDistanceVisible && feedback ? feedback.color : 'rgba(255, 255, 255, 0.96)';
       this.ctx.strokeStyle = 'rgba(20, 28, 38, 0.55)';
       this.ctx.lineWidth = 2;
       this.ctx.shadowColor = 'rgba(255, 255, 255, 0.9)';
@@ -5164,6 +5888,14 @@ export class LevelManager {
       this.ctx.beginPath();
       this.ctx.arc(x, y, pointRadius, 0, Math.PI * 2);
       this.ctx.fill();
+      if (this.motionDistanceVisible && feedback) {
+        this.ctx.shadowBlur = 0;
+        this.ctx.fillStyle = '#101820';
+        this.ctx.font = '700 11px sans-serif';
+        this.ctx.textAlign = 'center';
+        this.ctx.textBaseline = 'middle';
+        this.ctx.fillText(`${Math.round(feedback.score)}`, x, y);
+      }
       this.ctx.shadowBlur = 0;
       this.ctx.stroke();
       this.ctx.restore();
@@ -5222,9 +5954,12 @@ export class LevelManager {
       const localMotionX = mirrorX ? -motionPoint.x : motionPoint.x;
       const x = state.centerX + offsetX + (localMotionX - anchorX) * state.scaleX;
       const y = state.centerY + this.getCanvasVerticalOffsetFromNormalized(this.figureYPosition) + (motionPoint.y - anchor.y) * state.scaleY;
+      const hand = mirrorX ? 'right' : 'left';
+      const feedback = this.getMotionDistanceMetrics(hand, { x, y });
+      this.recordMotionDistanceTarget(hand, { x, y });
 
       this.ctx.save();
-      this.ctx.fillStyle = 'rgba(255, 255, 255, 0.96)';
+      this.ctx.fillStyle = this.motionDistanceVisible && feedback ? feedback.color : 'rgba(255, 255, 255, 0.96)';
       this.ctx.strokeStyle = 'rgba(20, 28, 38, 0.55)';
       this.ctx.lineWidth = 2;
       this.ctx.shadowColor = 'rgba(255, 255, 255, 0.9)';
@@ -5232,6 +5967,14 @@ export class LevelManager {
       this.ctx.beginPath();
       this.ctx.arc(x, y, pointRadius, 0, Math.PI * 2);
       this.ctx.fill();
+      if (this.motionDistanceVisible && feedback) {
+        this.ctx.shadowBlur = 0;
+        this.ctx.fillStyle = '#101820';
+        this.ctx.font = '700 11px sans-serif';
+        this.ctx.textAlign = 'center';
+        this.ctx.textBaseline = 'middle';
+        this.ctx.fillText(`${Math.round(feedback.score)}`, x, y);
+      }
       this.ctx.shadowBlur = 0;
       this.ctx.stroke();
 
@@ -5377,9 +6120,14 @@ export class LevelManager {
   }
 
   setupLevel() {
+    this.motionDistanceHistory = { left: [], right: [] };
+    this.motionDistanceFrameTargets = [];
+    this.motionDistanceCurrent = { left: null, right: null };
+    this.motionDistancePrevious = { left: null, right: null };
     this.targets = [];
     this.targetIndexByCircle.clear();
     this.nextTarget = 0;
+    this.squareExerciseTraversalDirection = 1;
     this.nextTargetByHand = { left: 0, right: 0 };
     this.completed = false;
 
@@ -5458,7 +6206,7 @@ export class LevelManager {
     }
 
     if (this.chapter === 6) {
-      this.active = Number.isInteger(this.level) && this.level >= 0 && this.level <= 4;
+      this.active = Number.isInteger(this.level) && this.level >= 0 && this.level <= 2;
       this.figureActive = false;
       this.dynamicFigureActive = false;
       this.handIndependenceActive = false;
@@ -5555,6 +6303,7 @@ export class LevelManager {
       const selectedHands = isBoth ? ['left', 'right'] : [this.squareExerciseHandMode || 'right'];
       const isDigitShape = /^\d$/.test(String(this.squareExerciseShape));
       const isCircle = this.squareExerciseShape === 'circle';
+      this.squareExerciseTraversalDirection = 1;
 
       const pushTarget = (side, cx, cy, radius, steps) => {
         for (let step = 0; step < steps; step += 1) {
@@ -6221,8 +6970,9 @@ export class LevelManager {
       const drawStrikeCircle = (point, side) => {
         const isLeft = side === 'left';
         const isCurrentSequenceTarget = index === activeSequenceIndex;
-        const shouldHideAssignedBeat = side === assignmentSide && index === assignmentBeatIndex - 1;
-        if (shouldHideAssignedBeat) {
+        const isAssignedBeat = side === assignmentSide && index === assignmentBeatIndex - 1;
+
+        if (isAssignedBeat) {
           return;
         }
 
@@ -6243,16 +6993,20 @@ export class LevelManager {
 
         this.ctx.beginPath();
         this.ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
-        this.ctx.fillStyle = isLeft
-          ? (isActive ? 'rgba(82, 156, 255, 0.38)' : 'rgba(82, 156, 255, 0.16)')
-          : (isActive ? 'rgba(255, 163, 92, 0.38)' : 'rgba(255, 163, 92, 0.16)');
-        this.ctx.shadowBlur = isActive || isCurrentSequenceTarget ? 18 : 0;
+        this.ctx.fillStyle = isAssignedBeat
+          ? (isLeft ? 'rgba(255, 244, 168, 0.34)' : 'rgba(255, 214, 127, 0.34)')
+          : (isLeft
+            ? (isActive ? 'rgba(82, 156, 255, 0.38)' : 'rgba(82, 156, 255, 0.16)')
+            : (isActive ? 'rgba(255, 163, 92, 0.38)' : 'rgba(255, 163, 92, 0.16)'));
+        this.ctx.shadowBlur = isAssignedBeat || isActive || isCurrentSequenceTarget ? 18 : 0;
         this.ctx.shadowColor = isLeft ? 'rgba(82, 156, 255, 0.9)' : 'rgba(255, 163, 92, 0.9)';
         this.ctx.fill();
-        this.ctx.lineWidth = isCurrentSequenceTarget ? 3.2 : (isActive ? 2.4 : 1.5);
-        this.ctx.strokeStyle = isCurrentSequenceTarget
+        this.ctx.lineWidth = isAssignedBeat ? 3.2 : (isCurrentSequenceTarget ? 3.2 : (isActive ? 2.4 : 1.5));
+        this.ctx.strokeStyle = isAssignedBeat
           ? (isLeft ? 'rgba(255, 244, 168, 0.98)' : 'rgba(255, 214, 127, 0.98)')
-          : (isLeft ? 'rgba(128, 204, 255, 0.9)' : 'rgba(255, 201, 129, 0.9)');
+          : (isCurrentSequenceTarget
+            ? (isLeft ? 'rgba(255, 244, 168, 0.98)' : 'rgba(255, 214, 127, 0.98)')
+            : (isLeft ? 'rgba(128, 204, 255, 0.9)' : 'rgba(255, 201, 129, 0.9)'));
         this.ctx.stroke();
         this.ctx.shadowBlur = 0;
         this.ctx.fillStyle = isLeft ? '#dbeeff' : '#ffe4c2';
@@ -6314,6 +7068,7 @@ export class LevelManager {
       return;
     }
     this.clear();
+    this.motionDistanceFrameTargets = [];
 
     if (this.calibrationActive) {
       this.setCalibrationPanelVisible(true);
@@ -6340,6 +7095,8 @@ export class LevelManager {
       this.drawFigurePath(figureState);
       this.drawFigureCountTimes(figureState);
       this.drawFigureMotionPoints(figureState);
+      this.finishMotionDistanceFrame();
+      this.drawMotionDistanceChart();
       this.renderPoseAlignmentFeedback();
       this.requestRender();
       return;
@@ -6356,6 +7113,8 @@ export class LevelManager {
       });
       this.drawDynamicFigureCountTimes(dynamicFigureState);
       this.drawDynamicFigureMotionPoints(dynamicFigureState);
+      this.finishMotionDistanceFrame();
+      this.drawMotionDistanceChart();
       this.renderPoseAlignmentFeedback();
       this.requestRender();
       return;
@@ -6366,7 +7125,9 @@ export class LevelManager {
       const shapeState = this.getHandIndependenceShapeState();
       const tempoPair = this.getHandIndependenceTempoPair();
       if (dynamicState) {
-        if (this.handIndependenceDynamicsVisible) this.drawFigureDynamics();
+        if (this.handIndependenceDynamicsVisible) {
+          this.drawFigureDynamics(this.handIndependenceDynamicsVisible);
+        }
         this.drawFigurePath(dynamicState, dynamicState.handIndependenceSettings);
         this.drawHandIndependenceCountTimes(dynamicState);
         this.drawHandIndependenceMotionPoint(dynamicState, {
@@ -6387,12 +7148,14 @@ export class LevelManager {
           rotation: this.handIndependenceShapeRotation
         });
       }
+      this.finishMotionDistanceFrame();
+      this.drawMotionDistanceChart();
       this.renderPoseAlignmentFeedback();
       this.requestRender();
       return;
     }
 
-    if (this.chapter === 6 && Number.isInteger(this.level) && this.level >= 0 && this.level <= 4) {
+    if (this.chapter === 6 && Number.isInteger(this.level) && this.level >= 0 && this.level <= 2) {
       this.drawExerciseFieldZones();
       this.drawExerciseFieldTimingOverlay();
       this.renderPoseAlignmentFeedback();
@@ -6677,6 +7440,14 @@ export class LevelManager {
     const headSpan = this.distance(leftEye, rightEye);
     const bodyCenterX = (eyeCenter.x + shoulderCenter.x + hipCenter.x) / 3;
     const centerScore = this.scoreByDistance(bodyCenterX, centerX, w * 0.1);
+    const verticalAxisVector = { x: 0, y: 1 };
+    const eyeAxisVector = leftEye && rightEye ? { x: rightEye.x - leftEye.x, y: rightEye.y - leftEye.y } : null;
+    const shoulderAxisVector = leftShoulder && rightShoulder ? { x: rightShoulder.x - leftShoulder.x, y: rightShoulder.y - leftShoulder.y } : null;
+    const hipAxisVector = leftHip && rightHip ? { x: rightHip.x - leftHip.x, y: rightHip.y - leftHip.y } : null;
+    const eyeAxisDeviation = eyeAxisVector ? Math.abs(90 - this.angleBetweenVectors(eyeAxisVector, verticalAxisVector)) : 180;
+    const shoulderAxisDeviation = shoulderAxisVector ? Math.abs(90 - this.angleBetweenVectors(shoulderAxisVector, verticalAxisVector)) : 180;
+    const hipAxisDeviation = hipAxisVector ? Math.abs(90 - this.angleBetweenVectors(hipAxisVector, verticalAxisVector)) : 180;
+    const axisDeviationTolerance = 20;
 
     const headRect = this.createRectFromPair(
       leftEye,
@@ -6713,6 +7484,10 @@ export class LevelManager {
       height: Math.max(36, h * 0.12)
     };
 
+    const axisAligned = eyeAxisDeviation <= axisDeviationTolerance
+      && shoulderAxisDeviation <= axisDeviationTolerance
+      && hipAxisDeviation <= axisDeviationTolerance;
+
     const bodyScore = (
       centerScore * 0.35
       + this.scoreSegmentInRect(leftEye, rightEye, eyeZone) * 0.35
@@ -6722,7 +7497,8 @@ export class LevelManager {
     const bodyAligned = bodyScore >= 0.78
       && this.scoreSegmentInRect(leftEye, rightEye, eyeZone) >= 0.8
       && this.scoreSegmentInRect(leftHip, rightHip, hipZone) >= 0.8
-      && centerScore >= 0.8;
+      && centerScore >= 0.8
+      && axisAligned;
 
     const leftArmSpreadVector = leftShoulder && leftElbow ? {
       x: leftElbow.x - leftShoulder.x,
@@ -6789,6 +7565,9 @@ export class LevelManager {
       rightShoulderAngle: rightArmMetrics.angle,
       leftElbowAngle: leftArmMetrics.elbowAngle,
       rightElbowAngle: rightArmMetrics.elbowAngle,
+      eyeAxisDeviation,
+      shoulderAxisDeviation,
+      hipAxisDeviation,
       bodyAligned,
       armAligned,
       leftGuide: bodyAligned && leftShoulder ? {
@@ -6838,10 +7617,18 @@ export class LevelManager {
   }
 
   renderUpperBodyCalibration() {
+    const nowMs = performance.now();
     const w = this.canvas.width;
     const h = this.canvas.height;
     const centerX = w * 0.5;
     const eyeZoneWidth = w * 0.36;
+    const countdownSeconds = this.calibrationAligned && this.calibrationAlignedSince && !this.calibrationSuccess
+      ? Math.max(0, 3 - (nowMs - this.calibrationAlignedSince) / 1000)
+      : 0;
+    const flashElapsed = this.calibrationSnapshotFlashStartedAt > 0 ? Math.max(0, nowMs - this.calibrationSnapshotFlashStartedAt) : 0;
+    const flashAlpha = this.calibrationSnapshotFlashStartedAt > 0 && flashElapsed <= 1000
+      ? Math.max(0, 1 - flashElapsed / 1000)
+      : 0;
     const shoulderZoneWidth = w * 0.44;
     const hipZoneWidth = w * 0.4;
     const eyeZone = {
@@ -6875,6 +7662,7 @@ export class LevelManager {
     const rightEyeRef = this.calibrationMetrics?.rightEye || null;
     const leftHipRef = this.calibrationMetrics?.leftHip || null;
     const rightHipRef = this.calibrationMetrics?.rightHip || null;
+    const eyesInEyeZone = !!leftEyeRef && !!rightEyeRef && this.isSegmentInRect(leftEyeRef, rightEyeRef, eyeZone);
 
     const drawLargePrompt = (text, rect, color) => {
       if (!rect) return;
@@ -6910,9 +7698,11 @@ export class LevelManager {
     this.ctx.stroke();
     this.ctx.setLineDash([]);
 
-    this.ctx.strokeStyle = 'rgba(255, 111, 145, 0.95)';
+    const eyeZoneColor = eyesInEyeZone ? 'rgba(99, 224, 149, 0.95)' : 'rgba(255, 111, 145, 0.95)';
+    const eyeZoneFill = eyesInEyeZone ? 'rgba(99, 224, 149, 0.2)' : 'rgba(255, 111, 145, 0.2)';
+    this.ctx.strokeStyle = eyeZoneColor;
     this.ctx.lineWidth = 2;
-    this.ctx.fillStyle = 'rgba(255, 111, 145, 0.2)';
+    this.ctx.fillStyle = eyeZoneFill;
     this.ctx.fillRect(eyeZone.x, eyeZone.y, eyeZone.width, eyeZone.height);
     this.ctx.strokeRect(eyeZone.x, eyeZone.y, eyeZone.width, eyeZone.height);
 
@@ -6969,7 +7759,10 @@ export class LevelManager {
         leftShoulderAngle,
         rightShoulderAngle,
         leftElbowAngle,
-        rightElbowAngle
+        rightElbowAngle,
+        eyeAxisDeviation: eyeAxisDeviationValue,
+        shoulderAxisDeviation: shoulderAxisDeviationValue,
+        hipAxisDeviation: hipAxisDeviationValue
       } = this.calibrationMetrics;
 
       this.ctx.save();
@@ -6992,8 +7785,9 @@ export class LevelManager {
       this.ctx.lineWidth = 2.5;
 
       if (leftEye && rightEye) {
+        const eyeLineOk = Number.isFinite(eyeAxisDeviationValue) ? eyeAxisDeviationValue <= 20 : this.isSegmentInRect(leftEye, rightEye, eyeZone);
         this.ctx.beginPath();
-        this.ctx.strokeStyle = this.isSegmentInRect(leftEye, rightEye, eyeZone)
+        this.ctx.strokeStyle = (eyeLineOk && this.isSegmentInRect(leftEye, rightEye, eyeZone))
           ? 'rgba(99, 224, 149, 0.95)'
           : 'rgba(255, 106, 137, 0.95)';
         this.ctx.moveTo(leftEye.x, leftEye.y);
@@ -7002,8 +7796,9 @@ export class LevelManager {
       }
 
       if (bodyAligned && leftShoulder && rightShoulder) {
+        const shoulderLineOk = Number.isFinite(shoulderAxisDeviationValue) ? shoulderAxisDeviationValue <= 20 : this.isSegmentInRect(leftShoulder, rightShoulder, shoulderZone);
         this.ctx.beginPath();
-        this.ctx.strokeStyle = this.isSegmentInRect(leftShoulder, rightShoulder, shoulderZone)
+        this.ctx.strokeStyle = (shoulderLineOk && this.isSegmentInRect(leftShoulder, rightShoulder, shoulderZone))
           ? 'rgba(99, 224, 149, 0.95)'
           : 'rgba(255, 106, 137, 0.95)';
         this.ctx.moveTo(leftShoulder.x, leftShoulder.y);
@@ -7012,8 +7807,9 @@ export class LevelManager {
       }
 
       if (leftHip && rightHip) {
+        const hipLineOk = Number.isFinite(hipAxisDeviationValue) ? hipAxisDeviationValue <= 20 : this.isSegmentInRect(leftHip, rightHip, hipZone);
         this.ctx.beginPath();
-        this.ctx.strokeStyle = this.isSegmentInRect(leftHip, rightHip, hipZone)
+        this.ctx.strokeStyle = (hipLineOk && this.isSegmentInRect(leftHip, rightHip, hipZone))
           ? 'rgba(99, 224, 149, 0.95)'
           : 'rgba(255, 106, 137, 0.95)';
         this.ctx.moveTo(leftHip.x, leftHip.y);
@@ -7083,6 +7879,33 @@ export class LevelManager {
         });
         this.ctx.restore();
       }
+    }
+
+    if (flashAlpha > 0) {
+      this.ctx.fillStyle = `rgba(255, 255, 255, ${Math.min(0.95, flashAlpha)})`;
+      this.ctx.fillRect(0, 0, w, h);
+    }
+
+    if (this.calibrationAligned && !this.calibrationSuccess && countdownSeconds > 0) {
+      const countdownValue = countdownSeconds.toFixed(1);
+      this.ctx.save();
+      this.ctx.translate(w * 0.5, h * 0.5);
+      this.ctx.fillStyle = 'rgba(6, 14, 22, 0.88)';
+      this.ctx.beginPath();
+      this.ctx.roundRect(-86, -80, 172, 160, 24);
+      this.ctx.fill();
+      this.ctx.strokeStyle = 'rgba(122, 236, 176, 0.95)';
+      this.ctx.lineWidth = 4;
+      this.ctx.stroke();
+      this.ctx.fillStyle = '#f4fbff';
+      this.ctx.textAlign = 'center';
+      this.ctx.textBaseline = 'middle';
+      this.ctx.font = '700 64px Arial';
+      this.ctx.fillText(countdownValue, 0, 6);
+      this.ctx.font = '600 18px Arial';
+      this.ctx.fillStyle = 'rgba(244, 251, 255, 0.82)';
+      this.ctx.fillText('KALIBRIERUNG', 0, 44);
+      this.ctx.restore();
     }
 
     this.updateCalibrationPanelPosition();
@@ -7681,7 +8504,7 @@ export class LevelManager {
           { type: 'line', x: rightX, topY, bottomY }
         ],
         movingTargets: [
-          { hand: 'left', x: leftX, y: yAt(0, 2), color: 'rgba(96, 160, 255, 0.98)' },
+          { hand: 'left', x: leftX, y: yAt(0.5, 2), color: 'rgba(96, 160, 255, 0.98)' },
           { hand: 'right', x: rightX, y: yAt(0, 1), color: 'rgba(255, 148, 84, 0.98)' }
         ]
       };
@@ -7904,6 +8727,8 @@ export class LevelManager {
   updateHands(hands) {
     this.leftTip = null;
     this.rightTip = null;
+    this.leftTipInFrame = true;
+    this.rightTipInFrame = true;
 
     for (const hand of hands) {
       if (!hand || hand.length < 9) continue;
@@ -7912,11 +8737,15 @@ export class LevelManager {
 
       const explicitSide = hand.side === 'left' || hand.side === 'right' ? hand.side : null;
       const side = explicitSide || (tip.x < this.canvas.width * 0.5 ? 'right' : 'left');
+      // Pose-model tips carry an `inFrame` flag; hands-model tips are only ever emitted when visible.
+      const inFrame = typeof hand.inFrame === 'boolean' ? hand.inFrame : true;
 
       if (side === 'left') {
         this.leftTip = tip;
+        this.leftTipInFrame = inFrame;
       } else if (side === 'right') {
         this.rightTip = tip;
+        this.rightTipInFrame = inFrame;
       }
     }
 
@@ -8053,6 +8882,87 @@ export class LevelManager {
       return;
     }
 
+    if (this.chapter === 1 && Number.isInteger(this.level) && this.level === 0 && /^\d$/.test(String(this.squareExerciseShape))) {
+      if (this.squareExerciseHandMode === 'both') {
+        const leftCurrentTarget = this.getCurrentTargetForHand('left');
+        const rightCurrentTarget = this.getCurrentTargetForHand('right');
+        const leftTouched = leftCurrentTarget && this.leftTip && this.getCircleIndex(this.leftTip) === leftCurrentTarget.index;
+        const rightTouched = rightCurrentTarget && this.rightTip && this.getCircleIndex(this.rightTip) === rightCurrentTarget.index;
+
+        const advanceHandProgress = (hand, touched) => {
+          if (!touched) {
+            return;
+          }
+
+          const handTargets = this.targets.filter((target) => target && target.hand === hand);
+          if (handTargets.length === 0) {
+            return;
+          }
+
+          const currentProgress = this.nextTargetByHand[hand] ?? 0;
+
+          if (!this.squareExercisePalindromMode) {
+            this.nextTargetByHand[hand] = (currentProgress + 1) % handTargets.length;
+            return;
+          }
+
+          let nextProgress = currentProgress + this.squareExerciseTraversalDirection;
+          if (nextProgress >= handTargets.length) {
+            this.squareExerciseTraversalDirection = -1;
+            nextProgress = handTargets.length - 1;
+          }
+          if (nextProgress < 0) {
+            this.squareExerciseTraversalDirection = 1;
+            nextProgress = 0;
+          }
+          this.nextTargetByHand[hand] = nextProgress;
+        };
+
+        if (this.squareExerciseSyncMode === 'synchronous') {
+          if (leftTouched && rightTouched) {
+            advanceHandProgress('left', true);
+            advanceHandProgress('right', true);
+          }
+        } else {
+          advanceHandProgress('left', leftTouched);
+          advanceHandProgress('right', rightTouched);
+        }
+
+        this.requestRender();
+        return;
+      }
+
+      const currentTarget = this.targets[this.nextTarget] || null;
+      const activeTip = this.squareExerciseHandMode === 'left' ? this.leftTip : this.rightTip;
+      const touched = !!currentTarget && !!activeTip && this.getCircleIndex(activeTip) === currentTarget.index;
+
+      if (touched) {
+        if (!this.squareExercisePalindromMode) {
+          this.nextTarget += 1;
+          if (this.nextTarget >= this.targets.length) {
+            this.nextTarget = 0;
+          }
+        } else {
+          if (this.squareExerciseTraversalDirection === 1 && this.nextTarget >= this.targets.length - 1) {
+            this.squareExerciseTraversalDirection = -1;
+          }
+          if (this.squareExerciseTraversalDirection === -1 && this.nextTarget <= 0) {
+            this.squareExerciseTraversalDirection = 1;
+          }
+          this.nextTarget += this.squareExerciseTraversalDirection;
+          if (this.nextTarget < 0) {
+            this.nextTarget = 0;
+          }
+          if (this.nextTarget >= this.targets.length) {
+            this.nextTarget = this.targets.length - 1;
+          }
+        }
+      }
+
+      this.requestRender();
+      return;
+    }
+
     if (this.chapter === 1 && Number.isInteger(this.level) && this.level === 1 && ['sequential', 'simultaneous'].includes(this.pointExerciseSequentialMode)) {
       const currentTarget = this.targets[this.nextTarget] || null;
       this.pointExerciseCurrentIndex = this.nextTarget;
@@ -8102,18 +9012,7 @@ export class LevelManager {
       return;
     }
 
-    const currentTarget = this.targets[this.nextTarget];
-    const activeTargets = this.squareExerciseHandMode === 'both' && currentTarget && currentTarget.hand !== 'both'
-      ? ['left', 'right']
-          .map((hand) => this.getCurrentTargetForHand(hand))
-          .filter(Boolean)
-      : [currentTarget].filter(Boolean);
-
-    if (activeTargets.length === 0) {
-      this.requestRender();
-      return;
-    }
-
+    const currentTarget = this.targets[this.nextTarget] || null;
     const leftCurrentTarget = this.squareExerciseHandMode === 'both' ? this.getCurrentTargetForHand('left') : null;
     const rightCurrentTarget = this.squareExerciseHandMode === 'both' ? this.getCurrentTargetForHand('right') : null;
     const leftTouched = leftCurrentTarget && this.leftTip ? this.getCircleIndex(this.leftTip) === leftCurrentTarget.index : false;
@@ -8128,41 +9027,27 @@ export class LevelManager {
       return;
     }
 
-    for (const target of activeTargets) {
-      let touched = false;
-      if (target.hand === 'left') {
-        const tip = this.leftTip;
-        if (tip) touched = this.getCircleIndex(tip) === target.index;
-      } else if (target.hand === 'right') {
-        const tip = this.rightTip;
-        if (tip) touched = this.getCircleIndex(tip) === target.index;
-      } else if (target.hand === 'both') {
-        const leftIdx = this.leftTip ? this.getCircleIndex(this.leftTip) : -1;
-        const rightIdx = this.rightTip ? this.getCircleIndex(this.rightTip) : -1;
-        const leftMatch = leftIdx !== -1 && leftIdx === target.leftIndex;
-        const rightMatch = rightIdx !== -1 && rightIdx === target.rightIndex;
-        touched = leftMatch && rightMatch;
-      }
-
+    if (this.squareExerciseHandMode !== 'both') {
+      const activeTip = this.squareExerciseHandMode === 'left' ? this.leftTip : this.rightTip;
+      const touched = !!currentTarget && !!activeTip && this.getCircleIndex(activeTip) === currentTarget.index;
       if (touched) {
-        if (this.pointExercisePalindromMode) {
-          this.advancePointExerciseTarget([target]);
-        } else if (target.hand === 'both') {
-          this.nextTarget += 1;
-          if (this.nextTarget >= this.targets.length) {
-            this.nextTarget = 0;
-            this.completed = false;
-          }
-        } else if (this.squareExerciseHandMode === 'both') {
-          this.advanceTargetForHand(target.hand);
-        } else {
-          this.nextTarget += 1;
-          if (this.nextTarget >= this.targets.length) {
-            this.nextTarget = 0;
-            this.completed = false;
-          }
+        this.nextTarget += 1;
+        if (this.nextTarget >= this.targets.length) {
+          this.nextTarget = 0;
+          this.completed = false;
         }
       }
+      this.requestRender();
+      return;
+    }
+
+    const leftTarget = leftCurrentTarget;
+    const rightTarget = rightCurrentTarget;
+    if (leftTarget && leftTouched) {
+      this.advanceTargetForHand('left');
+    }
+    if (rightTarget && rightTouched) {
+      this.advanceTargetForHand('right');
     }
 
     this.requestRender();

@@ -1,6 +1,6 @@
 export const CHAPTER_COUNT = 8;
 export const LEVEL_COUNT = 5;
-export const chapterLevelCounts = [3, 5, 6, 7, 4, 8, 5, 5];
+export const chapterLevelCounts = [3, 5, 6, 7, 4, 4, 3, 5];
 
 export function getLevelCountForChapter(chapter) {
   if (!Number.isInteger(chapter) || chapter < 0 || chapter >= chapterLevelCounts.length) {
@@ -37,8 +37,8 @@ export const levelTitles = [
   ['Rechte Linie', 'Linke Linie', 'Synchron', 'Versetzt', '2:1 Tempo', 'Ellipsen'],
   ['Einserfigur', 'Zweierfigur', 'Dreierfigur', 'Viererfigur', 'Fünferfigur', 'Sechserfigur', 'Siebenerfigur'],
   ['Einsertakt', 'Zweiertakt', 'Dreiertakt', 'Vierertakt'],
-  ['Preset 1', 'Preset 2', 'Preset 3', 'Preset 4', 'Preset 5', 'Preset 6', 'Preset 7', 'Preset 8'],
-  ['Preset 1', 'Preset 2', 'Preset 3', 'Preset 4', 'Preset 5'],
+  ['Einserfigur', 'Zweierfigur', 'Dreierfigur', 'Viererfigur'],
+  ['Zweivierteltakt', 'Dreivierteltakt', 'Viervierteltakt'],
   ['Preset 1', 'Preset 2', 'Preset 3', 'Preset 4', 'Preset 5']
 ];
 
@@ -78,13 +78,16 @@ export const levelDescriptions = [
     'Dreierfigur: Dreierfigur mit spezifischer Dynamik für einzelne Zählzeiten.',
     'Viererfigur: Viererfigur mit spezifischer Dynamik für einzelne Zählzeiten.'
   ],
-  ['Preset 1', 'Preset 2', 'Preset 3', 'Preset 4', 'Preset 5', 'Preset 6', 'Preset 7', 'Preset 8'],
   [
-    'Preset 1: Konfiguriere die Einsatzfelder und Speichere die Einstellungen für die erste Übung.',
-    'Preset 2: Konfiguriere die Einsatzfelder und Speichere die Einstellungen für die zweite Übung.',
-    'Preset 3: Konfiguriere die Einsatzfelder und Speichere die Einstellungen für die dritte Übung.',
-    'Preset 4: Konfiguriere die Einsatzfelder und Speichere die Einstellungen für die vierte Übung.',
-    'Preset 5: Konfiguriere die Einsatzfelder und Speichere die Einstellungen für die fünfte Übung.'
+    'Einserfigur: Übe die einfache Einserfigur mit den Konfigurations- und Preset-Optionen rechts.',
+    'Zweierfigur: Übe die Zweierfigur mit dem passenden Taktgebungs-Setup und gespeicherten Presets.',
+    'Dreierfigur: Übe die Dreierfigur mit derselben rechten Seitenspalte und den jeweiligen Presets.',
+    'Viererfigur: Übe die Viererfigur mit unterschiedlichen Wechseln und abgespeicherten Varianten.'
+  ],
+  [
+    'Zweivierteltakt: Wählt den Zweierviertel-Takt und setzt die Schlaganzahl auf 2.',
+    'Dreivierteltakt: Wählt den Dreierviertel-Takt und setzt die Schlaganzahl auf 3.',
+    'Viervierteltakt: Wählt den Vierviertel-Takt und setzt die Schlaganzahl auf 4.'
   ],
   [
     'Preset 1: Konfiguriere die Einsatzfelder und speichere die Einstellungen für die erste Übung.',
@@ -204,6 +207,9 @@ export const uiElementDescriptions = {
     Linearität: 'Stellt die Linearität der Bewegung ein. Linearität = 100 hält das Bewegungsgeschwindigkeit konstant, während Linearität = 0 die Geschwindigkeit an den Zählzeit-Eckpunkten der Bewegung beschleunigt, um ein abfedern der Bewegung zu erzeugen.',
     Übergangslänge: 'Stellt die Übergangslänge für die Bewegungsgeschwindigkeit zwischen den farblich markierten Segmanten ein. Da jedes Segment unterschiedlich lang ist, aber die Zeit, in der es durchlaufen wird, gleich bleibt, braucht jedes Segment eine eigene Bewegungsgeschwindigkeit. Damit es keine Geschwindigkeitssprünge gibt, kann mit der Übergangslänge die Geschwindigkeit sanft von einem Segment auf das nächste abgeändert/angepasst werden. Die Übergangslänge bestimmt, wie lange es dauert, bis die Bewegungsgeschwindigkeit von einem Segment auf das nächste übergeht.',
     Stroke: 'Bestimmmt die Strichstärke der Grundfigur.',
+    Distanzdiagramm: 'Blendet die normierte Bewertungsanzeige und den Verlauf der letzten vier Takte ein oder aus.',
+    DistanzStrenge: 'Bestimmt die Toleranz der weichen Score-Kurve. Niedrigere Werte führen bei größeren Abweichungen zu höheren Scores.',
+    Bewertungsmetriken: 'Zeigt je Hand den aktuellen Wert und den Durchschnitt der Gesamtbewertung, des Bahnabstands, des Timings und der Bewegungsrichtung.',
   },
   'Dynamikebenen': {
     weichHart: 'Wähle die Art der Bewegung aus, die du üben möchtest. Weiche Bewegungen sind fließend und rund, während harte Bewegungen kantig und abrupt sind.',
@@ -222,6 +228,9 @@ export const uiElementDescriptions = {
     Presets: 'Wählt ein vorgegebenes Preset aus.',
     Speichern: 'Speichert die aktuelle Konfiguration.',
     Zurücksetzen: 'Setzt die Konfiguration auf den Standard zurück.',
+    Distanzdiagramm: 'Blendet die normierte Bewertungsanzeige und den Verlauf der letzten vier Takte ein oder aus.',
+    DistanzStrenge: 'Bestimmt die Toleranz der weichen Score-Kurve. Niedrigere Werte führen bei größeren Abweichungen zu höheren Scores.',
+    Bewertungsmetriken: 'Zeigt je Hand den aktuellen Wert und den Durchschnitt der Gesamtbewertung, des Bahnabstands, des Timings und der Bewegungsrichtung.',
   },
   'Handunabhängigkeit': {
     Umkehren: 'Vertauscht die Formen der linken und rechten Hand. Eine Form ist immer die Taktgebung (Grundfigur im vorgegebenen Takt), die andere Form ist die Handunabhängigkeit (freie Form, die in der Handunabhängigkeit geübt wird).',
@@ -232,6 +241,7 @@ export const uiElementDescriptions = {
     BPMSlider: 'Stellt die Bewegungsgeschwindigkeit in Beats pro Minute ein.',
     Geschwindigkeitsverhältnis: 'Stellt das Verhältnis der Geschwindigkeit zwischen den beiden Händen ein.',
     Taktgebung: 'Stellt die Form der Taktgebung ein. Dafür kann eine der Grundfiguren ausgewählt werden, zum Beispiel Einserfigur, Zweierfigur oder eine andere Figur, die als rhythmischer Leitpfad für die Bewegung dient.',
+    Variation: 'Wählt zwischen der Standardvariante und der alternativen zweiten Variation für Zweier-, Drei- und Viererfigur.',
     weichHart: 'Stellt die Art der Bewegung ein. Weiche Bewegungen sind fließend und rund, während harte Bewegungen kantig und abrupt sind.',
     Zählzeiten: 'Blendet die Zählzeiten ein oder aus, die an der Grundfigur angezeigt werden.',
     Grösse: 'Stellt die Größe der Grundfigur ein, um die Bewegungsreichweite und damit die Dynamik zu bestimmen.',
@@ -241,6 +251,9 @@ export const uiElementDescriptions = {
     Gegensatz: 'Stellt die Form für die zweite Hand ein, die eine gegensätzliche Form zur ersten Hand darstellt. Die erste Hand ist die Taktgebung, die zweite Hand ist die Handunabhängigkeit.',
     Länge: 'Stellt die Länge der Gegensatzfigur ein.',
     Rotation: 'Stellt die Rotation der Gegensatzfigur ein.',
+    Distanzdiagramm: 'Blendet die normierte Bewertungsanzeige und den Verlauf der letzten vier Takte ein oder aus.',
+    DistanzStrenge: 'Bestimmt die Toleranz der weichen Score-Kurve. Niedrigere Werte führen bei größeren Abweichungen zu höheren Scores.',
+    Bewertungsmetriken: 'Zeigt je Hand den aktuellen Wert und den Durchschnitt der Gesamtbewertung, des Bahnabstands, des Timings und der Bewegungsrichtung.',
   },
   'Einsätze geben': {
     ModusFrei: 'Hier kann mit eigener freier Tempowahl geübt werden. Führe die Dirigierbewegung so aus, dass auf die Zählzeiten die Kreise mit der entsprechenden Nummerierung berührt werden. Das Einsatzfeld auf dem der Einsatz gegeben werden soll ist durch die Nummer markiert. Hier musst du aus der Dirigierfigur ausbrechen um mit einer Hand den Einsatz zu geben. Du erhälst die Durchschnittliche Synchronität zwischen linker und rechter Hand als große Anzeige mit ø markiert und die Tempogleichmäßigkeit mit dem Symbol ~. Direkt im Kreis wird in Millisekunden angezeigt, wie die zeitliche Abweichung zwischen linker und rechter Hand ist.',

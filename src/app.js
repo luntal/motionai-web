@@ -129,10 +129,129 @@ function bindFigurePanelDescriptions(panel, sectionName) {
   attachPanelHoverHelp(panel);
 }
 
+function applyLevelSettingsVisibilityToPanel(panel, visible) {
+  if (!(panel instanceof Element)) {
+    return;
+  }
+
+  const presetActionSelector = '.dynamic-figure-preset-action, .dynamic-figure-preset-actions, .consistency-preset-actions, .consistency-preset-save, .consistency-preset-reset';
+
+  Array.from(panel.children).forEach((node) => {
+    if (!(node instanceof Element)) {
+      return;
+    }
+
+    if (node === panel.querySelector('.figure-side-panel-settings-button') || node.classList.contains('figure-side-panel-header')) {
+      return;
+    }
+
+    const isPresetHost = node.matches('.dynamic-figure-presets, .hand-independence-preset-panel, .consistency-preset-panel');
+    if (isPresetHost) {
+      node.style.display = '';
+      node.querySelectorAll(presetActionSelector).forEach((presetAction) => {
+        presetAction.style.display = visible ? '' : 'none';
+      });
+      return;
+    }
+
+    node.style.display = visible ? '' : 'none';
+  });
+}
+
+function readLevelSettingsVisibilityState() {
+  const storageKey = 'motionai.levelSettingsVisibility';
+
+  try {
+    const raw = localStorage.getItem(storageKey);
+    if (raw === null) {
+      return false;
+    }
+    if (raw === 'true' || raw === 'false') {
+      return raw === 'true';
+    }
+    const parsed = JSON.parse(raw);
+    if (typeof parsed === 'boolean') {
+      return parsed;
+    }
+    if (parsed && typeof parsed === 'object') {
+      return Boolean(parsed.visible ?? parsed.value ?? false);
+    }
+    return false;
+  } catch (error) {
+    return false;
+  }
+}
+
+function writeLevelSettingsVisibilityState(visible) {
+  const storageKey = 'motionai.levelSettingsVisibility';
+  const nextValue = Boolean(visible);
+
+  try {
+    localStorage.setItem(storageKey, JSON.stringify(nextValue));
+  } catch (error) {
+    // ignore storage errors
+  }
+
+  document.querySelectorAll('.figure-side-panel-settings-button').forEach((button) => {
+    const panel = button.closest('.figure-side-panel, .consistency-info-panel');
+    if (!panel) {
+      return;
+    }
+    button.setAttribute('aria-pressed', String(nextValue));
+    button.classList.toggle('active', nextValue);
+    button.title = nextValue ? 'Einstellungen ausblenden' : 'Einstellungen einblenden';
+    applyLevelSettingsVisibilityToPanel(panel, nextValue);
+  });
+
+  window.dispatchEvent(new CustomEvent('motionai:levelSettingsVisibilityChanged', {
+    detail: { visible: nextValue }
+  }));
+}
+
+function createLevelSettingsVisibilityController(panel, { chapterId = null, levelResolver = () => uiState.activeLevel } = {}) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'figure-side-panel-settings-button';
+  button.setAttribute('aria-label', 'Einstellungen ein-/ausblenden');
+  button.title = 'Einstellungen ein-/ausblenden';
+  button.textContent = '⚙';
+
+  const sync = () => {
+    const isVisible = readLevelSettingsVisibilityState();
+    button.setAttribute('aria-pressed', String(isVisible));
+    button.classList.toggle('active', isVisible);
+    button.title = isVisible ? 'Einstellungen ausblenden' : 'Einstellungen einblenden';
+    applyLevelSettingsVisibilityToPanel(panel, isVisible);
+  };
+
+  const handleGlobalChange = () => sync();
+  window.addEventListener('motionai:levelSettingsVisibilityChanged', handleGlobalChange);
+
+  button.addEventListener('click', () => {
+    const nextVisible = !readLevelSettingsVisibilityState();
+    writeLevelSettingsVisibilityState(nextVisible);
+    sync();
+  });
+
+  button.addEventListener('remove', () => {
+    window.removeEventListener('motionai:levelSettingsVisibilityChanged', handleGlobalChange);
+  });
+
+  return {
+    button,
+    sync,
+    setVisible: (visible) => {
+      writeLevelSettingsVisibilityState(Boolean(visible));
+      sync();
+    }
+  };
+}
+
 function createFigureModePanel(initialManager, options = {}) {
   const figureSettingsStorageKey = options.settingsKey || 'motionai.figure-panel-settings';
   const initialTitle = options.initialTitle || 'Grundfigur';
   const defaultVariant = options.defaultVariant || 'soft';
+  const chapterId = Number(options.chapterId ?? 3);
   let storedFigureSettings = {};
   try {
     const stored = localStorage.getItem(figureSettingsStorageKey);
@@ -144,9 +263,19 @@ function createFigureModePanel(initialManager, options = {}) {
   const panel = document.createElement('aside');
   panel.className = 'figure-side-panel hidden';
 
+  const titleRow = document.createElement('div');
+  titleRow.className = 'figure-side-panel-header';
   const title = document.createElement('div');
   title.className = 'figure-side-panel-title';
   title.textContent = initialTitle;
+  const levelSettingsVisibility = createLevelSettingsVisibilityController(panel, {
+    chapterId,
+    levelResolver: () => uiState.activeLevel
+  });
+  titleRow.appendChild(title);
+  titleRow.appendChild(levelSettingsVisibility.button);
+  panel.appendChild(titleRow);
+  levelSettingsVisibility.sync();
 
   function setTitle(nextTitle) {
     title.textContent = nextTitle === 'extended'
@@ -193,6 +322,76 @@ function createFigureModePanel(initialManager, options = {}) {
   presetPanel.appendChild(presetSlots);
   presetPanel.appendChild(presetActions);
   const presetDivider = createPanelDivider();
+  const motionDistanceToggle = document.createElement('label');
+  motionDistanceToggle.className = 'figure-dynamics-toggle';
+  const motionDistanceInput = document.createElement('input');
+  motionDistanceInput.type = 'checkbox';
+  motionDistanceInput.checked = storedFigureSettings.motionDistanceVisible === true;
+  motionDistanceToggle.append(motionDistanceInput, document.createTextNode('Distanzdiagramm'));
+  const motionDistanceStrictnessWrap = document.createElement('label');
+  motionDistanceStrictnessWrap.className = 'figure-size-wrap';
+  const motionDistanceStrictnessLabel = document.createElement('div');
+  motionDistanceStrictnessLabel.className = 'figure-size-label';
+  motionDistanceStrictnessLabel.textContent = 'Strenge';
+  const motionDistanceStrictnessSlider = document.createElement('input');
+  motionDistanceStrictnessSlider.type = 'range';
+  motionDistanceStrictnessSlider.min = '0';
+  motionDistanceStrictnessSlider.max = '100';
+  motionDistanceStrictnessSlider.step = '1';
+  motionDistanceStrictnessSlider.value = String(Number.isFinite(Number(storedFigureSettings.motionDistanceStrictness))
+    ? Math.min(100, Math.max(0, Number(storedFigureSettings.motionDistanceStrictness)))
+    : 100);
+  const motionDistanceStrictnessValue = document.createElement('div');
+  motionDistanceStrictnessValue.className = 'figure-size-value';
+  motionDistanceStrictnessValue.textContent = `${motionDistanceStrictnessSlider.value}%`;
+  motionDistanceStrictnessSlider.addEventListener('input', () => {
+    const next = Number(motionDistanceStrictnessSlider.value);
+    motionDistanceStrictnessValue.textContent = `${next}%`;
+    managerRef?.setMotionDistanceStrictness(next);
+    persistFigureSettings();
+  });
+  motionDistanceStrictnessWrap.append(
+    motionDistanceStrictnessLabel,
+    motionDistanceStrictnessSlider,
+    motionDistanceStrictnessValue
+  );
+  const motionMetricsPanel = document.createElement('div');
+  motionMetricsPanel.className = 'motion-distance-metrics';
+  const motionMetricsTitle = document.createElement('div');
+  motionMetricsTitle.className = 'figure-panel-section-title';
+  motionMetricsTitle.textContent = 'Bewertung';
+  motionMetricsPanel.appendChild(motionMetricsTitle);
+  const motionMetricRows = {};
+  const metricLabels = { score: 'Gesamtscore', pathScore: 'Bahnabstand', timingScore: 'Timing', directionScore: 'Richtung' };
+  Object.entries(metricLabels).forEach(([key, label]) => {
+    const row = document.createElement('div');
+    row.className = 'motion-distance-metric-row';
+    const labelNode = document.createElement('span');
+    labelNode.textContent = label;
+    const valueNode = document.createElement('span');
+    valueNode.textContent = 'L - | R -';
+    row.append(labelNode, valueNode);
+    motionMetricsPanel.appendChild(row);
+    motionMetricRows[key] = valueNode;
+  });
+  const updateMotionMetrics = () => {
+    const summary = managerRef?.getMotionDistanceSummary?.();
+    if (!summary) return;
+    Object.keys(motionMetricRows).forEach((key) => {
+      const format = (hand) => {
+        const current = summary[hand]?.current?.[key];
+        const average = summary[hand]?.average?.[key];
+        return `${current == null ? '-' : current.toFixed(0)} / ${average == null ? '-' : average.toFixed(0)}`;
+      };
+      motionMetricRows[key].textContent = `L ${format('left')} | R ${format('right')}`;
+    });
+  };
+  motionDistanceInput.addEventListener('change', () => {
+    if (managerRef) {
+      managerRef.setMotionDistanceVisible(motionDistanceInput.checked);
+    }
+    persistFigureSettings();
+  });
 
   const movementTitle = document.createElement('div');
   movementTitle.className = 'figure-panel-section-title';
@@ -481,6 +680,7 @@ function createFigureModePanel(initialManager, options = {}) {
     ? storedFigureSettings.figureSide
     : 'left';
   let managerRef = initialManager || null;
+  let motionMetricsInterval = null;
 
   function persistFigureSettings() {
     try {
@@ -495,7 +695,9 @@ function createFigureModePanel(initialManager, options = {}) {
         figureHardLinearity: Number(hardLinearitySlider.value),
         figureSoftTransitionPercent: Number(softTransitionSlider.value),
         figureDynamicsVisible: dynamicsToggle.checked,
-        figureCountTimesVisible: countTimesToggle.checked
+        figureCountTimesVisible: countTimesToggle.checked,
+        motionDistanceVisible: motionDistanceInput.checked,
+        motionDistanceStrictness: Number(motionDistanceStrictnessSlider.value)
       }));
     } catch (error) {
       return;
@@ -581,10 +783,12 @@ function createFigureModePanel(initialManager, options = {}) {
   softTransitionWrap.appendChild(softTransitionSlider);
   softTransitionWrap.appendChild(softTransitionValue);
 
-  panel.appendChild(title);
   panel.appendChild(presetDivider);
   panel.appendChild(presetPanel);
   panel.appendChild(createPanelDivider());
+  panel.appendChild(motionDistanceToggle);
+  panel.appendChild(motionDistanceStrictnessWrap);
+  panel.appendChild(motionMetricsPanel);
   radioGroup.style.marginTop = '0.45rem';
   panel.appendChild(radioGroup);
   panel.appendChild(createPanelDivider());
@@ -614,12 +818,16 @@ function createFigureModePanel(initialManager, options = {}) {
   bindUiGroupDescription(variantOptions, 'Grundfiguren', 'weichHart');
   const sideOptions = [...sideGroup.querySelectorAll('label, input')];
   bindUiGroupDescription(sideOptions, 'Grundfiguren', 'Hand');
+  bindUiDescription(motionDistanceToggle, 'Grundfiguren', 'Distanzdiagramm');
+  bindUiDescription(motionDistanceStrictnessWrap, 'Grundfiguren', 'DistanzStrenge');
+  bindUiDescription(motionMetricsPanel, 'Grundfiguren', 'Bewertungsmetriken');
   attachPanelHoverHelp(panel);
   panel.appendChild(hardLinearityWrap);
   panel.appendChild(softTransitionWrap);
   panel.appendChild(createPanelDivider());
   panel.appendChild(strokeWrap);
   panel.appendChild(createPanelDivider());
+  levelSettingsVisibility.sync();
 
   function updateMotionControlVisibility() {
     const isHard = selectedVariant === 'hard';
@@ -629,6 +837,8 @@ function createFigureModePanel(initialManager, options = {}) {
 
   function setVisible(visible) {
     panel.classList.toggle('hidden', !visible);
+    levelSettingsVisibility.sync();
+    levelSettingsVisibility.sync();
   }
 
   function setLevelManager(manager) {
@@ -643,6 +853,10 @@ function createFigureModePanel(initialManager, options = {}) {
       managerRef.setFigureSoftTransitionPercent(Number(softTransitionSlider.value));
       managerRef.setFigureDynamicsVisible(dynamicsToggle.checked);
       managerRef.setFigureCountTimesVisible(countTimesToggle.checked);
+      managerRef.setMotionDistanceVisible(motionDistanceInput.checked);
+      managerRef.setMotionDistanceStrictness(Number(motionDistanceStrictnessSlider.value));
+      updateMotionMetrics();
+      if (!motionMetricsInterval) motionMetricsInterval = window.setInterval(updateMotionMetrics, 100);
       sizeSlider.value = String(managerRef.figureScale ?? 1 / 3);
       sizeValue.textContent = `${Number(sizeSlider.value).toFixed(2)}x`;
       strokeSlider.value = String(managerRef.figureStrokeWidth ?? 0.5);
@@ -697,7 +911,9 @@ function createFigureModePanel(initialManager, options = {}) {
       figureHardLinearity: Number(hardLinearitySlider.value),
       figureSoftTransitionPercent: Number(softTransitionSlider.value),
       figureDynamicsVisible: dynamicsToggle.checked,
-      figureCountTimesVisible: countTimesToggle.checked
+      figureCountTimesVisible: countTimesToggle.checked,
+      motionDistanceVisible: motionDistanceInput.checked,
+      motionDistanceStrictness: Number(motionDistanceStrictnessSlider.value)
     };
   }
 
@@ -724,6 +940,13 @@ function createFigureModePanel(initialManager, options = {}) {
     if (typeof settings.figureCountTimesVisible === 'boolean') {
       countTimesToggle.checked = settings.figureCountTimesVisible;
     }
+    if (typeof settings.motionDistanceVisible === 'boolean') {
+      motionDistanceInput.checked = settings.motionDistanceVisible;
+    }
+    if (Number.isFinite(Number(settings.motionDistanceStrictness))) {
+      motionDistanceStrictnessSlider.value = String(Math.min(100, Math.max(0, Number(settings.motionDistanceStrictness))));
+      motionDistanceStrictnessValue.textContent = `${motionDistanceStrictnessSlider.value}%`;
+    }
     setVariant(settings.figureVariant || selectedVariant);
     setSide(settings.figureSide || selectedSide);
     if (managerRef) {
@@ -736,6 +959,8 @@ function createFigureModePanel(initialManager, options = {}) {
       managerRef.setFigureSoftTransitionPercent(Number(softTransitionSlider.value));
       managerRef.setFigureDynamicsVisible(dynamicsToggle.checked);
       managerRef.setFigureCountTimesVisible(countTimesToggle.checked);
+      managerRef.setMotionDistanceVisible(motionDistanceInput.checked);
+      managerRef.setMotionDistanceStrictness(Number(motionDistanceStrictnessSlider.value));
     }
     persistFigureSettings();
   }
@@ -812,6 +1037,7 @@ function createFigureModePanel(initialManager, options = {}) {
     selectedPreset = Number.isInteger(slot) && slot >= 0 && slot < presetCount ? slot : 0;
     selectedPresetByLevel[String(currentLevel)] = selectedPreset;
     persistSelectedPresets();
+    renderPresetSlots();
 
     const preset = getPreset(currentLevel, selectedPreset);
     setSettings(preset);
@@ -918,6 +1144,7 @@ function createFigureModePanel(initialManager, options = {}) {
 
 function createDynamicFigureModePanel() {
   const basePanel = createFigureModePanel(null, {
+    chapterId: 4,
     settingsKey: 'motionai.dynamic-figure-panel-settings',
     initialTitle: 'Dynamikebenen',
     defaultVariant: 'hard'
@@ -982,14 +1209,14 @@ function createDynamicFigureModePanel() {
   presetDivider.className = 'figure-panel-divider';
   presetDivider.style.marginBottom = '0.35rem';
 
-  const titleNode = basePanel.panel.querySelector('.figure-side-panel-title');
-  if (titleNode) {
-    const existingDividerAfterTitle = titleNode.nextElementSibling;
-    if (existingDividerAfterTitle && existingDividerAfterTitle.classList.contains('figure-panel-divider')) {
-      existingDividerAfterTitle.remove();
+  const titleHeaderNode = basePanel.panel.querySelector('.figure-side-panel-header');
+  if (titleHeaderNode) {
+    const existingDividerAfterHeader = titleHeaderNode.nextElementSibling;
+    if (existingDividerAfterHeader && existingDividerAfterHeader.classList.contains('figure-panel-divider')) {
+      existingDividerAfterHeader.remove();
     }
-    basePanel.panel.insertBefore(presetDivider, titleNode.nextSibling);
-    basePanel.panel.insertBefore(presetPanel, titleNode.nextSibling);
+    basePanel.panel.insertBefore(presetDivider, titleHeaderNode.nextSibling);
+    basePanel.panel.insertBefore(presetPanel, titleHeaderNode.nextSibling);
   }
 
   const pointPanel = document.createElement('div');
@@ -1048,10 +1275,11 @@ function createDynamicFigureModePanel() {
     if (!Number.isInteger(currentLevel)) {
       return;
     }
-    selectedPreset = slot;
-    selectedPresetByLevel[String(currentLevel)] = slot;
+    selectedPreset = Number.isInteger(slot) && slot >= 0 && slot < presetCount ? slot : 0;
+    selectedPresetByLevel[String(currentLevel)] = selectedPreset;
     persistSelectedPresets();
-    const preset = getPreset(currentLevel, slot);
+    renderPresetSlots();
+    const preset = getPreset(currentLevel, selectedPreset);
     const variant = preset.figureVariant === 'soft' ? 'soft' : 'hard';
     basePanel.setSettings(preset);
     basePanel.setVariant(variant);
@@ -1106,9 +1334,16 @@ function createDynamicFigureModePanel() {
   });
 
   presetResetButton.addEventListener('click', () => {
+    if (!Number.isInteger(currentLevel)) {
+      return;
+    }
     presetData = {};
+    selectedPreset = 0;
+    selectedPresetByLevel[String(currentLevel)] = 0;
     persistPresets();
-    applyPreset(selectedPreset);
+    persistSelectedPresets();
+    renderPresetSlots();
+    applyPreset(0);
   });
 
   function setLevel(level, applySelectedPreset = true) {
@@ -1173,6 +1408,17 @@ function createDynamicFigureModePanel() {
   };
 }
 
+const sanitizeExerciseFieldStrikeCount = (value) => {
+  const next = Number(value);
+  return [2, 3, 4].includes(next) ? next : 2;
+};
+
+const getExerciseFieldLevelStrikeCount = (level) => {
+  const normalizedLevel = Number.isInteger(Number(level)) ? Number(level) : 0;
+  const valueByLevel = [2, 3, 4];
+  return sanitizeExerciseFieldStrikeCount(valueByLevel[Math.max(0, Math.min(2, normalizedLevel))] ?? 2);
+};
+
 function createExerciseFieldPanel() {
   const panel = document.createElement('aside');
   panel.className = 'figure-side-panel hidden exercise-field-panel';
@@ -1180,10 +1426,9 @@ function createExerciseFieldPanel() {
   const presetsKey = 'motionai.exercise-field-presets';
   let managerRef = null;
 
-  const sanitizeStrikeCount = (value) => {
-    const next = Number(value);
-    return [2, 3, 4].includes(next) ? next : 2;
-  };
+  const sanitizeStrikeCount = (value) => sanitizeExerciseFieldStrikeCount(value);
+
+  const getExerciseLevelStrikeCount = (level) => getExerciseFieldLevelStrikeCount(level);
 
   const readPresetMap = () => {
     try {
@@ -1203,11 +1448,14 @@ function createExerciseFieldPanel() {
     return Math.max(1, Math.min(normalized, Math.round(next)));
   };
 
-  const sanitizeExerciseFieldStrikePositions = (value) => {
+  const sanitizeExerciseFieldStrikePositions = (value, strikeCountOverride = null) => {
     const next = value && typeof value === 'object' ? value : { left: [], right: [] };
     const left = Array.isArray(next.left) ? next.left : [];
     const right = Array.isArray(next.right) ? next.right : [];
-    const count = Math.max(2, Math.min(4, left.length || right.length || 2));
+    const preferredCount = Number.isFinite(Number(strikeCountOverride))
+      ? Number(strikeCountOverride)
+      : (left.length || right.length || 2);
+    const count = Math.max(2, Math.min(4, sanitizeStrikeCount(preferredCount)));
     const normalizePoint = (point, fallbackX = 0, fallbackY = 0) => ({
       x: Number.isFinite(Number(point && point.x)) ? Number(point.x) : fallbackX,
       y: Number.isFinite(Number(point && point.y)) ? Number(point.y) : fallbackY
@@ -1256,7 +1504,7 @@ function createExerciseFieldPanel() {
         mode,
         tempoBpm: Number.isFinite(bpm) ? Math.min(180, Math.max(30, bpm)) : 60,
         metronomeEnabled,
-        strikePositions: sanitizeExerciseFieldStrikePositions(stored.strikePositions)
+        strikePositions: sanitizeExerciseFieldStrikePositions(stored.strikePositions, sanitizeStrikeCount(strikeCount))
       };
     } catch (error) {
       return {
@@ -1279,25 +1527,30 @@ function createExerciseFieldPanel() {
   const isPresetRunning = () => uiState.activeChapter === 6
     && Number.isInteger(uiState.activeLevel)
     && uiState.activeLevel >= 0
-    && uiState.activeLevel <= 4;
+    && uiState.activeLevel <= 2;
 
-  const getCurrentState = () => ({
-    enabled: isPresetRunning() || Boolean(toggleInput.checked),
-    scale: Number(sizeSlider.value),
-    xOffset: Number(xOffsetSlider.value),
-    strikeCount: sanitizeStrikeCount(strikeCountInputs.find((input) => input.checked)?.value ?? 2),
-    strikeRadius: Number(circleSizeSlider.value),
-    fieldSide: fieldSideInputs.find((input) => input.checked)?.value || 'left',
-    fieldVertical: fieldVerticalInputs.find((input) => input.checked)?.value || 'top',
-    fieldBeat: sanitizeAssignmentBeat(fieldBeatInputs.find((input) => input.checked)?.value ?? 1, sanitizeStrikeCount(strikeCountInputs.find((input) => input.checked)?.value ?? 2)),
-    mode: selectedMode === 'tempo' ? 'tempo' : 'free',
-    tempoBpm: Number(challengeTempoSlider.value),
-    metronomeEnabled: Boolean(metronomeToggle.checked),
-    strikePositions: managerRef && managerRef.exerciseFieldStrikePositions ? {
-      left: (managerRef.exerciseFieldStrikePositions.left || []).map((point) => ({ x: Number(point.x), y: Number(point.y) })),
-      right: (managerRef.exerciseFieldStrikePositions.right || []).map((point) => ({ x: Number(point.x), y: Number(point.y) }))
-    } : { left: [], right: [] }
-  });
+  const getCurrentState = () => {
+    const currentStrikeCount = Number.isFinite(Number(managerRef?.exerciseFieldStrikeCount))
+      ? Number(managerRef.exerciseFieldStrikeCount)
+      : getExerciseLevelStrikeCount(uiState.activeLevel ?? 0);
+    return {
+      enabled: isPresetRunning() || Boolean(toggleInput.checked),
+      scale: Number(sizeSlider.value),
+      xOffset: Number(xOffsetSlider.value),
+      strikeCount: sanitizeStrikeCount(currentStrikeCount),
+      strikeRadius: Number(circleSizeSlider.value),
+      fieldSide: fieldSideInputs.find((input) => input.checked)?.value || 'left',
+      fieldVertical: fieldVerticalInputs.find((input) => input.checked)?.value || 'top',
+      fieldBeat: sanitizeAssignmentBeat(fieldBeatInputs.find((input) => input.checked)?.value ?? 1, sanitizeStrikeCount(currentStrikeCount)),
+      mode: selectedMode === 'tempo' ? 'tempo' : 'free',
+      tempoBpm: Number(challengeTempoSlider.value),
+      metronomeEnabled: Boolean(metronomeToggle.checked),
+      strikePositions: managerRef && managerRef.exerciseFieldStrikePositions ? {
+        left: (managerRef.exerciseFieldStrikePositions.left || []).map((point) => ({ x: Number(point.x), y: Number(point.y) })),
+        right: (managerRef.exerciseFieldStrikePositions.right || []).map((point) => ({ x: Number(point.x), y: Number(point.y) }))
+      } : { left: [], right: [] }
+    };
+  };
 
   const saveSettings = () => {
     try {
@@ -1313,7 +1566,10 @@ function createExerciseFieldPanel() {
   };
 
   const syncAssignmentBeatInputs = (strikeCount) => {
-    const normalizedStrikeCount = sanitizeStrikeCount(strikeCount);
+    const canonicalLevelStrikeCount = uiState.activeChapter === 6 && Number.isInteger(uiState.activeLevel)
+      ? getExerciseFieldLevelStrikeCount(uiState.activeLevel)
+      : null;
+    const normalizedStrikeCount = sanitizeStrikeCount(canonicalLevelStrikeCount ?? strikeCount);
     const selectedBeat = sanitizeAssignmentBeat(
       fieldBeatInputs.find((input) => input.checked)?.value ?? 1,
       normalizedStrikeCount
@@ -1339,16 +1595,28 @@ function createExerciseFieldPanel() {
         if (!input.checked) {
           return;
         }
+        const nextBeat = sanitizeAssignmentBeat(
+          input.value,
+          sanitizeStrikeCount(Number(managerRef?.exerciseFieldStrikeCount) || getExerciseLevelStrikeCount(uiState.activeLevel ?? 0))
+        );
         managerRef?.setExerciseFieldAssignment?.({
           side: fieldSideInputs.find((item) => item.checked)?.value || 'left',
           vertical: fieldVerticalInputs.find((item) => item.checked)?.value || 'top',
-          beatIndex: sanitizeAssignmentBeat(input.value, sanitizeStrikeCount(strikeCountInputs.find((item) => item.checked)?.value ?? 2))
+          beatIndex: nextBeat
         });
         saveSettings();
       });
       bindUiDescription(option, 'Einsätze geben', 'Einsatz');
       bindUiDescription(input, 'Einsätze geben', 'Einsatz');
     }
+
+    const currentBeatValue = sanitizeAssignmentBeat(
+      fieldBeatInputs.find((input) => input.checked)?.value ?? selectedBeat,
+      normalizedStrikeCount
+    );
+    fieldBeatInputs.forEach((input) => {
+      input.checked = Number(input.value) === currentBeatValue;
+    });
   };
 
   const setControlsFromState = (state) => {
@@ -1357,7 +1625,9 @@ function createExerciseFieldPanel() {
     const enabled = forceVisible || (typeof safeState.enabled === 'boolean' ? safeState.enabled : true);
     const scale = Number.isFinite(Number(safeState.scale)) ? Number(safeState.scale) : 1;
     const xOffset = Number.isFinite(Number(safeState.xOffset)) ? Number(safeState.xOffset) : 0;
-    const strikeCount = sanitizeStrikeCount(safeState.strikeCount ?? 2);
+    const strikeCount = uiState.activeChapter === 6 && Number.isInteger(uiState.activeLevel)
+      ? getExerciseFieldLevelStrikeCount(uiState.activeLevel)
+      : sanitizeStrikeCount(safeState.strikeCount ?? 2);
     const strikeRadius = clampExerciseFieldStrikeRadius(safeState.strikeRadius ?? EXERCISE_FIELD_STRIKE_RADIUS_MIN);
     const fieldSide = safeState.fieldSide === 'right' ? 'right' : 'left';
     const fieldVertical = safeState.fieldVertical === 'bottom' ? 'bottom' : 'top';
@@ -1367,7 +1637,7 @@ function createExerciseFieldPanel() {
       ? Math.min(180, Math.max(30, Number(safeState.tempoBpm)))
       : 60;
     const nextMetronomeEnabled = typeof safeState.metronomeEnabled === 'boolean' ? safeState.metronomeEnabled : false;
-    const strikePositions = sanitizeExerciseFieldStrikePositions(safeState.strikePositions);
+    const strikePositions = sanitizeExerciseFieldStrikePositions(safeState.strikePositions, strikeCount);
 
     selectedMode = nextMode;
     challengeTempoSlider.value = String(nextTempoBpm);
@@ -1377,9 +1647,6 @@ function createExerciseFieldPanel() {
     xOffsetSlider.value = String(Math.min(1, Math.max(0, xOffset)));
     syncCircleSliderRange();
     circleSizeSlider.value = String(clampExerciseFieldStrikeRadius(strikeRadius));
-    strikeCountInputs.forEach((input) => {
-      input.checked = Number(input.value) === strikeCount;
-    });
     syncAssignmentBeatInputs(strikeCount);
     fieldSideInputs.forEach((input) => {
       input.checked = input.value === fieldSide;
@@ -1418,7 +1685,117 @@ function createExerciseFieldPanel() {
   const title = document.createElement('div');
   title.className = 'figure-side-panel-title';
   title.textContent = 'Einsatzfelder';
-  panel.appendChild(title);
+  const titleRow = document.createElement('div');
+  titleRow.className = 'figure-side-panel-header';
+  const levelSettingsVisibility = createLevelSettingsVisibilityController(panel, {
+    chapterId: 6,
+    levelResolver: () => uiState.activeLevel
+  });
+  titleRow.appendChild(title);
+  titleRow.appendChild(levelSettingsVisibility.button);
+  panel.appendChild(titleRow);
+  levelSettingsVisibility.sync();
+
+  const presetPanel = document.createElement('div');
+  presetPanel.className = 'hand-independence-preset-panel';
+  const presetHeader = document.createElement('div');
+  presetHeader.className = 'hand-independence-preset-header';
+  const presetTitle = document.createElement('div');
+  presetTitle.className = 'figure-panel-section-title';
+  presetTitle.textContent = 'Presets';
+  const presetSlots = document.createElement('div');
+  presetSlots.className = 'figure-preset-slots dynamic-figure-preset-slots';
+  const presetActions = document.createElement('div');
+  presetActions.className = 'dynamic-figure-preset-actions';
+  const presetSaveButton = document.createElement('button');
+  presetSaveButton.type = 'button';
+  presetSaveButton.className = 'dynamic-figure-preset-action';
+  presetSaveButton.textContent = 'Speichern';
+  presetSaveButton.title = 'Aktuelle Einstellungen im Preset-Slot für diese Übung speichern';
+  const presetResetButton = document.createElement('button');
+  presetResetButton.type = 'button';
+  presetResetButton.className = 'dynamic-figure-preset-action';
+  presetResetButton.textContent = 'Zurücksetzen';
+  presetResetButton.title = 'Die Presets für diese Übung auf Werkseinstellungen zurücksetzen';
+  presetHeader.append(presetTitle);
+  presetActions.append(presetSaveButton, presetResetButton);
+  presetPanel.append(presetHeader, presetSlots, presetActions);
+  panel.appendChild(presetPanel);
+
+  let selectedPresetSlot = 0;
+  const getPresetBucketForLevel = (exerciseLevel = uiState.activeLevel ?? 0) => {
+    const safeLevel = Number.isInteger(Number(exerciseLevel)) ? Math.max(0, Math.min(2, Number(exerciseLevel))) : 0;
+    const presets = readPresetMap();
+    const bucket = presets[String(safeLevel)] || {};
+    if (bucket && typeof bucket === 'object' && !Array.isArray(bucket)) {
+      const slotKeys = ['0', '1', '2', '3'];
+      const hasSlotData = slotKeys.some((key) => Object.prototype.hasOwnProperty.call(bucket, key));
+      if (hasSlotData || Object.prototype.hasOwnProperty.call(bucket, 'selectedSlot')) {
+        return bucket;
+      }
+      if (Object.prototype.hasOwnProperty.call(bucket, 'enabled') || Object.prototype.hasOwnProperty.call(bucket, 'scale') || Object.prototype.hasOwnProperty.call(bucket, 'strikeCount')) {
+        return { selectedSlot: 0, '0': { ...bucket } };
+      }
+    }
+    const nextBucket = { selectedSlot: 0 };
+    presets[String(safeLevel)] = nextBucket;
+    localStorage.setItem(presetsKey, JSON.stringify(presets));
+    return nextBucket;
+  };
+
+  const renderPresetSlots = () => {
+    const exerciseLevel = Number.isInteger(Number(uiState.activeLevel)) ? Math.max(0, Math.min(2, Number(uiState.activeLevel))) : 0;
+    const presetBucket = getPresetBucketForLevel(exerciseLevel);
+    const activeSlot = Number.isInteger(Number(presetBucket.selectedSlot)) ? Number(presetBucket.selectedSlot) : 0;
+    selectedPresetSlot = Math.max(0, Math.min(3, activeSlot));
+    presetSlots.innerHTML = '';
+    for (let slot = 0; slot < 4; slot += 1) {
+      const option = document.createElement('label');
+      option.className = 'dynamic-figure-preset-option';
+      const input = document.createElement('input');
+      input.type = 'radio';
+      input.name = 'exercise-field-preset';
+      input.value = String(slot);
+      input.checked = slot === selectedPresetSlot;
+      input.addEventListener('change', () => {
+        if (!input.checked) {
+          return;
+        }
+        const currentExerciseLevel = Number.isInteger(Number(uiState.activeLevel)) ? Math.max(0, Math.min(2, Number(uiState.activeLevel))) : 0;
+        const currentBucket = getPresetBucketForLevel(currentExerciseLevel);
+        selectedPresetSlot = slot;
+        currentBucket.selectedSlot = slot;
+        const presets = readPresetMap();
+        presets[String(currentExerciseLevel)] = currentBucket;
+        localStorage.setItem(presetsKey, JSON.stringify(presets));
+        const nextPreset = currentBucket[String(slot)];
+        if (nextPreset && typeof nextPreset === 'object') {
+          setControlsFromState(nextPreset);
+        }
+      });
+      const caption = document.createElement('span');
+      caption.textContent = String(slot + 1);
+      option.append(input, caption);
+      presetSlots.appendChild(option);
+    }
+  };
+
+  presetSaveButton.addEventListener('click', () => {
+    const savedSlot = savePresetFromPrompt();
+    if (Number.isInteger(savedSlot)) {
+      selectedPresetSlot = savedSlot;
+      renderPresetSlots();
+    }
+  });
+
+  presetResetButton.addEventListener('click', () => {
+    const exerciseLevel = Number.isInteger(Number(uiState.activeLevel)) ? Math.max(0, Math.min(2, Number(uiState.activeLevel))) : 0;
+    const presets = readPresetMap();
+    presets[String(exerciseLevel)] = { selectedSlot: 0 };
+    selectedPresetSlot = 0;
+    localStorage.setItem(presetsKey, JSON.stringify(presets));
+    renderPresetSlots();
+  });
 
   const toggleInput = document.createElement('input');
   toggleInput.type = 'checkbox';
@@ -1632,35 +2009,6 @@ function createExerciseFieldPanel() {
   bindUiDescription(circleSizeLabel, 'Einsätze geben', 'Kreisgröße');
   bindUiDescription(circleSizeSlider, 'Einsätze geben', 'Kreisgröße');
 
-  const strikeCountWrap = document.createElement('div');
-  strikeCountWrap.className = 'figure-side-group';
-
-  const strikeCountTitle = document.createElement('div');
-  strikeCountTitle.className = 'figure-size-label';
-  strikeCountTitle.textContent = 'Schlaganzahl';
-  strikeCountWrap.appendChild(strikeCountTitle);
-
-  const strikeCountGroup = document.createElement('div');
-  strikeCountGroup.className = 'figure-mode-group';
-  const strikeCountInputs = [2, 3, 4].map((value) => {
-    const option = document.createElement('label');
-    option.className = 'figure-mode-option';
-    const input = document.createElement('input');
-    input.type = 'radio';
-    input.name = 'exercise-field-strike-count';
-    input.value = String(value);
-    input.checked = sanitizeStrikeCount(readSavedSettings().strikeCount) === value;
-    option.appendChild(input);
-    option.appendChild(document.createTextNode(String(value)));
-    strikeCountGroup.appendChild(option);
-    return input;
-  });
-  strikeCountWrap.appendChild(strikeCountGroup);
-  panel.appendChild(strikeCountWrap);
-  bindUiDescription(strikeCountTitle, 'Einsätze geben', 'Schlaganzahl');
-  strikeCountInputs.forEach((input) => bindUiDescription(input, 'Einsätze geben', 'Schlaganzahl'));
-  bindUiGroupDescription([...strikeCountGroup.querySelectorAll('label, input')], 'Einsätze geben', 'Schlaganzahl');
-
   const fieldSideWrap = document.createElement('div');
   fieldSideWrap.className = 'figure-side-group';
   const fieldSideTitle = document.createElement('div');
@@ -1832,27 +2180,6 @@ function createExerciseFieldPanel() {
     saveSettings();
   });
 
-  strikeCountInputs.forEach((input) => {
-    input.addEventListener('change', () => {
-      if (!input.checked) {
-        return;
-      }
-      const nextValue = sanitizeStrikeCount(input.value);
-      syncAssignmentBeatInputs(nextValue);
-      const activeBeat = sanitizeAssignmentBeat(
-        fieldBeatInputs.find((item) => item.checked)?.value ?? 1,
-        nextValue
-      );
-      managerRef?.setExerciseFieldStrikeCount?.(nextValue);
-      managerRef?.setExerciseFieldAssignment?.({
-        side: fieldSideInputs.find((item) => item.checked)?.value || 'left',
-        vertical: fieldVerticalInputs.find((item) => item.checked)?.value || 'top',
-        beatIndex: activeBeat
-      });
-      saveSettings();
-    });
-  });
-
   fieldSideInputs.forEach((input) => {
     input.addEventListener('change', () => {
       if (!input.checked) {
@@ -1861,7 +2188,7 @@ function createExerciseFieldPanel() {
       managerRef?.setExerciseFieldAssignment?.({
         side: input.value,
         vertical: fieldVerticalInputs.find((item) => item.checked)?.value || 'top',
-        beatIndex: sanitizeAssignmentBeat(fieldBeatInputs.find((item) => item.checked)?.value ?? 1, sanitizeStrikeCount(strikeCountInputs.find((item) => item.checked)?.value ?? 2))
+        beatIndex: sanitizeAssignmentBeat(fieldBeatInputs.find((item) => item.checked)?.value ?? 1, sanitizeStrikeCount(Number(managerRef?.exerciseFieldStrikeCount) || getExerciseLevelStrikeCount(uiState.activeLevel ?? 0)))
       });
       saveSettings();
     });
@@ -1875,61 +2202,63 @@ function createExerciseFieldPanel() {
       managerRef?.setExerciseFieldAssignment?.({
         side: fieldSideInputs.find((item) => item.checked)?.value || 'left',
         vertical: input.value,
-        beatIndex: sanitizeAssignmentBeat(fieldBeatInputs.find((item) => item.checked)?.value ?? 1, sanitizeStrikeCount(strikeCountInputs.find((item) => item.checked)?.value ?? 2))
+        beatIndex: sanitizeAssignmentBeat(fieldBeatInputs.find((item) => item.checked)?.value ?? 1, sanitizeStrikeCount(Number(managerRef?.exerciseFieldStrikeCount) || getExerciseLevelStrikeCount(uiState.activeLevel ?? 0)))
       });
       saveSettings();
     });
   });
 
-  const applyPreset = (slot) => {
-    const normalizedSlot = Number(slot);
-    const presetIndex = Number.isInteger(normalizedSlot) && normalizedSlot >= 0 && normalizedSlot <= 4
-      ? normalizedSlot
-      : 0;
-    const presets = readPresetMap();
-    const preset = presets[String(presetIndex)] || {};
+  const applyPreset = (exerciseLevel = uiState.activeLevel ?? 0, slotOverride = null) => {
+    const normalizedLevel = Number.isInteger(Number(exerciseLevel)) ? Math.max(0, Math.min(2, Number(exerciseLevel))) : 0;
+    const presetBucket = getPresetBucketForLevel(normalizedLevel);
+    const normalizedSlot = Number.isInteger(Number(slotOverride)) ? Number(slotOverride) : Number(presetBucket.selectedSlot);
+    const activeSlot = Number.isInteger(normalizedSlot) && normalizedSlot >= 0 && normalizedSlot <= 3 ? normalizedSlot : 0;
+    const preset = presetBucket[String(activeSlot)] || {};
     const currentSettings = readSavedSettings();
-    const savedStrikePositions = sanitizeExerciseFieldStrikePositions(preset.strikePositions ?? currentSettings.strikePositions);
+    const fallbackStrikeCount = getExerciseLevelStrikeCount(normalizedLevel);
+    const strikeCount = fallbackStrikeCount;
+    const savedStrikePositions = sanitizeExerciseFieldStrikePositions(
+      preset.strikePositions ?? currentSettings.strikePositions,
+      strikeCount
+    );
     const nextState = {
       enabled: typeof preset.enabled === 'boolean' ? preset.enabled : currentSettings.enabled,
       scale: Number.isFinite(Number(preset.scale)) ? Number(preset.scale) : currentSettings.scale,
       xOffset: Number.isFinite(Number(preset.xOffset)) ? Number(preset.xOffset) : currentSettings.xOffset,
-      strikeCount: sanitizeStrikeCount(preset.strikeCount ?? currentSettings.strikeCount),
+      strikeCount,
       strikeRadius: Number.isFinite(Number(preset.strikeRadius)) ? Number(preset.strikeRadius) : currentSettings.strikeRadius,
       fieldSide: preset.fieldSide === 'right' ? 'right' : 'left',
       fieldVertical: preset.fieldVertical === 'bottom' ? 'bottom' : 'top',
-      fieldBeat: sanitizeAssignmentBeat(preset.fieldBeat ?? currentSettings.fieldBeat, sanitizeStrikeCount(preset.strikeCount ?? currentSettings.strikeCount)),
+      fieldBeat: sanitizeAssignmentBeat(preset.fieldBeat ?? currentSettings.fieldBeat ?? 1, strikeCount),
       mode: preset.mode === 'tempo' ? 'tempo' : 'free',
       tempoBpm: Number.isFinite(Number(preset.tempoBpm)) ? Math.min(180, Math.max(30, Number(preset.tempoBpm))) : (Number.isFinite(Number(currentSettings.tempoBpm)) ? Number(currentSettings.tempoBpm) : 60),
       metronomeEnabled: typeof preset.metronomeEnabled === 'boolean' ? preset.metronomeEnabled : (typeof currentSettings.metronomeEnabled === 'boolean' ? currentSettings.metronomeEnabled : false),
       strikePositions: savedStrikePositions
     };
 
-    console.group(`Exercise Field preset ${presetIndex}`);
-    console.log('saved preset state:', JSON.parse(JSON.stringify(preset)));
-    console.log('saved strike positions from preset:', JSON.parse(JSON.stringify(savedStrikePositions)));
-    console.log('before restore rendered positions:', JSON.parse(JSON.stringify(managerRef?.exerciseFieldStrikePositions || { left: [], right: [] })));
-
     setControlsFromState(nextState);
-
-    const renderedPositions = managerRef?.exerciseFieldStrikePositions || { left: [], right: [] };
-    console.log('after restore rendered positions:', JSON.parse(JSON.stringify(renderedPositions)));
-    console.log('after restore current state positions:', JSON.parse(JSON.stringify(getCurrentState().strikePositions)));
-    console.groupEnd();
+    selectedPresetSlot = activeSlot;
+    renderPresetSlots();
     return true;
   };
 
   const savePresetFromPrompt = () => {
-    const requestedSlot = window.prompt('In welchen Preset-Slot möchten Sie die aktuellen Einstellungen speichern? (1-5)');
+    const requestedSlot = window.prompt('In welchen Preset-Slot möchten Sie die aktuellen Einstellungen speichern? (1-4)', String(selectedPresetSlot + 1));
     const slot = Number(requestedSlot);
-    if (!Number.isInteger(slot) || slot < 1 || slot > 5) {
+    if (!Number.isInteger(slot) || slot < 1 || slot > 4) {
       return null;
     }
 
+    const exerciseLevel = Number.isInteger(Number(uiState.activeLevel)) ? Math.max(0, Math.min(2, Number(uiState.activeLevel))) : 0;
+    const presetBucket = getPresetBucketForLevel(exerciseLevel);
     const presetIndex = slot - 1;
+    presetBucket[String(presetIndex)] = getCurrentState();
+    presetBucket.selectedSlot = presetIndex;
     const presets = readPresetMap();
-    presets[String(presetIndex)] = getCurrentState();
+    presets[String(exerciseLevel)] = presetBucket;
     localStorage.setItem(presetsKey, JSON.stringify(presets));
+    selectedPresetSlot = presetIndex;
+    renderPresetSlots();
     return presetIndex;
   };
 
@@ -1961,7 +2290,12 @@ function createExerciseFieldPanel() {
         metronomeEnabled: false
       };
       const nextPresets = defaults['motionai.exercise-field-presets'] || {};
-      const defaultPresetState = nextPresets[String(0)] || nextPanelSettings;
+      const activeExerciseLevel = Number.isInteger(uiState?.activeLevel) && uiState.activeLevel >= 0 && uiState.activeLevel <= 2
+        ? uiState.activeLevel
+        : 0;
+      const resetBucket = { selectedSlot: 0 };
+      const defaultsBucket = nextPresets[String(activeExerciseLevel)] || { selectedSlot: 0 };
+      const activePreset = defaultsBucket[String(Number(defaultsBucket.selectedSlot ?? 0))] || defaultsBucket['0'] || nextPanelSettings || {};
 
       localStorage.setItem(storageKey, JSON.stringify({
         enabled: typeof nextPanelSettings.enabled === 'boolean' ? nextPanelSettings.enabled : true,
@@ -1975,12 +2309,10 @@ function createExerciseFieldPanel() {
         mode: nextPanelSettings.mode === 'tempo' ? 'tempo' : 'free',
         tempoBpm: Number.isFinite(Number(nextPanelSettings.tempoBpm)) ? Math.min(180, Math.max(30, Number(nextPanelSettings.tempoBpm))) : 60
       }));
-      localStorage.setItem(presetsKey, JSON.stringify(nextPresets));
+      const nextPresetMap = readPresetMap();
+      nextPresetMap[String(activeExerciseLevel)] = { ...resetBucket, ...defaultsBucket, selectedSlot: 0 };
+      localStorage.setItem(presetsKey, JSON.stringify(nextPresetMap));
 
-      const activePresetIndex = Number.isInteger(uiState?.activeLevel) && uiState.activeLevel >= 0 && uiState.activeLevel <= 4
-        ? uiState.activeLevel
-        : 0;
-      const activePreset = nextPresets[String(activePresetIndex)] || defaultPresetState || {};
       setControlsFromState({
         enabled: typeof activePreset.enabled === 'boolean' ? activePreset.enabled : true,
         scale: Number.isFinite(Number(activePreset.scale)) ? Number(activePreset.scale) : 1,
@@ -1992,9 +2324,9 @@ function createExerciseFieldPanel() {
         fieldBeat: sanitizeAssignmentBeat(activePreset.fieldBeat ?? 1, sanitizeStrikeCount(activePreset.strikeCount ?? 2)),
         mode: activePreset.mode === 'tempo' ? 'tempo' : 'free',
         tempoBpm: Number.isFinite(Number(activePreset.tempoBpm)) ? Math.min(180, Math.max(30, Number(activePreset.tempoBpm))) : 60,
-        strikePositions: sanitizeExerciseFieldStrikePositions(activePreset.strikePositions || {})
+        strikePositions: sanitizeExerciseFieldStrikePositions(activePreset.strikePositions || {}, sanitizeStrikeCount(activePreset.strikeCount ?? 2))
       });
-      applyPreset(activePresetIndex);
+      applyPreset(activeExerciseLevel, 0);
       window.alert('Die Presets für das Kapitel „Einsätze geben“ wurden auf die Werkseinstellungen zurückgesetzt.');
       return true;
     } catch (error) {
@@ -2010,7 +2342,10 @@ function createExerciseFieldPanel() {
     panel,
     isEnabled: () => Boolean(toggleInput.checked),
     setVisible: (visible) => {
-      panel.classList.toggle('hidden', !visible);
+      const effectiveVisible = Boolean(visible);
+      panel.classList.toggle('hidden', !effectiveVisible);
+      const settingsVisible = effectiveVisible && readLevelSettingsVisibilityState();
+      applyLevelSettingsVisibilityToPanel(panel, settingsVisible);
     },
     setLevelManager: (manager) => {
       managerRef = manager || null;
@@ -2021,7 +2356,9 @@ function createExerciseFieldPanel() {
       const restoredScale = Number.isFinite(savedSettings.scale) ? savedSettings.scale : 1;
       const restoredOffset = Number.isFinite(savedSettings.xOffset) ? savedSettings.xOffset : 0;
       const restoredEnabled = typeof savedSettings.enabled === 'boolean' ? savedSettings.enabled : true;
-      const restoredStrikeCount = sanitizeStrikeCount(savedSettings.strikeCount ?? 2);
+      const restoredStrikeCount = uiState.activeChapter === 6 && Number.isInteger(uiState.activeLevel)
+        ? getExerciseFieldLevelStrikeCount(uiState.activeLevel)
+        : sanitizeStrikeCount(savedSettings.strikeCount ?? 2);
       const restoredStrikeRadius = clampExerciseFieldStrikeRadius(savedSettings.strikeRadius ?? EXERCISE_FIELD_STRIKE_RADIUS_MIN);
       const restoredFieldSide = savedSettings.fieldSide === 'right' ? 'right' : 'left';
       const restoredFieldVertical = savedSettings.fieldVertical === 'bottom' ? 'bottom' : 'top';
@@ -2077,9 +2414,6 @@ function createExerciseFieldPanel() {
       challengeModeInputs.forEach((input) => {
         input.checked = input.value === selectedMode;
       });
-      strikeCountInputs.forEach((input) => {
-        input.checked = Number(input.value) === restoredStrikeCount;
-      });
       syncAssignmentBeatInputs(restoredStrikeCount);
       fieldSideInputs.forEach((input) => {
         input.checked = input.value === restoredFieldSide;
@@ -2115,7 +2449,7 @@ function createExerciseFieldPanel() {
       tempoBpm: Number(challengeTempoSlider.value),
       accuracy: 0,
       activeIndex: 0,
-      strikeCount: sanitizeStrikeCount(strikeCountInputs.find((input) => input.checked)?.value ?? 2)
+      strikeCount: sanitizeStrikeCount(Number(managerRef?.exerciseFieldStrikeCount) || getExerciseLevelStrikeCount(uiState.activeLevel ?? 0))
     },
     setScale: (value) => {
       const next = Number(value);
@@ -2134,10 +2468,11 @@ function createExerciseFieldPanel() {
       saveSettings();
     },
     setStrikeCount: (value) => {
-      const nextValue = sanitizeStrikeCount(value);
-      strikeCountInputs.forEach((input) => {
-        input.checked = Number(input.value) === nextValue;
-      });
+      const canonicalLevelStrikeCount = uiState.activeChapter === 6 && Number.isInteger(uiState.activeLevel)
+        ? getExerciseFieldLevelStrikeCount(uiState.activeLevel)
+        : null;
+      const nextValue = sanitizeStrikeCount(canonicalLevelStrikeCount ?? value);
+      syncAssignmentBeatInputs(nextValue);
       managerRef?.setExerciseFieldStrikeCount?.(nextValue);
       saveSettings();
     },
@@ -2181,6 +2516,7 @@ function createSquareExercisePanel() {
     : 0.5;
   let selectedShape = ['0', '1', '2', '3', '4', '5'].includes(settings.shape) ? settings.shape : '0';
   let selectedSyncMode = ['asynchronous', 'synchronous'].includes(settings.syncMode) ? settings.syncMode : 'asynchronous';
+  let selectedSquarePalindromMode = Boolean(settings.squarePalindromMode);
   let selectedAlternatingScale = ['chromatic', 'major', 'pentatonic'].includes(settings.alternatingScale) ? settings.alternatingScale : 'chromatic';
   let selectedAlternatingStartNote = Number.isFinite(Number(settings.alternatingStartNote))
     ? Math.max(36, Math.min(60, Math.round(Number(settings.alternatingStartNote))))
@@ -2305,6 +2641,7 @@ function createSquareExercisePanel() {
         resolution: selectedResolution,
         hand: pointSelectedHand,
         sequentialMode: pointSequenceMode,
+        symmetryMode: pointSymmetryMode,
         palindromMode: pointPalindromMode
       };
     }
@@ -2318,12 +2655,15 @@ function createSquareExercisePanel() {
         : selectedResolution;
       const hand = ['left', 'right', 'auto'].includes(value.hand) ? value.hand : pointSelectedHand;
       const sequentialMode = normalizePointSequenceMode(typeof value.sequentialMode === 'boolean' || typeof value.sequentialMode === 'string' ? value.sequentialMode : (typeof value.sequenceMode === 'boolean' || typeof value.sequenceMode === 'string' ? value.sequenceMode : pointSequenceMode));
+      const symmetryMode = typeof value.symmetryMode === 'boolean'
+        ? value.symmetryMode
+        : (typeof value.symmetricMode === 'boolean' ? value.symmetricMode : pointSymmetryMode);
       const palindromMode = typeof value.palindromMode === 'boolean'
         ? value.palindromMode
         : (typeof value.palindromeMode === 'boolean' ? value.palindromeMode : pointPalindromMode);
-      return { sequence, gridResolution, resolution, hand, sequentialMode, palindromMode };
+      return { sequence, gridResolution, resolution, hand, sequentialMode, symmetryMode, palindromMode };
     }
-    return { sequence: [], gridResolution: selectedGridResolution, resolution: selectedResolution, hand: pointSelectedHand, sequentialMode: pointSequenceMode, palindromMode: pointPalindromMode };
+    return { sequence: [], gridResolution: selectedGridResolution, resolution: selectedResolution, hand: pointSelectedHand, sequentialMode: pointSequenceMode, symmetryMode: pointSymmetryMode, palindromMode: pointPalindromMode };
   };
 
   const readStoredPointSlots = () => {
@@ -2407,6 +2747,7 @@ function createSquareExercisePanel() {
       shape: selectedShape,
       handMode: selectedHandMode,
       syncMode: selectedSyncMode,
+      squarePalindromMode: selectedSquarePalindromMode,
       resolution: selectedResolution,
       gridResolution: selectedGridResolution,
       centerDistance: selectedCenterDistance,
@@ -2424,10 +2765,33 @@ function createSquareExercisePanel() {
     }
   };
 
+  const titleRow = document.createElement('div');
+  titleRow.className = 'figure-side-panel-header';
+
   const title = document.createElement('div');
   title.className = 'figure-side-panel-title';
   title.textContent = 'Ziffern';
-  panel.appendChild(title);
+
+  const pointToggleButton = document.createElement('button');
+  pointToggleButton.type = 'button';
+  pointToggleButton.className = 'figure-side-panel-settings-button';
+  pointToggleButton.setAttribute('aria-label', 'Bearbeiten ein-/ausblenden');
+  pointToggleButton.title = 'Bearbeiten ein-/ausblenden';
+  pointToggleButton.textContent = '⚙';
+
+  titleRow.appendChild(title);
+  titleRow.appendChild(pointToggleButton);
+  panel.appendChild(titleRow);
+
+  let squareExerciseMode = 'square';
+
+  const syncPointToggleButton = () => {
+    pointToggleButton.setAttribute('aria-pressed', String(pointEditMode));
+    pointToggleButton.classList.toggle('active', pointEditMode);
+    pointToggleButton.title = pointEditMode ? 'Bearbeiten ausblenden' : 'Bearbeiten einblenden';
+    pointToggleInput.checked = pointEditMode;
+    pointToggleWrap.classList.toggle('is-active', pointEditMode);
+  };
 
   const shapeTitle = document.createElement('div');
   shapeTitle.className = 'figure-panel-section-title';
@@ -2508,6 +2872,386 @@ function createSquareExercisePanel() {
   syncSection.appendChild(syncGroup);
   bindUiGroupDescription([syncTitle, ...syncGroup.querySelectorAll('label, input')], 'Eingewöhnung', 'Synchronität');
 
+  const squarePresetStorageKey = 'motionai.square-exercise-presets';
+  const squarePresetCount = 8;
+  let selectedSquarePresetSlot = 1;
+  let squarePresetData = {};
+
+  const readSquarePresetData = () => {
+    try {
+      const stored = JSON.parse(localStorage.getItem(squarePresetStorageKey) || '{}');
+      if (stored && typeof stored === 'object') {
+        return stored;
+      }
+    } catch (error) {
+      // Ignore storage failures for local settings.
+    }
+    return {};
+  };
+
+  const persistSquarePresetData = () => {
+    try {
+      localStorage.setItem(squarePresetStorageKey, JSON.stringify(squarePresetData));
+    } catch (error) {
+      // Ignore storage failures for local settings.
+    }
+  };
+
+  const normalizeSquarePresetSlot = (value) => {
+    const next = Number(value);
+    if (!Number.isInteger(next) || next < 1 || next > squarePresetCount) {
+      return 1;
+    }
+    return next;
+  };
+
+  const getDefaultSquarePreset = (slot = 1) => ({
+    slot: normalizeSquarePresetSlot(slot),
+    shape: '0',
+    handMode: 'right',
+    syncMode: 'asynchronous',
+    palindromMode: false,
+    resolution: 1.0,
+    gridResolution: 8,
+    centerDistance: 0.5
+  });
+
+  const saveSquarePreset = (slotNumber) => {
+    const normalizedSlot = normalizeSquarePresetSlot(slotNumber);
+    squarePresetData[String(normalizedSlot)] = {
+      slot: normalizedSlot,
+      shape: selectedShape,
+      handMode: selectedHandMode,
+      syncMode: selectedSyncMode,
+      palindromMode: selectedSquarePalindromMode,
+      resolution: selectedResolution,
+      gridResolution: selectedGridResolution,
+      centerDistance: selectedCenterDistance
+    };
+    squarePresetData.selectedPresetSlot = normalizedSlot;
+    selectedSquarePresetSlot = normalizedSlot;
+    persistSquarePresetData();
+    syncSquarePresetSelectionUI();
+  };
+
+  const applySquarePreset = (slotNumber, { silent = false } = {}) => {
+    const normalizedSlot = normalizeSquarePresetSlot(slotNumber);
+    const preset = squarePresetData[String(normalizedSlot)] || getDefaultSquarePreset(normalizedSlot);
+    selectedSquarePresetSlot = normalizedSlot;
+
+    selectedShape = String(preset.shape ?? selectedShape);
+    selectedHandMode = ['right', 'left', 'both'].includes(preset.handMode) ? preset.handMode : selectedHandMode;
+    selectedSyncMode = ['asynchronous', 'synchronous'].includes(preset.syncMode) ? preset.syncMode : selectedSyncMode;
+    selectedSquarePalindromMode = typeof preset.palindromMode === 'boolean'
+      ? preset.palindromMode
+      : selectedSquarePalindromMode;
+    selectedResolution = Number.isFinite(Number(preset.resolution))
+      ? Math.min(1.0, Math.max(0.55, Number(preset.resolution)))
+      : selectedResolution;
+    selectedGridResolution = Number.isFinite(Number(preset.gridResolution))
+      ? Math.max(8, Math.min(24, Math.round(Number(preset.gridResolution) / 2) * 2))
+      : selectedGridResolution;
+    selectedCenterDistance = Number.isFinite(Number(preset.centerDistance))
+      ? Math.min(1.0, Math.max(0.1, Number(preset.centerDistance)))
+      : selectedCenterDistance;
+
+    shapeOptions.forEach(({ value }) => {
+      const input = shapeGroup.querySelector(`input[value="${value}"]`);
+      if (input) {
+        input.checked = value === selectedShape;
+      }
+    });
+    handOptions.forEach(({ value }) => {
+      const input = handGroup.querySelector(`input[value="${value}"]`);
+      if (input) {
+        input.checked = value === selectedHandMode;
+      }
+    });
+    syncOptions.forEach(({ value }) => {
+      const input = syncGroup.querySelector(`input[value="${value}"]`);
+      if (input) {
+        input.checked = value === selectedSyncMode;
+      }
+    });
+
+    if (typeof resolutionSlider !== 'undefined') {
+      setResolution(selectedResolution);
+    }
+    if (typeof gridResolutionSlider !== 'undefined') {
+      setGridResolution(selectedGridResolution);
+    }
+    if (typeof centerDistanceSlider !== 'undefined') {
+      setCenterDistance(selectedCenterDistance);
+    }
+    if (squarePalindromInput) {
+      squarePalindromInput.checked = selectedSquarePalindromMode;
+    }
+
+    syncSquarePresetSelectionUI();
+    updateSyncVisibility();
+    updateSquarePresetInfo();
+    updatePointPanelVisibility();
+    setChapter1ExerciseMode(squareExerciseMode);
+    if (pointEditMode && squareExerciseMode === 'square') {
+      handSection.hidden = false;
+      handSection.style.display = '';
+      syncSection.hidden = selectedHandMode !== 'both';
+      syncSection.style.display = selectedHandMode === 'both' ? '' : 'none';
+      const handTitleNode = handSection?.querySelector('.figure-panel-section-title');
+      const handGroupNode = handSection?.querySelector('.figure-mode-group');
+      const syncTitleNode = syncSection?.querySelector('.figure-panel-section-title');
+      const syncGroupNode = syncSection?.querySelector('.figure-mode-group');
+      if (handTitleNode) {
+        handTitleNode.hidden = false;
+        handTitleNode.style.display = '';
+      }
+      if (handGroupNode) {
+        handGroupNode.hidden = false;
+        handGroupNode.style.display = 'flex';
+      }
+      if (syncTitleNode) {
+        syncTitleNode.hidden = selectedHandMode !== 'both';
+        syncTitleNode.style.display = selectedHandMode === 'both' ? '' : 'none';
+      }
+      if (syncGroupNode) {
+        syncGroupNode.hidden = selectedHandMode !== 'both';
+        syncGroupNode.style.display = selectedHandMode === 'both' ? 'flex' : 'none';
+      }
+      panel.querySelectorAll('input[name="square-exercise-hand"]').forEach((input) => {
+        const option = input.closest('label');
+        if (option) {
+          option.hidden = false;
+          option.style.display = 'flex';
+        }
+      });
+      panel.querySelectorAll('input[name="square-exercise-sync-mode"]').forEach((input) => {
+        const option = input.closest('label');
+        if (option) {
+          option.hidden = selectedHandMode !== 'both';
+          option.style.display = selectedHandMode === 'both' ? 'flex' : 'none';
+        }
+      });
+    }
+    updateSquarePresetInfo();
+    if (!silent) {
+      persistSettings();
+      managerRef?.setSquareExerciseShape(selectedShape);
+      managerRef?.setSquareExerciseHandMode(selectedHandMode);
+      managerRef?.setSquareExerciseSyncMode(selectedSyncMode);
+      managerRef?.setSquareExercisePalindromMode(selectedSquarePalindromMode);
+      managerRef?.setSquareExerciseResolution(selectedResolution);
+      managerRef?.setSquareExerciseGridResolution(selectedGridResolution);
+      managerRef?.setSquareExerciseCenterDistance(selectedCenterDistance);
+      updateSquarePresetInputsState();
+      if (squarePalindromInput) {
+        squarePalindromInput.checked = selectedSquarePalindromMode;
+      }
+      if (squarePresetInfo) {
+        updateSquarePresetInfo();
+      }
+    }
+  };
+
+  squarePresetData = readSquarePresetData();
+  if (Number.isInteger(Number(squarePresetData.selectedPresetSlot))) {
+    selectedSquarePresetSlot = normalizeSquarePresetSlot(squarePresetData.selectedPresetSlot);
+  }
+  if (!squarePresetData.selectedPresetSlot) {
+    squarePresetData.selectedPresetSlot = selectedSquarePresetSlot;
+    persistSquarePresetData();
+  }
+
+  const squarePresetTitle = document.createElement('div');
+  squarePresetTitle.className = 'figure-panel-section-title';
+  squarePresetTitle.textContent = 'Presets';
+  squarePresetTitle.hidden = false;
+  squarePresetTitle.style.display = '';
+
+  const squarePresetRow = document.createElement('div');
+  squarePresetRow.className = 'figure-point-slot-grid';
+  squarePresetRow.hidden = false;
+  squarePresetRow.style.display = '';
+
+  const squarePresetInfo = document.createElement('div');
+  squarePresetInfo.className = 'figure-point-preset-info';
+  squarePresetInfo.textContent = 'Aktuelles Preset: Asynchron';
+
+  const updateSquarePresetInfo = () => {
+    const palindromStateText = selectedSquarePalindromMode ? 'Palindrom ein' : 'Palindrom aus';
+    squarePresetInfo.textContent = `Aktuelles Preset: ${selectedSyncMode === 'synchronous' ? 'Synchron' : 'Asynchron'} • Reihenfolge: ${palindromStateText}`;
+  };
+
+  const squarePresetInputs = [];
+  const syncSquarePresetSelectionUI = () => {
+    squarePresetInputs.forEach((input) => {
+      input.checked = Number(input.value) === selectedSquarePresetSlot;
+    });
+  };
+
+  for (let slotIndex = 1; slotIndex <= squarePresetCount; slotIndex += 1) {
+    const option = document.createElement('label');
+    option.className = 'figure-point-slot-option';
+    const input = document.createElement('input');
+    input.type = 'radio';
+    input.name = 'square-exercise-preset-slot';
+    input.value = String(slotIndex);
+    input.checked = slotIndex === selectedSquarePresetSlot;
+    input.addEventListener('change', () => {
+      if (!input.checked) {
+        return;
+      }
+      selectedSquarePresetSlot = normalizeSquarePresetSlot(slotIndex);
+      applySquarePreset(selectedSquarePresetSlot);
+    });
+    const label = document.createElement('span');
+    label.textContent = String(slotIndex);
+    option.appendChild(input);
+    option.appendChild(label);
+    squarePresetRow.appendChild(option);
+    squarePresetInputs.push(input);
+  }
+
+  const updateSquarePresetInputsState = () => {
+    squarePresetInputs.forEach((input) => {
+      const isSquareMode = squareExerciseMode === 'square';
+      const disabled = !isSquareMode;
+      input.disabled = disabled;
+      input.setAttribute('aria-disabled', String(disabled));
+    });
+  };
+
+  const squarePresetDialog = document.createElement('div');
+  squarePresetDialog.className = 'figure-point-slot-dialog hidden';
+  squarePresetDialog.setAttribute('role', 'dialog');
+  squarePresetDialog.setAttribute('aria-modal', 'true');
+
+  const squarePresetDialogCard = document.createElement('div');
+  squarePresetDialogCard.className = 'figure-point-slot-dialog-card';
+
+  const squarePresetDialogTitle = document.createElement('div');
+  squarePresetDialogTitle.className = 'figure-point-slot-dialog-title';
+  squarePresetDialogTitle.textContent = 'Preset speichern';
+
+  const squarePresetDialogText = document.createElement('div');
+  squarePresetDialogText.className = 'figure-point-slot-dialog-text';
+  squarePresetDialogText.textContent = 'In welchen Preset-Slot 1-8 möchten Sie die aktuelle Konfiguration speichern?';
+
+  const squarePresetDialogInput = document.createElement('input');
+  squarePresetDialogInput.type = 'number';
+  squarePresetDialogInput.min = '1';
+  squarePresetDialogInput.max = '8';
+  squarePresetDialogInput.step = '1';
+  squarePresetDialogInput.value = String(selectedSquarePresetSlot);
+  squarePresetDialogInput.className = 'figure-point-slot-dialog-input';
+
+  const squarePresetDialogActions = document.createElement('div');
+  squarePresetDialogActions.className = 'figure-point-slot-dialog-actions';
+
+  const squarePresetDialogCancel = document.createElement('button');
+  squarePresetDialogCancel.type = 'button';
+  squarePresetDialogCancel.className = 'figure-point-action';
+  squarePresetDialogCancel.textContent = 'Abbrechen';
+
+  const squarePresetDialogConfirm = document.createElement('button');
+  squarePresetDialogConfirm.type = 'button';
+  squarePresetDialogConfirm.className = 'figure-point-action primary';
+  squarePresetDialogConfirm.textContent = 'Speichern';
+
+  const closeSquarePresetDialog = () => {
+    squarePresetDialog.classList.add('hidden');
+    squarePresetDialogInput.value = String(selectedSquarePresetSlot);
+  };
+
+  squarePresetDialogCancel.addEventListener('click', closeSquarePresetDialog);
+  squarePresetDialog.addEventListener('click', (event) => {
+    if (event.target === squarePresetDialog) {
+      closeSquarePresetDialog();
+    }
+  });
+
+  squarePresetDialogConfirm.addEventListener('click', () => {
+    const slotNumber = Number.parseInt(squarePresetDialogInput.value, 10);
+    if (!Number.isInteger(slotNumber) || slotNumber < 1 || slotNumber > squarePresetCount) {
+      window.alert('Bitte wählen Sie einen gültigen Slot von 1 bis 8.');
+      return;
+    }
+
+    saveSquarePreset(slotNumber);
+    closeSquarePresetDialog();
+  });
+
+  squarePresetDialogActions.appendChild(squarePresetDialogCancel);
+  squarePresetDialogActions.appendChild(squarePresetDialogConfirm);
+  squarePresetDialogCard.appendChild(squarePresetDialogTitle);
+  squarePresetDialogCard.appendChild(squarePresetDialogText);
+  squarePresetDialogCard.appendChild(squarePresetDialogInput);
+  squarePresetDialogCard.appendChild(squarePresetDialogActions);
+  squarePresetDialog.appendChild(squarePresetDialogCard);
+  document.body.appendChild(squarePresetDialog);
+
+  const squarePresetActions = document.createElement('div');
+  squarePresetActions.className = 'figure-point-action-row';
+  squarePresetActions.hidden = !pointEditMode;
+  squarePresetActions.style.display = pointEditMode ? '' : 'none';
+
+  const squarePresetSaveButton = document.createElement('button');
+  squarePresetSaveButton.type = 'button';
+  squarePresetSaveButton.className = 'figure-point-action primary';
+  squarePresetSaveButton.textContent = 'Speichern';
+  squarePresetSaveButton.addEventListener('click', () => {
+    const requestedSlot = window.prompt('In welchen Preset-Slot möchten Sie die aktuelle Konfiguration speichern? (1-8)', String(selectedSquarePresetSlot));
+    const slotNumber = Number.parseInt(requestedSlot, 10);
+    if (!Number.isInteger(slotNumber) || slotNumber < 1 || slotNumber > squarePresetCount) {
+      return;
+    }
+    saveSquarePreset(slotNumber);
+  });
+
+  const squarePresetResetButton = document.createElement('button');
+  squarePresetResetButton.type = 'button';
+  squarePresetResetButton.className = 'figure-point-action';
+  squarePresetResetButton.textContent = 'Zurücksetzen';
+  squarePresetResetButton.addEventListener('click', () => {
+    squarePresetData = {};
+    squarePresetData.selectedPresetSlot = 1;
+    selectedSquarePresetSlot = 1;
+    persistSquarePresetData();
+    squarePresetInputs.forEach((input) => {
+      input.checked = Number(input.value) === selectedSquarePresetSlot;
+    });
+    applySquarePreset(selectedSquarePresetSlot, { silent: true });
+    persistSettings();
+  });
+
+  squarePresetActions.appendChild(squarePresetSaveButton);
+  squarePresetActions.appendChild(squarePresetResetButton);
+
+  panel.insertBefore(squarePresetTitle, shapeTitle);
+  panel.insertBefore(squarePresetRow, shapeTitle);
+  panel.insertBefore(squarePresetInfo, shapeTitle);
+  panel.insertBefore(squarePresetActions, shapeTitle);
+  bindUiGroupDescription([squarePresetTitle], 'Eingewöhnung', 'Presets');
+  bindUiGroupDescription([...squarePresetRow.querySelectorAll('label, input')], 'Eingewöhnung', 'PresetSlots');
+  bindUiGroupDescription([squarePresetSaveButton], 'Eingewöhnung', 'PresetSpeichern');
+  bindUiGroupDescription([squarePresetResetButton], 'Eingewöhnung', 'PresetZurücksetzen');
+
+  const squarePalindromWrap = document.createElement('label');
+  squarePalindromWrap.className = 'figure-dynamics-toggle';
+  squarePalindromWrap.hidden = true;
+  const squarePalindromInput = document.createElement('input');
+  squarePalindromInput.type = 'checkbox';
+  squarePalindromInput.checked = selectedSquarePalindromMode;
+  squarePalindromWrap.appendChild(squarePalindromInput);
+  squarePalindromWrap.appendChild(document.createTextNode('Palindrom'));
+  bindUiGroupDescription([squarePalindromWrap, squarePalindromInput], 'Eingewöhnung', 'Palindrom');
+
+  squarePalindromInput.addEventListener('change', () => {
+    selectedSquarePalindromMode = squarePalindromInput.checked;
+    updateSquarePresetInfo();
+    persistSettings();
+    managerRef?.setSquareExercisePalindromMode?.(selectedSquarePalindromMode);
+  });
+
   const syncOptions = [
     { value: 'asynchronous', label: 'Asynchron' },
     { value: 'synchronous', label: 'Synchron' }
@@ -2528,6 +3272,7 @@ function createSquareExercisePanel() {
         return;
       }
       selectedSyncMode = value;
+      updateSquarePresetInfo();
       persistSettings();
       managerRef?.setSquareExerciseSyncMode(selectedSyncMode);
     });
@@ -2570,24 +3315,89 @@ function createSquareExercisePanel() {
     handGroup.appendChild(option);
   });
 
+  const forceSquareEditControlsVisible = () => {
+    if (!(pointEditMode && squareExerciseMode === 'square')) {
+      return;
+    }
+
+    handSection.hidden = false;
+    handSection.style.display = '';
+    syncSection.hidden = false;
+    syncSection.style.display = '';
+
+    const handTitleNode = handSection?.querySelector('.figure-panel-section-title');
+    const handGroupNode = handSection?.querySelector('.figure-mode-group');
+    const syncTitleNode = syncSection?.querySelector('.figure-panel-section-title');
+    const syncGroupNode = syncSection?.querySelector('.figure-mode-group');
+
+    if (handTitleNode) {
+      handTitleNode.hidden = false;
+      handTitleNode.style.display = '';
+    }
+    if (handGroupNode) {
+      handGroupNode.hidden = false;
+      handGroupNode.style.display = 'flex';
+    }
+    if (syncTitleNode) {
+      syncTitleNode.hidden = false;
+      syncTitleNode.style.display = '';
+    }
+    if (syncGroupNode) {
+      syncGroupNode.hidden = false;
+      syncGroupNode.style.display = 'flex';
+    }
+
+    panel.querySelectorAll('input[name="square-exercise-hand"]').forEach((input) => {
+      const option = input.closest('label');
+      if (option) {
+        option.hidden = false;
+        option.style.display = 'flex';
+      }
+    });
+    panel.querySelectorAll('input[name="square-exercise-sync-mode"]').forEach((input) => {
+      const option = input.closest('label');
+      if (option) {
+        option.hidden = false;
+        option.style.display = 'flex';
+      }
+    });
+  };
+
   const updateSyncVisibility = () => {
+    const isSquareEditMode = pointEditMode && squareExerciseMode === 'square';
+    const isDigitShape = /^\d$/.test(String(selectedShape));
     const isBoth = selectedHandMode === 'both';
-    syncTitle.hidden = !isBoth;
-    syncGroup.hidden = !isBoth;
-    syncSection.hidden = !isBoth;
+    const shouldShowSyncControls = isSquareEditMode || isBoth;
+    const shouldShowPalindromToggle = isSquareEditMode && isDigitShape;
+    updateSquarePresetInfo();
+    syncTitle.hidden = !shouldShowSyncControls;
+    syncGroup.hidden = !shouldShowSyncControls;
+    syncSection.hidden = !shouldShowSyncControls;
+    squarePalindromWrap.hidden = !shouldShowPalindromToggle;
+    squarePalindromWrap.style.display = shouldShowPalindromToggle ? '' : 'none';
+    squarePalindromInput.checked = selectedSquarePalindromMode;
 
     handTitle.hidden = false;
     handGroup.hidden = false;
 
-    if (!isBoth && selectedSyncMode !== 'asynchronous') {
+    if (!isBoth && selectedSyncMode !== 'asynchronous' && !isSquareEditMode) {
       selectedSyncMode = 'asynchronous';
       syncGroup.querySelectorAll('input[name="square-exercise-sync-mode"]').forEach((radio) => {
         radio.checked = radio.value === 'asynchronous';
       });
     }
+
+    if (isSquareEditMode) {
+      forceSquareEditControlsVisible();
+    }
   };
 
   panel.appendChild(syncSection);
+  panel.appendChild(squarePalindromWrap);
+
+  updateSquarePresetInfo();
+  updateSquarePresetInputsState();
+  syncSquarePresetSelectionUI();
 
   const pointSection = document.createElement('div');
   pointSection.className = 'figure-panel-section points-panel-section';
@@ -2595,6 +3405,7 @@ function createSquareExercisePanel() {
 
   const pointToggleWrap = document.createElement('label');
   pointToggleWrap.className = 'figure-dynamics-toggle';
+  pointToggleWrap.style.display = 'none';
   const pointToggleInput = document.createElement('input');
   pointToggleInput.type = 'checkbox';
   pointToggleInput.checked = pointEditMode;
@@ -2603,6 +3414,49 @@ function createSquareExercisePanel() {
   pointToggleWrap.classList.toggle('is-active', pointEditMode);
   pointSection.appendChild(pointToggleWrap);
   bindUiGroupDescription([pointToggleWrap], 'Eingewöhnung', 'Bearbeiten');
+
+  pointToggleButton.addEventListener('click', () => {
+    const nextEditMode = !pointEditMode;
+    pointEditMode = nextEditMode;
+    writeLevelSettingsVisibilityState(nextEditMode);
+    if (pointEditMode) {
+      pointSequence = [];
+      renderPointList();
+      managerRef?.setPointExerciseSequence([]);
+    }
+    updatePointPanelVisibility();
+    setChapter1ExerciseMode(squareExerciseMode);
+    updateSyncVisibility();
+    forceSquareEditControlsVisible();
+    persistPointState();
+    managerRef?.setPointExerciseEditMode(pointEditMode);
+    if (!pointEditMode) {
+      loadPointPresetIntoCurrentSequence(pointSelectedSlot, { force: true });
+    }
+    updateSquarePresetInputsState();
+    managerRef?.setPointExerciseSequentialMode?.(pointSequenceMode);
+    syncPointToggleButton();
+  });
+
+  window.addEventListener('motionai:levelSettingsVisibilityChanged', () => {
+    const nextEditMode = readLevelSettingsVisibilityState();
+    if (pointEditMode === nextEditMode) {
+      return;
+    }
+    pointEditMode = nextEditMode;
+    updatePointPanelVisibility();
+    setChapter1ExerciseMode(squareExerciseMode);
+    updateSyncVisibility();
+    forceSquareEditControlsVisible();
+    persistPointState();
+    managerRef?.setPointExerciseEditMode(pointEditMode);
+    if (!pointEditMode) {
+      loadPointPresetIntoCurrentSequence(pointSelectedSlot, { force: true });
+    }
+    updateSquarePresetInputsState();
+    managerRef?.setPointExerciseSequentialMode?.(pointSequenceMode);
+    syncPointToggleButton();
+  });
 
   const pointSequenceModeTitle = document.createElement('div');
   pointSequenceModeTitle.className = 'figure-point-group-label';
@@ -2722,17 +3576,17 @@ function createSquareExercisePanel() {
   const pointPresetTitle = document.createElement('div');
   pointPresetTitle.className = 'figure-panel-section-title';
   pointPresetTitle.textContent = 'Presets';
-  pointPresetTitle.hidden = pointEditMode;
+  pointPresetTitle.hidden = false;
   pointSection.appendChild(pointPresetTitle);
   bindUiGroupDescription([pointPresetTitle], 'Eingewöhnung', 'Presets');
 
   const pointSlotRow = document.createElement('div');
   pointSlotRow.className = 'figure-point-slot-grid';
-  pointSlotRow.hidden = pointEditMode;
+  pointSlotRow.hidden = false;
 
   const pointPresetInfo = document.createElement('div');
   pointPresetInfo.className = 'figure-point-preset-info';
-  pointPresetInfo.hidden = pointEditMode;
+  pointPresetInfo.hidden = false;
   bindUiGroupDescription([pointPresetInfo], 'Eingewöhnung', 'Presetinfo');
 
   const updatePointPresetInfo = () => {
@@ -2790,6 +3644,13 @@ function createSquareExercisePanel() {
       return true;
     }
     return false;
+  };
+
+  const updatePointPresetInputsState = () => {
+    pointSlotLabels.forEach((input) => {
+      input.disabled = pointEditMode;
+      input.setAttribute('aria-disabled', String(pointEditMode));
+    });
   };
 
   const pointSlotLabels = Array.from({ length: 8 }, (_, slotIndex) => {
@@ -2923,6 +3784,7 @@ function createSquareExercisePanel() {
       resolution: selectedResolution,
       hand: pointSelectedHand,
       sequentialMode: pointSequenceMode,
+      symmetryMode: pointSymmetryInput.checked,
       palindromMode: pointPalindromMode
     };
 
@@ -2968,13 +3830,49 @@ function createSquareExercisePanel() {
       return;
     }
 
-    pointSaveDialogInput.value = String(pointSelectedSlot);
-    pointSaveDialog.classList.remove('hidden');
+    const requestedSlot = window.prompt('In welchen Slot 1-8 möchten Sie die aktuelle Folge speichern?', String(pointSelectedSlot));
+    const slotNumber = Number.parseInt(requestedSlot, 10);
+    if (!Number.isInteger(slotNumber) || slotNumber < 1 || slotNumber > 8) {
+      return;
+    }
+
+    const normalizedSequenceMode = normalizePointSequenceMode(pointSequenceModeInputs.find((radio) => radio.checked)?.value || pointSequenceMode);
+    const nextPresetEntry = {
+      sequence: sanitizePointSequence(pointSequence),
+      gridResolution: selectedGridResolution,
+      resolution: selectedResolution,
+      hand: pointSelectedHand,
+      sequentialMode: pointSequenceMode,
+      symmetryMode: pointSymmetryInput.checked,
+      palindromMode: pointPalindromMode
+    };
+
+    pointSelectedSlot = slotNumber;
+    pointSequenceMode = normalizedSequenceMode;
+    pointSymmetryMode = pointSymmetryInput.checked;
+    pointSavedSlots[pointSelectedSlot] = nextPresetEntry;
+    debugPointPresetLog(`save slot ${pointSelectedSlot}`, {
+      slot: pointSelectedSlot,
+      preset: nextPresetEntry,
+      sequence: nextPresetEntry.sequence
+    });
+    pointSlotLabels.forEach((radio) => {
+      radio.checked = Number(radio.value) === pointSelectedSlot;
+    });
+    persistPointState();
+    managerRef?.setPointExerciseSelectedSlot(pointSelectedSlot);
+    managerRef?.setPointExerciseSavedSlots(pointSavedSlots);
+    managerRef?.setPointExerciseSequentialMode?.(pointSequenceMode);
+    managerRef?.setPointExerciseSymmetryMode?.(pointSymmetryMode);
+    renderPointList();
   });
 
-  pointActions.appendChild(pointResetButton);
   pointActions.appendChild(pointSaveButton);
-  pointSection.appendChild(pointActions);
+  pointActions.appendChild(pointResetButton);
+  pointSection.insertBefore(pointPresetTitle, pointSequenceModeTitle);
+  pointSection.insertBefore(pointSlotRow, pointSequenceModeTitle);
+  pointSection.insertBefore(pointPresetInfo, pointSequenceModeTitle);
+  pointSection.insertBefore(pointActions, pointSequenceModeTitle);
   bindUiGroupDescription([pointResetButton], 'Eingewöhnung', 'Reset');
   bindUiGroupDescription([pointSaveButton], 'Eingewöhnung', 'Speichern');
 
@@ -2985,8 +3883,11 @@ function createSquareExercisePanel() {
   bindUiGroupDescription([pointListWrap], 'Eingewöhnung', 'Liste');
 
   const updatePointPanelVisibility = () => {
-    const showPresetRow = !pointEditMode;
+    const showPresetTitle = squareExerciseMode === 'points';
+    const showPresetRow = squareExerciseMode === 'points';
+    const showPresetInfo = squareExerciseMode === 'points';
     const showEditActions = pointEditMode;
+    const isPoints = squareExerciseMode === 'points';
 
     pointSequenceModeTitle.hidden = !pointEditMode;
     pointSequenceModeTitle.style.display = pointEditMode ? '' : 'none';
@@ -3017,19 +3918,20 @@ function createSquareExercisePanel() {
       }
     });
 
-    pointPresetTitle.hidden = pointEditMode;
-    pointPresetTitle.style.display = showPresetRow ? '' : 'none';
+    pointPresetTitle.hidden = !showPresetTitle;
+    pointPresetTitle.style.display = showPresetTitle ? '' : 'none';
 
-    pointSlotRow.hidden = pointEditMode;
+    pointSlotRow.hidden = !showPresetRow;
     pointSlotRow.style.display = showPresetRow ? '' : 'none';
-    pointPresetInfo.hidden = pointEditMode;
-    pointPresetInfo.style.display = showPresetRow ? '' : 'none';
+    pointPresetInfo.hidden = !showPresetInfo;
+    pointPresetInfo.style.display = showPresetInfo ? '' : 'none';
     updatePointPresetInfo();
+    updatePointPresetInputsState();
     pointSlotLabels.forEach((radio) => {
-      radio.hidden = pointEditMode;
+      radio.hidden = !showPresetRow;
       radio.style.display = showPresetRow ? '' : 'none';
       if (radio.parentElement) {
-        radio.parentElement.hidden = pointEditMode;
+        radio.parentElement.hidden = !showPresetRow;
         radio.parentElement.style.display = showPresetRow ? '' : 'none';
       }
     });
@@ -3038,8 +3940,68 @@ function createSquareExercisePanel() {
     pointActions.style.display = showEditActions ? '' : 'none';
     pointListWrap.hidden = !showEditActions;
     pointListWrap.style.display = showEditActions ? '' : 'none';
+
+    if (squareExerciseMode === 'square' && pointEditMode) {
+      handSection.hidden = false;
+      handSection.style.display = '';
+      syncSection.hidden = false;
+      syncSection.style.display = '';
+      panel.querySelectorAll('input[name="square-exercise-hand"]').forEach((input) => {
+        const option = input.closest('label');
+        if (option) {
+          option.hidden = false;
+          option.style.display = 'flex';
+        }
+      });
+      panel.querySelectorAll('input[name="square-exercise-sync-mode"]').forEach((input) => {
+        const option = input.closest('label');
+        if (option) {
+          option.hidden = false;
+          option.style.display = 'flex';
+        }
+      });
+    }
+
+    if (centerDistanceWrap) {
+      const shouldShowCenterDistance = squareExerciseMode === 'square' && pointEditMode;
+      centerDistanceWrap.hidden = !shouldShowCenterDistance;
+      centerDistanceWrap.style.display = shouldShowCenterDistance ? '' : 'none';
+    }
+
+    pointEditSliderControls.forEach((element) => {
+      if (!element || element === centerDistanceWrap) {
+        return;
+      }
+      const showPointEditSliderRow = pointEditMode;
+      element.hidden = !showPointEditSliderRow;
+      element.style.display = showPointEditSliderRow ? '' : 'none';
+    });
+
+    const squareShowEditControls = !isPoints && pointEditMode;
+    const squareShowPresetControls = !isPoints && (!pointEditMode || squareExerciseMode === 'square');
+    const shouldShowHandOptions = squareShowEditControls;
+    const shouldShowSyncOptions = squareShowEditControls;
+
+    shapeTitle.hidden = !squareShowEditControls;
+    shapeTitle.style.display = squareShowEditControls ? '' : 'none';
+    shapeGroup.hidden = !squareShowEditControls;
+    shapeGroup.style.display = squareShowEditControls ? 'flex' : 'none';
+    handSection.hidden = !shouldShowHandOptions;
+    handSection.style.display = shouldShowHandOptions ? '' : 'none';
+    syncSection.hidden = !shouldShowSyncOptions;
+    syncSection.style.display = shouldShowSyncOptions ? '' : 'none';
+
+    squarePresetTitle.hidden = !squareShowPresetControls || isPoints;
+    squarePresetTitle.style.display = squareShowPresetControls && !isPoints ? '' : 'none';
+    squarePresetRow.hidden = !squareShowPresetControls || isPoints;
+    squarePresetRow.style.display = squareShowPresetControls && !isPoints ? '' : 'none';
+    squarePresetActions.hidden = !squareShowEditControls || isPoints;
+    squarePresetActions.style.display = squareShowEditControls && !isPoints ? '' : 'none';
+    updateSquarePresetInputsState();
+
     pointToggleInput.checked = pointEditMode;
     pointToggleWrap.classList.toggle('is-active', pointEditMode);
+    syncPointToggleButton();
   };
 
   const renderPointList = () => {
@@ -3076,25 +4038,45 @@ function createSquareExercisePanel() {
       managerRef?.setPointExerciseSequence([]);
     }
     updatePointPanelVisibility();
+    setChapter1ExerciseMode(squareExerciseMode);
+    updateSyncVisibility();
+    forceSquareEditControlsVisible();
     persistPointState();
     managerRef?.setPointExerciseEditMode(pointEditMode);
     if (!pointEditMode) {
       loadPointPresetIntoCurrentSequence(pointSelectedSlot, { force: true });
     }
     managerRef?.setPointExerciseSequentialMode?.(pointSequenceMode);
+    syncPointToggleButton();
   });
+
+  const syncInitialSquarePointState = () => {
+    pointEditMode = Boolean(pointEditMode);
+    pointToggleInput.checked = pointEditMode;
+    pointToggleWrap.classList.toggle('is-active', pointEditMode);
+    pointToggleButton.setAttribute('aria-pressed', String(pointEditMode));
+    pointToggleButton.classList.toggle('active', pointEditMode);
+    pointToggleButton.title = pointEditMode ? 'Bearbeiten ausblenden' : 'Bearbeiten einblenden';
+    pointSymmetryInput.checked = pointSymmetryMode;
+    pointPalindromInput.checked = pointPalindromMode;
+    pointSequenceModeInputs.forEach((radio) => {
+      radio.checked = radio.value === pointSequenceMode;
+    });
+    updatePointPanelVisibility();
+    syncPointToggleButton();
+  };
 
   pointSequenceModeInputs.forEach((radio) => {
     radio.checked = radio.value === pointSequenceMode;
   });
 
-  updatePointPanelVisibility();
-  renderPointList();
   panel.appendChild(pointSection);
 
   const divider = document.createElement('div');
   divider.className = 'figure-panel-divider';
   panel.appendChild(divider);
+
+  const pointEditSliderControls = [divider, null, null, null];
 
   const resolutionWrap = document.createElement('label');
   resolutionWrap.className = 'figure-size-wrap';
@@ -3353,6 +4335,13 @@ function createSquareExercisePanel() {
   bindUiGroupDescription([centerDistanceLabel, centerDistanceSlider, centerDistanceValue], 'Eingewöhnung', 'AbstandZumMittelpunkt');
   panel.appendChild(centerDistanceWrap);
 
+  pointEditSliderControls[1] = resolutionWrap;
+  pointEditSliderControls[2] = gridResolutionWrap;
+  pointEditSliderControls[3] = centerDistanceWrap;
+
+  syncInitialSquarePointState();
+  renderPointList();
+
   const alternatingVolumeWrap = document.createElement('label');
   alternatingVolumeWrap.className = 'figure-size-wrap';
   alternatingVolumeWrap.hidden = true;
@@ -3425,6 +4414,10 @@ function createSquareExercisePanel() {
   bindUiGroupDescription([activeTouchFadeLabel, activeTouchFadeCheckbox, activeTouchFadeValue], 'Eingewöhnung', 'KontaktFade');
   panel.appendChild(activeTouchFadeWrap);
 
+  pointEditSliderControls[1] = resolutionWrap;
+  pointEditSliderControls[2] = gridResolutionWrap;
+  pointEditSliderControls[3] = centerDistanceWrap;
+
   const sharedChapter1Controls = [
     resolutionWrap,
     gridResolutionWrap,
@@ -3434,26 +4427,37 @@ function createSquareExercisePanel() {
     shapeTitle,
     shapeGroup,
     handSection,
-    syncSection
+    syncSection,
+    squarePresetTitle,
+    squarePresetRow,
+    squarePresetActions
   ];
   const pointOnlyChapter1Controls = [pointSection];
 
   const setChapter1ExerciseMode = (mode) => {
-    const isPoints = mode === 'points';
-    const isSymmetric = mode === 'symmetric';
-    const isAlternating = mode === 'alternating';
-    const isBlank = mode === 'blank';
-    const isFreeMovement = mode === 'free-movement';
-    const isFreeMovementExercise = isFreeMovement || (uiState.activeChapter === 1 && Number.isInteger(uiState.activeLevel) && uiState.activeLevel === 2);
+    squareExerciseMode = mode;
+    const isPoints = squareExerciseMode === 'points';
+    const isSymmetric = squareExerciseMode === 'symmetric';
+    const isAlternating = squareExerciseMode === 'alternating';
+    const isBlank = squareExerciseMode === 'blank';
+    const isFreeMovement = squareExerciseMode === 'free-movement';
+    const activeEditMode = Boolean(pointEditMode);
     const hideUnusedSquareControls = isSymmetric || isPoints || isAlternating || isBlank || isFreeMovement;
+    const squareShowEditControls = !isPoints && !isSymmetric && !isAlternating && !isBlank && !isFreeMovement && activeEditMode;
+    const squareShowPresetControls = !isPoints && !isSymmetric && !isAlternating && !isBlank && !isFreeMovement;
+    const showSquareSliderControls = squareShowEditControls;
+    const showSquareHandControls = squareShowEditControls;
+    const showSquareSyncControls = squareShowEditControls;
     const sharedControlsForMode = isAlternating
       ? [resolutionWrap, gridResolutionWrap, alternatingScaleWrap, alternatingFmWrap, alternatingAxisSwapWrap, alternatingStartNoteWrap, alternatingVolumeWrap]
       : isBlank
         ? []
-        : [resolutionWrap, gridResolutionWrap, centerDistanceWrap, ...(isFreeMovementExercise ? [activeTouchFadeWrap] : [])];
+        : isFreeMovement
+          ? (activeEditMode ? [resolutionWrap, gridResolutionWrap, activeTouchFadeWrap] : [])
+          : (showSquareSliderControls ? [resolutionWrap, gridResolutionWrap, centerDistanceWrap] : []);
 
     if (centerDistanceWrap) {
-      const shouldShowCenterDistance = !isAlternating && !isBlank && !isFreeMovement;
+      const shouldShowCenterDistance = !isAlternating && !isBlank && !isFreeMovement && showSquareSliderControls;
       centerDistanceWrap.hidden = !shouldShowCenterDistance;
       centerDistanceWrap.style.display = shouldShowCenterDistance ? '' : 'none';
     }
@@ -3478,17 +4482,25 @@ function createSquareExercisePanel() {
       alternatingVolumeWrap.style.display = isAlternating ? '' : 'none';
     }
     if (activeTouchFadeWrap) {
-      const shouldShowFadeToggle = isFreeMovement && !isAlternating && !isBlank && !isSymmetric && !isPoints;
+      const shouldShowFadeToggle = isFreeMovement && activeEditMode;
       activeTouchFadeWrap.hidden = !shouldShowFadeToggle;
       activeTouchFadeWrap.style.display = shouldShowFadeToggle ? '' : 'none';
     }
     if (resolutionWrap) {
-      resolutionWrap.hidden = isBlank;
-      resolutionWrap.style.display = isBlank ? 'none' : '';
+      const shouldShowResolution = !isBlank && (
+        (isFreeMovement && activeEditMode) ||
+        (!isFreeMovement && showSquareSliderControls)
+      );
+      resolutionWrap.hidden = !shouldShowResolution;
+      resolutionWrap.style.display = shouldShowResolution ? '' : 'none';
     }
     if (gridResolutionWrap) {
-      gridResolutionWrap.hidden = isBlank;
-      gridResolutionWrap.style.display = isBlank ? 'none' : '';
+      const shouldShowGridResolution = !isBlank && (
+        (isFreeMovement && activeEditMode) ||
+        (!isFreeMovement && showSquareSliderControls)
+      );
+      gridResolutionWrap.hidden = !shouldShowGridResolution;
+      gridResolutionWrap.style.display = shouldShowGridResolution ? '' : 'none';
     }
 
     squareOnlyChapter1Controls.forEach((element) => {
@@ -3507,21 +4519,53 @@ function createSquareExercisePanel() {
       }
     });
 
+    if (isPoints) {
+      pointSection.hidden = false;
+      pointSection.style.display = '';
+      pointPresetTitle.hidden = false;
+      pointPresetTitle.style.display = '';
+      pointSlotRow.hidden = false;
+      pointSlotRow.style.display = '';
+      pointPresetInfo.hidden = false;
+      pointPresetInfo.style.display = '';
+      pointSlotLabels.forEach((radio) => {
+        radio.hidden = false;
+        radio.style.display = '';
+        if (radio.parentElement) {
+          radio.parentElement.hidden = false;
+          radio.parentElement.style.display = '';
+        }
+      });
+      pointEditSliderControls.forEach((element) => {
+        if (!element) {
+          return;
+        }
+        const showPointEditSliderRow = activeEditMode;
+        element.hidden = !showPointEditSliderRow;
+        element.style.display = showPointEditSliderRow ? '' : 'none';
+      });
+    } else {
+      pointSection.hidden = true;
+      pointSection.style.display = 'none';
+    }
+
     if (shapeTitle) {
-      shapeTitle.hidden = hideUnusedSquareControls;
-      shapeTitle.style.display = hideUnusedSquareControls ? 'none' : '';
+      shapeTitle.hidden = hideUnusedSquareControls || !squareShowEditControls;
+      shapeTitle.style.display = (hideUnusedSquareControls || !squareShowEditControls) ? 'none' : '';
     }
     if (shapeGroup) {
-      shapeGroup.hidden = hideUnusedSquareControls;
-      shapeGroup.style.display = hideUnusedSquareControls ? 'none' : 'flex';
+      shapeGroup.hidden = hideUnusedSquareControls || !squareShowEditControls;
+      shapeGroup.style.display = (hideUnusedSquareControls || !squareShowEditControls) ? 'none' : 'flex';
     }
     if (handSection) {
-      handSection.hidden = hideUnusedSquareControls;
-      handSection.style.display = hideUnusedSquareControls ? 'none' : '';
+      const shouldShowHandOptions = !hideUnusedSquareControls && squareShowEditControls;
+      handSection.hidden = !shouldShowHandOptions;
+      handSection.style.display = shouldShowHandOptions ? '' : 'none';
     }
     if (syncSection) {
-      syncSection.hidden = hideUnusedSquareControls;
-      syncSection.style.display = hideUnusedSquareControls ? 'none' : '';
+      const shouldShowSyncOptions = !hideUnusedSquareControls && squareShowEditControls;
+      syncSection.hidden = !shouldShowSyncOptions;
+      syncSection.style.display = shouldShowSyncOptions ? '' : 'none';
     }
 
     const handTitleNode = handSection?.querySelector('.figure-panel-section-title');
@@ -3530,20 +4574,48 @@ function createSquareExercisePanel() {
     const syncGroupNode = syncSection?.querySelector('.figure-mode-group');
 
     if (handTitleNode) {
-      handTitleNode.hidden = hideUnusedSquareControls;
-      handTitleNode.style.display = hideUnusedSquareControls ? 'none' : '';
+      handTitleNode.hidden = hideUnusedSquareControls || !squareShowEditControls;
+      handTitleNode.style.display = (hideUnusedSquareControls || !squareShowEditControls) ? 'none' : '';
     }
     if (handGroupNode) {
-      handGroupNode.hidden = hideUnusedSquareControls;
-      handGroupNode.style.display = hideUnusedSquareControls ? 'none' : 'flex';
+      handGroupNode.hidden = hideUnusedSquareControls || !squareShowEditControls;
+      handGroupNode.style.display = (hideUnusedSquareControls || !squareShowEditControls) ? 'none' : 'flex';
     }
     if (syncTitleNode) {
-      syncTitleNode.hidden = hideUnusedSquareControls;
-      syncTitleNode.style.display = hideUnusedSquareControls ? 'none' : '';
+      syncTitleNode.hidden = hideUnusedSquareControls || !squareShowEditControls;
+      syncTitleNode.style.display = (hideUnusedSquareControls || !squareShowEditControls) ? 'none' : '';
     }
     if (syncGroupNode) {
-      syncGroupNode.hidden = hideUnusedSquareControls;
-      syncGroupNode.style.display = hideUnusedSquareControls ? 'none' : 'flex';
+      syncGroupNode.hidden = hideUnusedSquareControls || !squareShowEditControls;
+      syncGroupNode.style.display = (hideUnusedSquareControls || !squareShowEditControls) ? 'none' : 'flex';
+    }
+
+    if (squarePresetTitle) {
+      const shouldShowSquarePresetTitle = !isPoints && !hideUnusedSquareControls && squareShowPresetControls;
+      squarePresetTitle.hidden = !shouldShowSquarePresetTitle;
+      squarePresetTitle.style.display = shouldShowSquarePresetTitle ? '' : 'none';
+    }
+    if (squarePresetRow) {
+      const shouldShowSquarePresetRow = !isPoints && !hideUnusedSquareControls && squareShowPresetControls;
+      squarePresetRow.hidden = !shouldShowSquarePresetRow;
+      squarePresetRow.style.display = shouldShowSquarePresetRow ? '' : 'none';
+    }
+    if (squarePresetInfo) {
+      const shouldShowSquarePresetInfo = !isPoints && !hideUnusedSquareControls && squareShowPresetControls;
+      squarePresetInfo.hidden = !shouldShowSquarePresetInfo;
+      squarePresetInfo.style.display = shouldShowSquarePresetInfo ? '' : 'none';
+    }
+    if (squarePalindromWrap) {
+      const shouldShowSquarePalindromToggle = !isPoints && !isSymmetric && !isAlternating && !isBlank && !isFreeMovement && activeEditMode && /^\d$/.test(String(selectedShape));
+      squarePalindromWrap.hidden = !shouldShowSquarePalindromToggle;
+      squarePalindromWrap.style.display = shouldShowSquarePalindromToggle ? '' : 'none';
+      squarePalindromInput.checked = selectedSquarePalindromMode;
+    }
+    syncSquarePresetSelectionUI();
+    if (squarePresetActions) {
+      const shouldShowSquarePresetActions = !hideUnusedSquareControls && squareShowEditControls;
+      squarePresetActions.hidden = !shouldShowSquarePresetActions;
+      squarePresetActions.style.display = shouldShowSquarePresetActions ? '' : 'none';
     }
 
     panel.querySelectorAll('input[name="square-exercise-shape"]').forEach((input) => {
@@ -3556,15 +4628,15 @@ function createSquareExercisePanel() {
     panel.querySelectorAll('input[name="square-exercise-hand"]').forEach((input) => {
       const option = input.closest('label');
       if (option) {
-        option.hidden = hideUnusedSquareControls;
-        option.style.display = hideUnusedSquareControls ? 'none' : 'flex';
+        option.hidden = hideUnusedSquareControls || !showSquareHandControls;
+        option.style.display = (hideUnusedSquareControls || !showSquareHandControls) ? 'none' : 'flex';
       }
     });
     panel.querySelectorAll('input[name="square-exercise-sync-mode"]').forEach((input) => {
       const option = input.closest('label');
       if (option) {
-        option.hidden = hideUnusedSquareControls;
-        option.style.display = hideUnusedSquareControls ? 'none' : 'flex';
+        option.hidden = hideUnusedSquareControls || !showSquareSyncControls;
+        option.style.display = (hideUnusedSquareControls || !showSquareSyncControls) ? 'none' : 'flex';
       }
     });
 
@@ -3576,6 +4648,8 @@ function createSquareExercisePanel() {
   };
 
   setChapter1ExerciseMode('square');
+  syncPointToggleButton();
+  updatePointPanelVisibility();
   attachPanelHoverHelp(panel);
 
   return {
@@ -3606,6 +4680,7 @@ function createSquareExercisePanel() {
       pointPalindromWrap.style.display = pointEditMode ? '' : 'none';
       updatePointPresetInfo();
       updatePointPanelVisibility();
+      syncPointToggleButton();
       pointSlotLabels.forEach((radio) => {
         radio.checked = Number(radio.value) === pointSelectedSlot;
       });
@@ -3613,6 +4688,29 @@ function createSquareExercisePanel() {
     },
     setExerciseMode: (mode) => {
       setChapter1ExerciseMode(mode);
+    },
+    initializeCurrentPointPreset: () => {
+      const currentSlot = pointSelectedSlot || normalizePointSlot(pointSavedSlots[1] ? 1 : pointSelectedSlot);
+      const selectedPreset = pointSavedSlots[currentSlot] || pointSavedSlots[1] || {};
+      const entry = normalizePointPresetEntry(selectedPreset);
+      const hasPresetSequence = Array.isArray(entry.sequence) && entry.sequence.length > 0;
+      if (!pointEditMode && hasPresetSequence) {
+        loadPointPresetIntoCurrentSequence(currentSlot, { force: true });
+        return true;
+      }
+      if (!pointEditMode && currentSlot && (!hasPresetSequence || pointSequence.length === 0)) {
+        pointSelectedSlot = normalizePointSlot(currentSlot);
+        pointSequence = restoreAbsolutePointSequence(entry.sequence);
+        if (pointSequence.length > 0) {
+          loadPointPresetIntoCurrentSequence(pointSelectedSlot, { force: true });
+          return true;
+        }
+      }
+      if (!pointEditMode && pointSelectedSlot) {
+        loadPointPresetIntoCurrentSequence(pointSelectedSlot, { force: true });
+        return true;
+      }
+      return false;
     },
     setTitle: (nextTitle) => {
       const normalizedTitle = typeof nextTitle === 'string' ? nextTitle.trim() : '';
@@ -3667,7 +4765,11 @@ function createSquareExercisePanel() {
         selectedActiveTouchFadeEnabled = activeTouchFadeEnabled;
         selectedAlternatingFrequencyModulation = activeAlternatingFrequencyModulation;
         selectedAlternatingAxisSwap = activeAlternatingAxisSwap;
-        pointEditMode = Boolean(managerRef.pointExerciseEditMode || pointEditMode);
+        if (typeof storedPointPanelState.pointEditMode === 'boolean') {
+          pointEditMode = Boolean(storedPointPanelState.pointEditMode);
+        } else if (typeof managerRef.pointExerciseEditMode === 'boolean') {
+          pointEditMode = Boolean(managerRef.pointExerciseEditMode);
+        }
         pointSymmetryMode = typeof managerRef.pointExerciseSymmetryMode === 'boolean'
           ? managerRef.pointExerciseSymmetryMode
           : pointSymmetryMode;
@@ -3686,7 +4788,9 @@ function createSquareExercisePanel() {
         if (['left', 'right', 'auto'].includes(pointSelectedHand)) {
           managerRef.setPointExerciseHand(pointSelectedHand);
         }
-        if (typeof managerRef.pointExerciseEditMode === 'boolean') {
+        if (typeof storedPointPanelState.pointEditMode === 'boolean') {
+          pointEditMode = Boolean(storedPointPanelState.pointEditMode);
+        } else if (typeof managerRef.pointExerciseEditMode === 'boolean') {
           pointEditMode = Boolean(managerRef.pointExerciseEditMode);
         }
         if (typeof managerRef.pointExerciseSequentialMode === 'boolean' || typeof managerRef.pointExerciseSequentialMode === 'string') {
@@ -3763,6 +4867,7 @@ function createSquareExercisePanel() {
         managerRef.setAlternatingExerciseFrequencyModulation?.(selectedAlternatingFrequencyModulation);
         managerRef.setAlternatingExerciseAxisSwap?.(selectedAlternatingAxisSwap);
         managerRef.setPointExerciseSavedSlots(pointSavedSlots);
+        pointEditMode = Boolean(pointEditMode);
         managerRef.setPointExerciseEditMode(pointEditMode);
         managerRef.setPointExerciseSelectedSlot(pointSelectedSlot);
         managerRef.setPointExerciseSequentialMode(pointSequenceMode);
@@ -3776,6 +4881,11 @@ function createSquareExercisePanel() {
             managerRef.setPointExerciseSequence(pointSequence);
           }
         }
+        syncPointToggleButton();
+        pointToggleInput.checked = pointEditMode;
+        pointToggleButton.setAttribute('aria-pressed', String(pointEditMode));
+        pointToggleButton.classList.toggle('active', pointEditMode);
+        pointToggleButton.title = pointEditMode ? 'Bearbeiten ausblenden' : 'Bearbeiten einblenden';
       }
     }
   };
@@ -3787,6 +4897,7 @@ function createHandIndependencePanel() {
   const storageKey = 'motionai.hand-independence-panel-settings';
   const presetKey = 'motionai.hand-independence-presets';
   let managerRef = null;
+  let motionMetricsInterval = null;
   let settings = {};
   let presets = {};
   try {
@@ -3794,6 +4905,10 @@ function createHandIndependencePanel() {
     settings = storedSettings && typeof storedSettings === 'object' ? storedSettings : {};
   } catch (error) { settings = {}; }
   settings.sharedX = settings.sharedX ?? 0;
+  settings.motionDistanceVisible = settings.motionDistanceVisible === true;
+  settings.motionDistanceStrictness = Number.isFinite(Number(settings.motionDistanceStrictness))
+    ? Math.min(100, Math.max(0, Number(settings.motionDistanceStrictness)))
+    : 100;
   if (typeof settings.countTimesVisible !== 'boolean' && typeof settings.countVisible === 'boolean') {
     settings.countTimesVisible = settings.countVisible;
   }
@@ -3808,9 +4923,174 @@ function createHandIndependencePanel() {
   const title = document.createElement('div');
   title.className = 'figure-side-panel-title';
   title.textContent = 'Handunabhängigkeit';
-  panel.appendChild(title);
+  const titleRow = document.createElement('div');
+  titleRow.className = 'figure-side-panel-header';
+  const levelSettingsVisibility = createLevelSettingsVisibilityController(panel, {
+    chapterId: 5,
+    levelResolver: () => uiState.activeLevel
+  });
+  titleRow.appendChild(title);
+  titleRow.appendChild(levelSettingsVisibility.button);
+  panel.appendChild(titleRow);
+  levelSettingsVisibility.sync();
+
+  const presetPanel = document.createElement('div');
+  presetPanel.className = 'hand-independence-preset-panel';
+  const presetHeader = document.createElement('div');
+  presetHeader.className = 'hand-independence-preset-header';
+  const presetTitle = document.createElement('div');
+  presetTitle.className = 'figure-panel-section-title';
+  presetTitle.textContent = 'Presets';
+  const presetSlots = document.createElement('div');
+  presetSlots.className = 'figure-preset-slots dynamic-figure-preset-slots';
+  const presetActions = document.createElement('div');
+  presetActions.className = 'dynamic-figure-preset-actions';
+  const presetSaveButton = document.createElement('button');
+  presetSaveButton.type = 'button';
+  presetSaveButton.className = 'dynamic-figure-preset-action';
+  presetSaveButton.textContent = 'Speichern';
+  presetSaveButton.title = 'Aktuelle Einstellungen im Preset-Slot für diese Übung speichern';
+  const presetResetButton = document.createElement('button');
+  presetResetButton.type = 'button';
+  presetResetButton.className = 'dynamic-figure-preset-action';
+  presetResetButton.textContent = 'Zurücksetzen';
+  presetResetButton.title = 'Die Presets für diese Übung auf Werkseinstellungen zurücksetzen';
+  presetHeader.appendChild(presetTitle);
+  presetActions.append(presetSaveButton, presetResetButton);
+  presetPanel.append(presetHeader, presetSlots, presetActions);
+
+  panel.append(presetPanel);
+
+  const motionDistanceDivider = document.createElement('div');
+  motionDistanceDivider.className = 'figure-panel-divider';
+  const motionDistanceToggle = document.createElement('label');
+  motionDistanceToggle.className = 'figure-dynamics-toggle';
+  const motionDistanceInput = document.createElement('input');
+  motionDistanceInput.type = 'checkbox';
+  motionDistanceInput.checked = settings.motionDistanceVisible;
+  motionDistanceToggle.append(motionDistanceInput, document.createTextNode('Distanzdiagramm'));
+  const motionDistanceStrictnessWrap = document.createElement('label');
+  motionDistanceStrictnessWrap.className = 'figure-size-wrap';
+  const motionDistanceStrictnessLabel = document.createElement('div');
+  motionDistanceStrictnessLabel.className = 'figure-size-label';
+  motionDistanceStrictnessLabel.textContent = 'Strenge';
+  const motionDistanceStrictnessSlider = document.createElement('input');
+  motionDistanceStrictnessSlider.type = 'range';
+  motionDistanceStrictnessSlider.min = '0';
+  motionDistanceStrictnessSlider.max = '100';
+  motionDistanceStrictnessSlider.step = '1';
+  motionDistanceStrictnessSlider.value = String(settings.motionDistanceStrictness);
+  const motionDistanceStrictnessValue = document.createElement('div');
+  motionDistanceStrictnessValue.className = 'figure-size-value';
+  motionDistanceStrictnessValue.textContent = `${settings.motionDistanceStrictness}%`;
+  motionDistanceStrictnessSlider.addEventListener('input', () => {
+    const next = Number(motionDistanceStrictnessSlider.value);
+    settings.motionDistanceStrictness = next;
+    motionDistanceStrictnessValue.textContent = `${next}%`;
+    managerRef?.setMotionDistanceStrictness(next);
+    persist();
+  });
+  motionDistanceStrictnessWrap.append(
+    motionDistanceStrictnessLabel,
+    motionDistanceStrictnessSlider,
+    motionDistanceStrictnessValue
+  );
+  const motionMetricsPanel = document.createElement('div');
+  motionMetricsPanel.className = 'motion-distance-metrics';
+  const motionMetricsTitle = document.createElement('div');
+  motionMetricsTitle.className = 'figure-panel-section-title';
+  motionMetricsTitle.textContent = 'Bewertung';
+  motionMetricsPanel.appendChild(motionMetricsTitle);
+  const motionMetricRows = {};
+  const metricLabels = { score: 'Gesamtscore', pathScore: 'Bahnabstand', timingScore: 'Timing', directionScore: 'Richtung' };
+  Object.entries(metricLabels).forEach(([key, label]) => {
+    const row = document.createElement('div');
+    row.className = 'motion-distance-metric-row';
+    const labelNode = document.createElement('span');
+    labelNode.textContent = label;
+    const valueNode = document.createElement('span');
+    valueNode.textContent = 'L - | R -';
+    row.append(labelNode, valueNode);
+    motionMetricsPanel.appendChild(row);
+    motionMetricRows[key] = valueNode;
+  });
+  const updateMotionMetrics = () => {
+    const summary = managerRef?.getMotionDistanceSummary?.();
+    if (!summary) return;
+    Object.keys(motionMetricRows).forEach((key) => {
+      const format = (hand) => {
+        const current = summary[hand]?.current?.[key];
+        const average = summary[hand]?.average?.[key];
+        return `${current == null ? '-' : current.toFixed(0)} / ${average == null ? '-' : average.toFixed(0)}`;
+      };
+      motionMetricRows[key].textContent = `L ${format('left')} | R ${format('right')}`;
+    });
+  };
+  motionDistanceInput.addEventListener('change', () => {
+    settings.motionDistanceVisible = motionDistanceInput.checked;
+    managerRef?.setMotionDistanceVisible(motionDistanceInput.checked);
+    persist();
+  });
+  panel.append(motionDistanceDivider, motionDistanceToggle, motionDistanceStrictnessWrap, motionMetricsPanel);
 
   let selectedPresetSlot = 0;
+
+  const getPresetBucketForLevel = (figureLevel = settings.figureLevel) => {
+    const safeLevel = Number.isInteger(Number(figureLevel)) ? Number(figureLevel) : 0;
+    const value = presets[String(safeLevel)];
+    return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  };
+
+  function renderPresetSlots() {
+    const figureLevel = Number.isInteger(Number(settings.figureLevel)) ? Number(settings.figureLevel) : 0;
+    const presetBucket = getPresetBucketForLevel(figureLevel);
+    const activeSlot = Number.isInteger(Number(presetBucket.selectedSlot))
+      ? Number(presetBucket.selectedSlot)
+      : selectedPresetSlot;
+    selectedPresetSlot = Math.max(0, Math.min(3, activeSlot));
+    presetSlots.innerHTML = '';
+    for (let slot = 0; slot < 4; slot += 1) {
+      const option = document.createElement('label');
+      option.className = 'dynamic-figure-preset-option';
+      const input = document.createElement('input');
+      input.type = 'radio';
+      input.name = 'hand-independence-preset';
+      input.value = String(slot);
+      input.checked = slot === selectedPresetSlot;
+      input.addEventListener('change', () => {
+        if (!input.checked) return;
+        selectedPresetSlot = slot;
+        const bucket = getPresetBucketForLevel(settings.figureLevel);
+        bucket.selectedSlot = slot;
+        presets[String(settings.figureLevel)] = bucket;
+        persist();
+        const nextPreset = bucket[String(slot)];
+        if (nextPreset && typeof nextPreset === 'object') {
+          apply(nextPreset);
+        }
+      });
+      const caption = document.createElement('span');
+      caption.textContent = String(slot + 1);
+      option.append(input, caption);
+      presetSlots.appendChild(option);
+    }
+  }
+
+  presetSaveButton.addEventListener('click', () => {
+    const savedSlot = savePresetFromPrompt();
+    if (Number.isInteger(savedSlot)) {
+      selectedPresetSlot = savedSlot;
+      renderPresetSlots();
+    }
+  });
+
+  presetResetButton.addEventListener('click', () => {
+    const figureLevel = Number.isInteger(Number(settings.figureLevel)) ? Number(settings.figureLevel) : 0;
+    presets[String(figureLevel)] = {};
+    selectedPresetSlot = 0;
+    localStorage.setItem(presetKey, JSON.stringify(presets));
+    renderPresetSlots();
+  });
 
   const createSection = (label) => {
     const heading = document.createElement('div');
@@ -3844,6 +5124,38 @@ function createHandIndependencePanel() {
     });
     wrap.append(caption, input, value); target.appendChild(wrap); controls[key] = input; controlWraps[key] = wrap;
     return group;
+  };
+
+  const capturePresetSnapshot = () => {
+    const activeVariant = variantGroup.querySelector('input:checked')?.value || settings.variant || 'hard';
+    const activeVariation = variationGroup.querySelector('input:checked')?.value || String(settings.figureVariation ?? 1);
+    const presetSnapshot = {
+      figureLevel: Number.isInteger(Number(settings.figureLevel)) ? Number(settings.figureLevel) : 0,
+      figureVariation: Number(activeVariation) === 2 ? 2 : 1,
+      variant: activeVariant,
+      reverse: Boolean(controls.reverse?.checked ?? settings.reverse ?? false),
+      dynamicsVisible: Boolean(dynamicsInput.checked),
+      countTimesVisible: Boolean(countInput.checked),
+      motionDistanceVisible: Boolean(motionDistanceInput.checked),
+      motionDistanceStrictness: Number(motionDistanceStrictnessSlider.value ?? settings.motionDistanceStrictness ?? 100),
+      tempoRatio: ratioSelect.value || settings.tempoRatio || '1:1',
+      shape: select.value || settings.shape || 'line',
+      scale: Number(controls.scale?.value ?? settings.scale ?? managerRef?.handIndependenceFigureScale ?? 1 / 3),
+      strokeWidth: Number(controls.strokeWidth?.value ?? settings.strokeWidth ?? managerRef?.handIndependenceFigureStrokeWidth ?? 0.4),
+      sharedX: Number(controls.sharedX?.value ?? settings.sharedX ?? managerRef?.handIndependenceFigureX ?? 0),
+      sharedY: Number(controls.sharedY?.value ?? settings.sharedY ?? managerRef?.handIndependenceFigureY ?? 0.5),
+      sharedTempoBpm: Number(controls.sharedTempoBpm?.value ?? settings.sharedTempoBpm ?? managerRef?.handIndependenceSharedTempoBpm ?? 60),
+      figureHardLinearity: Number(controls.figureHardLinearity?.value ?? settings.figureHardLinearity ?? managerRef?.handIndependenceFigureHardLinearity ?? 10),
+      figureSoftTransitionPercent: Number(controls.figureSoftTransitionPercent?.value ?? settings.figureSoftTransitionPercent ?? managerRef?.handIndependenceFigureSoftTransitionPercent ?? 0),
+      length: Number(controls.length?.value ?? settings.length ?? managerRef?.handIndependenceShapeLength ?? 12),
+      width: Number(controls.width?.value ?? settings.width ?? managerRef?.handIndependenceShapeWidth ?? 8),
+      height: Number(controls.height?.value ?? settings.height ?? managerRef?.handIndependenceShapeHeight ?? 8),
+      rotation: Number(controls.rotation?.value ?? settings.rotation ?? managerRef?.handIndependenceShapeRotation ?? 0),
+      cornerHeights: Array.from({ length: 8 }, (_, index) => Number(managerRef?.handIndependenceFigureCornerHeights?.[index] ?? settings[`corner${index}`] ?? 0))
+    };
+
+    Object.assign(settings, presetSnapshot);
+    return presetSnapshot;
   };
   const addToggle = (key, label) => {
     const wrap = document.createElement('label'); wrap.className = 'figure-dynamics-toggle';
@@ -3898,25 +5210,41 @@ function createHandIndependencePanel() {
   panel.appendChild(ratioSelect);
   controls.tempoRatio = ratioSelect;
   addDivider();
-  createSection('Taktgebung');
-  const figureSelect = document.createElement('select');
-  figureSelect.className = 'hand-independence-figure-select';
-  ['Einserfigur', 'Zweierfigur', 'Dreierfigur', 'Viererfigur', 'Vierviertel', 'Dreiviertel', 'Zweiviertel'].forEach((figureName, index) => {
-    const option = document.createElement('option');
-    option.value = String(index);
-    option.textContent = figureName;
-    figureSelect.appendChild(option);
+  const taktgebungDivider = document.createElement('div');
+  taktgebungDivider.className = 'figure-panel-divider';
+  panel.appendChild(taktgebungDivider);
+
+  const taktgebungTitle = document.createElement('div');
+  taktgebungTitle.className = 'figure-panel-section-title hand-independence-taktgebung-title';
+  taktgebungTitle.textContent = 'Taktgebung';
+  panel.appendChild(taktgebungTitle);
+
+  const variationGroup = document.createElement('div');
+  variationGroup.className = 'figure-mode-group hand-independence-figure-variation-group';
+  const variationInputs = {};
+  ['1', '2'].forEach((variation) => {
+    const label = document.createElement('label');
+    label.className = 'figure-mode-option';
+    const input = document.createElement('input');
+    input.type = 'radio';
+    input.name = 'hand-independence-figure-variation';
+    input.value = variation;
+    input.checked = String(settings.figureVariation ?? 1) === variation;
+    variationInputs[variation] = input;
+    input.addEventListener('change', () => {
+      if (!input.checked) return;
+      settings.figureVariation = Number(input.value);
+      managerRef?.setHandIndependenceFigureVariation(Number(input.value));
+      persist();
+    });
+    label.append(input, document.createTextNode(`Variation ${variation}`));
+    variationGroup.appendChild(label);
   });
-  figureSelect.value = String(Number(settings.figureLevel ?? 0));
-  figureSelect.addEventListener('change', () => {
-    settings.figureLevel = Number(figureSelect.value);
-    managerRef?.setHandIndependenceFigureLevel(settings.figureLevel);
-    rebuildCornerControls(settings.figureLevel);
-    persist();
-  });
-  panel.appendChild(figureSelect);
-  controls.figureLevel = figureSelect;
-  bindUiGroupDescription([figureSelect], 'Handunabhängigkeit', 'Taktgebung');
+  panel.appendChild(variationGroup);
+  const updateFigureVariationVisibility = () => {
+    const activeLevel = Number.isInteger(Number(settings.figureLevel)) ? Number(settings.figureLevel) : 0;
+    variationGroup.classList.toggle('hand-independence-figure-variation-hidden', activeLevel === 0);
+  };
   const variantGroup = document.createElement('div'); variantGroup.className = 'figure-mode-group';
   const variantInputs = {};
   ['soft', 'hard'].forEach((variant) => {
@@ -3928,6 +5256,7 @@ function createHandIndependencePanel() {
     label.append(input, document.createTextNode(variant === 'soft' ? 'Weich' : 'Hart')); variantGroup.appendChild(label);
   });
   panel.appendChild(variantGroup);
+  bindUiGroupDescription([...variationGroup.querySelectorAll('label, input')], 'Handunabhängigkeit', 'Variation');
   bindUiGroupDescription([...variantGroup.querySelectorAll('label, input')], 'Handunabhängigkeit', 'weichHart');
   const countToggle = document.createElement('label');
   countToggle.className = 'figure-dynamics-toggle';
@@ -4021,7 +5350,11 @@ function createHandIndependencePanel() {
   bindUiGroupDescription([title], 'Handunabhängigkeit', 'Taktgebung');
   bindUiGroupDescription([tempoRatioTitle], 'Handunabhängigkeit', 'Geschwindigkeitsverhältnis');
   bindUiGroupDescription([ratioSelect], 'Handunabhängigkeit', 'Geschwindigkeitsverhältnis');
+  bindUiDescription(motionDistanceToggle, 'Handunabhängigkeit', 'Distanzdiagramm');
+  bindUiDescription(motionDistanceStrictnessWrap, 'Handunabhängigkeit', 'DistanzStrenge');
+  bindUiDescription(motionMetricsPanel, 'Handunabhängigkeit', 'Bewertungsmetriken');
   attachPanelHoverHelp(panel);
+  levelSettingsVisibility.sync();
 
   function persist() { try { localStorage.setItem(storageKey, JSON.stringify(settings)); } catch (error) { return; } }
   function apply(next) {
@@ -4035,9 +5368,16 @@ function createHandIndependencePanel() {
       input.checked = variant === selectedVariant;
     });
     if (Number.isInteger(Number(safeNext.figureLevel))) {
-      const figureLevel = Math.max(0, Math.min(6, Number(safeNext.figureLevel)));
+      const figureLevel = Math.max(0, Math.min(3, Number(safeNext.figureLevel)));
       settings.figureLevel = figureLevel;
-      figureSelect.value = String(figureLevel);
+      selectedPresetSlot = Number(getPresetBucketForLevel(settings.figureLevel).selectedSlot ?? 0);
+      renderPresetSlots();
+    }
+    if (Number.isInteger(Number(safeNext.figureVariation))) {
+      settings.figureVariation = Number(safeNext.figureVariation) === 2 ? 2 : 1;
+      Object.entries(variationInputs).forEach(([variation, input]) => {
+        input.checked = Number(variation) === settings.figureVariation;
+      });
     }
     if (typeof safeNext.countTimesVisible === 'boolean') {
       settings.countTimesVisible = safeNext.countTimesVisible;
@@ -4059,49 +5399,83 @@ function createHandIndependencePanel() {
       countInput.checked = Boolean(settings.countTimesVisible);
     }
     if (safeNext.variant) managerRef?.setHandIndependenceVariant(safeNext.variant);
+    if (Number.isInteger(Number(safeNext.figureVariation))) {
+      managerRef?.setHandIndependenceFigureVariation(Number(safeNext.figureVariation));
+    }
     if (Number.isInteger(Number(safeNext.figureLevel))) {
       managerRef?.setHandIndependenceFigureLevel(Number(safeNext.figureLevel));
     }
     if (typeof safeNext.reverse === 'boolean') managerRef?.setHandIndependenceReverse(safeNext.reverse);
     if (typeof safeNext.dynamicsVisible === 'boolean') managerRef?.setHandIndependenceDynamicsVisible(safeNext.dynamicsVisible);
     if (typeof safeNext.countTimesVisible === 'boolean') managerRef?.setHandIndependenceCountTimesVisible(safeNext.countTimesVisible);
+    if (typeof safeNext.motionDistanceVisible === 'boolean') managerRef?.setMotionDistanceVisible(safeNext.motionDistanceVisible);
+    if (Number.isFinite(Number(safeNext.motionDistanceStrictness))) {
+      settings.motionDistanceStrictness = Math.min(100, Math.max(0, Number(safeNext.motionDistanceStrictness)));
+      motionDistanceStrictnessSlider.value = String(settings.motionDistanceStrictness);
+      motionDistanceStrictnessValue.textContent = `${settings.motionDistanceStrictness}%`;
+      managerRef?.setMotionDistanceStrictness(settings.motionDistanceStrictness);
+    }
     if (safeNext.tempoRatio) managerRef?.setHandIndependenceTempoRatio(safeNext.tempoRatio);
+    if (Array.isArray(safeNext.cornerHeights)) {
+      safeNext.cornerHeights.forEach((value, index) => {
+        const nextValue = Number(value);
+        if (Number.isFinite(nextValue)) {
+          managerRef?.setHandIndependenceFigureCornerHeight(index, nextValue);
+          settings[`corner${index}`] = nextValue;
+          const control = controls[`corner${index}`];
+          if (control) {
+            control.value = String(nextValue);
+          }
+        }
+      });
+    }
     Object.entries(safeNext).forEach(([key, value]) => {
-      if (key !== 'variant' && key !== 'reverse') {
+      if (key !== 'variant' && key !== 'reverse' && key !== 'cornerHeights') {
         managerRef?.setHandIndependenceFigureParameter(key, value);
         managerRef?.setHandIndependenceShapeParameter(key, value);
       }
     });
     updateShapeControlVisibility();
     updateFigureMotionControlVisibility();
+    updateFigureVariationVisibility();
     rebuildCornerControls(settings.figureLevel);
     persist();
   }
   function savePresetFromPrompt() {
-    const requestedSlot = window.prompt('In welchen Preset-Slot sollen die aktuellen Einstellungen gespeichert werden? (1-8)');
+    const requestedSlot = window.prompt('In welchen Preset-Slot sollen die aktuellen Einstellungen gespeichert werden? (1-4)', String(selectedPresetSlot + 1));
     const slot = Number(requestedSlot) - 1;
-    if (!Number.isInteger(slot) || slot < 0 || slot >= 8) {
+    if (!Number.isInteger(slot) || slot < 0 || slot >= 4) {
       return null;
     }
-    presets[String(slot)] = { ...settings };
+    const figureLevel = Number.isInteger(Number(settings.figureLevel)) ? Number(settings.figureLevel) : 0;
+    const presetBucket = getPresetBucketForLevel(figureLevel);
+    const presetSnapshot = capturePresetSnapshot();
+    presetBucket[String(slot)] = presetSnapshot;
+    presetBucket.selectedSlot = slot;
+    presets[String(figureLevel)] = presetBucket;
     selectedPresetSlot = slot;
     localStorage.setItem(presetKey, JSON.stringify(presets));
+    renderPresetSlots();
     return slot;
   }
   function resetPresets() {
-    presets = {};
-    localStorage.setItem(presetKey, '{}');
+    const figureLevel = Number.isInteger(Number(settings.figureLevel)) ? Number(settings.figureLevel) : 0;
+    presets[String(figureLevel)] = {};
+    selectedPresetSlot = 0;
+    localStorage.setItem(presetKey, JSON.stringify(presets));
+    renderPresetSlots();
   }
   function rebuildCornerControls(figureLevelOverride = settings.figureLevel) {
+    updateFigureVariationVisibility();
     cornerPanel.replaceChildren();
     Object.keys(controls)
       .filter((key) => key.startsWith('corner'))
       .forEach((key) => delete controls[key]);
 
     const figureLevel = Number.isInteger(Number(figureLevelOverride))
-      ? Math.max(0, Math.min(6, Number(figureLevelOverride)))
+      ? Math.max(0, Math.min(3, Number(figureLevelOverride)))
       : 0;
-    const handIndependenceBeatCounts = [1, 2, 3, 4, 4, 3, 2];
+    const handIndependenceBeatCounts = [1, 2, 3, 4];
     const beatCount = handIndependenceBeatCounts[figureLevel] || 1;
     const count = beatCount * 2;
     for (let displayIndex = 0; displayIndex < count; displayIndex += 1) {
@@ -4120,7 +5494,9 @@ function createHandIndependencePanel() {
       );
       const input = controls[`corner${pointIndex}`];
       input.addEventListener('input', () => {
-        managerRef?.setHandIndependenceFigureCornerHeight(pointIndex, Number(input.value));
+        const nextValue = Number(input.value);
+        settings[`corner${pointIndex}`] = nextValue;
+        managerRef?.setHandIndependenceFigureCornerHeight(pointIndex, nextValue);
       });
     }
   }
@@ -4131,14 +5507,31 @@ function createHandIndependencePanel() {
     setLevelManager: (manager) => {
       managerRef = manager || null;
       apply(settings);
+      renderPresetSlots();
       syncCountTimesState();
+      managerRef?.setMotionDistanceVisible(motionDistanceInput.checked);
+      managerRef?.setMotionDistanceStrictness(Number(motionDistanceStrictnessSlider.value));
+      updateMotionMetrics();
+      if (!motionMetricsInterval) motionMetricsInterval = window.setInterval(updateMotionMetrics, 100);
     },
-    setLevel: rebuildCornerControls,
-    applyPreset: (slot) => {
-      selectedPresetSlot = Math.max(0, Math.min(7, Number(slot) || 0));
-      if (presets[String(selectedPresetSlot)]) {
-        apply(presets[String(selectedPresetSlot)]);
+    setLevel: () => {
+      updateFigureVariationVisibility();
+      rebuildCornerControls();
+    },
+    applyPreset: (level) => {
+      const figureLevel = Number.isInteger(Number(level)) ? Math.max(0, Math.min(3, Number(level))) : Number(settings.figureLevel ?? 0);
+      const presetBucket = getPresetBucketForLevel(figureLevel);
+      const activeSlot = Number.isInteger(Number(presetBucket.selectedSlot)) ? Number(presetBucket.selectedSlot) : 0;
+      selectedPresetSlot = Math.max(0, Math.min(3, activeSlot));
+      settings.figureLevel = figureLevel;
+      managerRef?.setHandIndependenceFigureLevel(figureLevel);
+      const preset = presetBucket[String(selectedPresetSlot)];
+      if (preset && typeof preset === 'object') {
+        apply(preset);
+      } else {
+        apply({ figureLevel });
       }
+      renderPresetSlots();
     },
     savePresetFromPrompt,
     resetPresets
@@ -4287,15 +5680,15 @@ function createTrackingControls(trackingController) {
   function getCreatedAtDisplayText() {
     const raw = getDefaultCreatedAtValue();
     if (!raw) {
-      return 'Erstellungsdatum: –';
+      return 'Erstellungsdatum der Werkeinstellungen: –';
     }
 
     const date = new Date(raw);
     if (Number.isNaN(date.getTime())) {
-      return `Erstellungsdatum: ${raw}`;
+      return `Erstellungsdatum der Werkeinstellungen: ${raw}`;
     }
 
-    return `Erstellungsdatum: ${date.toLocaleDateString('de-DE', {
+    return `Erstellungsdatum der Werkeinstellungen: ${date.toLocaleDateString('de-DE', {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric'
@@ -4425,6 +5818,11 @@ function createTrackingControls(trackingController) {
   calibrationStrictnessValue.className = 'tracking-controls-inline-value';
   calibrationStrictnessValue.textContent = '60%';
 
+  const calibrationStrictnessRow = document.createElement('div');
+  calibrationStrictnessRow.className = 'tracking-controls-row';
+  calibrationStrictnessRow.appendChild(calibrationStrictnessLabel);
+  calibrationStrictnessRow.appendChild(calibrationStrictnessValue);
+
   const stabilizationButton = document.createElement('button');
   stabilizationButton.type = 'button';
   stabilizationButton.className = 'tracking-controls-button';
@@ -4545,7 +5943,11 @@ function createTrackingControls(trackingController) {
     videoSofteningButton.textContent = videoSofteningEnabled ? 'Weichzeichnen: ON' : 'Weichzeichnen: OFF';
     videoSofteningButton.setAttribute('aria-pressed', String(videoSofteningEnabled));
     if (videoCanvas) {
-      videoCanvas.style.filter = 'none';
+      const filterValue = videoSofteningEnabled
+        ? `blur(${videoSofteningBlurPx}px) brightness(${videoSofteningBrightness})`
+        : 'none';
+      videoCanvas.style.filter = filterValue;
+      videoCanvas.style.webkitFilter = filterValue;
       videoCanvas.style.transition = 'filter 180ms ease';
     }
     setVideoSofteningEnabled(videoSofteningEnabled);
@@ -4601,6 +6003,13 @@ function createTrackingControls(trackingController) {
     blurSlider.disabled = !videoSofteningEnabled;
     brightnessSlider.disabled = !videoSofteningEnabled;
     setVideoSofteningStyle(videoSofteningBlurPx, videoSofteningBrightness);
+    if (videoCanvas) {
+      const filterValue = videoSofteningEnabled
+        ? `blur(${videoSofteningBlurPx}px) brightness(${videoSofteningBrightness})`
+        : 'none';
+      videoCanvas.style.filter = filterValue;
+      videoCanvas.style.webkitFilter = filterValue;
+    }
   }
 
   const modeLabel = document.createElement('div');
@@ -4651,9 +6060,88 @@ function createTrackingControls(trackingController) {
     return `${baseName} - ${formattedDate}`;
   }
 
+  function isFallbackCalibrationSet(entry) {
+    if (!entry || typeof entry !== 'object') {
+      return false;
+    }
+
+    const rawName = typeof entry.name === 'string' ? entry.name.trim() : '';
+    if (rawName === 'default-fallback') {
+      return true;
+    }
+
+    return Number(entry.timestamp) === 0 && !rawName;
+  }
+
+  function isManualCalibrationSet(entry) {
+    if (!entry || typeof entry !== 'object') {
+      return false;
+    }
+
+    const rawName = typeof entry.name === 'string' ? entry.name.trim() : '';
+    if (!rawName || rawName === 'default-fallback') {
+      return false;
+    }
+
+    return rawName === 'callibration_date' || rawName.toLowerCase().startsWith('callibration_date -');
+  }
+
+  function resolvePreferredCalibrationIndex(poseSets = [], explicitIndex = null) {
+    if (!Array.isArray(poseSets) || poseSets.length === 0) {
+      return null;
+    }
+
+    const visibleSets = poseSets.filter((entry) => !isFallbackCalibrationSet(entry));
+    const effectivePool = visibleSets.length > 0
+      ? visibleSets.map((entry, index) => ({ entry, index: poseSets.indexOf(entry) }))
+      : poseSets.map((entry, index) => ({ entry, index }));
+
+    const manualMatches = effectivePool.filter(({ entry }) => isManualCalibrationSet(entry));
+    const candidatePool = manualMatches.length > 0 ? manualMatches : effectivePool;
+
+    if (Number.isInteger(explicitIndex) && explicitIndex >= 0 && explicitIndex < poseSets.length) {
+      const explicitEntry = poseSets[explicitIndex];
+      if (isFallbackCalibrationSet(explicitEntry)) {
+        if (visibleSets.length > 0) {
+          return null;
+        }
+      } else if (manualMatches.length === 0 || isManualCalibrationSet(explicitEntry)) {
+        return explicitIndex;
+      }
+    }
+
+    let best = candidatePool[0];
+    candidatePool.slice(1).forEach((candidate) => {
+      const currentTimestamp = Number(candidate.entry?.timestamp) || 0;
+      const bestTimestamp = Number(best.entry?.timestamp) || 0;
+      if (currentTimestamp > bestTimestamp) {
+        best = candidate;
+      }
+    });
+
+    return best ? best.index : null;
+  }
+
   function setCalibrationPoseSets(poseSets = []) {
     const currentValue = calibrationSetSelect.value;
     calibrationSetSelect.innerHTML = '';
+
+    const visiblePoseSets = Array.isArray(poseSets)
+      ? poseSets.filter((entry) => !isFallbackCalibrationSet(entry))
+      : [];
+
+    if (!Array.isArray(poseSets) || poseSets.length === 0 || (visiblePoseSets.length === 0 && poseSets.some((entry) => isFallbackCalibrationSet(entry)))) {
+      const option = document.createElement('option');
+      option.value = '';
+      option.textContent = 'No saved calibration yet';
+      calibrationSetSelect.appendChild(option);
+      calibrationSetSelect.disabled = true;
+      selectedCalibrationSetIndex = null;
+      if (calibrationSetChangeHandler) {
+        calibrationSetChangeHandler(null);
+      }
+      return;
+    }
 
     if (!Array.isArray(poseSets) || poseSets.length === 0) {
       const option = document.createElement('option');
@@ -4669,18 +6157,25 @@ function createTrackingControls(trackingController) {
     }
 
     calibrationSetSelect.disabled = false;
-    poseSets.forEach((entry, index) => {
+    visiblePoseSets.forEach((entry, index) => {
       const option = document.createElement('option');
-      option.value = String(index);
-      option.textContent = formatCalibrationSetOption(entry, index);
+      const originalIndex = poseSets.indexOf(entry);
+      option.value = String(originalIndex);
+      option.textContent = formatCalibrationSetOption(entry, originalIndex);
       calibrationSetSelect.appendChild(option);
     });
 
     const persistedIndex = readPersistedCalibrationIndex();
-    const hasPersisted = Number.isInteger(persistedIndex) && persistedIndex >= 0 && persistedIndex < poseSets.length;
     const parsedCurrent = Number(currentValue);
+    const preferredIndex = resolvePreferredCalibrationIndex(poseSets, persistedIndex);
     const hasCurrent = Number.isInteger(parsedCurrent) && parsedCurrent >= 0 && parsedCurrent < poseSets.length;
-    selectedCalibrationSetIndex = hasPersisted ? persistedIndex : (hasCurrent ? parsedCurrent : poseSets.length - 1);
+    const currentEntry = hasCurrent ? poseSets[parsedCurrent] : null;
+    const currentIsVisible = !!currentEntry && !isFallbackCalibrationSet(currentEntry);
+    selectedCalibrationSetIndex = preferredIndex ?? (
+      currentIsVisible
+        ? parsedCurrent
+        : (visiblePoseSets.length > 0 ? poseSets.indexOf(visiblePoseSets[visiblePoseSets.length - 1]) : null)
+    );
     calibrationSetSelect.value = String(selectedCalibrationSetIndex);
     if (calibrationSetChangeHandler) {
       calibrationSetChangeHandler(selectedCalibrationSetIndex);
@@ -4751,6 +6246,21 @@ function createTrackingControls(trackingController) {
     const safeNext = Number.isFinite(nextOpacity) ? Math.min(Number(silhouetteOpacitySlider.max), Math.max(Number(silhouetteOpacitySlider.min), nextOpacity)) : 0.2;
     silhouetteOpacityValue = safeNext;
     updateSilhouetteOpacityControl();
+  });
+
+  const exportDefaultsButton = document.createElement('button');
+  exportDefaultsButton.type = 'button';
+  exportDefaultsButton.className = 'tracking-controls-button';
+  exportDefaultsButton.textContent = 'Defaults exportieren';
+  exportDefaultsButton.addEventListener('click', () => {
+    try {
+      if (typeof window.exportDefaults === 'function') {
+        window.exportDefaults();
+      }
+    } catch (error) {
+      console.error('Failed to export defaults:', error);
+      window.alert('Das Herunterladen der Defaults ist fehlgeschlagen.');
+    }
   });
 
   const restoreDefaultsButton = document.createElement('button');
@@ -4940,6 +6450,13 @@ function createTrackingControls(trackingController) {
     videoSofteningBlurPx = Number(blurSlider.value);
     blurValue.textContent = `${videoSofteningBlurPx}px`;
     setVideoSofteningStyle(videoSofteningBlurPx, videoSofteningBrightness);
+    if (videoCanvas) {
+      const filterValue = videoSofteningEnabled
+        ? `blur(${videoSofteningBlurPx}px) brightness(${videoSofteningBrightness})`
+        : 'none';
+      videoCanvas.style.filter = filterValue;
+      videoCanvas.style.webkitFilter = filterValue;
+    }
     persistVideoSofteningSettings();
     persistSettingsState();
   });
@@ -4948,6 +6465,13 @@ function createTrackingControls(trackingController) {
     videoSofteningBrightness = Number(brightnessSlider.value);
     brightnessValue.textContent = Number(videoSofteningBrightness).toFixed(2);
     setVideoSofteningStyle(videoSofteningBlurPx, videoSofteningBrightness);
+    if (videoCanvas) {
+      const filterValue = videoSofteningEnabled
+        ? `blur(${videoSofteningBlurPx}px) brightness(${videoSofteningBrightness})`
+        : 'none';
+      videoCanvas.style.filter = filterValue;
+      videoCanvas.style.webkitFilter = filterValue;
+    }
     persistVideoSofteningSettings();
     persistSettingsState();
   });
@@ -5020,6 +6544,7 @@ function createTrackingControls(trackingController) {
   bindUiGroupDescription([silhouetteButton], 'Einstellungen', 'Silhouette');
   bindUiGroupDescription([eyesButton], 'Einstellungen', 'Silhouette');
   bindUiGroupDescription([silhouetteOpacityLabel, silhouetteOpacityValueLabel, silhouetteOpacitySlider], 'Einstellungen', 'Silhouette Deckkraft');
+  bindUiGroupDescription([exportDefaultsButton], 'Einstellungen', 'Defaults exportieren');
   bindUiGroupDescription([restoreDefaultsButton], 'Einstellungen', 'Werkseinstellung');
   bindUiGroupDescription([videoSofteningButton], 'Einstellungen', 'Weichzeichnen');
   bindUiGroupDescription([blurLabel, blurSlider], 'Einstellungen', 'Weichzeichnen');
@@ -5036,9 +6561,8 @@ function createTrackingControls(trackingController) {
   container.appendChild(hoverHelpToggleButton);
   container.appendChild(calibrationSetLabel);
   container.appendChild(calibrationSetSelect);
-  container.appendChild(calibrationStrictnessLabel);
+  container.appendChild(calibrationStrictnessRow);
   container.appendChild(calibrationStrictnessSlider);
-  container.appendChild(calibrationStrictnessValue);
   container.appendChild(modeLabel);
   container.appendChild(modeGroup);
   container.appendChild(stabilizationButton);
@@ -5047,9 +6571,10 @@ function createTrackingControls(trackingController) {
   container.appendChild(eyesButton);
   container.appendChild(silhouetteOpacityRow);
   container.appendChild(silhouetteOpacitySlider);
+  container.appendChild(poseWarningLandmarksButton);
+  container.appendChild(exportDefaultsButton);
   container.appendChild(restoreDefaultsButton);
   container.appendChild(defaultCreatedAtText);
-  container.appendChild(poseWarningLandmarksButton);
   container.appendChild(videoSofteningDivider);
   container.appendChild(videoSofteningButton);
   container.appendChild(blurLabel);
@@ -5248,7 +6773,7 @@ export function initApp() {
     const exerciseFieldActive = uiState.activeChapter === 6
       && Number.isInteger(uiState.activeLevel)
       && uiState.activeLevel >= 0
-      && uiState.activeLevel <= 4;
+      && uiState.activeLevel <= 2;
     levelCanvas.style.pointerEvents = exerciseFieldActive ? 'auto' : 'none';
   };
 
@@ -5319,6 +6844,7 @@ export function initApp() {
     setSquareExerciseShape: (value) => levelManager.setSquareExerciseShape(value),
     setSquareExerciseHandMode: (value) => levelManager.setSquareExerciseHandMode(value),
     setSquareExerciseSyncMode: (value) => levelManager.setSquareExerciseSyncMode(value),
+    setSquareExercisePalindromMode: (value) => levelManager.setSquareExercisePalindromMode(value),
     setSquareExerciseResolution: (value) => {
       syncChapter1Resolution(value);
     },
@@ -5403,6 +6929,9 @@ export function initApp() {
     setFigureSoftTransitionPercent: (value) => levelManager.setDynamicFigureSoftTransitionPercent(value),
     setFigureDynamicsVisible: (value) => levelManager.setDynamicFigureDynamicsVisible(value),
     setFigureCountTimesVisible: (value) => levelManager.setDynamicFigureCountTimesVisible(value),
+    setMotionDistanceVisible: (value) => levelManager.setMotionDistanceVisible(value),
+    setMotionDistanceStrictness: (value) => levelManager.setMotionDistanceStrictness(value),
+    getMotionDistanceSummary: () => levelManager.getMotionDistanceSummary(),
     setFigureVariant: (value) => levelManager.setDynamicFigureVariant(value),
     setFigureSide: (value) => levelManager.setDynamicFigureSide(value),
     setDynamicFigureCornerHeight: (index, value) => levelManager.setDynamicFigureCornerHeight(index, value),
@@ -5413,9 +6942,13 @@ export function initApp() {
   handIndependencePanel.setLevelManager({
     setHandIndependenceVariant: (value) => levelManager.setHandIndependenceVariant(value),
     setHandIndependenceFigureLevel: (value) => levelManager.setHandIndependenceFigureLevel(value),
+    setHandIndependenceFigureVariation: (value) => levelManager.setHandIndependenceFigureVariation(value),
     setHandIndependenceReverse: (value) => levelManager.setHandIndependenceReverse(value),
     setHandIndependenceDynamicsVisible: (value) => levelManager.setHandIndependenceDynamicsVisible(value),
     setHandIndependenceCountTimesVisible: (value) => levelManager.setHandIndependenceCountTimesVisible(value),
+    setMotionDistanceVisible: (value) => levelManager.setMotionDistanceVisible(value),
+    setMotionDistanceStrictness: (value) => levelManager.setMotionDistanceStrictness(value),
+    getMotionDistanceSummary: () => levelManager.getMotionDistanceSummary(),
     setHandIndependenceTempoRatio: (value) => levelManager.setHandIndependenceTempoRatio(value),
     setHandIndependenceFigureParameter: (name, value) => levelManager.setHandIndependenceFigureParameter(name, value),
     setHandIndependenceFigureCornerHeight: (index, value) => levelManager.setHandIndependenceFigureCornerHeight(index, value),
@@ -5484,7 +7017,7 @@ export function initApp() {
     const showSquareExercisePanel = chapter === 1 && exerciseVisibility.square;
     const showSymmetricExercisePanel = chapter === 1 && exerciseVisibility.symmetric;
     const showPointsExercisePanel = chapter === 1 && exerciseVisibility.points;
-    const showExerciseFieldPanel = chapter === 6 && Number.isInteger(uiState.activeLevel) && uiState.activeLevel >= 0 && uiState.activeLevel <= 4;
+    const showExerciseFieldPanel = chapter === 6 && Number.isInteger(uiState.activeLevel) && uiState.activeLevel >= 0 && uiState.activeLevel <= 2;
     const selectedSquareMode = showPointsExercisePanel
       ? 'points'
       : showSymmetricExercisePanel
@@ -5533,7 +7066,7 @@ export function initApp() {
     const blankChapter1ExercisePanel = uiState.activeChapter === 1 && Number.isInteger(level) && [3, 4].includes(level);
     const freeMovementExercisePanel = uiState.activeChapter === 1 && Number.isInteger(level) && level === 2;
     const alternatingExercisePanel = uiState.activeChapter === 1 && Number.isInteger(level) && level === 2 && false;
-    const showExerciseFieldPanel = uiState.activeChapter === 6 && Number.isInteger(level) && level >= 0 && level <= 4;
+    const showExerciseFieldPanel = uiState.activeChapter === 6 && Number.isInteger(level) && level >= 0 && level <= 2;
     const squareExerciseTitle = uiState.activeChapter === 1 && Number.isInteger(level) && level >= 0 && level < chapter1ExerciseTitles.length
       ? chapter1ExerciseTitles[level]
       : 'Ziffern';
@@ -5547,8 +7080,11 @@ export function initApp() {
       handIndependencePanel.setVisible(false);
       squareExercisePanel.setVisible(false);
       exerciseFieldPanel.setVisible(showExerciseFieldPanel);
-      if (Number.isInteger(level) && level >= 0 && level <= 4) {
-        exerciseFieldPanel.applyPreset(level);
+      if (Number.isInteger(level) && level >= 0 && level <= 2) {
+        const nextStrikeCount = getExerciseFieldLevelStrikeCount(level);
+        exerciseFieldPanel.setStrikeCount(nextStrikeCount);
+        exerciseFieldPanel.applyPreset(level, null);
+        exerciseFieldPanel.setStrikeCount(nextStrikeCount);
       }
       if (!showExerciseFieldPanel) {
         levelManager.setExerciseFieldVisible(false);
@@ -5597,6 +7133,9 @@ export function initApp() {
                   ? 'alternating'
                   : 'square'
       );
+      if (showPointsExercisePanel) {
+        squareExercisePanel.initializeCurrentPointPreset?.();
+      }
     } else {
       figurePanel.setVisible(false);
       dynamicFigurePanel.setVisible(false);
