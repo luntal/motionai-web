@@ -10,7 +10,8 @@ import {
 export const uiState = {
   activeChapter: null,
   activeLevel: null,
-  hoverHelpEnabled: false
+  hoverHelpEnabled: false,
+  examSelectionInProgress: false
 };
 
 let isLevelActive = false;
@@ -233,15 +234,17 @@ function renderLevelButtons(levelRow) {
 
 }
 
-export function setActiveLevel(level) {
+export function setActiveLevel(level, options = {}) {
   uiState.activeLevel = level;
   if (levelRowElement) {
     renderLevelButtons(levelRowElement);
   }
-  emitLevelChange(uiState.activeLevel);
+  if (!options.skipHandlers) {
+    emitLevelChange(uiState.activeLevel);
+  }
 }
 
-export function setActiveChapter(chapter) {
+export function setActiveChapter(chapter, options = {}) {
   uiState.activeChapter = chapter;
   uiState.activeLevel = null;
 
@@ -250,8 +253,10 @@ export function setActiveChapter(chapter) {
     renderLevelButtons(levelRowElement);
   }
 
-  emitChapterChange(chapter);
-  emitLevelChange(uiState.activeLevel);
+  if (!options.skipHandlers) {
+    emitChapterChange(chapter);
+    emitLevelChange(uiState.activeLevel);
+  }
 }
 
 export function createNavigationUI() {

@@ -10,15 +10,15 @@
 ✅ Linke und Rechte hand farbig angleichen.
 ✅ Visuelles Feedback wenn die entsprechende hand im korrekten Bereich ist. 
 
-- zurücksetzen auf werkseinstellungen für die einzelnen Kapitel ermöglichen.
 
-✅ Defaults laden nicht?
-    - Defaults für alle Levels erstellen
 ✅ callibration wird nicht übernommen nach kallibrierung.
 ✅ hand landmarks werden nicht als Grenzen für forte verwendet. 
 ✅ Punkte erzeugen durch klicken funktioniert nicht
 
 
+- zurücksetzen auf werkseinstellungen für die einzelnen Kapitel ermöglichen.
+- Defaults für alle Levels erstellen
+✅ Defaults laden nicht in der Web-App!
 - Kallibrierung
     ✅ Rechteck für Augen muss grün werden, wenn Augen im korrekten Bereich sind. 
     ✅ Countdown und Snapshot müssen stärker hervorgehoben werden
@@ -26,6 +26,8 @@
 - Profile einarbeiten. 
     - bei profil enter check, ob kallibrierungen vorhanden sind, wenn nicht, dann wird direkt Kallibrierung vorgeschlagen
     - in dem Zuge gibt es auch eine kleine Intro Tour 
+    - Extra download für Prüfungsergebnisse mit Timestamp!
+    - Prüfung für normale profile nicht sichtbar. 
 - Tooltips überarbeiten (vor allem bei Ziffern und Punkte nochmal drüberschauen).
 
 

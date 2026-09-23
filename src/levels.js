@@ -192,6 +192,7 @@ export class LevelManager {
     this.consistencyActive = false;
     this.consistencyInfoEl = null;
     this.consistencyScoreHistory = [];
+    this.consistencyTaskStrictnessHistory = [];
     this.consistencyAccuracy = 0;
     this.consistencyAnimationStart = performance.now();
     this.consistencyPhase = 0;
@@ -222,6 +223,13 @@ export class LevelManager {
     this.lastAudioTriggerAtByCircle = new Map();
     this.activeTouchCircleByHand = { left: new Set(), right: new Set() };
     this.activeTouchFadeByHand = { left: new Map(), right: new Map() };
+    this.chapter1TouchHistory = { left: new Set(), right: new Set() };
+    this.chapter1TouchCount = 0;
+    this.chapter1LastCountedCircleByHand = { left: null, right: null };
+    this.chapter1TouchActiveByHand = { left: false, right: false };
+    this.chapter1TouchGoalCount = 100;
+    this.chapter1ExamTouchCounterEnabled = false;
+    this.chapter1ExamTouchInputEnabled = false;
     this.activeTouchFadeEnabled = true;
     this.activeTouchFadeDurationMs = 2000;
     this.exerciseFieldVisible = true;
@@ -330,6 +338,7 @@ export class LevelManager {
     this.handIndependenceAnimationStart = performance.now();
     this.motionDistanceVisible = false;
     this.motionDistanceStrictness = 100;
+    this.motionDistanceScoreWeights = { path: 45, timing: 30, direction: 25 };
     this.motionDistanceHistory = { left: [], right: [] };
     this.motionDistanceFrameTargets = [];
     this.motionDistanceCurrent = { left: null, right: null };
@@ -1294,6 +1303,59 @@ export class LevelManager {
         : (leftAvgMs + rightAvgMs) / 2),
       observations: samples.length
     };
+  }
+
+  getAverageExerciseFieldTaskScorePercent() {
+    if (this.exerciseFieldChallengeMode === 'tempo') {
+      const samples = Array.isArray(this.exerciseFieldTimingSamples)
+        ? this.exerciseFieldTimingSamples
+        : [];
+
+      if (samples.length > 0) {
+        const values = samples
+          .map((sample) => {
+            if (!sample || !Number.isFinite(Number(sample.normalizedDeviation))) {
+              return null;
+            }
+            const score = 100 * (1 - Math.min(1, Number(sample.normalizedDeviation)));
+            return Math.max(0, Math.min(100, score));
+          })
+          .filter((value) => Number.isFinite(value));
+
+        if (values.length > 0) {
+          const average = values.reduce((sum, value) => sum + value, 0) / values.length;
+          return Math.max(0, Math.min(100, average));
+        }
+      }
+
+      const timingStats = this.getExerciseFieldTimingStats();
+      const fallback = Number.isFinite(Number(timingStats.combinedAccuracyPct))
+        ? Number(timingStats.combinedAccuracyPct)
+        : Number(this.exerciseFieldAccuracy) * 100;
+      return Math.max(0, Math.min(100, fallback));
+    }
+
+    const freeStats = this.getExerciseFieldFreeBeatRegularityStats();
+    const regularityScore = Number.isFinite(Number(freeStats.regularityPct))
+      ? Number(freeStats.regularityPct)
+      : Number(this.exerciseFieldAccuracy) * 100;
+
+    const freeSamples = Array.isArray(this.exerciseFieldFreeSyncSamples)
+      ? this.exerciseFieldFreeSyncSamples
+      : [];
+
+    if (freeSamples.length > 0) {
+      const values = freeSamples
+        .map((sample) => Number(sample?.score) * 100)
+        .filter((value) => Number.isFinite(value));
+
+      if (values.length > 0) {
+        const average = values.reduce((sum, value) => sum + value, 0) / values.length;
+        return Math.max(0, Math.min(100, average));
+      }
+    }
+
+    return Math.max(0, Math.min(100, regularityScore));
   }
 
   getExerciseFieldMetrics() {
@@ -3786,6 +3848,13 @@ export class LevelManager {
       return;
     }
 
+    const previousTarget = this.getCurrentTargetForHand(hand);
+    const previousTargetIndex = previousTarget ? (previousTarget.index ?? previousTarget.leftIndex ?? previousTarget.rightIndex ?? null) : null;
+
+    if (this.chapter === 1 && Number.isInteger(this.level) && this.level >= 0 && this.level <= 4) {
+      this.chapter1LastCountedCircleByHand[hand] = null;
+    }
+
     if (this.pointExerciseSequentialMode === 'independent') {
       const sequence = this.getIndependentHandTraversalSequence(hand);
       if (sequence.length === 0) {
@@ -3910,6 +3979,48 @@ export class LevelManager {
     return octave * 12 + selected[scaleIndex];
   }
 
+  registerChapter1Touch(hand, circleIndex) {
+    if (!['left', 'right'].includes(hand)) {
+      return;
+    }
+    if (!Number.isInteger(circleIndex) || circleIndex < 0 || circleIndex >= this.grid.length) {
+      return;
+    }
+    if (!(this.chapter === 1 && Number.isInteger(this.level) && this.level >= 0 && this.level <= 4)) {
+      return;
+    }
+
+    this.chapter1TouchHistory = this.chapter1TouchHistory || { left: new Set(), right: new Set() };
+    this.chapter1TouchHistory[hand] = this.chapter1TouchHistory[hand] || new Set();
+
+    const currentTarget = this.getCurrentTargetForHand(hand);
+    const activeCircleMatches = currentTarget && (
+      currentTarget.index === circleIndex
+      || currentTarget.leftIndex === circleIndex
+      || currentTarget.rightIndex === circleIndex
+    );
+
+    this.chapter1TouchActiveByHand[hand] = Boolean(activeCircleMatches);
+  }
+
+  isRelevantChapter1TouchCircleForHand(hand, circleIndex) {
+    if (!['left', 'right'].includes(hand)) {
+      return false;
+    }
+    if (!Number.isInteger(circleIndex) || circleIndex < 0 || circleIndex >= this.grid.length) {
+      return false;
+    }
+
+    const currentTarget = this.getCurrentTargetForHand(hand);
+    if (!currentTarget) {
+      return false;
+    }
+
+    return currentTarget.index === circleIndex
+      || currentTarget.leftIndex === circleIndex
+      || currentTarget.rightIndex === circleIndex;
+  }
+
   triggerTouchToneForCircleIndex(circleIndex, hand) {
     if (!Number.isInteger(circleIndex) || circleIndex < 0 || circleIndex >= this.grid.length) {
       return;
@@ -3921,6 +4032,8 @@ export class LevelManager {
     }
     activeSet.add(circleIndex);
     this.activeTouchCircleByHand[hand] = activeSet;
+
+    this.registerChapter1Touch(hand, circleIndex);
 
     const ctx = this.ensureAudioEngine();
     if (!ctx || !this.audioMasterGain || !this.grid[circleIndex]) {
@@ -4069,10 +4182,91 @@ export class LevelManager {
     };
   }
 
+  getChapter1TouchGoalCount() {
+    return 100;
+  }
+
+  getChapter1TouchScorePercent() {
+    const goal = Math.max(1, Number(this.chapter1TouchGoalCount) || 100);
+    const count = Number(this.chapter1TouchCount) || 0;
+    return Math.max(0, Math.min(100, Math.round((count / goal) * 100)));
+  }
+
+  getChapter1ActiveTouchIndexesForHand(hand) {
+    if (!['left', 'right'].includes(hand)) {
+      return new Set();
+    }
+
+    const target = this.getCurrentTargetForHand(hand);
+    if (!target) {
+      return new Set();
+    }
+
+    const indexes = [];
+    if (Number.isInteger(target.index)) {
+      indexes.push(target.index);
+    }
+    if (Number.isInteger(target.leftIndex)) {
+      indexes.push(target.leftIndex);
+    }
+    if (Number.isInteger(target.rightIndex)) {
+      indexes.push(target.rightIndex);
+    }
+
+    return new Set(indexes);
+  }
+
+  updateChapter1TouchHistory() {
+    if (!(this.chapter === 1 && Number.isInteger(this.level) && this.level >= 0 && this.level <= 4)) {
+      this.chapter1TouchHistory = { left: new Set(), right: new Set() };
+      this.chapter1TouchCount = 0;
+      return;
+    }
+
+    const touchedByHand = {
+      left: new Set(),
+      right: new Set()
+    };
+
+    const recordTouch = (hand, tip) => {
+      if (!tip) {
+        return;
+      }
+      const index = this.getCircleIndex(tip);
+      if (!Number.isInteger(index) || index < 0) {
+        return;
+      }
+      const activeIndexes = this.getChapter1ActiveTouchIndexesForHand(hand);
+      if (activeIndexes.size > 0 && activeIndexes.has(index)) {
+        touchedByHand[hand].add(index);
+      }
+    };
+
+    recordTouch('left', this.leftTip);
+    recordTouch('right', this.rightTip);
+
+    const uniqueTouched = new Set();
+    Object.values(touchedByHand).forEach((set) => {
+      set.forEach((index) => uniqueTouched.add(index));
+    });
+
+    this.chapter1TouchHistory = touchedByHand;
+    this.chapter1TouchCount = uniqueTouched.size;
+    this.chapter1TouchGoalCount = this.getChapter1TouchGoalCount();
+  }
+
   setChapter(chapter) {
     this.persistDynamicFigureCornerHeights();
     this.chapter = chapter;
     this.setupLevel();
+  }
+
+  setChapter1ExamTouchCounterEnabled(enabled) {
+    this.chapter1ExamTouchCounterEnabled = Boolean(enabled);
+  }
+
+  setChapter1ExamTouchInputEnabled(enabled) {
+    this.chapter1ExamTouchInputEnabled = Boolean(enabled);
   }
 
   setLevel(level) {
@@ -4656,6 +4850,28 @@ export class LevelManager {
     this.requestRender();
   }
 
+  getAverageMotionDistanceScorePercent() {
+    const scoreSamples = ['left', 'right']
+      .flatMap((hand) => (Array.isArray(this.motionDistanceHistory?.[hand]) ? this.motionDistanceHistory[hand] : []))
+      .map((sample) => Number(sample?.score))
+      .filter((value) => Number.isFinite(value));
+
+    if (scoreSamples.length === 0) {
+      const currentValues = ['left', 'right']
+        .map((hand) => Number(this.motionDistanceCurrent?.[hand]?.score))
+        .filter((value) => Number.isFinite(value));
+
+      if (currentValues.length === 0) {
+        return 0;
+      }
+
+      return Math.max(0, Math.min(100, currentValues.reduce((sum, value) => sum + value, 0) / currentValues.length));
+    }
+
+    const averageScore = scoreSamples.reduce((sum, value) => sum + value, 0) / scoreSamples.length;
+    return Math.max(0, Math.min(100, averageScore));
+  }
+
   setMotionDistanceStrictness(strictness) {
     const next = Number(strictness);
     if (!Number.isFinite(next)) {
@@ -4663,6 +4879,65 @@ export class LevelManager {
     }
     this.motionDistanceStrictness = Math.min(100, Math.max(0, next));
     this.requestRender();
+  }
+
+  setMotionDistanceScoreWeights(weights = {}) {
+    const safeWeights = weights && typeof weights === 'object' ? weights : {};
+    const nextWeights = {
+      path: Number(safeWeights.path),
+      timing: Number(safeWeights.timing),
+      direction: Number(safeWeights.direction)
+    };
+
+    const hasFiniteValues = Object.values(nextWeights).every((value) => Number.isFinite(value));
+    if (!hasFiniteValues) {
+      this.motionDistanceScoreWeights = { path: 45, timing: 30, direction: 25 };
+      return;
+    }
+
+    const normalized = {
+      path: Math.max(0, nextWeights.path),
+      timing: Math.max(0, nextWeights.timing),
+      direction: Math.max(0, nextWeights.direction)
+    };
+    const total = normalized.path + normalized.timing + normalized.direction;
+
+    if (total <= 0) {
+      this.motionDistanceScoreWeights = { path: 45, timing: 30, direction: 25 };
+      return;
+    }
+
+    this.motionDistanceScoreWeights = {
+      path: normalized.path / total * 100,
+      timing: normalized.timing / total * 100,
+      direction: normalized.direction / total * 100
+    };
+    this.requestRender();
+  }
+
+  getMotionDistanceScoreWeights() {
+    const weights = this.motionDistanceScoreWeights && typeof this.motionDistanceScoreWeights === 'object'
+      ? this.motionDistanceScoreWeights
+      : { path: 45, timing: 30, direction: 25 };
+
+    const normalized = {
+      path: Number(weights.path),
+      timing: Number(weights.timing),
+      direction: Number(weights.direction)
+    };
+
+    const total = [normalized.path, normalized.timing, normalized.direction]
+      .reduce((sum, value) => sum + (Number.isFinite(value) ? value : 0), 0);
+
+    if (!Number.isFinite(total) || total <= 0) {
+      return { path: 45, timing: 30, direction: 25 };
+    }
+
+    return {
+      path: Number.isFinite(normalized.path) ? normalized.path : 45,
+      timing: Number.isFinite(normalized.timing) ? normalized.timing : 30,
+      direction: Number.isFinite(normalized.direction) ? normalized.direction : 25
+    };
   }
 
   getHandTipDistance(hand, targetPoint) {
@@ -4747,7 +5022,17 @@ export class LevelManager {
       }
     }
 
-    const score = feedback.pathScore * 0.45 + timingScore * 0.3 + directionScore * 0.25;
+    const weights = this.getMotionDistanceScoreWeights();
+    const totalWeight = [weights.path, weights.timing, weights.direction]
+      .reduce((sum, value) => sum + (Number.isFinite(value) ? value : 0), 0) || 100;
+    const normalizedWeights = {
+      path: (Number.isFinite(weights.path) ? weights.path : 45) / totalWeight,
+      timing: (Number.isFinite(weights.timing) ? weights.timing : 30) / totalWeight,
+      direction: (Number.isFinite(weights.direction) ? weights.direction : 25) / totalWeight
+    };
+    const score = feedback.pathScore * normalizedWeights.path
+      + timingScore * normalizedWeights.timing
+      + directionScore * normalizedWeights.direction;
     const scoreMix = score / 100;
     const tipColor = hand === 'left' ? [82, 156, 255] : [255, 163, 92];
     const scoreColor = `rgba(${Math.round(255 + (tipColor[0] - 255) * scoreMix)}, ${Math.round(255 + (tipColor[1] - 255) * scoreMix)}, ${Math.round(255 + (tipColor[2] - 255) * scoreMix)}, 0.96)`;
@@ -6129,6 +6414,11 @@ export class LevelManager {
     this.nextTarget = 0;
     this.squareExerciseTraversalDirection = 1;
     this.nextTargetByHand = { left: 0, right: 0 };
+    this.chapter1TouchHistory = { left: new Set(), right: new Set() };
+    this.chapter1TouchCount = 0;
+    this.chapter1LastCountedCircleByHand = { left: null, right: null };
+    this.chapter1TouchActiveByHand = { left: false, right: false };
+    this.chapter1TouchGoalCount = this.getChapter1TouchGoalCount();
     this.completed = false;
 
     if (!(this.chapter === 0 && this.level === 0)) {
@@ -6156,6 +6446,7 @@ export class LevelManager {
       this.setCalibrationPanelVisible(false);
       this.consistencyActive = this.level !== null && this.level >= 0 && this.level <= 5;
       this.consistencyScoreHistory = [];
+      this.consistencyTaskStrictnessHistory = [];
       this.consistencyAccuracy = 0;
       this.consistencyAnimationStart = performance.now();
       this.consistencyPhase = 0;
@@ -7259,6 +7550,18 @@ export class LevelManager {
       this.ctx.strokeStyle = stroke;
       this.ctx.lineWidth = 1;
       this.ctx.stroke();
+    }
+
+    if (this.chapter === 1 && Number.isInteger(this.level) && this.level >= 0 && this.level <= 4 && this.active && this.chapter1ExamTouchCounterEnabled) {
+      const goalCount = Math.max(1, Number(this.chapter1TouchGoalCount) || 100);
+      const countText = `${this.chapter1TouchCount || 0} / ${goalCount}`;
+      this.ctx.save();
+      this.ctx.textAlign = 'center';
+      this.ctx.textBaseline = 'middle';
+      this.ctx.font = '600 18px Arial';
+      this.ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+      this.ctx.fillText(`Berührt: ${countText}`, this.canvas.width / 2, this.canvas.height * 0.09);
+      this.ctx.restore();
     }
 
     if (this.completed) {
@@ -8555,6 +8858,32 @@ export class LevelManager {
     return scene.movingTargets.length > 0 ? sum / scene.movingTargets.length : 0;
   }
 
+  resetConsistencyTaskStrictnessHistory() {
+    this.consistencyTaskStrictnessHistory = [];
+  }
+
+  getAverageConsistencyTaskStrictnessPercent() {
+    const samples = Array.isArray(this.consistencyTaskStrictnessHistory)
+      ? this.consistencyTaskStrictnessHistory
+      : [];
+
+    if (samples.length === 0) {
+      const fallback = Number(this.consistencyStrictnessPercent);
+      return Number.isFinite(fallback) ? fallback : 100;
+    }
+
+    const validValues = samples
+      .map((entry) => Number(entry.strictnessPercent))
+      .filter((value) => Number.isFinite(value));
+
+    if (validValues.length === 0) {
+      return 100;
+    }
+
+    const sum = validValues.reduce((total, value) => total + value, 0);
+    return sum / validValues.length;
+  }
+
   recordConsistencyScore(nowMs, scene, threshold) {
     const score = this.calculateConsistencyScore(scene, threshold);
     this.consistencyScoreHistory.push({ ts: nowMs, score });
@@ -8605,6 +8934,15 @@ export class LevelManager {
   renderConsistency() {
     const nowMs = performance.now();
     this.advanceConsistencyPhase(nowMs);
+    this.consistencyTaskStrictnessHistory = Array.isArray(this.consistencyTaskStrictnessHistory)
+      ? this.consistencyTaskStrictnessHistory
+      : [];
+    this.consistencyTaskStrictnessHistory.push({
+      ts: nowMs,
+      strictnessPercent: Number.isFinite(Number(this.consistencyStrictnessPercent))
+        ? Number(this.consistencyStrictnessPercent)
+        : 100
+    });
     const scene = this.getConsistencyScene();
     const threshold = this.getConsistencyThreshold();
     const pointRadius = this.getConsistencyPointRadius(threshold);
@@ -8725,6 +9063,14 @@ export class LevelManager {
   }
 
   updateHands(hands) {
+    if (this.chapter === 1 && Number.isInteger(this.level) && this.level >= 0 && this.level <= 4 && !this.chapter1ExamTouchInputEnabled) {
+      this.leftTip = null;
+      this.rightTip = null;
+      this.leftTipInFrame = true;
+      this.rightTipInFrame = true;
+      return;
+    }
+
     this.leftTip = null;
     this.rightTip = null;
     this.leftTipInFrame = true;
@@ -8844,6 +9190,35 @@ export class LevelManager {
       return;
     }
 
+    if (this.chapter === 1 && Number.isInteger(this.level) && this.level >= 0 && this.level <= 4) {
+      const registerActiveTargetTouch = (hand, tip) => {
+        if (!tip) {
+          return;
+        }
+        const circleIndex = this.getCircleIndex(tip);
+        if (!Number.isInteger(circleIndex) || circleIndex < 0) {
+          return;
+        }
+        const currentTarget = this.getCurrentTargetForHand(hand);
+        const activeTargetMatches = currentTarget && (
+          currentTarget.index === circleIndex
+          || currentTarget.leftIndex === circleIndex
+          || currentTarget.rightIndex === circleIndex
+        );
+        const wasTouching = Boolean(this.chapter1TouchActiveByHand?.[hand]);
+        const lastCountedCircle = this.chapter1LastCountedCircleByHand?.[hand] ?? null;
+        const previousActiveCircle = this.chapter1TouchActiveByHand?.[hand] ? lastCountedCircle : null;
+        const shouldLogTouch = Boolean(activeTargetMatches) && (!wasTouching || lastCountedCircle !== circleIndex);
+
+        if (this.isRelevantChapter1TouchCircleForHand(hand, circleIndex)) {
+          this.registerChapter1Touch(hand, circleIndex);
+        }
+      };
+
+      registerActiveTargetTouch('left', this.leftTip);
+      registerActiveTargetTouch('right', this.rightTip);
+    }
+
     if (!this.active || this.completed || this.targets.length === 0) return;
 
     // update scales for interactivity
@@ -8870,10 +9245,30 @@ export class LevelManager {
       const rightTouched = rightCurrentTarget && this.rightTip && this.getCircleIndex(this.rightTip) === rightCurrentTarget.index;
 
       if (leftTouched) {
+        const leftTargetIndex = leftCurrentTarget ? (leftCurrentTarget.index ?? leftCurrentTarget.leftIndex ?? leftCurrentTarget.rightIndex ?? null) : null;
+        if (Number.isInteger(leftTargetIndex)) {
+          this.chapter1TouchHistory = this.chapter1TouchHistory || { left: new Set(), right: new Set() };
+          this.chapter1TouchHistory.left = this.chapter1TouchHistory.left || new Set();
+          this.chapter1TouchHistory.left.add(leftTargetIndex);
+          this.chapter1TouchCount = (Number(this.chapter1TouchCount) || 0) + 1;
+          this.chapter1TouchGoalCount = this.getChapter1TouchGoalCount();
+          this.chapter1LastCountedCircleByHand.left = leftTargetIndex;
+          this.chapter1TouchActiveByHand.left = true;
+        }
         this.pointExerciseCurrentIndex = leftCurrentTarget.index;
         this.advanceTargetForHand('left');
       }
       if (rightTouched) {
+        const rightTargetIndex = rightCurrentTarget ? (rightCurrentTarget.index ?? rightCurrentTarget.leftIndex ?? rightCurrentTarget.rightIndex ?? null) : null;
+        if (Number.isInteger(rightTargetIndex)) {
+          this.chapter1TouchHistory = this.chapter1TouchHistory || { left: new Set(), right: new Set() };
+          this.chapter1TouchHistory.right = this.chapter1TouchHistory.right || new Set();
+          this.chapter1TouchHistory.right.add(rightTargetIndex);
+          this.chapter1TouchCount = (Number(this.chapter1TouchCount) || 0) + 1;
+          this.chapter1TouchGoalCount = this.getChapter1TouchGoalCount();
+          this.chapter1LastCountedCircleByHand.right = rightTargetIndex;
+          this.chapter1TouchActiveByHand.right = true;
+        }
         this.pointExerciseCurrentIndex = rightCurrentTarget.index;
         this.advanceTargetForHand('right');
       }
@@ -8900,6 +9295,7 @@ export class LevelManager {
           }
 
           const currentProgress = this.nextTargetByHand[hand] ?? 0;
+
 
           if (!this.squareExercisePalindromMode) {
             this.nextTargetByHand[hand] = (currentProgress + 1) % handTargets.length;
@@ -8937,6 +9333,18 @@ export class LevelManager {
       const touched = !!currentTarget && !!activeTip && this.getCircleIndex(activeTip) === currentTarget.index;
 
       if (touched) {
+        const hand = this.squareExerciseHandMode === 'left' ? 'left' : 'right';
+        const targetIndex = currentTarget ? (currentTarget.index ?? currentTarget.leftIndex ?? currentTarget.rightIndex ?? null) : null;
+        if (this.chapter === 1 && Number.isInteger(this.level) && this.level >= 0 && this.level <= 4 && Number.isInteger(targetIndex)) {
+          this.chapter1TouchHistory = this.chapter1TouchHistory || { left: new Set(), right: new Set() };
+          this.chapter1TouchHistory[hand] = this.chapter1TouchHistory[hand] || new Set();
+          this.chapter1TouchHistory[hand].add(targetIndex);
+          this.chapter1TouchCount = (Number(this.chapter1TouchCount) || 0) + 1;
+          this.chapter1TouchGoalCount = this.getChapter1TouchGoalCount();
+          this.chapter1LastCountedCircleByHand[hand] = targetIndex;
+          this.chapter1TouchActiveByHand[hand] = true;
+        }
+
         if (!this.squareExercisePalindromMode) {
           this.nextTarget += 1;
           if (this.nextTarget >= this.targets.length) {
@@ -9005,6 +9413,22 @@ export class LevelManager {
       });
 
       if (stepComplete) {
+        stepTargets.forEach((target) => {
+          if (!target || !target.hand || !['left', 'right'].includes(target.hand)) {
+            return;
+          }
+          const targetIndex = target.index ?? target.leftIndex ?? target.rightIndex ?? null;
+          if (!Number.isInteger(targetIndex)) {
+            return;
+          }
+          this.chapter1TouchHistory = this.chapter1TouchHistory || { left: new Set(), right: new Set() };
+          this.chapter1TouchHistory[target.hand] = this.chapter1TouchHistory[target.hand] || new Set();
+          this.chapter1TouchHistory[target.hand].add(targetIndex);
+          this.chapter1TouchCount = (Number(this.chapter1TouchCount) || 0) + 1;
+          this.chapter1TouchGoalCount = this.getChapter1TouchGoalCount();
+          this.chapter1LastCountedCircleByHand[target.hand] = targetIndex;
+          this.chapter1TouchActiveByHand[target.hand] = true;
+        });
         this.advancePointExerciseTarget(stepTargets);
       }
 

@@ -34,7 +34,8 @@ export const DEFAULT_MOTIONAI_STORAGE = {
     figureStroke: 0.5,
     figureSoftTransitionPercent: 50,
     figureMode: 'soft',
-    figureSide: 'left'
+    figureSide: 'left',
+    motionDistanceScoreWeights: { path: 45, timing: 30, direction: 25 }
   },
   'motionai.figure-presets': {},
   'motionai.figure-selected-presets': {},
