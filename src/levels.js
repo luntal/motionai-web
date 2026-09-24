@@ -189,6 +189,7 @@ export class LevelManager {
     this.calibrationAnimationStart = performance.now();
     this.calibrationInfoEl = null;
     this.poseAlignmentInfoEl = null;
+    this.dynamicRangeGuideVisible = false;
     this.consistencyActive = false;
     this.consistencyInfoEl = null;
     this.consistencyScoreHistory = [];
@@ -2246,6 +2247,16 @@ export class LevelManager {
     panel.className = 'calibration-info-panel';
     panel.innerHTML = '<h3>Kallibrierung</h3><p>Warte auf Pose-Daten...</p>';
     panel.style.display = 'none';
+    panel.addEventListener('change', (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement)) {
+        return;
+      }
+      if (target.id !== 'dynamic-range-guide-toggle') {
+        return;
+      }
+      this.setDynamicRangeGuideVisible(target.checked);
+    });
     document.body.appendChild(panel);
     this.calibrationInfoEl = panel;
   }
@@ -2388,6 +2399,27 @@ export class LevelManager {
         <p><strong>Wirkungsbereich:</strong> hoch (unter den Augen), nah (am Gesicht) und zusammen.</p>
         <p class="calibration-hint">Die Punkte zeigen den kleineren Bewegungsraum.</p>
       `;
+      return;
+    }
+
+    if (this.level === 3) {
+      this.calibrationInfoEl.classList.remove('success');
+      const existingToggle = this.calibrationInfoEl.querySelector('#dynamic-range-guide-toggle');
+      if (!existingToggle) {
+        this.calibrationInfoEl.innerHTML = `
+          <h3>Kallibrierung - Dynamikbereich</h3>
+          <p>Fahre mit der Hand auf der Linie auf und ab, um die Dynamikebenen darzustellen.</p>
+          <p class="calibration-status">Pfad: Diagonal, spiegelbildlich und mit zunehmender Breite nach unten.</p>
+          <p><strong>Wirkungsbereich:</strong> pp oben bis ff unten mit p, mp, mf und f als Zwischenstufen.</p>
+          <p class="calibration-hint">Die Linie leuchtet bei Annäherung an den Handtip auf und zeigt die passende Dynamikstufe an.</p>
+          <label class="dynamic-range-guide-toggle" style="display:flex; align-items:center; gap:0.55rem; margin-top:0.5rem; padding:0.6rem 0.7rem; border-radius:12px; border:1.5px solid rgba(255,255,255,0.14); background:rgba(255,255,255,0.03); color:#edf7ff; font-size:0.84rem; font-weight:700; cursor:pointer;">
+            <input id="dynamic-range-guide-toggle" type="checkbox" ${this.dynamicRangeGuideVisible ? 'checked' : ''} />
+            <span>Dynamiklinien</span>
+          </label>
+        `;
+      } else {
+        existingToggle.checked = this.dynamicRangeGuideVisible;
+      }
       return;
     }
 
@@ -4255,6 +4287,90 @@ export class LevelManager {
     this.chapter1TouchGoalCount = this.getChapter1TouchGoalCount();
   }
 
+  readStoredBooleanSetting(storageKey, propertyName, fallback = false) {
+    if (!storageKey || !propertyName) {
+      return Boolean(fallback);
+    }
+
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (raw === null) {
+        return Boolean(fallback);
+      }
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object') {
+        return Boolean(fallback);
+      }
+      const value = parsed[propertyName];
+      return typeof value === 'boolean' ? value : Boolean(fallback);
+    } catch (error) {
+      return Boolean(fallback);
+    }
+  }
+
+  syncDynamicGuideVisibilityFromStorage() {
+    this.figureDynamicsVisible = this.readStoredBooleanSetting(
+      'motionai.figure-panel-settings',
+      'figureDynamicsVisible',
+      this.figureDynamicsVisible
+    );
+    this.dynamicFigureDynamicsVisible = this.readStoredBooleanSetting(
+      'motionai.dynamic-figure-panel-settings',
+      'figureDynamicsVisible',
+      this.dynamicFigureDynamicsVisible
+    );
+
+    const dynamicRangeSettings = (() => {
+      try {
+        const raw = localStorage.getItem('motionai.dynamic-range-panel-settings');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === 'object') {
+            return parsed;
+          }
+        }
+      } catch (error) {
+        // Ignore malformed storage values.
+      }
+      try {
+        const raw = localStorage.getItem('motionai.dynamic-range-guide-settings');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === 'object') {
+            return parsed;
+          }
+        }
+      } catch (error) {
+        // Ignore malformed storage values.
+      }
+      return {};
+    })();
+    this.dynamicRangeGuideVisible = Object.prototype.hasOwnProperty.call(dynamicRangeSettings, 'dynamicRangeGuideVisible')
+      ? Boolean(dynamicRangeSettings.dynamicRangeGuideVisible)
+      : Object.prototype.hasOwnProperty.call(dynamicRangeSettings, 'dynamicsVisible')
+        ? Boolean(dynamicRangeSettings.dynamicsVisible)
+        : false;
+
+    const handSettings = (() => {
+      try {
+        const raw = localStorage.getItem('motionai.hand-independence-panel-settings');
+        if (!raw) {
+          return {};
+        }
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === 'object' ? parsed : {};
+      } catch (error) {
+        return {};
+      }
+    })();
+    const handDynamicsSetting = Object.prototype.hasOwnProperty.call(handSettings, 'dynamicsVisible')
+      ? handSettings.dynamicsVisible
+      : Object.prototype.hasOwnProperty.call(handSettings, 'dynamicVisible')
+        ? handSettings.dynamicVisible
+        : this.handIndependenceDynamicsVisible;
+    this.handIndependenceDynamicsVisible = Boolean(handDynamicsSetting);
+  }
+
   setChapter(chapter) {
     this.persistDynamicFigureCornerHeights();
     this.chapter = chapter;
@@ -4465,6 +4581,25 @@ export class LevelManager {
     }
 
     this.figureCountTimesVisible = next;
+    this.requestRender();
+  }
+
+  setDynamicRangeGuideVisible(visible) {
+    const next = Boolean(visible);
+    if (this.dynamicRangeGuideVisible === next) {
+      return;
+    }
+
+    this.dynamicRangeGuideVisible = next;
+
+    try {
+      const payload = { dynamicRangeGuideVisible: this.dynamicRangeGuideVisible };
+      localStorage.setItem('motionai.dynamic-range-panel-settings', JSON.stringify(payload));
+      localStorage.setItem('motionai.dynamic-range-guide-settings', JSON.stringify(payload));
+    } catch (error) {
+      // Ignore storage failures.
+    }
+
     this.requestRender();
   }
 
@@ -6267,71 +6402,133 @@ export class LevelManager {
     });
   }
 
-  drawFigureDynamics(visible = this.figureDynamicsVisible) {
-    if (!visible || !this.canvas || !this.ctx) {
+  getDynamicRangeGuideBandGeometry() {
+    const w = this.canvas.width;
+    const h = this.canvas.height;
+    const selectedSet = this.getSelectedCalibrationPoseSet();
+    const landmarks = this.getCalibrationLandmarksForCanvas(selectedSet);
+
+    const leftEye = landmarks[2] || landmarks[1] || { x: w * 0.28, y: h * 0.18 };
+    const rightEye = landmarks[5] || landmarks[4] || { x: w * 0.72, y: h * 0.18 };
+    const leftShoulder = landmarks[11] || { x: w * 0.32, y: h * 0.42 };
+    const rightShoulder = landmarks[12] || { x: w * 0.68, y: h * 0.42 };
+    const leftHip = landmarks[23] || landmarks[25] || { x: leftShoulder.x, y: h * 0.9 };
+    const rightHip = landmarks[24] || landmarks[26] || { x: rightShoulder.x, y: h * 0.9 };
+    const leftHand = this.averagePoints(landmarks[17], landmarks[19]) || { x: leftShoulder.x - 64, y: leftShoulder.y + 80 };
+    const rightHand = this.averagePoints(landmarks[18], landmarks[20]) || { x: rightShoulder.x + 64, y: rightShoulder.y + 80 };
+
+    const computeUpperPoint = (eye, shoulder) => ({
+      x: (eye.x + shoulder.x) / 2,
+      y: eye.y + (shoulder.y - eye.y) * 0.4
+    });
+
+    const computeLowerPointAdjusted = (shoulder, hand, hip, side) => {
+      const radius = Math.max(this.distance(shoulder, hand), 40);
+      const targetY = hand.y + 0.9 * (hip.y - hand.y);
+      const dy = targetY - shoulder.y;
+      const halfChord = Math.sqrt(Math.max(0, radius * radius - dy * dy));
+      const x = shoulder.x + (side === 'left' ? -halfChord : halfChord);
+      const horizontalShift = (hand.x - hip.x) * 0.8;
+      return {
+        x: Math.min(Math.max(hip.x + horizontalShift, 32), w - 32),
+        y: targetY,
+        radiusScale: 2.5,
+        markerRadius: 5.5 * 2.5
+      };
+    };
+
+    const leftPoint1 = computeUpperPoint(leftEye, leftShoulder);
+    const rightPoint1 = computeUpperPoint(rightEye, rightShoulder);
+    const leftPoint2 = computeLowerPointAdjusted(leftShoulder, leftHand, leftHip, 'left');
+    const rightPoint2 = computeLowerPointAdjusted(rightShoulder, rightHand, rightHip, 'right');
+
+    const rangeTop = Math.min(leftPoint1.y, rightPoint1.y, leftPoint2.y, rightPoint2.y);
+    const rangeBottom = Math.max(leftPoint1.y, rightPoint1.y, leftPoint2.y, rightPoint2.y);
+    const verticalSpan = Math.max(24, rangeBottom - rangeTop);
+    const segmentHeight = verticalSpan / 6;
+    const labels = ['pp', 'p', 'mp', 'mf', 'f', 'ff'];
+
+    return {
+      rangeTop,
+      rangeBottom,
+      verticalSpan,
+      segmentHeight,
+      labels,
+      lineColors: [
+        'rgba(188, 231, 255, 0.95)',
+        'rgba(156, 215, 255, 0.82)',
+        'rgba(125, 196, 255, 0.8)',
+        'rgba(255, 216, 146, 0.8)',
+        'rgba(255, 168, 105, 0.82)',
+        'rgba(255, 121, 89, 0.96)'
+      ]
+    };
+  }
+
+  drawDynamicRangeGuideBand(geometry = this.getDynamicRangeGuideBandGeometry(), options = {}) {
+    if (!geometry || !this.canvas || !this.ctx) {
       return;
     }
 
-    const calibrationSet = this.getSelectedCalibrationPoseSet();
-    const landmarks = this.getCalibrationLandmarksForCanvas(calibrationSet);
-    const leftShoulder = landmarks[11];
-    const rightShoulder = landmarks[12];
-    const leftHip = landmarks[23];
-    const rightHip = landmarks[24];
-    if (!leftShoulder || !rightShoulder || !leftHip || !rightHip) {
-      return;
-    }
-
-    const shoulderY = Number(leftShoulder.y) + Number(rightShoulder.y);
-    const hipY = Number(leftHip.y) + Number(rightHip.y);
-    if (!Number.isFinite(shoulderY) || !Number.isFinite(hipY)) {
-      return;
-    }
-
-    const midpointShoulderY = shoulderY / 2;
-    const midpointHipY = hipY / 2;
-    const labels = ['PP', 'MP', 'MF', 'F'];
-    const lineColors = [
-      'rgba(188, 231, 255, 0.9)',
-      'rgba(145, 214, 255, 0.78)',
-      'rgba(255, 211, 135, 0.78)',
-      'rgba(255, 157, 122, 0.9)'
-    ];
+    const {
+      rangeTop,
+      segmentHeight,
+      labels,
+      lineColors
+    } = geometry;
+    const {
+      xStart = 0,
+      xEnd = this.canvas.width,
+      labelX = 12,
+      labelYOffset = 6,
+      lineDash = [10, 8],
+      labelTextTransform = (value) => value.toLowerCase()
+    } = options;
 
     this.ctx.save();
     try {
-      this.ctx.setLineDash([10, 8]);
-      this.ctx.lineWidth = 1.8;
+      this.ctx.setLineDash(lineDash);
       this.ctx.lineCap = 'butt';
       this.ctx.font = '700 12px sans-serif';
       this.ctx.textAlign = 'left';
       this.ctx.textBaseline = 'bottom';
 
       labels.forEach((label, index) => {
-        const t = labels.length > 1 ? index / (labels.length - 1) : 0;
-        const y = midpointShoulderY + (midpointHipY - midpointShoulderY) * t;
+        const y = rangeTop + segmentHeight * (index + 0.5);
         if (!Number.isFinite(y) || y < 0 || y > this.canvas.height) {
           return;
         }
 
+        const strokeWidth = 1.2 + index * 0.08;
+        this.ctx.lineWidth = strokeWidth;
         this.ctx.strokeStyle = lineColors[index] || 'rgba(255,255,255,0.8)';
         this.ctx.beginPath();
-        this.ctx.moveTo(0, y);
-        this.ctx.lineTo(this.canvas.width, y);
+        this.ctx.moveTo(xStart, y);
+        this.ctx.lineTo(xEnd, y);
         this.ctx.stroke();
 
         this.ctx.setLineDash([]);
         this.ctx.lineWidth = 4;
         this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.9)';
         this.ctx.fillStyle = lineColors[index] || 'rgba(255,255,255,0.8)';
-        this.ctx.strokeText(label, 12, y - 6);
-        this.ctx.fillText(label, 12, y - 6);
-        this.ctx.setLineDash([10, 8]);
+        const textLabel = labelTextTransform(label);
+        this.ctx.strokeText(textLabel, labelX, y - labelYOffset);
+        this.ctx.fillText(textLabel, labelX, y - labelYOffset);
+        this.ctx.setLineDash(lineDash);
       });
     } finally {
       this.ctx.setLineDash([]);
       this.ctx.restore();
     }
+  }
+
+  drawFigureDynamics(visible = this.figureDynamicsVisible) {
+    if (!visible) {
+      return;
+    }
+
+    const geometry = this.getDynamicRangeGuideBandGeometry();
+    this.drawDynamicRangeGuideBand(geometry);
   }
 
   getFigureAnchorPoint(renderSegments, anchorIndex) {
@@ -6405,6 +6602,7 @@ export class LevelManager {
   }
 
   setupLevel() {
+    this.syncDynamicGuideVisibilityFromStorage();
     this.motionDistanceHistory = { left: [], right: [] };
     this.motionDistanceFrameTargets = [];
     this.motionDistanceCurrent = { left: null, right: null };
@@ -6430,7 +6628,7 @@ export class LevelManager {
       this.consistencyActive = false;
       this.setConsistencyPanelVisible(false);
       this.active = false;
-      this.calibrationActive = this.level !== null && this.level >= 0 && this.level <= 2;
+      this.calibrationActive = this.level !== null && this.level >= 0 && this.level <= 3;
       this.calibrationAligned = false;
       this.calibrationSuccess = false;
       this.calibrationAlignedSince = 0;
@@ -7335,7 +7533,7 @@ export class LevelManager {
     }
 
     const inPlayableLevel = (
-      this.calibrationActive && (this.level === 1 || this.level === 2)
+      this.calibrationActive && (this.level === 1 || this.level === 2 || this.level === 3)
     ) || (
       (this.chapter === 3 && this.figureActive)
       || (this.chapter === 4 && this.dynamicFigureActive)
@@ -8230,6 +8428,11 @@ export class LevelManager {
       return;
     }
 
+    if (this.level === 3) {
+      this.renderDynamicRangeCalibration();
+      return;
+    }
+
     const w = this.canvas.width;
     const h = this.canvas.height;
     const centerX = w * 0.5;
@@ -8501,6 +8704,188 @@ export class LevelManager {
     this.ctx.stroke();
 
     this.ctx.restore();
+  }
+
+  renderDynamicRangeCalibration() {
+    const w = this.canvas.width;
+    const h = this.canvas.height;
+    const selectedSet = this.getSelectedCalibrationPoseSet();
+    const landmarks = this.getCalibrationLandmarksForCanvas(selectedSet);
+
+    const leftEye = landmarks[2] || landmarks[1] || { x: w * 0.28, y: h * 0.18 };
+    const rightEye = landmarks[5] || landmarks[4] || { x: w * 0.72, y: h * 0.18 };
+    const leftShoulder = landmarks[11] || { x: w * 0.32, y: h * 0.42 };
+    const rightShoulder = landmarks[12] || { x: w * 0.68, y: h * 0.42 };
+    const leftHip = landmarks[23] || landmarks[25] || { x: leftShoulder.x, y: h * 0.9 };
+    const rightHip = landmarks[24] || landmarks[26] || { x: rightShoulder.x, y: h * 0.9 };
+    const leftHand = this.averagePoints(landmarks[17], landmarks[19]) || { x: leftShoulder.x - 64, y: leftShoulder.y + 80 };
+    const rightHand = this.averagePoints(landmarks[18], landmarks[20]) || { x: rightShoulder.x + 64, y: rightShoulder.y + 80 };
+
+    const computeLowerPoint = (shoulder, hand, hip, side) => {
+      const radius = Math.max(this.distance(shoulder, hand), 40);
+      const targetY = hand.y + 0.9 * (hip.y - hand.y);
+      const dy = targetY - shoulder.y;
+      const halfChord = Math.sqrt(Math.max(0, radius * radius - dy * dy));
+      const x = shoulder.x + (side === 'left' ? -halfChord : halfChord);
+      return {
+        x: Math.min(Math.max(x, 32), w - 32),
+        y: targetY
+      };
+    };
+
+    const computeUpperPoint = (eye, shoulder) => ({
+      x: (eye.x + shoulder.x) / 2,
+      y: eye.y + (shoulder.y - eye.y) * 0.4
+    });
+
+    const computeLowerPointAdjusted = (shoulder, hand, hip, side) => {
+      const radius = Math.max(this.distance(shoulder, hand), 40);
+      const targetY = hand.y + 0.9 * (hip.y - hand.y);
+      const dy = targetY - shoulder.y;
+      const halfChord = Math.sqrt(Math.max(0, radius * radius - dy * dy));
+      const x = shoulder.x + (side === 'left' ? -halfChord : halfChord);
+      const horizontalShift = (hand.x - hip.x) * 0.8;
+      return {
+        x: Math.min(Math.max(hip.x + horizontalShift, 32), w - 32),
+        y: targetY,
+        radiusScale: 2.5,
+        markerRadius: 5.5 * 2.5
+      };
+    };
+
+    const leftPoint1 = computeUpperPoint(leftEye, leftShoulder);
+    const rightPoint1 = computeUpperPoint(rightEye, rightShoulder);
+    const leftPoint2 = computeLowerPointAdjusted(leftShoulder, leftHand, leftHip, 'left');
+    const rightPoint2 = computeLowerPointAdjusted(rightShoulder, rightHand, rightHip, 'right');
+
+    const bgGradient = this.ctx.createLinearGradient(0, 0, 0, h);
+    bgGradient.addColorStop(0, 'rgba(6, 14, 27, 0.16)');
+    bgGradient.addColorStop(1, 'rgba(8, 20, 36, 0.28)');
+    this.ctx.fillStyle = bgGradient;
+    this.ctx.fillRect(0, 0, w, h);
+
+    if (this.dynamicRangeGuideVisible) {
+      const geometry = this.getDynamicRangeGuideBandGeometry();
+      if (geometry) {
+        this.drawDynamicRangeGuideBand(geometry, {
+          xStart: 0,
+          xEnd: w,
+          labelX: Math.min(32, w * 0.02),
+          labelYOffset: 8
+        });
+      }
+    }
+
+    const drawLine = (start, end, isLeft) => {
+      const labels = ['pp', 'p', 'mp', 'mf', 'f', 'ff'];
+      const bandStops = [0, 1 / 6, 2 / 6, 3 / 6, 4 / 6, 5 / 6, 1];
+      const length = this.distance(start, end);
+      if (!Number.isFinite(length) || length <= 0) {
+        return;
+      }
+
+      const activeTip = isLeft ? this.leftTip : this.rightTip;
+      let highlightedIndex = -1;
+      let highlightedPoint = null;
+      if (activeTip) {
+        const segmentVectorX = end.x - start.x;
+        const segmentVectorY = end.y - start.y;
+        const projectionFactor = ((activeTip.x - start.x) * segmentVectorX + (activeTip.y - start.y) * segmentVectorY) / Math.max(length * length, 1);
+        const clampedFactor = Math.min(1, Math.max(0, projectionFactor));
+        const projectedX = start.x + clampedFactor * segmentVectorX;
+        const projectedY = start.y + clampedFactor * segmentVectorY;
+        const projected = { x: projectedX, y: projectedY };
+        const distanceToProjection = this.distance(activeTip, projected);
+        const normalX = (end.y - start.y) / length;
+        const normalY = -(end.x - start.x) / length;
+        const signedDistance = Math.abs((activeTip.x - projected.x) * normalX + (activeTip.y - projected.y) * normalY);
+        const progress = Math.min(1, Math.max(0, clampedFactor));
+        if (distanceToProjection <= 60 && signedDistance <= 40 && projectionFactor >= 0 && projectionFactor <= 1) {
+          highlightedIndex = bandStops.findIndex((stop, index) => index < bandStops.length - 1 && progress >= stop && progress <= bandStops[index + 1]);
+          highlightedPoint = projected;
+        }
+      }
+
+      this.dynamicRangeLabelMix = this.dynamicRangeLabelMix ?? 0;
+      const targetMix = highlightedIndex >= 0 ? 1 : 0;
+      this.dynamicRangeLabelMix += (targetMix - this.dynamicRangeLabelMix) * 0.12;
+
+      this.ctx.lineCap = 'butt';
+      this.ctx.lineJoin = 'round';
+
+      for (let index = 0; index < labels.length; index += 1) {
+        const t0 = Math.min(1, Math.max(0, bandStops[index]));
+        const t1 = Math.min(1, Math.max(0, bandStops[index + 1]));
+        const segmentStart = {
+          x: start.x + (end.x - start.x) * t0,
+          y: start.y + (end.y - start.y) * t0
+        };
+        const segmentEnd = {
+          x: start.x + (end.x - start.x) * t1,
+          y: start.y + (end.y - start.y) * t1
+        };
+        const widthT = Math.min(1, Math.max(0, (t0 + t1) / 2));
+        const lineWidth = 2 + widthT * 20;
+
+        const isActiveSegment = highlightedIndex === index;
+        const baseAlpha = isActiveSegment ? 0.95 : 0.42;
+        const baseShadowBlur = isActiveSegment ? 26 : 8;
+        const baseShadowColor = isActiveSegment ? (isLeft ? 'rgba(117, 196, 255, 0.8)' : 'rgba(255, 154, 107, 0.8)') : (isLeft ? 'rgba(80, 146, 196, 0.28)' : 'rgba(185, 104, 62, 0.26)');
+
+        this.ctx.save();
+        this.ctx.strokeStyle = isLeft ? `rgba(136, 207, 255, ${baseAlpha})` : `rgba(255, 174, 120, ${baseAlpha})`;
+        this.ctx.lineWidth = isActiveSegment ? lineWidth * 1.25 : lineWidth * 0.8;
+        this.ctx.shadowBlur = baseShadowBlur;
+        this.ctx.shadowColor = baseShadowColor;
+        this.ctx.beginPath();
+        this.ctx.moveTo(segmentStart.x, segmentStart.y);
+        this.ctx.lineTo(segmentEnd.x, segmentEnd.y);
+        this.ctx.stroke();
+        this.ctx.restore();
+
+        const normalX = (end.y - start.y) / length;
+        const normalY = -(end.x - start.x) / length;
+        const textX = segmentStart.x + (segmentEnd.x - segmentStart.x) * 0.5 + normalX * 20;
+        const textY = segmentStart.y + (segmentEnd.y - segmentStart.y) * 0.5 + normalY * 20;
+
+        const labelScale = 1 + (isActiveSegment ? 0.45 : 0) * this.dynamicRangeLabelMix;
+        this.ctx.save();
+        this.ctx.translate(textX, textY);
+        this.ctx.scale(labelScale, labelScale);
+        this.ctx.translate(-textX, -textY);
+        this.ctx.fillStyle = isLeft ? (isActiveSegment ? 'rgba(175, 226, 255, 1)' : 'rgba(120, 180, 220, 0.55)') : (isActiveSegment ? 'rgba(255, 214, 174, 1)' : 'rgba(220, 160, 120, 0.5)');
+        this.ctx.font = isActiveSegment ? '700 20px Arial' : '600 14px Arial';
+        this.ctx.textAlign = 'center';
+        this.ctx.textBaseline = 'middle';
+        this.ctx.fillText(labels[index], textX, textY);
+        this.ctx.restore();
+      }
+    };
+
+    drawLine(leftPoint1, leftPoint2, true);
+    drawLine(rightPoint1, rightPoint2, false);
+
+    this.ctx.save();
+    this.ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+    this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.55)';
+    this.ctx.lineWidth = 2;
+    [[leftPoint1, leftPoint2], [rightPoint1, rightPoint2]].forEach(([start, end]) => {
+      this.ctx.beginPath();
+      this.ctx.moveTo(start.x, start.y);
+      this.ctx.lineTo(end.x, end.y);
+      this.ctx.stroke();
+      this.ctx.beginPath();
+      this.ctx.arc(start.x, start.y, 5.5, 0, Math.PI * 2);
+      this.ctx.fill();
+      this.ctx.beginPath();
+      const endRadius = end && end.markerRadius ? end.markerRadius : 5.5;
+      this.ctx.arc(end.x, end.y, endRadius, 0, Math.PI * 2);
+      this.ctx.fill();
+    });
+    this.ctx.restore();
+
+    this.updateCalibrationPanelPosition();
+    this.updateCalibrationPanelContent();
   }
 
   renderCalibrationMotion(scale, verticalScale = 1, matchSegmentLengths = false, speedFactor = 0.0002, anchorMode = 'none') {
@@ -9137,7 +9522,7 @@ export class LevelManager {
       this.activeTouchCircleByHand[hand] = nextSet;
     }
 
-    if (this.calibrationActive && (this.level === 1 || this.level === 2)) {
+    if (this.calibrationActive && (this.level === 1 || this.level === 2 || this.level === 3)) {
       this.requestRender();
       return;
     }

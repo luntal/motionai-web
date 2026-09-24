@@ -43,9 +43,13 @@ export const DEFAULT_MOTIONAI_STORAGE = {
   'motionai.dynamic-figure-selected-presets': {},
   'motionai.hand-independence-panel-settings': {
     reverse: false,
+    dynamicsVisible: false,
     dynamicVisible: false,
     countVisible: false,
     countTimesVisible: false
+  },
+  'motionai.dynamic-range-panel-settings': {
+    dynamicRangeGuideVisible: false
   },
   'motionai.hand-independence-presets': {},
   'motionai.exercise-field-panel-settings': {

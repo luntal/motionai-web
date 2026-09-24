@@ -1,6 +1,6 @@
 export const CHAPTER_COUNT = 8;
 export const LEVEL_COUNT = 5;
-export const chapterLevelCounts = [3, 5, 6, 7, 4, 4, 3, 5];
+export const chapterLevelCounts = [4, 5, 6, 7, 4, 4, 3, 5];
 
 export function getLevelCountForChapter(chapter) {
   if (!Number.isInteger(chapter) || chapter < 0 || chapter >= chapterLevelCounts.length) {
@@ -32,7 +32,7 @@ export const chapterDescriptions = [
 ];
 
 export const levelTitles = [
-  ['Oberkörper', 'forte', 'piano'],
+  ['Oberkörper', 'Maximum', 'Minimum', 'Dynamikbereich'],
   ['Ziffern', 'Punkte', 'Freie Bewegung', 'Leer 1', 'Leer 2'],
   ['Rechte Linie', 'Linke Linie', 'Synchron', 'Versetzt', '2:1 Tempo', 'Ellipsen'],
   ['Einserfigur', 'Zweierfigur', 'Dreierfigur', 'Viererfigur', 'Fünferfigur', 'Sechserfigur', 'Siebenerfigur'],
@@ -45,8 +45,9 @@ export const levelTitles = [
 export const levelDescriptions = [
   [
     'Oberkörper: Augen- und Hüftbereich in die vorgegebenen Rechtecke ausrichten und danach die Armkalibrierung freischalten.',
-    'forte: Große, geführte Handbewegung entlang der Referenzpfade.',
-    'piano: Kleinere, zentrierte Handbewegung entlang der Referenzpfade.'
+    'Maximum: Große, geführte Handbewegung entlang der Referenzpfade.',
+    'MinimumDas : Kleinere, zentrierte Handbewegung entlang der Referenzpfade.',
+    'Dynamikbereich: Fahre mit der Hand auf der Linie auf und ab, um die Dynamikebenen darzustellen.'
   ],
   [
     'Ziffern: Malen nach Zahlen. Berühre die orangenen Kreise mit der rechten Hand und die blauen Kreise mit der linken.',

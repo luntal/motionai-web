@@ -92,8 +92,8 @@ function bindFigurePanelDescriptions(panel, sectionName) {
 
   const controls = [
     ['Groesse', panel.querySelector('.figure-size-label')],
-    ['Dynamiklinien', panel.querySelectorAll('.figure-dynamics-toggle')[0]],
-    ['Zählzeiten', panel.querySelectorAll('.figure-dynamics-toggle')[1]],
+    ['Dynamiklinien', panel.querySelector('.basic-figure-dynamics-toggle')],
+    ['Zählzeiten', panel.querySelector('.basic-figure-count-times-toggle')],
     ['x', panel.querySelectorAll('.figure-size-wrap')[1]],
     ['y', panel.querySelectorAll('.figure-size-wrap')[2]],
     ['BPM', panel.querySelectorAll('.figure-size-wrap')[3]],
@@ -128,6 +128,23 @@ function bindFigurePanelDescriptions(panel, sectionName) {
   }
 
   attachPanelHoverHelp(panel);
+}
+
+function applyPanelVisibilityState(panel, visible) {
+  if (!(panel instanceof Element)) {
+    return;
+  }
+
+  const nextVisible = Boolean(visible);
+  panel.classList.toggle('hidden', !nextVisible);
+  panel.hidden = !nextVisible;
+  panel.style.display = nextVisible ? '' : 'none';
+
+  if (nextVisible) {
+    panel.removeAttribute('aria-hidden');
+  } else {
+    panel.setAttribute('aria-hidden', 'true');
+  }
 }
 
 function applyLevelSettingsVisibilityToPanel(panel, visible) {
@@ -324,7 +341,7 @@ function createFigureModePanel(initialManager, options = {}) {
   presetPanel.appendChild(presetActions);
   const presetDivider = createPanelDivider();
   const motionDistanceToggle = document.createElement('label');
-  motionDistanceToggle.className = 'figure-dynamics-toggle';
+  motionDistanceToggle.className = 'motion-distance-toggle';
   const motionDistanceInput = document.createElement('input');
   motionDistanceInput.type = 'checkbox';
   motionDistanceInput.checked = storedFigureSettings.motionDistanceVisible === true;
@@ -707,7 +724,7 @@ function createFigureModePanel(initialManager, options = {}) {
   });
 
   const dynamicsWrap = document.createElement('label');
-  dynamicsWrap.className = 'figure-dynamics-toggle';
+  dynamicsWrap.className = 'basic-figure-dynamics-toggle';
 
   const dynamicsToggle = document.createElement('input');
   dynamicsToggle.type = 'checkbox';
@@ -726,7 +743,7 @@ function createFigureModePanel(initialManager, options = {}) {
   });
 
   const countTimesWrap = document.createElement('label');
-  countTimesWrap.className = 'figure-dynamics-toggle';
+  countTimesWrap.className = 'basic-figure-count-times-toggle';
 
   const countTimesToggle = document.createElement('input');
   countTimesToggle.type = 'checkbox';
@@ -952,9 +969,41 @@ function createFigureModePanel(initialManager, options = {}) {
   }
 
   function setVisible(visible) {
-    panel.classList.toggle('hidden', !visible);
+    const nextVisible = Boolean(visible);
+    panel.classList.toggle('hidden', !nextVisible);
+    panel.hidden = !nextVisible;
+    panel.style.display = nextVisible ? '' : 'none';
     levelSettingsVisibility.sync();
-    levelSettingsVisibility.sync();
+  }
+
+  function syncFigureDynamicsToggleFromManager() {
+    if (!managerRef) {
+      return;
+    }
+    const chapter = uiState.activeChapter;
+    const nextChecked = chapter === 4
+      ? Boolean(managerRef.dynamicFigureDynamicsVisible)
+      : chapter === 5
+        ? Boolean(managerRef.handIndependenceDynamicsVisible)
+        : Boolean(managerRef.figureDynamicsVisible);
+    if (dynamicsToggle.checked !== nextChecked) {
+      dynamicsToggle.checked = nextChecked;
+    }
+    persistFigureSettings();
+  }
+
+  function syncCurrentToggleStateForChapter() {
+    if (!managerRef) {
+      return;
+    }
+    if (uiState.activeChapter === 4) {
+      dynamicsToggle.checked = Boolean(managerRef.dynamicFigureDynamicsVisible);
+    } else if (uiState.activeChapter === 5) {
+      dynamicsToggle.checked = Boolean(managerRef.handIndependenceDynamicsVisible);
+    } else {
+      dynamicsToggle.checked = Boolean(managerRef.figureDynamicsVisible);
+    }
+    persistFigureSettings();
   }
 
   function setLevelManager(manager) {
@@ -1083,7 +1132,7 @@ function createFigureModePanel(initialManager, options = {}) {
         weightControls[key].valueNode.textContent = `${Math.round(value)}%`;
       }
     });
-    if (managerRef) {
+    if (managerRef && typeof managerRef.setMotionDistanceScoreWeights === 'function') {
       managerRef.setMotionDistanceScoreWeights(normalizedWeights);
     }
     setVariant(settings.figureVariant || selectedVariant);
@@ -1278,7 +1327,9 @@ function createFigureModePanel(initialManager, options = {}) {
     setLevel,
     applyPreset,
     getVariant: () => selectedVariant,
-    getSide: () => selectedSide
+    getSide: () => selectedSide,
+    syncFigureDynamicsToggleFromManager,
+    syncCurrentToggleStateForChapter
   };
 }
 
@@ -1540,11 +1591,24 @@ function createDynamicFigureModePanel() {
     renderPresetSlots();
   }
 
+  function syncCurrentToggleStateForChapter() {
+    if (!managerRef) {
+      return;
+    }
+    const nextChecked = Boolean(managerRef.dynamicFigureDynamicsVisible);
+    const dynamicsInput = basePanel.panel.querySelector('.basic-figure-dynamics-toggle input');
+    if (dynamicsInput && dynamicsInput.checked !== nextChecked) {
+      dynamicsInput.checked = nextChecked;
+    }
+  }
+
   return {
     ...basePanel,
     setLevelManager,
     setLevel,
-    applyPreset
+    applyPreset,
+    syncFigureDynamicsToggleFromManager: basePanel.syncFigureDynamicsToggleFromManager,
+    syncCurrentToggleStateForChapter
   };
 }
 
@@ -2483,7 +2547,7 @@ function createExerciseFieldPanel() {
     isEnabled: () => Boolean(toggleInput.checked),
     setVisible: (visible) => {
       const effectiveVisible = Boolean(visible);
-      panel.classList.toggle('hidden', !effectiveVisible);
+      applyPanelVisibilityState(panel, effectiveVisible);
       const settingsVisible = effectiveVisible && readLevelSettingsVisibilityState();
       applyLevelSettingsVisibilityToPanel(panel, settingsVisible);
     },
@@ -3385,7 +3449,7 @@ function createSquareExercisePanel() {
   bindUiGroupDescription([squarePresetResetButton], 'Eingewöhnung', 'PresetZurücksetzen');
 
   const squarePalindromWrap = document.createElement('label');
-  squarePalindromWrap.className = 'figure-dynamics-toggle';
+  squarePalindromWrap.className = 'square-palindrom-toggle';
   squarePalindromWrap.hidden = true;
   const squarePalindromInput = document.createElement('input');
   squarePalindromInput.type = 'checkbox';
@@ -3553,7 +3617,7 @@ function createSquareExercisePanel() {
   pointSection.hidden = true;
 
   const pointToggleWrap = document.createElement('label');
-  pointToggleWrap.className = 'figure-dynamics-toggle';
+  pointToggleWrap.className = 'point-edit-toggle';
   pointToggleWrap.style.display = 'none';
   const pointToggleInput = document.createElement('input');
   pointToggleInput.type = 'checkbox';
@@ -3689,7 +3753,7 @@ function createSquareExercisePanel() {
   bindUiGroupDescription([...pointHandRow.querySelectorAll('label, input')], 'Eingewöhnung', 'HandBearbeiten');
 
   const pointSymmetryWrap = document.createElement('label');
-  pointSymmetryWrap.className = 'figure-dynamics-toggle';
+  pointSymmetryWrap.className = 'point-symmetry-toggle';
   const pointSymmetryInput = document.createElement('input');
   pointSymmetryInput.type = 'checkbox';
   pointSymmetryInput.checked = pointSymmetryMode;
@@ -3705,7 +3769,7 @@ function createSquareExercisePanel() {
   });
 
   const pointPalindromWrap = document.createElement('label');
-  pointPalindromWrap.className = 'figure-dynamics-toggle';
+  pointPalindromWrap.className = 'point-palindrom-toggle';
   const pointPalindromInput = document.createElement('input');
   pointPalindromInput.type = 'checkbox';
   pointPalindromInput.checked = pointPalindromMode;
@@ -4803,7 +4867,7 @@ function createSquareExercisePanel() {
 
   return {
     panel,
-    setVisible: (visible) => panel.classList.toggle('hidden', !visible),
+    setVisible: (visible) => applyPanelVisibilityState(panel, visible),
     setResolution,
     setGridResolution,
     applyPreset: applySquarePreset,
@@ -5136,7 +5200,7 @@ function createHandIndependencePanel() {
   const motionDistanceDivider = document.createElement('div');
   motionDistanceDivider.className = 'figure-panel-divider';
   const motionDistanceToggle = document.createElement('label');
-  motionDistanceToggle.className = 'figure-dynamics-toggle';
+  motionDistanceToggle.className = 'motion-distance-toggle';
   const motionDistanceInput = document.createElement('input');
   motionDistanceInput.type = 'checkbox';
   motionDistanceInput.checked = settings.motionDistanceVisible;
@@ -5330,7 +5394,7 @@ function createHandIndependencePanel() {
     return presetSnapshot;
   };
   const addToggle = (key, label) => {
-    const wrap = document.createElement('label'); wrap.className = 'figure-dynamics-toggle';
+    const wrap = document.createElement('label'); wrap.className = 'hand-independence-toggle';
     const input = document.createElement('input'); input.type = 'checkbox'; input.checked = Boolean(settings[key]);
     input.addEventListener('change', () => { settings[key] = input.checked; managerRef?.setHandIndependenceReverse(input.checked); persist(); });
     wrap.append(input, document.createTextNode(label)); panel.appendChild(wrap); controls[key] = input;
@@ -5340,7 +5404,7 @@ function createHandIndependencePanel() {
   const reverseToggleWrap = addToggle('reverse', 'Umkehren');
   bindUiGroupDescription([reverseToggleWrap, controls.reverse], 'Handunabhängigkeit', 'Umkehren');
   const dynamicsToggle = document.createElement('label');
-  dynamicsToggle.className = 'figure-dynamics-toggle';
+  dynamicsToggle.className = 'hand-independence-dynamics-toggle';
   const dynamicsInput = document.createElement('input');
   dynamicsInput.type = 'checkbox';
   dynamicsInput.checked = Boolean(settings.dynamicsVisible);
@@ -5431,7 +5495,7 @@ function createHandIndependencePanel() {
   bindUiGroupDescription([...variationGroup.querySelectorAll('label, input')], 'Handunabhängigkeit', 'Variation');
   bindUiGroupDescription([...variantGroup.querySelectorAll('label, input')], 'Handunabhängigkeit', 'weichHart');
   const countToggle = document.createElement('label');
-  countToggle.className = 'figure-dynamics-toggle';
+  countToggle.className = 'hand-independence-count-toggle';
   const countInput = document.createElement('input');
   countInput.type = 'checkbox';
   countInput.checked = Boolean(settings.countTimesVisible);
@@ -5673,9 +5737,21 @@ function createHandIndependencePanel() {
     }
   }
 
+  function syncCurrentToggleStateForChapter() {
+    if (!managerRef) {
+      return;
+    }
+    const nextChecked = Boolean(managerRef.handIndependenceDynamicsVisible);
+    if (dynamicsInput.checked !== nextChecked) {
+      dynamicsInput.checked = nextChecked;
+    }
+    settings.dynamicsVisible = nextChecked;
+    persist();
+  }
+
   return {
     panel,
-    setVisible: (visible) => panel.classList.toggle('hidden', !visible),
+    setVisible: (visible) => applyPanelVisibilityState(panel, visible),
     setLevelManager: (manager) => {
       managerRef = manager || null;
       apply(settings);
@@ -5707,7 +5783,8 @@ function createHandIndependencePanel() {
       renderPresetSlots();
     },
     savePresetFromPrompt,
-    resetPresets
+    resetPresets,
+    syncCurrentToggleStateForChapter
   };
 }
 
@@ -7547,9 +7624,7 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
 
   return {
     panel,
-    setVisible: (visible) => {
-      panel.classList.toggle('hidden', !visible);
-    },
+    setVisible: (visible) => applyPanelVisibilityState(panel, visible),
     isRunning: () => examState.running,
     stop: stopExam,
     start: startExam,
@@ -7851,7 +7926,9 @@ export function initApp() {
     setPointExerciseSequentialMode: (value) => levelManager.setPointExerciseSequentialMode(value),
     setPointExerciseSelectedSlot: (value) => levelManager.setPointExerciseSelectedSlot(value),
     setPointExerciseSequence: (value) => levelManager.setPointExerciseSequence(value),
-    setPointExerciseSavedSlots: (value) => levelManager.setPointExerciseSavedSlots(value)
+    setPointExerciseSavedSlots: (value) => levelManager.setPointExerciseSavedSlots(value),
+    setMotionDistanceScoreWeights: (weights) => levelManager.setMotionDistanceScoreWeights(weights),
+    getMotionDistanceScoreWeights: () => levelManager.getMotionDistanceScoreWeights()
   });
   exerciseFieldPanel.setLevelManager({
     get exerciseFieldVisible() { return levelManager.exerciseFieldVisible; },
@@ -7894,6 +7971,8 @@ export function initApp() {
     setFigureCountTimesVisible: (value) => levelManager.setDynamicFigureCountTimesVisible(value),
     setMotionDistanceVisible: (value) => levelManager.setMotionDistanceVisible(value),
     setMotionDistanceStrictness: (value) => levelManager.setMotionDistanceStrictness(value),
+    setMotionDistanceScoreWeights: (weights) => levelManager.setMotionDistanceScoreWeights(weights),
+    getMotionDistanceScoreWeights: () => levelManager.getMotionDistanceScoreWeights(),
     getMotionDistanceSummary: () => levelManager.getMotionDistanceSummary(),
     setFigureVariant: (value) => levelManager.setDynamicFigureVariant(value),
     setFigureSide: (value) => levelManager.setDynamicFigureSide(value),
@@ -7911,6 +7990,8 @@ export function initApp() {
     setHandIndependenceCountTimesVisible: (value) => levelManager.setHandIndependenceCountTimesVisible(value),
     setMotionDistanceVisible: (value) => levelManager.setMotionDistanceVisible(value),
     setMotionDistanceStrictness: (value) => levelManager.setMotionDistanceStrictness(value),
+    setMotionDistanceScoreWeights: (weights) => levelManager.setMotionDistanceScoreWeights(weights),
+    getMotionDistanceScoreWeights: () => levelManager.getMotionDistanceScoreWeights(),
     getMotionDistanceSummary: () => levelManager.getMotionDistanceSummary(),
     setHandIndependenceTempoRatio: (value) => levelManager.setHandIndependenceTempoRatio(value),
     setHandIndependenceFigureParameter: (name, value) => levelManager.setHandIndependenceFigureParameter(name, value),
@@ -7968,6 +8049,28 @@ export function initApp() {
     }
 
     return { square: true, symmetric: false, points: false };
+  };
+
+  const syncChapterPanelsForCurrentState = () => {
+    const chapter = uiState.activeChapter;
+    const levelIsActive = Number.isInteger(uiState.activeLevel) && uiState.activeLevel !== null;
+    const activeLevel = uiState.activeLevel;
+
+    figurePanel.setVisible(chapter === 3 && levelIsActive);
+    dynamicFigurePanel.setVisible(chapter === 4 && levelIsActive);
+    handIndependencePanel.setVisible(chapter === 5 && levelIsActive);
+
+    if (chapter === 3) {
+      figurePanel.setTitle(Number.isInteger(activeLevel) && activeLevel >= 4 ? 'extended' : 'basic');
+      figurePanel.setLevel(activeLevel);
+    } else if (chapter === 4) {
+      dynamicFigurePanel.setTitle('dynamic');
+      dynamicFigurePanel.setVariant(levelManager.dynamicFigureVariant || 'hard');
+      dynamicFigurePanel.setLevel(activeLevel);
+    } else if (chapter === 5) {
+      handIndependencePanel.applyPreset(activeLevel);
+      handIndependencePanel.setLevel();
+    }
   };
 
   onChapterChange((chapter) => {
@@ -8066,6 +8169,15 @@ export function initApp() {
     }
     levelManager.setLevel(level);
     syncLevelCanvasPointerState();
+    if ([3, 4, 5].includes(uiState.activeChapter) && level !== null) {
+      if (uiState.activeChapter === 3) {
+        figurePanel.syncFigureDynamicsToggleFromManager();
+      } else if (uiState.activeChapter === 4) {
+        dynamicFigurePanel.syncFigureDynamicsToggleFromManager();
+      } else if (uiState.activeChapter === 5) {
+        handIndependencePanel.syncCurrentToggleStateForChapter();
+      }
+    }
     if (level !== null) {
       setLevelActive(true);
       clearHoverDescription();
@@ -8109,25 +8221,13 @@ export function initApp() {
     }
 
     if (uiState.activeChapter === 3) {
-      figurePanel.setVisible(level !== null);
-      figurePanel.setTitle(level !== null && level >= 4 ? 'extended' : 'basic');
-      figurePanel.setLevel(level);
-      dynamicFigurePanel.setVisible(false);
-      handIndependencePanel.setVisible(false);
+      syncChapterPanelsForCurrentState();
       squareExercisePanel.setVisible(false);
     } else if (uiState.activeChapter === 4) {
-      figurePanel.setVisible(false);
-      dynamicFigurePanel.setVisible(level !== null);
-      dynamicFigurePanel.setTitle('dynamic');
-      dynamicFigurePanel.setLevel(level);
-      handIndependencePanel.setVisible(false);
+      syncChapterPanelsForCurrentState();
       squareExercisePanel.setVisible(false);
     } else if (uiState.activeChapter === 5) {
-      figurePanel.setVisible(false);
-      dynamicFigurePanel.setVisible(false);
-      handIndependencePanel.setVisible(level !== null);
-      handIndependencePanel.applyPreset(level);
-      handIndependencePanel.setLevel();
+      syncChapterPanelsForCurrentState();
       squareExercisePanel.setVisible(false);
     } else if (uiState.activeChapter === 1) {
       figurePanel.setVisible(false);
@@ -8159,6 +8259,17 @@ export function initApp() {
       handIndependencePanel.setVisible(false);
       squareExercisePanel.setVisible(false);
     }
+
+    const chapterSidePanels = [
+      { chapter: 3, panel: figurePanel },
+      { chapter: 4, panel: dynamicFigurePanel },
+      { chapter: 5, panel: handIndependencePanel }
+    ];
+    chapterSidePanels.forEach(({ chapter, panel }) => {
+      if (uiState.activeChapter === chapter) {
+        panel.setVisible(Number.isInteger(level));
+      }
+    });
   });
 
   document.addEventListener('hand-independence-save-preset', () => {
