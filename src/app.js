@@ -7023,6 +7023,8 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
 
   const taskStorageKey = 'motionai.exam.tasks';
   const resultsStorageKey = 'motionai.exam.results';
+  const FINAL_EXAM_LEVEL = 4;
+  const FINAL_EXAM_PASSWORD = 'moki';
   const examChapterOptions = [
     { id: 1, label: 'Eingewöhnung' },
     { id: 2, label: 'Gleichmäßigkeit' },
@@ -7031,6 +7033,13 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
     { id: 5, label: 'Handunabhängigkeit' },
     { id: 6, label: 'Einsätze geben' }
   ];
+
+  const escapeHtml = (value) => String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 
   const normalizeExamLevel = (value) => {
     const next = Number(value);
@@ -7326,6 +7335,8 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
     }
   };
 
+  let examCandidateName = '';
+
   const renderHistory = () => {
     const results = loadExamResults(activeExamLevel);
     if (!results.length) {
@@ -7337,7 +7348,8 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
     historySelect.disabled = false;
     historySelect.innerHTML = '<option value="">Leistung auswählen</option>' + results.map((entry) => {
       const date = new Date(entry.timestamp || Date.now());
-      return `<option value="${entry.id}">${date.toLocaleString()} · ${entry.totalScore}%</option>`;
+      const namePart = activeExamLevel === FINAL_EXAM_LEVEL && entry.name ? ` · ${escapeHtml(entry.name)}` : '';
+      return `<option value="${entry.id}">${date.toLocaleString()}${namePart} · ${entry.totalScore}%</option>`;
     }).join('');
   };
 
@@ -7346,11 +7358,14 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
       return;
     }
     resultTotal.textContent = `${Math.round(resultEntry.totalScore)}%`;
+    const nameLine = activeExamLevel === FINAL_EXAM_LEVEL && resultEntry.name
+      ? `<div>Prüfling: ${escapeHtml(resultEntry.name)}</div>`
+      : '';
     const lines = resultEntry.tasks.map((taskEntry, index) => {
       const taskLabel = `${index + 1}. ${getExamChapterLabel(taskEntry.chapterId)} · ${getExamLevelLabel(taskEntry.chapterId, taskEntry.levelIndex)}`;
-      return `<div>${taskLabel}: ${Math.round(taskEntry.score)}%</div>`;
+      return `<div>${escapeHtml(taskLabel)}: ${Math.round(taskEntry.score)}%</div>`;
     }).join('');
-    resultSummary.innerHTML = lines || '<div>Keine Aufgaben</div>';
+    resultSummary.innerHTML = `${nameLine}${lines || '<div>Keine Aufgaben</div>'}`;
     resultModal.classList.remove('hidden');
   };
 
@@ -7400,6 +7415,8 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
     if (examLevelManagerRef && typeof examLevelManagerRef.setChapter1ExamTouchInputEnabled === 'function') {
       examLevelManagerRef.setChapter1ExamTouchInputEnabled(false);
     }
+    examCandidateName = '';
+    uiState.finalExamCandidateName = '';
     examState.running = false;
     examState.taskResults = [];
     startStopButton.classList.remove('active');
@@ -7421,7 +7438,8 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
       id: Date.now(),
       timestamp: new Date().toISOString(),
       totalScore,
-      tasks: examState.taskResults
+      tasks: examState.taskResults,
+      ...(activeExamLevel === FINAL_EXAM_LEVEL && examCandidateName ? { name: examCandidateName } : {})
     };
     const existingResults = loadExamResults(activeExamLevel);
     const nextResults = [resultEntry, ...existingResults].slice(0, 12);
@@ -7561,6 +7579,21 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
   const startExam = () => {
     if (!tasks.length || activeExamLevel === null) {
       return;
+    }
+    if (activeExamLevel === FINAL_EXAM_LEVEL) {
+      const name = window.prompt('Bitte gib deinen Namen für die Prüfung ein:');
+      if (name === null) {
+        return;
+      }
+      const trimmedName = String(name ?? '').trim();
+      if (!trimmedName) {
+        window.alert('Ein Name ist für die Prüfung erforderlich.');
+        return;
+      }
+      examCandidateName = trimmedName;
+      uiState.finalExamCandidateName = trimmedName;
+    } else {
+      examCandidateName = uiState.finalExamCandidateName || '';
     }
     const panelState = ensureExamPanelState(activeExamLevel);
     if (panelState && Array.isArray(panelState.tasks) && panelState.tasks.length) {

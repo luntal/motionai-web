@@ -39,7 +39,7 @@ export const levelTitles = [
   ['Einsertakt', 'Zweiertakt', 'Dreiertakt', 'Vierertakt'],
   ['Einserfigur', 'Zweierfigur', 'Dreierfigur', 'Viererfigur'],
   ['Zweivierteltakt', 'Dreivierteltakt', 'Viervierteltakt'],
-  ['Prüfung 1', 'Prüfung 2', 'Prüfung 3', 'Prüfung 4', 'Prüfung 5']
+  ['Test 1', 'Test 2', 'Test 3', 'Test 4', 'Prüfung']
 ];
 
 export const levelDescriptions = [

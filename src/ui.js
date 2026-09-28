@@ -11,8 +11,111 @@ export const uiState = {
   activeChapter: null,
   activeLevel: null,
   hoverHelpEnabled: false,
-  examSelectionInProgress: false
+  examSelectionInProgress: false,
+  finalExamCandidateName: ''
 };
+
+function requestFinalExamPassword() {
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.style.position = 'fixed';
+    overlay.style.inset = '0';
+    overlay.style.display = 'flex';
+    overlay.style.alignItems = 'center';
+    overlay.style.justifyContent = 'center';
+    overlay.style.background = 'rgba(0, 0, 0, 0.55)';
+    overlay.style.zIndex = '2000';
+
+    const card = document.createElement('div');
+    card.style.width = 'min(360px, calc(100vw - 32px))';
+    card.style.padding = '20px';
+    card.style.borderRadius = '12px';
+    card.style.background = '#fff';
+    card.style.boxShadow = '0 18px 40px rgba(0, 0, 0, 0.25)';
+    card.style.fontFamily = 'sans-serif';
+
+    const title = document.createElement('div');
+    title.textContent = 'Prüfungs-Passwort';
+    title.style.fontSize = '22px';
+    title.style.fontWeight = '600';
+    title.style.marginBottom = '12px';
+    title.style.color = '#111';
+
+    const input = document.createElement('input');
+    input.type = 'password';
+    input.placeholder = 'Passwort';
+    input.autocomplete = 'off';
+    input.spellcheck = false;
+    input.style.width = '100%';
+    input.style.boxSizing = 'border-box';
+    input.style.padding = '10px 12px';
+    input.style.border = '1px solid #ccc';
+    input.style.borderRadius = '8px';
+    input.style.fontSize = '16px';
+    input.style.marginBottom = '16px';
+
+    const actions = document.createElement('div');
+    actions.style.display = 'flex';
+    actions.style.justifyContent = 'flex-end';
+    actions.style.gap = '8px';
+
+    const cancelButton = document.createElement('button');
+    cancelButton.type = 'button';
+    cancelButton.textContent = 'Abbrechen';
+    cancelButton.style.padding = '9px 14px';
+    cancelButton.style.border = '1px solid #ddd';
+    cancelButton.style.borderRadius = '8px';
+    cancelButton.style.background = '#f3f3f3';
+    cancelButton.style.cursor = 'pointer';
+
+    const confirmButton = document.createElement('button');
+    confirmButton.type = 'button';
+    confirmButton.textContent = 'OK';
+    confirmButton.style.padding = '9px 14px';
+    confirmButton.style.border = 'none';
+    confirmButton.style.borderRadius = '8px';
+    confirmButton.style.background = '#1f6feb';
+    confirmButton.style.color = '#fff';
+    confirmButton.style.cursor = 'pointer';
+
+    const finish = (nextValue) => {
+      overlay.remove();
+      resolve(nextValue);
+    };
+
+    cancelButton.addEventListener('click', () => finish(false));
+    confirmButton.addEventListener('click', () => {
+      const password = String(input.value ?? '');
+      if (password !== 'moki') {
+        window.alert('Das Passwort ist falsch.');
+        input.value = '';
+        input.focus();
+        return;
+      }
+      uiState.finalExamCandidateName = '';
+      finish(true);
+    });
+    input.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        confirmButton.click();
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        cancelButton.click();
+      }
+    });
+
+    actions.appendChild(cancelButton);
+    actions.appendChild(confirmButton);
+    card.appendChild(title);
+    card.appendChild(input);
+    card.appendChild(actions);
+    overlay.appendChild(card);
+    document.body.appendChild(overlay);
+    input.focus();
+  });
+}
 
 let isLevelActive = false;
 const chapterChangeHandlers = [];
@@ -216,10 +319,18 @@ function renderLevelButtons(levelRow) {
     const button = createButton(
       label,
       isActive,
-      () => {
+      async () => {
         if (!hasActiveChapter) {
           return;
         }
+
+        if (uiState.activeChapter === 7 && index === 4) {
+          const grantedAccess = await requestFinalExamPassword();
+          if (!grantedAccess) {
+            return;
+          }
+        }
+
         uiState.activeLevel = isActive ? null : index;
         renderLevelButtons(levelRow);
         emitLevelChange(uiState.activeLevel);
