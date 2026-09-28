@@ -1,4 +1,5 @@
 export const DEFAULT_MOTIONAI_STORAGE = {
+  callibration_date: [],
   'motionai.settings-panel-state': {
     model: 'pose',
     cameraEnabled: true,
@@ -18,13 +19,6 @@ export const DEFAULT_MOTIONAI_STORAGE = {
     poseWarningLandmarksVisible: false,
     createdAt: '2026-09-09T00:00:00.000Z'
   },
-  'motionai.silhouette-enabled': false,
-  'motionai.silhouette-opacity': 0.2,
-  'motionai.video-softening-enabled': true,
-  'motionai.video-softening-settings': {
-    blurPx: 5,
-    brightness: 0.75
-  },
   'motionai.figure-panel-settings': {
     figureScale: 0.33,
     figureHorizontalOffset: 0.25,
@@ -34,7 +28,8 @@ export const DEFAULT_MOTIONAI_STORAGE = {
     figureStroke: 0.5,
     figureSoftTransitionPercent: 50,
     figureMode: 'soft',
-    figureSide: 'left'
+    figureSide: 'left',
+    motionDistanceScoreWeights: { path: 45, timing: 30, direction: 25 }
   },
   'motionai.figure-presets': {},
   'motionai.figure-selected-presets': {},
@@ -42,9 +37,13 @@ export const DEFAULT_MOTIONAI_STORAGE = {
   'motionai.dynamic-figure-selected-presets': {},
   'motionai.hand-independence-panel-settings': {
     reverse: false,
+    dynamicsVisible: false,
     dynamicVisible: false,
     countVisible: false,
     countTimesVisible: false
+  },
+  'motionai.dynamic-range-panel-settings': {
+    dynamicRangeGuideVisible: false
   },
   'motionai.hand-independence-presets': {},
   'motionai.exercise-field-panel-settings': {
@@ -72,10 +71,10 @@ export const DEFAULT_MOTIONAI_STORAGE = {
 
 export function clearMotionAiStorageState() {
   try {
-    const keysToRemove = [];
+    const keysToRemove = new Set();
     for (const key of Object.keys(localStorage)) {
-      if (key.startsWith('motionai.')) {
-        keysToRemove.push(key);
+      if (key.startsWith('motionai.') || key === 'callibration_date') {
+        keysToRemove.add(key);
       }
     }
     keysToRemove.forEach((key) => localStorage.removeItem(key));
@@ -103,6 +102,21 @@ export function applyDefaultStorageSnapshot(snapshot = {}) {
       // Ignore quota or storage failures.
     }
   });
+}
+
+export async function fetchMotionAiDefaultsSnapshot() {
+  try {
+    const response = await fetch('./motionai-defaults.json', { cache: 'no-store' });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const json = await response.json();
+    return json && typeof json === 'object' ? json : DEFAULT_MOTIONAI_STORAGE;
+  } catch (error) {
+    console.warn('Falling back to embedded default snapshot because motionai-defaults.json could not be loaded.', error);
+    return DEFAULT_MOTIONAI_STORAGE;
+  }
 }
 
 export function getMotionAiStorageEntries() {

@@ -4,6 +4,7 @@ import {
   onLevelChange,
   clearHoverDescription,
   setLevelActive,
+  setActiveChapter,
   setActiveLevel,
   setHoverHelpEnabled,
   uiState,
@@ -25,8 +26,8 @@ import {
   onCanvasResize
 } from './tracking.js';
 import { LevelManager } from './levels.js';
-import { DEFAULT_MOTIONAI_STORAGE } from './defaultSettings.js';
-import { getLevelCountForChapter, uiElementDescriptions } from './constants.js';
+import { DEFAULT_MOTIONAI_STORAGE, fetchMotionAiDefaultsSnapshot } from './defaultSettings.js';
+import { getLevelCountForChapter, levelTitles, uiElementDescriptions } from './constants.js';
 
 function normalizeHelpKey(value) {
   return String(value ?? '')
@@ -91,8 +92,8 @@ function bindFigurePanelDescriptions(panel, sectionName) {
 
   const controls = [
     ['Groesse', panel.querySelector('.figure-size-label')],
-    ['Dynamiklinien', panel.querySelectorAll('.figure-dynamics-toggle')[0]],
-    ['Zählzeiten', panel.querySelectorAll('.figure-dynamics-toggle')[1]],
+    ['Dynamiklinien', panel.querySelector('.basic-figure-dynamics-toggle')],
+    ['Zählzeiten', panel.querySelector('.basic-figure-count-times-toggle')],
     ['x', panel.querySelectorAll('.figure-size-wrap')[1]],
     ['y', panel.querySelectorAll('.figure-size-wrap')[2]],
     ['BPM', panel.querySelectorAll('.figure-size-wrap')[3]],
@@ -127,6 +128,23 @@ function bindFigurePanelDescriptions(panel, sectionName) {
   }
 
   attachPanelHoverHelp(panel);
+}
+
+function applyPanelVisibilityState(panel, visible) {
+  if (!(panel instanceof Element)) {
+    return;
+  }
+
+  const nextVisible = Boolean(visible);
+  panel.classList.toggle('hidden', !nextVisible);
+  panel.hidden = !nextVisible;
+  panel.style.display = nextVisible ? '' : 'none';
+
+  if (nextVisible) {
+    panel.removeAttribute('aria-hidden');
+  } else {
+    panel.setAttribute('aria-hidden', 'true');
+  }
 }
 
 function applyLevelSettingsVisibilityToPanel(panel, visible) {
@@ -323,7 +341,7 @@ function createFigureModePanel(initialManager, options = {}) {
   presetPanel.appendChild(presetActions);
   const presetDivider = createPanelDivider();
   const motionDistanceToggle = document.createElement('label');
-  motionDistanceToggle.className = 'figure-dynamics-toggle';
+  motionDistanceToggle.className = 'motion-distance-toggle';
   const motionDistanceInput = document.createElement('input');
   motionDistanceInput.type = 'checkbox';
   motionDistanceInput.checked = storedFigureSettings.motionDistanceVisible === true;
@@ -355,12 +373,123 @@ function createFigureModePanel(initialManager, options = {}) {
     motionDistanceStrictnessSlider,
     motionDistanceStrictnessValue
   );
+  let managerRef = initialManager || null;
+
   const motionMetricsPanel = document.createElement('div');
   motionMetricsPanel.className = 'motion-distance-metrics';
   const motionMetricsTitle = document.createElement('div');
   motionMetricsTitle.className = 'figure-panel-section-title';
   motionMetricsTitle.textContent = 'Bewertung';
   motionMetricsPanel.appendChild(motionMetricsTitle);
+
+  const normalizeWeightDistribution = (weights = {}) => {
+    const safe = {
+      path: Number.isFinite(Number(weights.path)) ? Number(weights.path) : 45,
+      timing: Number.isFinite(Number(weights.timing)) ? Number(weights.timing) : 30,
+      direction: Number.isFinite(Number(weights.direction)) ? Number(weights.direction) : 25
+    };
+    const values = {
+      path: Math.max(0, Math.min(100, safe.path)),
+      timing: Math.max(0, Math.min(100, safe.timing)),
+      direction: Math.max(0, Math.min(100, safe.direction))
+    };
+    const total = values.path + values.timing + values.direction;
+    if (total <= 0) {
+      return { path: 45, timing: 30, direction: 25 };
+    }
+    return {
+      path: values.path / total * 100,
+      timing: values.timing / total * 100,
+      direction: values.direction / total * 100
+    };
+  };
+
+  const weightGroups = {
+    path: { label: 'Bahnabstand' },
+    timing: { label: 'Timing' },
+    direction: { label: 'Richtung' }
+  };
+  const weightControls = {};
+
+  const getWeightState = () => {
+    const current = managerRef?.getMotionDistanceScoreWeights ? managerRef.getMotionDistanceScoreWeights() : { path: 45, timing: 30, direction: 25 };
+    const stored = storedFigureSettings.motionDistanceScoreWeights && typeof storedFigureSettings.motionDistanceScoreWeights === 'object'
+      ? storedFigureSettings.motionDistanceScoreWeights
+      : {};
+    return {
+      path: Number.isFinite(Number(stored.path)) ? Number(stored.path) : Number(current.path ?? 45),
+      timing: Number.isFinite(Number(stored.timing)) ? Number(stored.timing) : Number(current.timing ?? 30),
+      direction: Number.isFinite(Number(stored.direction)) ? Number(stored.direction) : Number(current.direction ?? 25)
+    };
+  };
+
+  Object.entries(weightGroups).forEach(([key, config]) => {
+    const row = document.createElement('label');
+    row.className = 'figure-size-wrap motion-distance-weight-row';
+    const labelNode = document.createElement('div');
+    labelNode.className = 'figure-size-label';
+    labelNode.textContent = config.label;
+    const slider = document.createElement('input');
+    slider.type = 'range';
+    slider.min = '0';
+    slider.max = '100';
+    slider.step = '1';
+    const valueNode = document.createElement('div');
+    valueNode.className = 'figure-size-value';
+
+    const applyWeightControlState = (nextState) => {
+      const normalized = normalizeWeightDistribution(nextState);
+      slider.value = String(Math.round(normalized[key]));
+      valueNode.textContent = `${Math.round(normalized[key])}%`;
+    };
+
+    slider.addEventListener('input', () => {
+      const currentState = getWeightState();
+      const targetValue = Math.max(0, Math.min(100, Number(slider.value) || 0));
+      const otherKeys = Object.keys(weightGroups).filter((name) => name !== key);
+      const nextState = { ...currentState, [key]: targetValue };
+      const othersSum = otherKeys.reduce((sum, name) => sum + Number(nextState[name] || 0), 0);
+      const remaining = 100 - targetValue;
+
+      if (othersSum > 0 && remaining > 0) {
+        const scale = remaining / othersSum;
+        otherKeys.forEach((name) => {
+          nextState[name] = Math.max(0, Number(currentState[name] || 0) * scale);
+        });
+      } else if (remaining > 0) {
+        const fallbackShare = remaining / Math.max(1, otherKeys.length);
+        otherKeys.forEach((name) => {
+          nextState[name] = fallbackShare;
+        });
+      }
+
+      const finalState = {
+        path: Math.max(0, Math.min(100, Number(nextState.path) || 0)),
+        timing: Math.max(0, Math.min(100, Number(nextState.timing) || 0)),
+        direction: Math.max(0, Math.min(100, Number(nextState.direction) || 0))
+      };
+      const normalized = normalizeWeightDistribution(finalState);
+
+      Object.keys(weightGroups).forEach((name) => {
+        if (weightControls[name]) {
+          weightControls[name].slider.value = String(Math.round(normalized[name]));
+          weightControls[name].valueNode.textContent = `${Math.round(normalized[name])}%`;
+        }
+      });
+
+      if (managerRef && typeof managerRef.setMotionDistanceScoreWeights === 'function') {
+        managerRef.setMotionDistanceScoreWeights(normalized);
+      }
+      storedFigureSettings.motionDistanceScoreWeights = normalized;
+      persistFigureSettings();
+    });
+
+    weightControls[key] = { slider, valueNode };
+    row.append(labelNode, slider, valueNode);
+    motionMetricsPanel.appendChild(row);
+    applyWeightControlState(getWeightState());
+  });
+
   const motionMetricRows = {};
   const metricLabels = { score: 'Gesamtscore', pathScore: 'Bahnabstand', timingScore: 'Timing', directionScore: 'Richtung' };
   Object.entries(metricLabels).forEach(([key, label]) => {
@@ -595,7 +724,7 @@ function createFigureModePanel(initialManager, options = {}) {
   });
 
   const dynamicsWrap = document.createElement('label');
-  dynamicsWrap.className = 'figure-dynamics-toggle';
+  dynamicsWrap.className = 'basic-figure-dynamics-toggle';
 
   const dynamicsToggle = document.createElement('input');
   dynamicsToggle.type = 'checkbox';
@@ -614,7 +743,7 @@ function createFigureModePanel(initialManager, options = {}) {
   });
 
   const countTimesWrap = document.createElement('label');
-  countTimesWrap.className = 'figure-dynamics-toggle';
+  countTimesWrap.className = 'basic-figure-count-times-toggle';
 
   const countTimesToggle = document.createElement('input');
   countTimesToggle.type = 'checkbox';
@@ -679,7 +808,6 @@ function createFigureModePanel(initialManager, options = {}) {
   let selectedSide = ['left', 'right', 'both'].includes(storedFigureSettings.figureSide)
     ? storedFigureSettings.figureSide
     : 'left';
-  let managerRef = initialManager || null;
   let motionMetricsInterval = null;
 
   function persistFigureSettings() {
@@ -697,7 +825,12 @@ function createFigureModePanel(initialManager, options = {}) {
         figureDynamicsVisible: dynamicsToggle.checked,
         figureCountTimesVisible: countTimesToggle.checked,
         motionDistanceVisible: motionDistanceInput.checked,
-        motionDistanceStrictness: Number(motionDistanceStrictnessSlider.value)
+        motionDistanceStrictness: Number(motionDistanceStrictnessSlider.value),
+        motionDistanceScoreWeights: {
+          path: Number(weightControls.path?.slider.value ?? 45),
+          timing: Number(weightControls.timing?.slider.value ?? 30),
+          direction: Number(weightControls.direction?.slider.value ?? 25)
+        }
       }));
     } catch (error) {
       return;
@@ -836,9 +969,41 @@ function createFigureModePanel(initialManager, options = {}) {
   }
 
   function setVisible(visible) {
-    panel.classList.toggle('hidden', !visible);
+    const nextVisible = Boolean(visible);
+    panel.classList.toggle('hidden', !nextVisible);
+    panel.hidden = !nextVisible;
+    panel.style.display = nextVisible ? '' : 'none';
     levelSettingsVisibility.sync();
-    levelSettingsVisibility.sync();
+  }
+
+  function syncFigureDynamicsToggleFromManager() {
+    if (!managerRef) {
+      return;
+    }
+    const chapter = uiState.activeChapter;
+    const nextChecked = chapter === 4
+      ? Boolean(managerRef.dynamicFigureDynamicsVisible)
+      : chapter === 5
+        ? Boolean(managerRef.handIndependenceDynamicsVisible)
+        : Boolean(managerRef.figureDynamicsVisible);
+    if (dynamicsToggle.checked !== nextChecked) {
+      dynamicsToggle.checked = nextChecked;
+    }
+    persistFigureSettings();
+  }
+
+  function syncCurrentToggleStateForChapter() {
+    if (!managerRef) {
+      return;
+    }
+    if (uiState.activeChapter === 4) {
+      dynamicsToggle.checked = Boolean(managerRef.dynamicFigureDynamicsVisible);
+    } else if (uiState.activeChapter === 5) {
+      dynamicsToggle.checked = Boolean(managerRef.handIndependenceDynamicsVisible);
+    } else {
+      dynamicsToggle.checked = Boolean(managerRef.figureDynamicsVisible);
+    }
+    persistFigureSettings();
   }
 
   function setLevelManager(manager) {
@@ -913,7 +1078,12 @@ function createFigureModePanel(initialManager, options = {}) {
       figureDynamicsVisible: dynamicsToggle.checked,
       figureCountTimesVisible: countTimesToggle.checked,
       motionDistanceVisible: motionDistanceInput.checked,
-      motionDistanceStrictness: Number(motionDistanceStrictnessSlider.value)
+      motionDistanceStrictness: Number(motionDistanceStrictnessSlider.value),
+      motionDistanceScoreWeights: {
+        path: Number(weightControls.path?.slider.value ?? 45),
+        timing: Number(weightControls.timing?.slider.value ?? 30),
+        direction: Number(weightControls.direction?.slider.value ?? 25)
+      }
     };
   }
 
@@ -946,6 +1116,24 @@ function createFigureModePanel(initialManager, options = {}) {
     if (Number.isFinite(Number(settings.motionDistanceStrictness))) {
       motionDistanceStrictnessSlider.value = String(Math.min(100, Math.max(0, Number(settings.motionDistanceStrictness))));
       motionDistanceStrictnessValue.textContent = `${motionDistanceStrictnessSlider.value}%`;
+    }
+    const weightSettings = settings.motionDistanceScoreWeights && typeof settings.motionDistanceScoreWeights === 'object'
+      ? settings.motionDistanceScoreWeights
+      : { path: 45, timing: 30, direction: 25 };
+    const nextWeights = {
+      path: Number.isFinite(Number(weightSettings.path)) ? Number(weightSettings.path) : 45,
+      timing: Number.isFinite(Number(weightSettings.timing)) ? Number(weightSettings.timing) : 30,
+      direction: Number.isFinite(Number(weightSettings.direction)) ? Number(weightSettings.direction) : 25
+    };
+    const normalizedWeights = normalizeWeightDistribution(nextWeights);
+    Object.entries(normalizedWeights).forEach(([key, value]) => {
+      if (weightControls[key]) {
+        weightControls[key].slider.value = String(Math.round(value));
+        weightControls[key].valueNode.textContent = `${Math.round(value)}%`;
+      }
+    });
+    if (managerRef && typeof managerRef.setMotionDistanceScoreWeights === 'function') {
+      managerRef.setMotionDistanceScoreWeights(normalizedWeights);
     }
     setVariant(settings.figureVariant || selectedVariant);
     setSide(settings.figureSide || selectedSide);
@@ -1137,8 +1325,11 @@ function createFigureModePanel(initialManager, options = {}) {
     setSettings,
     setLevelManager,
     setLevel,
+    applyPreset,
     getVariant: () => selectedVariant,
-    getSide: () => selectedSide
+    getSide: () => selectedSide,
+    syncFigureDynamicsToggleFromManager,
+    syncCurrentToggleStateForChapter
   };
 }
 
@@ -1400,11 +1591,24 @@ function createDynamicFigureModePanel() {
     renderPresetSlots();
   }
 
+  function syncCurrentToggleStateForChapter() {
+    if (!managerRef) {
+      return;
+    }
+    const nextChecked = Boolean(managerRef.dynamicFigureDynamicsVisible);
+    const dynamicsInput = basePanel.panel.querySelector('.basic-figure-dynamics-toggle input');
+    if (dynamicsInput && dynamicsInput.checked !== nextChecked) {
+      dynamicsInput.checked = nextChecked;
+    }
+  }
+
   return {
     ...basePanel,
     setLevelManager,
     setLevel,
-    applyPreset
+    applyPreset,
+    syncFigureDynamicsToggleFromManager: basePanel.syncFigureDynamicsToggleFromManager,
+    syncCurrentToggleStateForChapter
   };
 }
 
@@ -2269,13 +2473,7 @@ function createExerciseFieldPanel() {
     }
 
     try {
-      const response = await fetch('./motionai-defaults.json', { cache: 'no-store' });
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-
-      const json = await response.json();
-      const defaults = json && typeof json === 'object' ? json : {};
+      const defaults = await fetchMotionAiDefaultsSnapshot();
       const nextPanelSettings = defaults['motionai.exercise-field-panel-settings'] || {
         enabled: true,
         scale: 1,
@@ -2343,7 +2541,7 @@ function createExerciseFieldPanel() {
     isEnabled: () => Boolean(toggleInput.checked),
     setVisible: (visible) => {
       const effectiveVisible = Boolean(visible);
-      panel.classList.toggle('hidden', !effectiveVisible);
+      applyPanelVisibilityState(panel, effectiveVisible);
       const settingsVisible = effectiveVisible && readLevelSettingsVisibilityState();
       applyLevelSettingsVisibilityToPanel(panel, settingsVisible);
     },
@@ -2934,10 +3132,16 @@ function createSquareExercisePanel() {
     syncSquarePresetSelectionUI();
   };
 
-  const applySquarePreset = (slotNumber, { silent = false } = {}) => {
+  const applySquarePreset = (slotNumber, { silent = false, preserveSelectionState = false } = {}) => {
     const normalizedSlot = normalizeSquarePresetSlot(slotNumber);
     const preset = squarePresetData[String(normalizedSlot)] || getDefaultSquarePreset(normalizedSlot);
-    selectedSquarePresetSlot = normalizedSlot;
+    if (!preserveSelectionState) {
+      selectedSquarePresetSlot = normalizedSlot;
+      squarePresetData.selectedPresetSlot = normalizedSlot;
+      if (!silent) {
+        persistSquarePresetData();
+      }
+    }
 
     selectedShape = String(preset.shape ?? selectedShape);
     selectedHandMode = ['right', 'left', 'both'].includes(preset.handMode) ? preset.handMode : selectedHandMode;
@@ -3033,8 +3237,8 @@ function createSquareExercisePanel() {
       });
     }
     updateSquarePresetInfo();
-    if (!silent) {
-      persistSettings();
+    const shouldSyncRuntimeState = !silent || preserveSelectionState;
+    if (shouldSyncRuntimeState) {
       managerRef?.setSquareExerciseShape(selectedShape);
       managerRef?.setSquareExerciseHandMode(selectedHandMode);
       managerRef?.setSquareExerciseSyncMode(selectedSyncMode);
@@ -3042,6 +3246,9 @@ function createSquareExercisePanel() {
       managerRef?.setSquareExerciseResolution(selectedResolution);
       managerRef?.setSquareExerciseGridResolution(selectedGridResolution);
       managerRef?.setSquareExerciseCenterDistance(selectedCenterDistance);
+    }
+    if (!silent && !preserveSelectionState) {
+      persistSettings();
       updateSquarePresetInputsState();
       if (squarePalindromInput) {
         squarePalindromInput.checked = selectedSquarePalindromMode;
@@ -3236,7 +3443,7 @@ function createSquareExercisePanel() {
   bindUiGroupDescription([squarePresetResetButton], 'Eingewöhnung', 'PresetZurücksetzen');
 
   const squarePalindromWrap = document.createElement('label');
-  squarePalindromWrap.className = 'figure-dynamics-toggle';
+  squarePalindromWrap.className = 'square-palindrom-toggle';
   squarePalindromWrap.hidden = true;
   const squarePalindromInput = document.createElement('input');
   squarePalindromInput.type = 'checkbox';
@@ -3404,7 +3611,7 @@ function createSquareExercisePanel() {
   pointSection.hidden = true;
 
   const pointToggleWrap = document.createElement('label');
-  pointToggleWrap.className = 'figure-dynamics-toggle';
+  pointToggleWrap.className = 'point-edit-toggle';
   pointToggleWrap.style.display = 'none';
   const pointToggleInput = document.createElement('input');
   pointToggleInput.type = 'checkbox';
@@ -3540,7 +3747,7 @@ function createSquareExercisePanel() {
   bindUiGroupDescription([...pointHandRow.querySelectorAll('label, input')], 'Eingewöhnung', 'HandBearbeiten');
 
   const pointSymmetryWrap = document.createElement('label');
-  pointSymmetryWrap.className = 'figure-dynamics-toggle';
+  pointSymmetryWrap.className = 'point-symmetry-toggle';
   const pointSymmetryInput = document.createElement('input');
   pointSymmetryInput.type = 'checkbox';
   pointSymmetryInput.checked = pointSymmetryMode;
@@ -3556,7 +3763,7 @@ function createSquareExercisePanel() {
   });
 
   const pointPalindromWrap = document.createElement('label');
-  pointPalindromWrap.className = 'figure-dynamics-toggle';
+  pointPalindromWrap.className = 'point-palindrom-toggle';
   const pointPalindromInput = document.createElement('input');
   pointPalindromInput.type = 'checkbox';
   pointPalindromInput.checked = pointPalindromMode;
@@ -4654,10 +4861,33 @@ function createSquareExercisePanel() {
 
   return {
     panel,
-    setVisible: (visible) => panel.classList.toggle('hidden', !visible),
+    setVisible: (visible) => applyPanelVisibilityState(panel, visible),
     setResolution,
     setGridResolution,
+    applyPreset: applySquarePreset,
+    applyPointPreset: (slotNumber, { force = true } = {}) => {
+      const normalizedSlot = normalizePointSlot(slotNumber);
+      const slot = Number.isInteger(normalizedSlot) && normalizedSlot >= 1 && normalizedSlot <= 8
+        ? normalizedSlot
+        : pointSelectedSlot;
+      pointSelectedSlot = slot;
+      pointSlotLabels.forEach((radio) => {
+        radio.checked = Number(radio.value) === pointSelectedSlot;
+      });
+      setChapter1ExerciseMode('points');
+      updatePointPanelVisibility();
+      const applied = loadPointPresetIntoCurrentSequence(slot, { force });
+      managerRef?.setPointExerciseSelectedSlot?.(pointSelectedSlot);
+      managerRef?.setPointExerciseSavedSlots?.(pointSavedSlots);
+      return applied;
+    },
     renderPointList,
+    restoreSelectedPreset: () => {
+      if (Number.isInteger(selectedSquarePresetSlot) && selectedSquarePresetSlot >= 1 && selectedSquarePresetSlot <= squarePresetCount) {
+        applySquarePreset(selectedSquarePresetSlot);
+      }
+    },
+    getSelectedPresetSlot: () => selectedSquarePresetSlot,
     syncPointState: ({ sequence, slot, editMode, savedSlots, symmetryMode, palindromMode, palindromeMode }) => {
       pointSequence = sanitizePointSequence(sequence);
       pointSelectedSlot = normalizePointSlot(slot);
@@ -4964,7 +5194,7 @@ function createHandIndependencePanel() {
   const motionDistanceDivider = document.createElement('div');
   motionDistanceDivider.className = 'figure-panel-divider';
   const motionDistanceToggle = document.createElement('label');
-  motionDistanceToggle.className = 'figure-dynamics-toggle';
+  motionDistanceToggle.className = 'motion-distance-toggle';
   const motionDistanceInput = document.createElement('input');
   motionDistanceInput.type = 'checkbox';
   motionDistanceInput.checked = settings.motionDistanceVisible;
@@ -5041,13 +5271,32 @@ function createHandIndependencePanel() {
     return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
   };
 
+  function resolvePresetSlotForLevel(figureLevel, slotOverride = null) {
+    const safeLevel = Number.isInteger(Number(figureLevel)) ? Math.max(0, Math.min(3, Number(figureLevel))) : 0;
+    const presetBucket = getPresetBucketForLevel(safeLevel);
+    const requestedSlot = Number.isInteger(Number(slotOverride))
+      ? Number(slotOverride)
+      : Number(presetBucket.selectedSlot);
+    return Number.isInteger(requestedSlot) && requestedSlot >= 0 && requestedSlot <= 3
+      ? requestedSlot
+      : 0;
+  }
+
+  function persistPresets() {
+    try {
+      localStorage.setItem(presetKey, JSON.stringify(presets));
+    } catch (error) {
+      return;
+    }
+  }
+
   function renderPresetSlots() {
     const figureLevel = Number.isInteger(Number(settings.figureLevel)) ? Number(settings.figureLevel) : 0;
     const presetBucket = getPresetBucketForLevel(figureLevel);
-    const activeSlot = Number.isInteger(Number(presetBucket.selectedSlot))
-      ? Number(presetBucket.selectedSlot)
-      : selectedPresetSlot;
+    const activeSlot = resolvePresetSlotForLevel(figureLevel, presetBucket.selectedSlot);
     selectedPresetSlot = Math.max(0, Math.min(3, activeSlot));
+    presetBucket.selectedSlot = selectedPresetSlot;
+    presets[String(figureLevel)] = presetBucket;
     presetSlots.innerHTML = '';
     for (let slot = 0; slot < 4; slot += 1) {
       const option = document.createElement('label');
@@ -5063,7 +5312,7 @@ function createHandIndependencePanel() {
         const bucket = getPresetBucketForLevel(settings.figureLevel);
         bucket.selectedSlot = slot;
         presets[String(settings.figureLevel)] = bucket;
-        persist();
+        persistPresets();
         const nextPreset = bucket[String(slot)];
         if (nextPreset && typeof nextPreset === 'object') {
           apply(nextPreset);
@@ -5088,7 +5337,7 @@ function createHandIndependencePanel() {
     const figureLevel = Number.isInteger(Number(settings.figureLevel)) ? Number(settings.figureLevel) : 0;
     presets[String(figureLevel)] = {};
     selectedPresetSlot = 0;
-    localStorage.setItem(presetKey, JSON.stringify(presets));
+    persistPresets();
     renderPresetSlots();
   });
 
@@ -5158,7 +5407,7 @@ function createHandIndependencePanel() {
     return presetSnapshot;
   };
   const addToggle = (key, label) => {
-    const wrap = document.createElement('label'); wrap.className = 'figure-dynamics-toggle';
+    const wrap = document.createElement('label'); wrap.className = 'hand-independence-toggle';
     const input = document.createElement('input'); input.type = 'checkbox'; input.checked = Boolean(settings[key]);
     input.addEventListener('change', () => { settings[key] = input.checked; managerRef?.setHandIndependenceReverse(input.checked); persist(); });
     wrap.append(input, document.createTextNode(label)); panel.appendChild(wrap); controls[key] = input;
@@ -5168,7 +5417,7 @@ function createHandIndependencePanel() {
   const reverseToggleWrap = addToggle('reverse', 'Umkehren');
   bindUiGroupDescription([reverseToggleWrap, controls.reverse], 'Handunabhängigkeit', 'Umkehren');
   const dynamicsToggle = document.createElement('label');
-  dynamicsToggle.className = 'figure-dynamics-toggle';
+  dynamicsToggle.className = 'hand-independence-dynamics-toggle';
   const dynamicsInput = document.createElement('input');
   dynamicsInput.type = 'checkbox';
   dynamicsInput.checked = Boolean(settings.dynamicsVisible);
@@ -5259,7 +5508,7 @@ function createHandIndependencePanel() {
   bindUiGroupDescription([...variationGroup.querySelectorAll('label, input')], 'Handunabhängigkeit', 'Variation');
   bindUiGroupDescription([...variantGroup.querySelectorAll('label, input')], 'Handunabhängigkeit', 'weichHart');
   const countToggle = document.createElement('label');
-  countToggle.className = 'figure-dynamics-toggle';
+  countToggle.className = 'hand-independence-count-toggle';
   const countInput = document.createElement('input');
   countInput.type = 'checkbox';
   countInput.checked = Boolean(settings.countTimesVisible);
@@ -5454,7 +5703,7 @@ function createHandIndependencePanel() {
     presetBucket.selectedSlot = slot;
     presets[String(figureLevel)] = presetBucket;
     selectedPresetSlot = slot;
-    localStorage.setItem(presetKey, JSON.stringify(presets));
+    persistPresets();
     renderPresetSlots();
     return slot;
   }
@@ -5462,7 +5711,7 @@ function createHandIndependencePanel() {
     const figureLevel = Number.isInteger(Number(settings.figureLevel)) ? Number(settings.figureLevel) : 0;
     presets[String(figureLevel)] = {};
     selectedPresetSlot = 0;
-    localStorage.setItem(presetKey, JSON.stringify(presets));
+    persistPresets();
     renderPresetSlots();
   }
   function rebuildCornerControls(figureLevelOverride = settings.figureLevel) {
@@ -5501,9 +5750,21 @@ function createHandIndependencePanel() {
     }
   }
 
+  function syncCurrentToggleStateForChapter() {
+    if (!managerRef) {
+      return;
+    }
+    const nextChecked = Boolean(managerRef.handIndependenceDynamicsVisible);
+    if (dynamicsInput.checked !== nextChecked) {
+      dynamicsInput.checked = nextChecked;
+    }
+    settings.dynamicsVisible = nextChecked;
+    persist();
+  }
+
   return {
     panel,
-    setVisible: (visible) => panel.classList.toggle('hidden', !visible),
+    setVisible: (visible) => applyPanelVisibilityState(panel, visible),
     setLevelManager: (manager) => {
       managerRef = manager || null;
       apply(settings);
@@ -5518,12 +5779,15 @@ function createHandIndependencePanel() {
       updateFigureVariationVisibility();
       rebuildCornerControls();
     },
-    applyPreset: (level) => {
+    applyPreset: (level, slotOverride = null) => {
       const figureLevel = Number.isInteger(Number(level)) ? Math.max(0, Math.min(3, Number(level))) : Number(settings.figureLevel ?? 0);
       const presetBucket = getPresetBucketForLevel(figureLevel);
-      const activeSlot = Number.isInteger(Number(presetBucket.selectedSlot)) ? Number(presetBucket.selectedSlot) : 0;
+      const activeSlot = resolvePresetSlotForLevel(figureLevel, slotOverride ?? presetBucket.selectedSlot);
       selectedPresetSlot = Math.max(0, Math.min(3, activeSlot));
       settings.figureLevel = figureLevel;
+      presetBucket.selectedSlot = selectedPresetSlot;
+      presets[String(figureLevel)] = presetBucket;
+      persistPresets();
       managerRef?.setHandIndependenceFigureLevel(figureLevel);
       const preset = presetBucket[String(selectedPresetSlot)];
       if (preset && typeof preset === 'object') {
@@ -5534,7 +5798,8 @@ function createHandIndependencePanel() {
       renderPresetSlots();
     },
     savePresetFromPrompt,
-    resetPresets
+    resetPresets,
+    syncCurrentToggleStateForChapter
   };
 }
 
@@ -5635,11 +5900,46 @@ function createTrackingControls(trackingController) {
   function readSavedSettings() {
     try {
       const stored = localStorage.getItem(settingsStorageKey);
-      if (!stored) {
-        return {};
+      const parsed = stored ? JSON.parse(stored) : {};
+      const base = parsed && typeof parsed === 'object' ? parsed : {};
+
+      const legacySilhouetteEnabled = localStorage.getItem('motionai.silhouette-enabled');
+      const legacySilhouetteOpacity = localStorage.getItem('motionai.silhouette-opacity');
+      const legacyVideoSofteningEnabled = localStorage.getItem('motionai.video-softening-enabled');
+      const legacyVideoSofteningSettings = localStorage.getItem('motionai.video-softening-settings');
+
+      if (legacySilhouetteEnabled !== null && typeof base.silhouetteVisible !== 'boolean') {
+        base.silhouetteVisible = legacySilhouetteEnabled === 'true';
       }
-      const parsed = JSON.parse(stored);
-      return parsed && typeof parsed === 'object' ? parsed : {};
+
+      if (legacySilhouetteOpacity !== null && !Number.isFinite(Number(base.silhouetteOpacity))) {
+        const parsedOpacity = Number(legacySilhouetteOpacity);
+        base.silhouetteOpacity = Number.isFinite(parsedOpacity)
+          ? Math.min(1, Math.max(0, parsedOpacity))
+          : 0.2;
+      }
+
+      if (legacyVideoSofteningEnabled !== null && typeof base.videoSofteningEnabled !== 'boolean') {
+        base.videoSofteningEnabled = legacyVideoSofteningEnabled === 'true';
+      }
+
+      if (legacyVideoSofteningSettings !== null && !Number.isFinite(Number(base.videoSofteningBlurPx)) && !Number.isFinite(Number(base.videoSofteningBrightness))) {
+        try {
+          const parsedSettings = JSON.parse(legacyVideoSofteningSettings);
+          if (parsedSettings && typeof parsedSettings === 'object') {
+            if (Number.isFinite(Number(parsedSettings.blurPx))) {
+              base.videoSofteningBlurPx = Math.min(20, Math.max(2, Number(parsedSettings.blurPx)));
+            }
+            if (Number.isFinite(Number(parsedSettings.brightness))) {
+              base.videoSofteningBrightness = Math.min(0.9, Math.max(0.2, Number(parsedSettings.brightness)));
+            }
+          }
+        } catch (error) {
+          // Ignore invalid legacy video softening payloads.
+        }
+      }
+
+      return base;
     } catch (error) {
       return {};
     }
@@ -5655,7 +5955,11 @@ function createTrackingControls(trackingController) {
       if (!parsed || typeof parsed !== 'object') {
         return null;
       }
-      const candidate = Number(parsed.calibrationSetIndex);
+      const rawValue = parsed.calibrationSetIndex;
+      if (rawValue === null || typeof rawValue === 'undefined' || rawValue === '') {
+        return null;
+      }
+      const candidate = Number(rawValue);
       return Number.isInteger(candidate) ? candidate : null;
     } catch (error) {
       return null;
@@ -5793,10 +6097,14 @@ function createTrackingControls(trackingController) {
   const savedPoseWarningLandmarksVisible = typeof savedSettings.poseWarningLandmarksVisible === 'boolean'
     ? savedSettings.poseWarningLandmarksVisible
     : false;
+  const savedCalibrationSetIndex = Number.isInteger(Number(savedSettings.calibrationSetIndex))
+    ? Number(savedSettings.calibrationSetIndex)
+    : null;
 
   cameraEnabled = savedCameraEnabled;
   resolutionPreset = savedResolutionPreset;
   selectedPlaybackMode = savedPlaybackMode;
+  selectedCalibrationSetIndex = savedCalibrationSetIndex;
   calibrationStrictnessSlider.value = String(savedCalibrationStrictness);
   stabilizationEnabled = savedStabilizationEnabled;
   landmarkDrawingVisible = savedLandmarkDrawingVisible;
@@ -5841,15 +6149,14 @@ function createTrackingControls(trackingController) {
   const silhouetteOpacityStorageKey = 'motionai.silhouette-opacity';
 
   try {
-    const storedSilhouette = localStorage.getItem(silhouetteStorageKey);
-    if (storedSilhouette !== null) {
-      silhouetteVisible = storedSilhouette === 'true';
+    const savedSettings = readSavedSettings();
+    if (typeof savedSettings.silhouetteVisible === 'boolean') {
+      silhouetteVisible = savedSettings.silhouetteVisible;
     }
 
-    const storedSilhouetteOpacity = localStorage.getItem(silhouetteOpacityStorageKey);
-    if (storedSilhouetteOpacity !== null) {
-      const parsed = Number(storedSilhouetteOpacity);
-      silhouetteOpacityValue = Number.isFinite(parsed) ? Math.min(1, Math.max(0, parsed)) : 0.2;
+    if (Number.isFinite(Number(savedSettings.silhouetteOpacity))) {
+      const parsed = Number(savedSettings.silhouetteOpacity);
+      silhouetteOpacityValue = Math.min(1, Math.max(0, parsed));
     }
   } catch (error) {
     silhouetteVisible = false;
@@ -5879,11 +6186,7 @@ function createTrackingControls(trackingController) {
   silhouetteOpacitySlider.title = 'Deckkraft der Silhouette';
 
   function persistSilhouetteOpacitySetting() {
-    try {
-      localStorage.setItem(silhouetteOpacityStorageKey, String(silhouetteOpacityValue));
-    } catch (error) {
-      // Ignore storage failures for local settings.
-    }
+    persistSettingsState();
   }
 
   function updateSilhouetteOpacityControl() {
@@ -5906,20 +6209,17 @@ function createTrackingControls(trackingController) {
   videoSofteningButton.className = 'tracking-controls-button';
 
   try {
-    const raw = localStorage.getItem(videoSofteningStorageKey);
-    if (raw !== null) {
-      videoSofteningEnabled = raw === 'true';
+    const savedSettings = readSavedSettings();
+    if (typeof savedSettings.videoSofteningEnabled === 'boolean') {
+      videoSofteningEnabled = savedSettings.videoSofteningEnabled;
     }
 
-    const settingsRaw = localStorage.getItem(videoSofteningSettingsStorageKey);
-    if (settingsRaw) {
-      const parsed = JSON.parse(settingsRaw);
-      if (Number.isFinite(Number(parsed.blurPx))) {
-        videoSofteningBlurPx = Math.min(20, Math.max(2, Number(parsed.blurPx)));
-      }
-      if (Number.isFinite(Number(parsed.brightness))) {
-        videoSofteningBrightness = Math.min(0.9, Math.max(0.2, Number(parsed.brightness)));
-      }
+    if (Number.isFinite(Number(savedSettings.videoSofteningBlurPx))) {
+      videoSofteningBlurPx = Math.min(20, Math.max(2, Number(savedSettings.videoSofteningBlurPx)));
+    }
+
+    if (Number.isFinite(Number(savedSettings.videoSofteningBrightness))) {
+      videoSofteningBrightness = Math.min(0.9, Math.max(0.2, Number(savedSettings.videoSofteningBrightness)));
     }
   } catch (error) {
     videoSofteningEnabled = true;
@@ -5928,15 +6228,7 @@ function createTrackingControls(trackingController) {
   }
 
   function persistVideoSofteningSettings() {
-    try {
-      localStorage.setItem(videoSofteningStorageKey, String(videoSofteningEnabled));
-      localStorage.setItem(videoSofteningSettingsStorageKey, JSON.stringify({
-        blurPx: videoSofteningBlurPx,
-        brightness: videoSofteningBrightness
-      }));
-    } catch (error) {
-      // Ignore storage failures for local settings.
-    }
+    persistSettingsState();
   }
 
   function updateVideoSofteningLabel() {
@@ -6037,6 +6329,7 @@ function createTrackingControls(trackingController) {
     input.addEventListener('change', () => {
       if (input.checked) {
         selectedPlaybackMode = mode;
+        persistSettingsState();
       }
     });
 
@@ -6110,16 +6403,37 @@ function createTrackingControls(trackingController) {
       }
     }
 
-    let best = candidatePool[0];
-    candidatePool.slice(1).forEach((candidate) => {
-      const currentTimestamp = Number(candidate.entry?.timestamp) || 0;
-      const bestTimestamp = Number(best.entry?.timestamp) || 0;
-      if (currentTimestamp > bestTimestamp) {
-        best = candidate;
+    const normalizeTimestamp = (value) => {
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        return value;
       }
-    });
+      if (typeof value === 'string' && value.trim() !== '') {
+        const parsed = Date.parse(value);
+        if (Number.isFinite(parsed)) {
+          return parsed;
+        }
+        const numeric = Number(value);
+        if (Number.isFinite(numeric)) {
+          return numeric;
+        }
+      }
+      return Number.NaN;
+    };
 
-    return best ? best.index : null;
+    const validCandidates = candidatePool.filter(({ entry }) => Number.isFinite(normalizeTimestamp(entry?.timestamp)));
+    if (validCandidates.length > 0) {
+      let best = validCandidates[0];
+      validCandidates.slice(1).forEach((candidate) => {
+        const currentTimestamp = normalizeTimestamp(candidate.entry?.timestamp);
+        const bestTimestamp = normalizeTimestamp(best.entry?.timestamp);
+        if (currentTimestamp > bestTimestamp) {
+          best = candidate;
+        }
+      });
+      return best.index;
+    }
+
+    return candidatePool.length > 0 ? candidatePool[candidatePool.length - 1].index : null;
   }
 
   function setCalibrationPoseSets(poseSets = []) {
@@ -6166,16 +6480,53 @@ function createTrackingControls(trackingController) {
     });
 
     const persistedIndex = readPersistedCalibrationIndex();
-    const parsedCurrent = Number(currentValue);
-    const preferredIndex = resolvePreferredCalibrationIndex(poseSets, persistedIndex);
+    const parsedCurrent = currentValue === '' || currentValue === null || typeof currentValue === 'undefined'
+      ? null
+      : Number(currentValue);
+    const currentLevelManagerIndex = levelManagerRef && Number.isInteger(levelManagerRef.getSelectedCalibrationPoseSetIndex?.())
+      ? levelManagerRef.getSelectedCalibrationPoseSetIndex()
+      : null;
     const hasCurrent = Number.isInteger(parsedCurrent) && parsedCurrent >= 0 && parsedCurrent < poseSets.length;
     const currentEntry = hasCurrent ? poseSets[parsedCurrent] : null;
     const currentIsVisible = !!currentEntry && !isFallbackCalibrationSet(currentEntry);
-    selectedCalibrationSetIndex = preferredIndex ?? (
-      currentIsVisible
-        ? parsedCurrent
-        : (visiblePoseSets.length > 0 ? poseSets.indexOf(visiblePoseSets[visiblePoseSets.length - 1]) : null)
-    );
+    const validLevelManagerSelection = Number.isInteger(currentLevelManagerIndex)
+      && currentLevelManagerIndex >= 0
+      && currentLevelManagerIndex < poseSets.length
+      && !isFallbackCalibrationSet(poseSets[currentLevelManagerIndex])
+      ? currentLevelManagerIndex
+      : null;
+    const validStateSelection = Number.isInteger(selectedCalibrationSetIndex)
+      && selectedCalibrationSetIndex >= 0
+      && selectedCalibrationSetIndex < poseSets.length
+      && !isFallbackCalibrationSet(poseSets[selectedCalibrationSetIndex])
+      ? selectedCalibrationSetIndex
+      : null;
+    const validPersistedSelection = Number.isInteger(persistedIndex)
+      && persistedIndex >= 0
+      && persistedIndex < poseSets.length
+      && !isFallbackCalibrationSet(poseSets[persistedIndex])
+      ? persistedIndex
+      : null;
+    const preferredIndex = validLevelManagerSelection
+      ?? validPersistedSelection
+      ?? validStateSelection
+      ?? (hasCurrent && currentIsVisible ? parsedCurrent : null)
+      ?? resolvePreferredCalibrationIndex(poseSets, persistedIndex)
+      ?? (visiblePoseSets.length > 0 ? poseSets.indexOf(visiblePoseSets[visiblePoseSets.length - 1]) : null);
+    console.log('calibration-preference-debug', {
+      persistedIndex,
+      validPersistedSelection,
+      validStateSelection,
+      validLevelManagerSelection,
+      hasCurrent,
+      parsedCurrent,
+      currentValue,
+      selectedCalibrationSetIndex,
+      preferredIndex,
+      poseSetCount: poseSets.length,
+      visiblePoseSets: visiblePoseSets.map((entry, idx) => ({ idx, timestamp: entry.timestamp, name: entry.name }))
+    });
+    selectedCalibrationSetIndex = preferredIndex;
     calibrationSetSelect.value = String(selectedCalibrationSetIndex);
     if (calibrationSetChangeHandler) {
       calibrationSetChangeHandler(selectedCalibrationSetIndex);
@@ -6214,11 +6565,7 @@ function createTrackingControls(trackingController) {
   }
 
   function persistSilhouetteSetting() {
-    try {
-      localStorage.setItem(silhouetteStorageKey, String(silhouetteVisible));
-    } catch (error) {
-      // Ignore storage failures for local settings.
-    }
+    persistSettingsState();
   }
 
   function updateSilhouetteLabel() {
@@ -6274,12 +6621,8 @@ function createTrackingControls(trackingController) {
     }
 
     try {
-      const response = await fetch('./motionai-defaults.json', { cache: 'no-store' });
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-      const json = await response.json();
-      const success = window.loadDefaultSettings(json);
+      const snapshot = await fetchMotionAiDefaultsSnapshot();
+      const success = window.loadDefaultSettings(snapshot);
       if (success) {
         window.location.reload();
       }
@@ -6622,6 +6965,817 @@ function createTrackingControls(trackingController) {
   };
 }
 
+function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handIndependencePanel, squareExercisePanel, exerciseFieldPanel }) {
+  const panel = document.createElement('aside');
+  panel.className = 'figure-side-panel hidden exam-panel';
+
+  const titleRow = document.createElement('div');
+  titleRow.className = 'figure-side-panel-header';
+  const title = document.createElement('div');
+  title.className = 'figure-side-panel-title';
+  title.textContent = 'Prüfungen';
+
+  const startStopButton = document.createElement('button');
+  startStopButton.type = 'button';
+  startStopButton.className = 'exam-toggle-button';
+  startStopButton.textContent = 'Start';
+
+  titleRow.appendChild(title);
+  titleRow.appendChild(startStopButton);
+  panel.appendChild(titleRow);
+
+  const navRow = document.createElement('div');
+  navRow.className = 'exam-nav-row';
+  const previousButton = document.createElement('button');
+  previousButton.type = 'button';
+  previousButton.className = 'exam-mini-button';
+  previousButton.textContent = '←';
+  previousButton.title = 'Vorherige Aufgabe';
+  const nextButton = document.createElement('button');
+  nextButton.type = 'button';
+  nextButton.className = 'exam-mini-button';
+  nextButton.textContent = '→';
+  nextButton.title = 'Nächste Aufgabe';
+  navRow.appendChild(previousButton);
+  navRow.appendChild(nextButton);
+  panel.appendChild(navRow);
+
+  const taskList = document.createElement('div');
+  taskList.className = 'exam-task-list';
+  panel.appendChild(taskList);
+
+  const addTaskButton = document.createElement('button');
+  addTaskButton.type = 'button';
+  addTaskButton.className = 'exam-add-button';
+  addTaskButton.textContent = '+ Aufgabe hinzufügen';
+  panel.appendChild(addTaskButton);
+
+  const historyLabel = document.createElement('div');
+  historyLabel.className = 'exam-history-label';
+  historyLabel.textContent = 'Leistungen';
+  panel.appendChild(historyLabel);
+
+  const historySelect = document.createElement('select');
+  historySelect.className = 'exam-history-select';
+  historySelect.innerHTML = '<option value="">Keine Auswahl</option>';
+  historySelect.disabled = true;
+  panel.appendChild(historySelect);
+
+  const taskStorageKey = 'motionai.exam.tasks';
+  const resultsStorageKey = 'motionai.exam.results';
+  const FINAL_EXAM_LEVEL = 4;
+  const FINAL_EXAM_PASSWORD = 'moki';
+  const examChapterOptions = [
+    { id: 1, label: 'Eingewöhnung' },
+    { id: 2, label: 'Gleichmäßigkeit' },
+    { id: 3, label: 'Grundfiguren' },
+    { id: 4, label: 'Dynamikebenen' },
+    { id: 5, label: 'Handunabhängigkeit' },
+    { id: 6, label: 'Einsätze geben' }
+  ];
+
+  const escapeHtml = (value) => String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+
+  const normalizeExamLevel = (value) => {
+    const next = Number(value);
+    if (!Number.isInteger(next) || next < 0 || next > 4) {
+      return null;
+    }
+    return next;
+  };
+
+  const panelStateByLevel = {
+    0: { tasks: [], results: [] },
+    1: { tasks: [], results: [] },
+    2: { tasks: [], results: [] },
+    3: { tasks: [], results: [] },
+    4: { tasks: [], results: [] }
+  };
+
+  const ensureExamPanelState = (levelIndex) => {
+    const safeLevel = normalizeExamLevel(levelIndex);
+    if (safeLevel === null) {
+      return null;
+    }
+    if (!panelStateByLevel[safeLevel]) {
+      panelStateByLevel[safeLevel] = { tasks: [], results: [] };
+    }
+    return panelStateByLevel[safeLevel];
+  };
+
+  const getExamStorageKey = (levelIndex) => `${taskStorageKey}.level.${normalizeExamLevel(levelIndex) ?? 0}`;
+  const getExamResultsStorageKey = (levelIndex) => `${resultsStorageKey}.level.${normalizeExamLevel(levelIndex) ?? 0}`;
+
+  const getExamPresetCount = (chapterId, levelIndex = 0) => {
+    const safeChapterId = Number(chapterId);
+    const safeLevel = Number.isInteger(levelIndex) && levelIndex >= 0 ? Number(levelIndex) : 0;
+    const levelCounts = {
+      1: [8, 8, 8, 8, 8],
+      2: [8, 8, 8, 8, 8],
+      3: [8, 8, 8, 8, 8, 8],
+      4: [8, 8, 8, 8],
+      5: [4, 4, 4, 4],
+      6: [4, 4, 4]
+    };
+    const count = levelCounts[safeChapterId]?.[safeLevel] ?? 4;
+    return Math.max(1, count);
+  };
+
+  const getExamLevelOptions = (chapterId) => {
+    const safeChapterId = Number(chapterId);
+    if (safeChapterId === 1) {
+      return [0, 1].map((index) => ({
+        value: index,
+        label: levelTitles[safeChapterId]?.[index] || `Level ${index + 1}`
+      }));
+    }
+    const count = getLevelCountForChapter(safeChapterId);
+    return Array.from({ length: count }, (_, index) => ({
+      value: index,
+      label: levelTitles[safeChapterId]?.[index] || `Level ${index + 1}`
+    }));
+  };
+
+  const getExamLevelLabel = (chapterId, levelIndex) => {
+    const safeChapterId = Number(chapterId);
+    const safeLevel = Number.isInteger(levelIndex) && levelIndex >= 0 ? Number(levelIndex) : 0;
+    if (safeChapterId === 1) {
+      return [0, 1].includes(safeLevel) ? (levelTitles[safeChapterId]?.[safeLevel] || `Level ${safeLevel + 1}`) : 'Ziffern';
+    }
+    return levelTitles[safeChapterId]?.[safeLevel] || `Level ${safeLevel + 1}`;
+  };
+
+  const getExamChapterLabel = (chapterId) => {
+    const label = examChapterOptions.find((option) => option.id === Number(chapterId));
+    return label ? label.label : 'Übung';
+  };
+
+  const loadExamTasks = (levelIndex = activeExamLevel) => {
+    const safeLevel = normalizeExamLevel(levelIndex);
+    const panelState = ensureExamPanelState(safeLevel);
+    const storageKey = getExamStorageKey(safeLevel ?? 0);
+    try {
+      const stored = JSON.parse(localStorage.getItem(storageKey) || '[]');
+      const nextTasks = Array.isArray(stored) && stored.length > 0
+        ? stored.map((task, index) => {
+            const chapterId = Number.isInteger(Number(task.chapterId)) ? Math.min(6, Math.max(1, Number(task.chapterId))) : 1;
+            const rawLevelIndex = Number.isInteger(Number(task.levelIndex)) ? Number(task.levelIndex) : 0;
+            const levelIndex = chapterId === 1
+              ? (rawLevelIndex === 1 ? 1 : 0)
+              : Math.max(0, rawLevelIndex);
+            return {
+              id: Number(task.id) || Date.now() + index,
+              chapterId,
+              levelIndex,
+              presetIndex: Number.isInteger(Number(task.presetIndex)) ? Math.max(0, Number(task.presetIndex)) : 0
+            };
+          })
+        : [{ id: 1, chapterId: 1, levelIndex: 0, presetIndex: 0 }];
+      if (panelState) {
+        panelState.tasks = nextTasks;
+      }
+      return nextTasks;
+    } catch (error) {
+      const fallbackTasks = [{ id: 1, chapterId: 1, levelIndex: 0, presetIndex: 0 }];
+      if (panelState) {
+        panelState.tasks = fallbackTasks;
+      }
+      return fallbackTasks;
+    }
+  };
+
+  const saveExamTasks = (levelIndex = activeExamLevel) => {
+    const safeLevel = normalizeExamLevel(levelIndex);
+    if (safeLevel === null) {
+      return;
+    }
+    const panelState = ensureExamPanelState(safeLevel);
+    if (panelState) {
+      panelState.tasks = tasks;
+    }
+    try {
+      localStorage.setItem(getExamStorageKey(safeLevel), JSON.stringify(tasks));
+    } catch (error) {
+      // ignore storage failures
+    }
+  };
+
+  const loadExamResults = (levelIndex = activeExamLevel) => {
+    const safeLevel = normalizeExamLevel(levelIndex);
+    const panelState = ensureExamPanelState(safeLevel);
+    const storageKey = getExamResultsStorageKey(safeLevel ?? 0);
+    try {
+      const stored = JSON.parse(localStorage.getItem(storageKey) || '[]');
+      const nextResults = Array.isArray(stored) ? stored : [];
+      if (panelState) {
+        panelState.results = nextResults;
+      }
+      return nextResults;
+    } catch (error) {
+      if (panelState) {
+        panelState.results = [];
+      }
+      return [];
+    }
+  };
+
+  const saveExamResults = (results, levelIndex = activeExamLevel) => {
+    const safeLevel = normalizeExamLevel(levelIndex);
+    if (safeLevel === null) {
+      return;
+    }
+    const panelState = ensureExamPanelState(safeLevel);
+    if (panelState) {
+      panelState.results = results;
+    }
+    try {
+      localStorage.setItem(getExamResultsStorageKey(safeLevel), JSON.stringify(results));
+    } catch (error) {
+      // ignore storage failures
+    }
+  };
+
+  const examOverlay = document.createElement('div');
+  examOverlay.className = 'exam-overlay hidden';
+  const overlayCard = document.createElement('div');
+  overlayCard.className = 'exam-overlay-card';
+  const overlayKicker = document.createElement('div');
+  overlayKicker.className = 'exam-overlay-kicker';
+  overlayKicker.textContent = 'Aufgabe';
+  const overlayTitle = document.createElement('div');
+  overlayTitle.className = 'exam-overlay-title';
+  const overlaySubtitle = document.createElement('div');
+  overlaySubtitle.className = 'exam-overlay-subtitle';
+  overlayCard.appendChild(overlayKicker);
+  overlayCard.appendChild(overlayTitle);
+  overlayCard.appendChild(overlaySubtitle);
+  examOverlay.appendChild(overlayCard);
+  stageFrame.appendChild(examOverlay);
+
+  const resultModal = document.createElement('div');
+  resultModal.className = 'exam-result-modal hidden';
+  const resultCard = document.createElement('div');
+  resultCard.className = 'exam-result-card';
+  const resultHeader = document.createElement('div');
+  resultHeader.className = 'exam-result-head';
+  const resultTitle = document.createElement('div');
+  resultTitle.className = 'exam-result-title';
+  resultTitle.textContent = 'Prüfungsergebnis';
+  const resultCloseButton = document.createElement('button');
+  resultCloseButton.type = 'button';
+  resultCloseButton.className = 'exam-result-close';
+  resultCloseButton.textContent = 'Schließen';
+  resultHeader.appendChild(resultTitle);
+  resultHeader.appendChild(resultCloseButton);
+  const resultTotal = document.createElement('div');
+  resultTotal.className = 'exam-result-total';
+  resultTotal.textContent = '0%';
+  const resultSummary = document.createElement('div');
+  resultSummary.className = 'exam-result-summary';
+  resultCard.appendChild(resultHeader);
+  resultCard.appendChild(resultTotal);
+  resultCard.appendChild(resultSummary);
+  resultModal.appendChild(resultCard);
+  resultModal.addEventListener('click', () => {
+    resultModal.classList.add('hidden');
+  });
+  resultCloseButton.addEventListener('click', () => {
+    resultModal.classList.add('hidden');
+  });
+  stageFrame.appendChild(resultModal);
+
+  const progressShell = document.createElement('div');
+  progressShell.className = 'exam-progress-shell hidden';
+  const progressFill = document.createElement('div');
+  progressFill.className = 'exam-progress-fill';
+  progressShell.appendChild(progressFill);
+  stageFrame.appendChild(progressShell);
+
+  let activeExamLevel = null;
+  let tasks = [];
+  let examLevelPresetSnapshot = null;
+
+  const syncExamLevelTasks = (levelIndex) => {
+    const nextLevel = normalizeExamLevel(levelIndex);
+    activeExamLevel = nextLevel;
+    const panelState = ensureExamPanelState(nextLevel);
+    if (nextLevel === null) {
+      tasks = [];
+      examState.currentIndex = 0;
+      renderTasks();
+      renderHistory();
+      return;
+    }
+    tasks = panelState?.tasks?.length ? panelState.tasks : loadExamTasks(nextLevel);
+    if (panelState) {
+      panelState.tasks = tasks;
+    }
+    examState.currentIndex = 0;
+    renderTasks();
+    renderHistory();
+  };
+
+  let examState = {
+    running: false,
+    currentIndex: 0,
+    previewTimeout: null,
+    recordingHandle: null,
+    finishHandle: null,
+    startTime: 0,
+    taskResults: []
+  };
+
+  const applyTaskSelection = (task) => {
+    const chapterId = Number(task.chapterId);
+    const levelIndex = Number(task.levelIndex);
+    const selectedPreset = Math.max(0, Number(task.presetIndex) || 0);
+    const examLevelToRestore = Number.isInteger(activeExamLevel)
+      ? activeExamLevel
+      : (Number.isInteger(uiState.activeLevel) ? uiState.activeLevel : 0);
+
+    uiState.examSelectionInProgress = true;
+    try {
+      setActiveChapter(chapterId);
+      setActiveLevel(levelIndex);
+
+      if (chapterId === 1 && levelIndex === 1 && typeof squareExercisePanel?.applyPointPreset === 'function') {
+        examLevelPresetSnapshot = Number.isInteger(squareExercisePanel.getSelectedPresetSlot?.())
+          ? squareExercisePanel.getSelectedPresetSlot()
+          : (Number.isInteger(selectedSquarePresetSlot) ? selectedSquarePresetSlot : 1);
+        squareExercisePanel.setExerciseMode('points');
+        squareExercisePanel.applyPointPreset(selectedPreset + 1, { force: true });
+      } else if (chapterId === 1 && typeof squareExercisePanel?.applyPreset === 'function') {
+        examLevelPresetSnapshot = Number.isInteger(squareExercisePanel.getSelectedPresetSlot?.())
+          ? squareExercisePanel.getSelectedPresetSlot()
+          : (Number.isInteger(selectedSquarePresetSlot) ? selectedSquarePresetSlot : 1);
+        squareExercisePanel.setExerciseMode('square');
+        squareExercisePanel.applyPreset(selectedPreset + 1, { silent: true, preserveSelectionState: true });
+      } else if (chapterId === 6 && typeof exerciseFieldPanel?.applyPreset === 'function') {
+        exerciseFieldPanel.applyPreset(levelIndex, selectedPreset);
+      } else if (chapterId === 5 && typeof handIndependencePanel?.applyPreset === 'function') {
+        handIndependencePanel.setLevel?.();
+        handIndependencePanel.applyPreset(levelIndex, selectedPreset);
+      } else if (chapterId === 4 && typeof dynamicFigurePanel?.applyPreset === 'function') {
+        dynamicFigurePanel.setLevel?.(levelIndex);
+        dynamicFigurePanel.applyPreset(selectedPreset);
+      } else if (chapterId === 3 && typeof figurePanel?.applyPreset === 'function') {
+        figurePanel.setLevel(levelIndex);
+        figurePanel.applyPreset(selectedPreset);
+      }
+
+      setActiveChapter(7, { skipHandlers: true });
+      setActiveLevel(examLevelToRestore, { skipHandlers: true });
+    } finally {
+      uiState.examSelectionInProgress = false;
+    }
+  };
+
+  let examCandidateName = '';
+
+  const renderHistory = () => {
+    const results = loadExamResults(activeExamLevel);
+    if (!results.length) {
+      historySelect.disabled = true;
+      historySelect.innerHTML = '<option value="">Keine Auswahl</option>';
+      return;
+    }
+
+    historySelect.disabled = false;
+    historySelect.innerHTML = '<option value="">Leistung auswählen</option>' + results.map((entry) => {
+      const date = new Date(entry.timestamp || Date.now());
+      const namePart = activeExamLevel === FINAL_EXAM_LEVEL && entry.name ? ` · ${escapeHtml(entry.name)}` : '';
+      return `<option value="${entry.id}">${date.toLocaleString()}${namePart} · ${entry.totalScore}%</option>`;
+    }).join('');
+  };
+
+  const showResultDialog = (resultEntry) => {
+    if (!resultEntry) {
+      return;
+    }
+    resultTotal.textContent = `${Math.round(resultEntry.totalScore)}%`;
+    const nameLine = activeExamLevel === FINAL_EXAM_LEVEL && resultEntry.name
+      ? `<div>Prüfling: ${escapeHtml(resultEntry.name)}</div>`
+      : '';
+    const lines = resultEntry.tasks.map((taskEntry, index) => {
+      const taskLabel = `${index + 1}. ${getExamChapterLabel(taskEntry.chapterId)} · ${getExamLevelLabel(taskEntry.chapterId, taskEntry.levelIndex)}`;
+      return `<div>${escapeHtml(taskLabel)}: ${Math.round(taskEntry.score)}%</div>`;
+    }).join('');
+    resultSummary.innerHTML = `${nameLine}${lines || '<div>Keine Aufgaben</div>'}`;
+    resultModal.classList.remove('hidden');
+  };
+
+  let examLevelManagerRef = null;
+
+  const clearActiveExamPreset = () => {
+    const activeManager = examLevelManagerRef;
+    if (!activeManager) {
+      return;
+    }
+
+    activeManager.setChapter(7);
+    activeManager.setLevel(null);
+    activeManager.setExerciseFieldVisible(false);
+    if (typeof activeManager.stopExerciseFieldMetronomeScheduler === 'function') {
+      activeManager.stopExerciseFieldMetronomeScheduler();
+    }
+    if (typeof activeManager.setExerciseFieldMetronomeEnabled === 'function') {
+      activeManager.setExerciseFieldMetronomeEnabled(false);
+    }
+    if (typeof activeManager.render === 'function') {
+      activeManager.render();
+    }
+  };
+
+  const stopExam = () => {
+    if (examState.previewTimeout) {
+      clearTimeout(examState.previewTimeout);
+      examState.previewTimeout = null;
+    }
+    if (examState.recordingHandle) {
+      cancelAnimationFrame(examState.recordingHandle);
+      examState.recordingHandle = null;
+    }
+    if (examState.finishHandle) {
+      clearTimeout(examState.finishHandle);
+      examState.finishHandle = null;
+    }
+    if (examLevelPresetSnapshot !== null && typeof squareExercisePanel?.applyPreset === 'function') {
+      squareExercisePanel.applyPreset(examLevelPresetSnapshot, { silent: false, preserveSelectionState: false });
+      examLevelPresetSnapshot = null;
+    }
+    clearActiveExamPreset();
+    if (examLevelManagerRef && typeof examLevelManagerRef.setChapter1ExamTouchCounterEnabled === 'function') {
+      examLevelManagerRef.setChapter1ExamTouchCounterEnabled(false);
+    }
+    if (examLevelManagerRef && typeof examLevelManagerRef.setChapter1ExamTouchInputEnabled === 'function') {
+      examLevelManagerRef.setChapter1ExamTouchInputEnabled(false);
+    }
+    examCandidateName = '';
+    uiState.finalExamCandidateName = '';
+    examState.running = false;
+    examState.taskResults = [];
+    startStopButton.classList.remove('active');
+    startStopButton.textContent = 'Start';
+    progressFill.style.width = '0%';
+    progressShell.classList.add('hidden');
+    examOverlay.classList.add('hidden');
+    examOverlay.classList.remove('visible');
+  };
+
+  const finishExam = () => {
+    if (!examState.running) {
+      return;
+    }
+    const totalScore = examState.taskResults.length
+      ? examState.taskResults.reduce((sum, item) => sum + (Number(item.score) || 0), 0) / examState.taskResults.length
+      : 0;
+    const resultEntry = {
+      id: Date.now(),
+      timestamp: new Date().toISOString(),
+      totalScore,
+      tasks: examState.taskResults,
+      ...(activeExamLevel === FINAL_EXAM_LEVEL && examCandidateName ? { name: examCandidateName } : {})
+    };
+    const existingResults = loadExamResults(activeExamLevel);
+    const nextResults = [resultEntry, ...existingResults].slice(0, 12);
+    saveExamResults(nextResults, activeExamLevel);
+    renderHistory();
+    showResultDialog(resultEntry);
+    stopExam();
+  };
+
+  const completeTask = () => {
+    const task = tasks[examState.currentIndex];
+    if (!task) {
+      finishExam();
+      return;
+    }
+
+    const chapterId = Number(task.chapterId);
+    const levelIndex = Number(task.levelIndex);
+    let taskScore = 0;
+
+    if (chapterId === 1 && examLevelManagerRef && typeof examLevelManagerRef.getChapter1TouchScorePercent === 'function') {
+      taskScore = examLevelManagerRef.getChapter1TouchScorePercent();
+    } else if (chapterId === 2 && examLevelManagerRef) {
+      const averageAccuracy = Number(examLevelManagerRef.consistencyAccuracy) || 0;
+      const averageStrictness = Number(examLevelManagerRef.getAverageConsistencyTaskStrictnessPercent?.() ?? examLevelManagerRef.consistencyStrictnessPercent ?? 100);
+      const weightedStrictness = Math.max(1, averageStrictness);
+      const percent = (averageAccuracy * 100 * (100 / weightedStrictness));
+      taskScore = Math.max(0, Math.min(100, Math.round(percent)));
+    } else if ((chapterId === 3 || chapterId === 4 || chapterId === 5) && examLevelManagerRef && typeof examLevelManagerRef.getAverageMotionDistanceScorePercent === 'function') {
+      taskScore = examLevelManagerRef.getAverageMotionDistanceScorePercent();
+    } else if (chapterId === 6 && examLevelManagerRef && typeof examLevelManagerRef.getAverageExerciseFieldTaskScorePercent === 'function') {
+      taskScore = examLevelManagerRef.getAverageExerciseFieldTaskScorePercent();
+    } else {
+      const scoreBase = 67 + chapterId * 3 + levelIndex * 4 + Number(task.presetIndex || 0) * 2;
+      const drift = Math.sin((chapterId + levelIndex + 1) * 2.1) * 9;
+      taskScore = Math.max(50, Math.min(99, Math.round(scoreBase + drift)));
+    }
+
+    examState.taskResults.push({
+      id: task.id,
+      chapterId,
+      levelIndex,
+      presetIndex: Number(task.presetIndex || 0),
+      score: taskScore,
+      timestamp: new Date().toISOString()
+    });
+
+    if (examState.currentIndex < tasks.length - 1) {
+      examState.currentIndex += 1;
+      window.setTimeout(() => {
+        if (examState.running) {
+          startTaskSequence();
+        }
+      }, 250);
+      return;
+    }
+
+    finishExam();
+  };
+
+  const startTaskSequence = () => {
+    if (!examState.running) {
+      return;
+    }
+    const task = tasks[examState.currentIndex];
+    if (!task) {
+      finishExam();
+      return;
+    }
+
+    applyTaskSelection(task);
+    if (task.chapterId === 2 && examLevelManagerRef && typeof examLevelManagerRef.resetConsistencyTaskStrictnessHistory === 'function') {
+      examLevelManagerRef.resetConsistencyTaskStrictnessHistory();
+    }
+    if (examLevelManagerRef && typeof examLevelManagerRef.setChapter1ExamTouchCounterEnabled === 'function') {
+      examLevelManagerRef.setChapter1ExamTouchCounterEnabled(false);
+    }
+    if (examLevelManagerRef && typeof examLevelManagerRef.setChapter1ExamTouchInputEnabled === 'function') {
+      examLevelManagerRef.setChapter1ExamTouchInputEnabled(false);
+    }
+    const chapterLabel = getExamChapterLabel(task.chapterId);
+    const levelLabel = getExamLevelLabel(task.chapterId, task.levelIndex);
+    const taskNumber = examState.currentIndex + 1;
+    overlayKicker.textContent = `Aufgabe ${taskNumber}`;
+    overlayTitle.textContent = `${chapterLabel}`;
+    overlaySubtitle.textContent = `${levelLabel} · Preset ${Number(task.presetIndex || 0) + 1}`;
+    examOverlay.classList.remove('hidden');
+    examOverlay.classList.add('visible');
+    progressShell.classList.add('hidden');
+
+    const countdownSequence = [3, 2, 1];
+    let stepIndex = 0;
+
+    const runCountdownStep = () => {
+      if (!examState.running) {
+        return;
+      }
+      if (stepIndex < countdownSequence.length) {
+        const currentCountdownValue = countdownSequence[stepIndex];
+        overlayTitle.textContent = `Startet in ${currentCountdownValue}`;
+        overlaySubtitle.textContent = `${chapterLabel} · ${levelLabel} · Preset ${Number(task.presetIndex || 0) + 1}`;
+        stepIndex += 1;
+        examState.previewTimeout = window.setTimeout(runCountdownStep, 1000);
+        return;
+      }
+
+      examOverlay.classList.add('hidden');
+      if (examLevelManagerRef && typeof examLevelManagerRef.setChapter1ExamTouchCounterEnabled === 'function') {
+        examLevelManagerRef.setChapter1ExamTouchCounterEnabled(true);
+      }
+      if (examLevelManagerRef && typeof examLevelManagerRef.setChapter1ExamTouchInputEnabled === 'function') {
+        examLevelManagerRef.setChapter1ExamTouchInputEnabled(true);
+      }
+      examState.startTime = performance.now();
+      progressShell.classList.remove('hidden');
+      const durationMs = 20000;
+      const tick = () => {
+        if (!examState.running) {
+          return;
+        }
+        const elapsed = performance.now() - examState.startTime;
+        const percent = Math.min(1, elapsed / durationMs);
+        progressFill.style.width = `${percent * 100}%`;
+        if (elapsed >= durationMs) {
+          progressFill.style.width = '100%';
+          completeTask();
+          return;
+        }
+        examState.recordingHandle = requestAnimationFrame(tick);
+      };
+      examState.recordingHandle = requestAnimationFrame(tick);
+    };
+
+    runCountdownStep();
+  };
+
+  const startExam = () => {
+    if (!tasks.length || activeExamLevel === null) {
+      return;
+    }
+    if (activeExamLevel === FINAL_EXAM_LEVEL) {
+      const name = window.prompt('Bitte gib deinen Namen für die Prüfung ein:');
+      if (name === null) {
+        return;
+      }
+      const trimmedName = String(name ?? '').trim();
+      if (!trimmedName) {
+        window.alert('Ein Name ist für die Prüfung erforderlich.');
+        return;
+      }
+      examCandidateName = trimmedName;
+      uiState.finalExamCandidateName = trimmedName;
+    } else {
+      examCandidateName = uiState.finalExamCandidateName || '';
+    }
+    const panelState = ensureExamPanelState(activeExamLevel);
+    if (panelState && Array.isArray(panelState.tasks) && panelState.tasks.length) {
+      tasks = panelState.tasks;
+    }
+    uiState.examSelectionInProgress = true;
+    setActiveChapter(7, { skipHandlers: true });
+    setActiveLevel(activeExamLevel, { skipHandlers: true });
+    uiState.examSelectionInProgress = false;
+    examState.running = true;
+    examState.currentIndex = 0;
+    examState.taskResults = [];
+    startStopButton.classList.add('active');
+    startStopButton.textContent = 'Stop';
+    startTaskSequence();
+  };
+
+  const jumpToTask = (direction) => {
+    if (!tasks.length) {
+      return;
+    }
+    if (examState.running) {
+      stopExam();
+    }
+    const nextIndex = (examState.currentIndex + direction + tasks.length) % tasks.length;
+    examState.currentIndex = nextIndex;
+    examState.running = true;
+    startStopButton.classList.add('active');
+    startStopButton.textContent = 'Stop';
+    startTaskSequence();
+  };
+
+  const createTaskRow = (task, index) => {
+    const row = document.createElement('div');
+    row.className = 'exam-task-row';
+
+    const chapterSelect = document.createElement('select');
+    chapterSelect.className = 'exam-task-select exam-task-select-chapter';
+    chapterSelect.innerHTML = examChapterOptions.map((option) => `<option value="${option.id}">${option.label}</option>`).join('');
+    chapterSelect.value = String(task.chapterId);
+    chapterSelect.addEventListener('change', () => {
+      task.chapterId = Number(chapterSelect.value);
+      task.levelIndex = 0;
+      task.presetIndex = 0;
+      saveExamTasks();
+      renderTasks();
+    });
+
+    const levelSelect = document.createElement('select');
+    levelSelect.className = 'exam-task-select exam-task-select-level';
+    const syncLevelOptions = () => {
+      const options = getExamLevelOptions(task.chapterId);
+      levelSelect.innerHTML = options.map((option) => `<option value="${option.value}">${option.label}</option>`).join('');
+      levelSelect.value = String(task.levelIndex);
+    };
+    syncLevelOptions();
+    levelSelect.addEventListener('change', () => {
+      task.levelIndex = Number(levelSelect.value);
+      task.presetIndex = 0;
+      saveExamTasks();
+      renderTasks();
+    });
+
+    const presetSelect = document.createElement('select');
+    presetSelect.className = 'exam-task-select exam-task-select-preset';
+    const syncPresetOptions = () => {
+      const count = getExamPresetCount(task.chapterId, task.levelIndex);
+      presetSelect.innerHTML = Array.from({ length: count }, (_, index) => `<option value="${index}">Preset ${index + 1}</option>`).join('');
+      presetSelect.value = String(Math.min(task.presetIndex, count - 1));
+    };
+    syncPresetOptions();
+    presetSelect.addEventListener('change', () => {
+      task.presetIndex = Number(presetSelect.value);
+      saveExamTasks();
+      renderTasks();
+    });
+
+    const deleteButton = document.createElement('button');
+    deleteButton.type = 'button';
+    deleteButton.className = 'exam-task-delete';
+    deleteButton.textContent = '✕';
+    deleteButton.title = 'Aufgabe löschen';
+    deleteButton.addEventListener('click', () => {
+      if (tasks.length <= 1) {
+        return;
+      }
+      tasks.splice(index, 1);
+      saveExamTasks();
+      renderTasks();
+    });
+
+    row.appendChild(chapterSelect);
+    row.appendChild(levelSelect);
+    row.appendChild(presetSelect);
+    row.appendChild(deleteButton);
+    return row;
+  };
+
+  const renderTasks = () => {
+    taskList.innerHTML = '';
+    tasks.forEach((task, index) => {
+      taskList.appendChild(createTaskRow(task, index));
+    });
+  };
+
+  addTaskButton.addEventListener('click', () => {
+    const lastTask = tasks[tasks.length - 1] || { chapterId: 1, levelIndex: 0, presetIndex: 0 };
+    tasks.push({
+      id: Date.now() + tasks.length,
+      chapterId: Number(lastTask.chapterId) || 1,
+      levelIndex: 0,
+      presetIndex: 0
+    });
+    saveExamTasks();
+    renderTasks();
+  });
+
+  startStopButton.addEventListener('click', () => {
+    if (examState.running) {
+      stopExam();
+      return;
+    }
+    startExam();
+  });
+
+  previousButton.addEventListener('click', () => {
+    jumpToTask(-1);
+  });
+
+  nextButton.addEventListener('click', () => {
+    jumpToTask(1);
+  });
+
+  historySelect.addEventListener('change', () => {
+    const selectedId = Number(historySelect.value);
+    if (!selectedId) {
+      return;
+    }
+    const selectedResult = loadExamResults(activeExamLevel).find((entry) => Number(entry.id) === selectedId);
+    if (selectedResult) {
+      showResultDialog(selectedResult);
+    }
+  });
+
+  document.addEventListener('click', (event) => {
+    const navTarget = event.target.closest('.chapter-row button, .level-row button');
+    if (navTarget && examState.running) {
+      stopExam();
+    }
+  });
+
+  renderTasks();
+  renderHistory();
+
+  return {
+    panel,
+    setVisible: (visible) => applyPanelVisibilityState(panel, visible),
+    isRunning: () => examState.running,
+    stop: stopExam,
+    start: startExam,
+    setLevelManager: (manager) => {
+      examLevelManagerRef = manager || null;
+    },
+    setActiveLevel: (level) => {
+      const nextLevel = normalizeExamLevel(level);
+      if (nextLevel === null) {
+        activeExamLevel = null;
+        tasks = [];
+        renderTasks();
+        renderHistory();
+        return;
+      }
+      syncExamLevelTasks(nextLevel);
+    },
+    setLevel: (level) => {
+      if (typeof level === 'number' && Number.isInteger(level)) {
+        examState.currentIndex = Math.max(0, Math.min(tasks.length - 1, level));
+      }
+    }
+  };
+}
+
 export function initApp() {
   const videoElement = document.getElementById('video');
   const canvasElement = document.getElementById('canvas');
@@ -6753,11 +7907,20 @@ export function initApp() {
   const handIndependencePanel = createHandIndependencePanel();
   const squareExercisePanel = createSquareExercisePanel();
   const exerciseFieldPanel = createExerciseFieldPanel();
+  const examPanel = createExamPanel({
+    stageFrame,
+    figurePanel,
+    dynamicFigurePanel,
+    handIndependencePanel,
+    squareExercisePanel,
+    exerciseFieldPanel
+  });
   document.body.appendChild(figurePanel.panel);
   document.body.appendChild(dynamicFigurePanel.panel);
   document.body.appendChild(handIndependencePanel.panel);
   document.body.appendChild(squareExercisePanel.panel);
   document.body.appendChild(exerciseFieldPanel.panel);
+  document.body.appendChild(examPanel.panel);
 
   const levelCanvas = document.createElement('canvas');
   levelCanvas.className = 'level-overlay';
@@ -6778,6 +7941,7 @@ export function initApp() {
   };
 
   const levelManager = new LevelManager(levelCanvas);
+  examPanel.setLevelManager(levelManager);
   levelCanvas.addEventListener('pointerdown', (event) => {
     if (uiState.activeChapter !== 6 || uiState.activeLevel === null || !levelManager.exerciseFieldVisible) {
       return;
@@ -6888,7 +8052,9 @@ export function initApp() {
     setPointExerciseSequentialMode: (value) => levelManager.setPointExerciseSequentialMode(value),
     setPointExerciseSelectedSlot: (value) => levelManager.setPointExerciseSelectedSlot(value),
     setPointExerciseSequence: (value) => levelManager.setPointExerciseSequence(value),
-    setPointExerciseSavedSlots: (value) => levelManager.setPointExerciseSavedSlots(value)
+    setPointExerciseSavedSlots: (value) => levelManager.setPointExerciseSavedSlots(value),
+    setMotionDistanceScoreWeights: (weights) => levelManager.setMotionDistanceScoreWeights(weights),
+    getMotionDistanceScoreWeights: () => levelManager.getMotionDistanceScoreWeights()
   });
   exerciseFieldPanel.setLevelManager({
     get exerciseFieldVisible() { return levelManager.exerciseFieldVisible; },
@@ -6931,6 +8097,8 @@ export function initApp() {
     setFigureCountTimesVisible: (value) => levelManager.setDynamicFigureCountTimesVisible(value),
     setMotionDistanceVisible: (value) => levelManager.setMotionDistanceVisible(value),
     setMotionDistanceStrictness: (value) => levelManager.setMotionDistanceStrictness(value),
+    setMotionDistanceScoreWeights: (weights) => levelManager.setMotionDistanceScoreWeights(weights),
+    getMotionDistanceScoreWeights: () => levelManager.getMotionDistanceScoreWeights(),
     getMotionDistanceSummary: () => levelManager.getMotionDistanceSummary(),
     setFigureVariant: (value) => levelManager.setDynamicFigureVariant(value),
     setFigureSide: (value) => levelManager.setDynamicFigureSide(value),
@@ -6948,6 +8116,8 @@ export function initApp() {
     setHandIndependenceCountTimesVisible: (value) => levelManager.setHandIndependenceCountTimesVisible(value),
     setMotionDistanceVisible: (value) => levelManager.setMotionDistanceVisible(value),
     setMotionDistanceStrictness: (value) => levelManager.setMotionDistanceStrictness(value),
+    setMotionDistanceScoreWeights: (weights) => levelManager.setMotionDistanceScoreWeights(weights),
+    getMotionDistanceScoreWeights: () => levelManager.getMotionDistanceScoreWeights(),
     getMotionDistanceSummary: () => levelManager.getMotionDistanceSummary(),
     setHandIndependenceTempoRatio: (value) => levelManager.setHandIndependenceTempoRatio(value),
     setHandIndependenceFigureParameter: (name, value) => levelManager.setHandIndependenceFigureParameter(name, value),
@@ -7007,7 +8177,60 @@ export function initApp() {
     return { square: true, symmetric: false, points: false };
   };
 
+  const syncChapterPanelsForCurrentState = () => {
+    const chapter = uiState.activeChapter;
+    const levelIsActive = Number.isInteger(uiState.activeLevel) && uiState.activeLevel !== null;
+    const activeLevel = uiState.activeLevel;
+
+    figurePanel.setVisible(chapter === 3 && levelIsActive);
+    dynamicFigurePanel.setVisible(chapter === 4 && levelIsActive);
+    handIndependencePanel.setVisible(chapter === 5 && levelIsActive);
+
+    if (chapter === 3) {
+      figurePanel.setTitle(Number.isInteger(activeLevel) && activeLevel >= 4 ? 'extended' : 'basic');
+      figurePanel.setLevel(activeLevel);
+    } else if (chapter === 4) {
+      dynamicFigurePanel.setTitle('dynamic');
+      dynamicFigurePanel.setVariant(levelManager.dynamicFigureVariant || 'hard');
+      dynamicFigurePanel.setLevel(activeLevel);
+    } else if (chapter === 5) {
+      handIndependencePanel.applyPreset(activeLevel);
+      handIndependencePanel.setLevel();
+    }
+  };
+
   onChapterChange((chapter) => {
+    const isExamTaskSelection = uiState.examSelectionInProgress;
+    if (isExamTaskSelection) {
+      levelManager.setChapter(chapter);
+      figurePanel.setVisible(false);
+      dynamicFigurePanel.setVisible(false);
+      handIndependencePanel.setVisible(false);
+      squareExercisePanel.setVisible(false);
+      exerciseFieldPanel.setVisible(false);
+      levelManager.setExerciseFieldVisible(false);
+      syncLevelCanvasPointerState();
+      return;
+    }
+    const isExamLevelSelected = chapter === 7 && Number.isInteger(uiState.activeLevel) && uiState.activeLevel >= 0 && uiState.activeLevel <= 4;
+    examPanel.setVisible(isExamLevelSelected || examPanel.isRunning());
+
+    levelManager.setLevel(null);
+
+    if (chapter === 7) {
+      figurePanel.setVisible(false);
+      dynamicFigurePanel.setVisible(false);
+      handIndependencePanel.setVisible(false);
+      squareExercisePanel.setVisible(false);
+      exerciseFieldPanel.setVisible(false);
+      levelManager.setExerciseFieldVisible(false);
+      syncLevelCanvasPointerState();
+      return;
+    }
+    if (chapter !== 7 && examPanel.isRunning()) {
+      examPanel.setVisible(false);
+      examPanel.stop();
+    }
     levelManager.setChapter(chapter);
     syncLevelCanvasPointerState();
     const isFigureChapter = chapter === 3;
@@ -7025,12 +8248,12 @@ export function initApp() {
         : (chapter === 1 && Number.isInteger(uiState.activeLevel) && uiState.activeLevel === 2)
           ? 'free-movement'
           : 'square';
-    figurePanel.setVisible(isFigureChapter);
-    dynamicFigurePanel.setVisible(isDynamicFigureChapter);
-    handIndependencePanel.setVisible(isHandIndependenceChapter);
+    figurePanel.setVisible(isFigureChapter && chapter !== 7);
+    dynamicFigurePanel.setVisible(isDynamicFigureChapter && chapter !== 7);
+    handIndependencePanel.setVisible(isHandIndependenceChapter && chapter !== 7);
     squareExercisePanel.setVisible(showSquareExercisePanel || showSymmetricExercisePanel || showPointsExercisePanel || chapter === 1 && uiState.activeLevel !== null);
     squareExercisePanel.setExerciseMode(selectedSquareMode);
-    exerciseFieldPanel.setVisible(showExerciseFieldPanel);
+    exerciseFieldPanel.setVisible(showExerciseFieldPanel && chapter !== 7);
     if (!showExerciseFieldPanel) {
       levelManager.setExerciseFieldVisible(false);
     } else {
@@ -7050,8 +8273,37 @@ export function initApp() {
   });
 
   onLevelChange((level) => {
+    if (uiState.examSelectionInProgress) {
+      levelManager.setLevel(level);
+      syncLevelCanvasPointerState();
+      return;
+    }
+    if (uiState.activeChapter === 7) {
+      figurePanel.setVisible(false);
+      dynamicFigurePanel.setVisible(false);
+      handIndependencePanel.setVisible(false);
+      squareExercisePanel.setVisible(false);
+      exerciseFieldPanel.setVisible(false);
+      levelManager.setExerciseFieldVisible(false);
+      examPanel.setActiveLevel(level);
+      examPanel.setVisible(Number.isInteger(level) && level >= 0 && level <= 4);
+      return;
+    }
+    if (examPanel.isRunning() && !uiState.examSelectionInProgress) {
+      examPanel.setVisible(true);
+      return;
+    }
     levelManager.setLevel(level);
     syncLevelCanvasPointerState();
+    if ([3, 4, 5].includes(uiState.activeChapter) && level !== null) {
+      if (uiState.activeChapter === 3) {
+        figurePanel.syncFigureDynamicsToggleFromManager();
+      } else if (uiState.activeChapter === 4) {
+        dynamicFigurePanel.syncFigureDynamicsToggleFromManager();
+      } else if (uiState.activeChapter === 5) {
+        handIndependencePanel.syncCurrentToggleStateForChapter();
+      }
+    }
     if (level !== null) {
       setLevelActive(true);
       clearHoverDescription();
@@ -7095,25 +8347,13 @@ export function initApp() {
     }
 
     if (uiState.activeChapter === 3) {
-      figurePanel.setVisible(level !== null);
-      figurePanel.setTitle(level !== null && level >= 4 ? 'extended' : 'basic');
-      figurePanel.setLevel(level);
-      dynamicFigurePanel.setVisible(false);
-      handIndependencePanel.setVisible(false);
+      syncChapterPanelsForCurrentState();
       squareExercisePanel.setVisible(false);
     } else if (uiState.activeChapter === 4) {
-      figurePanel.setVisible(false);
-      dynamicFigurePanel.setVisible(level !== null);
-      dynamicFigurePanel.setTitle('dynamic');
-      dynamicFigurePanel.setLevel(level);
-      handIndependencePanel.setVisible(false);
+      syncChapterPanelsForCurrentState();
       squareExercisePanel.setVisible(false);
     } else if (uiState.activeChapter === 5) {
-      figurePanel.setVisible(false);
-      dynamicFigurePanel.setVisible(false);
-      handIndependencePanel.setVisible(level !== null);
-      handIndependencePanel.applyPreset(level);
-      handIndependencePanel.setLevel();
+      syncChapterPanelsForCurrentState();
       squareExercisePanel.setVisible(false);
     } else if (uiState.activeChapter === 1) {
       figurePanel.setVisible(false);
@@ -7133,7 +8373,10 @@ export function initApp() {
                   ? 'alternating'
                   : 'square'
       );
-      if (showPointsExercisePanel) {
+      if (!uiState.examSelectionInProgress && Number.isInteger(level) && level >= 0 && level <= 4 && !showPointsExercisePanel) {
+        squareExercisePanel.restoreSelectedPreset?.();
+      }
+      if (showPointsExercisePanel && !uiState.examSelectionInProgress) {
         squareExercisePanel.initializeCurrentPointPreset?.();
       }
     } else {
@@ -7142,6 +8385,17 @@ export function initApp() {
       handIndependencePanel.setVisible(false);
       squareExercisePanel.setVisible(false);
     }
+
+    const chapterSidePanels = [
+      { chapter: 3, panel: figurePanel },
+      { chapter: 4, panel: dynamicFigurePanel },
+      { chapter: 5, panel: handIndependencePanel }
+    ];
+    chapterSidePanels.forEach(({ chapter, panel }) => {
+      if (uiState.activeChapter === chapter) {
+        panel.setVisible(Number.isInteger(level));
+      }
+    });
   });
 
   document.addEventListener('hand-independence-save-preset', () => {
