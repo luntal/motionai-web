@@ -233,7 +233,7 @@ export class LevelManager {
     this.chapter1TouchActiveByHand = { left: false, right: false };
     this.chapter1TouchGoalCount = 100;
     this.chapter1ExamTouchCounterEnabled = false;
-    this.chapter1ExamTouchInputEnabled = false;
+    this.chapter1ExamTouchInputEnabled = true;
     this.activeTouchFadeEnabled = true;
     this.activeTouchFadeDurationMs = 2000;
     this.exerciseFieldVisible = true;
@@ -9481,7 +9481,9 @@ export class LevelManager {
   }
 
   updateHands(hands) {
-    if (this.chapter === 1 && Number.isInteger(this.level) && this.level >= 0 && this.level <= 4 && !this.chapter1ExamTouchInputEnabled) {
+    const chapter1LevelActive = this.chapter === 1 && Number.isInteger(this.level) && this.level >= 0 && this.level <= 4;
+    const chapter1TouchInputBlockedForExam = chapter1LevelActive && !this.chapter1ExamTouchInputEnabled && !this.active;
+    if (chapter1TouchInputBlockedForExam) {
       this.leftTip = null;
       this.rightTip = null;
       this.leftTipInFrame = true;

@@ -26,7 +26,7 @@ import {
   onCanvasResize
 } from './tracking.js';
 import { LevelManager } from './levels.js';
-import { DEFAULT_MOTIONAI_STORAGE } from './defaultSettings.js';
+import { DEFAULT_MOTIONAI_STORAGE, fetchMotionAiDefaultsSnapshot } from './defaultSettings.js';
 import { getLevelCountForChapter, levelTitles, uiElementDescriptions } from './constants.js';
 
 function normalizeHelpKey(value) {
@@ -2473,13 +2473,7 @@ function createExerciseFieldPanel() {
     }
 
     try {
-      const response = await fetch('./motionai-defaults.json', { cache: 'no-store' });
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-
-      const json = await response.json();
-      const defaults = json && typeof json === 'object' ? json : {};
+      const defaults = await fetchMotionAiDefaultsSnapshot();
       const nextPanelSettings = defaults['motionai.exercise-field-panel-settings'] || {
         enabled: true,
         scale: 1,
@@ -6627,12 +6621,8 @@ function createTrackingControls(trackingController) {
     }
 
     try {
-      const response = await fetch('./motionai-defaults.json', { cache: 'no-store' });
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-      const json = await response.json();
-      const success = window.loadDefaultSettings(json);
+      const snapshot = await fetchMotionAiDefaultsSnapshot();
+      const success = window.loadDefaultSettings(snapshot);
       if (success) {
         window.location.reload();
       }

@@ -104,6 +104,21 @@ export function applyDefaultStorageSnapshot(snapshot = {}) {
   });
 }
 
+export async function fetchMotionAiDefaultsSnapshot() {
+  try {
+    const response = await fetch('./motionai-defaults.json', { cache: 'no-store' });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const json = await response.json();
+    return json && typeof json === 'object' ? json : DEFAULT_MOTIONAI_STORAGE;
+  } catch (error) {
+    console.warn('Falling back to embedded default snapshot because motionai-defaults.json could not be loaded.', error);
+    return DEFAULT_MOTIONAI_STORAGE;
+  }
+}
+
 export function getMotionAiStorageEntries() {
   const entries = {};
 

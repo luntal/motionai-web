@@ -2,6 +2,7 @@ import { initApp } from './app.js';
 import {
   DEFAULT_MOTIONAI_STORAGE,
   applyDefaultStorageSnapshot,
+  fetchMotionAiDefaultsSnapshot,
   getMotionAiStorageSnapshot,
   hasMotionAiDefaultsInitialized,
   hasMotionAiStorageState,
@@ -13,15 +14,8 @@ if (typeof window !== 'undefined') {
   const shouldInitializeDefaults = shouldInitializeMotionAiDefaults();
 
   if (shouldInitializeDefaults) {
-    fetch('./motionai-defaults.json', { cache: 'no-store' })
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
-        }
-        return response.json();
-      })
-      .then((json) => {
-        const snapshot = json && typeof json === 'object' ? json : DEFAULT_MOTIONAI_STORAGE;
+    fetchMotionAiDefaultsSnapshot()
+      .then((snapshot) => {
         applyDefaultStorageSnapshot(snapshot);
         markMotionAiDefaultsInitialized();
       })
@@ -93,13 +87,8 @@ if (typeof window !== 'undefined') {
     }
 
     try {
-      const response = await fetch('./motionai-defaults.json', { cache: 'no-store' });
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-
-      const json = await response.json();
-      const success = window.loadDefaultSettings(json);
+      const snapshot = await fetchMotionAiDefaultsSnapshot();
+      const success = window.loadDefaultSettings(snapshot);
       if (success) {
         markMotionAiDefaultsInitialized();
         window.location.reload();
