@@ -18,13 +18,6 @@ export const DEFAULT_MOTIONAI_STORAGE = {
     poseWarningLandmarksVisible: false,
     createdAt: '2026-09-09T00:00:00.000Z'
   },
-  'motionai.silhouette-enabled': false,
-  'motionai.silhouette-opacity': 0.2,
-  'motionai.video-softening-enabled': true,
-  'motionai.video-softening-settings': {
-    blurPx: 5,
-    brightness: 0.75
-  },
   'motionai.figure-panel-settings': {
     figureScale: 0.33,
     figureHorizontalOffset: 0.25,

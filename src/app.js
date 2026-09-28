@@ -5277,13 +5277,32 @@ function createHandIndependencePanel() {
     return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
   };
 
+  function resolvePresetSlotForLevel(figureLevel, slotOverride = null) {
+    const safeLevel = Number.isInteger(Number(figureLevel)) ? Math.max(0, Math.min(3, Number(figureLevel))) : 0;
+    const presetBucket = getPresetBucketForLevel(safeLevel);
+    const requestedSlot = Number.isInteger(Number(slotOverride))
+      ? Number(slotOverride)
+      : Number(presetBucket.selectedSlot);
+    return Number.isInteger(requestedSlot) && requestedSlot >= 0 && requestedSlot <= 3
+      ? requestedSlot
+      : 0;
+  }
+
+  function persistPresets() {
+    try {
+      localStorage.setItem(presetKey, JSON.stringify(presets));
+    } catch (error) {
+      return;
+    }
+  }
+
   function renderPresetSlots() {
     const figureLevel = Number.isInteger(Number(settings.figureLevel)) ? Number(settings.figureLevel) : 0;
     const presetBucket = getPresetBucketForLevel(figureLevel);
-    const activeSlot = Number.isInteger(Number(presetBucket.selectedSlot))
-      ? Number(presetBucket.selectedSlot)
-      : selectedPresetSlot;
+    const activeSlot = resolvePresetSlotForLevel(figureLevel, presetBucket.selectedSlot);
     selectedPresetSlot = Math.max(0, Math.min(3, activeSlot));
+    presetBucket.selectedSlot = selectedPresetSlot;
+    presets[String(figureLevel)] = presetBucket;
     presetSlots.innerHTML = '';
     for (let slot = 0; slot < 4; slot += 1) {
       const option = document.createElement('label');
@@ -5299,7 +5318,7 @@ function createHandIndependencePanel() {
         const bucket = getPresetBucketForLevel(settings.figureLevel);
         bucket.selectedSlot = slot;
         presets[String(settings.figureLevel)] = bucket;
-        persist();
+        persistPresets();
         const nextPreset = bucket[String(slot)];
         if (nextPreset && typeof nextPreset === 'object') {
           apply(nextPreset);
@@ -5324,7 +5343,7 @@ function createHandIndependencePanel() {
     const figureLevel = Number.isInteger(Number(settings.figureLevel)) ? Number(settings.figureLevel) : 0;
     presets[String(figureLevel)] = {};
     selectedPresetSlot = 0;
-    localStorage.setItem(presetKey, JSON.stringify(presets));
+    persistPresets();
     renderPresetSlots();
   });
 
@@ -5690,7 +5709,7 @@ function createHandIndependencePanel() {
     presetBucket.selectedSlot = slot;
     presets[String(figureLevel)] = presetBucket;
     selectedPresetSlot = slot;
-    localStorage.setItem(presetKey, JSON.stringify(presets));
+    persistPresets();
     renderPresetSlots();
     return slot;
   }
@@ -5698,7 +5717,7 @@ function createHandIndependencePanel() {
     const figureLevel = Number.isInteger(Number(settings.figureLevel)) ? Number(settings.figureLevel) : 0;
     presets[String(figureLevel)] = {};
     selectedPresetSlot = 0;
-    localStorage.setItem(presetKey, JSON.stringify(presets));
+    persistPresets();
     renderPresetSlots();
   }
   function rebuildCornerControls(figureLevelOverride = settings.figureLevel) {
@@ -5769,10 +5788,12 @@ function createHandIndependencePanel() {
     applyPreset: (level, slotOverride = null) => {
       const figureLevel = Number.isInteger(Number(level)) ? Math.max(0, Math.min(3, Number(level))) : Number(settings.figureLevel ?? 0);
       const presetBucket = getPresetBucketForLevel(figureLevel);
-      const requestedSlot = Number.isInteger(Number(slotOverride)) ? Number(slotOverride) : Number(presetBucket.selectedSlot);
-      const activeSlot = Number.isInteger(requestedSlot) && requestedSlot >= 0 && requestedSlot <= 3 ? requestedSlot : 0;
+      const activeSlot = resolvePresetSlotForLevel(figureLevel, slotOverride ?? presetBucket.selectedSlot);
       selectedPresetSlot = Math.max(0, Math.min(3, activeSlot));
       settings.figureLevel = figureLevel;
+      presetBucket.selectedSlot = selectedPresetSlot;
+      presets[String(figureLevel)] = presetBucket;
+      persistPresets();
       managerRef?.setHandIndependenceFigureLevel(figureLevel);
       const preset = presetBucket[String(selectedPresetSlot)];
       if (preset && typeof preset === 'object') {
@@ -5885,11 +5906,46 @@ function createTrackingControls(trackingController) {
   function readSavedSettings() {
     try {
       const stored = localStorage.getItem(settingsStorageKey);
-      if (!stored) {
-        return {};
+      const parsed = stored ? JSON.parse(stored) : {};
+      const base = parsed && typeof parsed === 'object' ? parsed : {};
+
+      const legacySilhouetteEnabled = localStorage.getItem('motionai.silhouette-enabled');
+      const legacySilhouetteOpacity = localStorage.getItem('motionai.silhouette-opacity');
+      const legacyVideoSofteningEnabled = localStorage.getItem('motionai.video-softening-enabled');
+      const legacyVideoSofteningSettings = localStorage.getItem('motionai.video-softening-settings');
+
+      if (legacySilhouetteEnabled !== null && typeof base.silhouetteVisible !== 'boolean') {
+        base.silhouetteVisible = legacySilhouetteEnabled === 'true';
       }
-      const parsed = JSON.parse(stored);
-      return parsed && typeof parsed === 'object' ? parsed : {};
+
+      if (legacySilhouetteOpacity !== null && !Number.isFinite(Number(base.silhouetteOpacity))) {
+        const parsedOpacity = Number(legacySilhouetteOpacity);
+        base.silhouetteOpacity = Number.isFinite(parsedOpacity)
+          ? Math.min(1, Math.max(0, parsedOpacity))
+          : 0.2;
+      }
+
+      if (legacyVideoSofteningEnabled !== null && typeof base.videoSofteningEnabled !== 'boolean') {
+        base.videoSofteningEnabled = legacyVideoSofteningEnabled === 'true';
+      }
+
+      if (legacyVideoSofteningSettings !== null && !Number.isFinite(Number(base.videoSofteningBlurPx)) && !Number.isFinite(Number(base.videoSofteningBrightness))) {
+        try {
+          const parsedSettings = JSON.parse(legacyVideoSofteningSettings);
+          if (parsedSettings && typeof parsedSettings === 'object') {
+            if (Number.isFinite(Number(parsedSettings.blurPx))) {
+              base.videoSofteningBlurPx = Math.min(20, Math.max(2, Number(parsedSettings.blurPx)));
+            }
+            if (Number.isFinite(Number(parsedSettings.brightness))) {
+              base.videoSofteningBrightness = Math.min(0.9, Math.max(0.2, Number(parsedSettings.brightness)));
+            }
+          }
+        } catch (error) {
+          // Ignore invalid legacy video softening payloads.
+        }
+      }
+
+      return base;
     } catch (error) {
       return {};
     }
@@ -5905,7 +5961,11 @@ function createTrackingControls(trackingController) {
       if (!parsed || typeof parsed !== 'object') {
         return null;
       }
-      const candidate = Number(parsed.calibrationSetIndex);
+      const rawValue = parsed.calibrationSetIndex;
+      if (rawValue === null || typeof rawValue === 'undefined' || rawValue === '') {
+        return null;
+      }
+      const candidate = Number(rawValue);
       return Number.isInteger(candidate) ? candidate : null;
     } catch (error) {
       return null;
@@ -6043,10 +6103,14 @@ function createTrackingControls(trackingController) {
   const savedPoseWarningLandmarksVisible = typeof savedSettings.poseWarningLandmarksVisible === 'boolean'
     ? savedSettings.poseWarningLandmarksVisible
     : false;
+  const savedCalibrationSetIndex = Number.isInteger(Number(savedSettings.calibrationSetIndex))
+    ? Number(savedSettings.calibrationSetIndex)
+    : null;
 
   cameraEnabled = savedCameraEnabled;
   resolutionPreset = savedResolutionPreset;
   selectedPlaybackMode = savedPlaybackMode;
+  selectedCalibrationSetIndex = savedCalibrationSetIndex;
   calibrationStrictnessSlider.value = String(savedCalibrationStrictness);
   stabilizationEnabled = savedStabilizationEnabled;
   landmarkDrawingVisible = savedLandmarkDrawingVisible;
@@ -6091,15 +6155,14 @@ function createTrackingControls(trackingController) {
   const silhouetteOpacityStorageKey = 'motionai.silhouette-opacity';
 
   try {
-    const storedSilhouette = localStorage.getItem(silhouetteStorageKey);
-    if (storedSilhouette !== null) {
-      silhouetteVisible = storedSilhouette === 'true';
+    const savedSettings = readSavedSettings();
+    if (typeof savedSettings.silhouetteVisible === 'boolean') {
+      silhouetteVisible = savedSettings.silhouetteVisible;
     }
 
-    const storedSilhouetteOpacity = localStorage.getItem(silhouetteOpacityStorageKey);
-    if (storedSilhouetteOpacity !== null) {
-      const parsed = Number(storedSilhouetteOpacity);
-      silhouetteOpacityValue = Number.isFinite(parsed) ? Math.min(1, Math.max(0, parsed)) : 0.2;
+    if (Number.isFinite(Number(savedSettings.silhouetteOpacity))) {
+      const parsed = Number(savedSettings.silhouetteOpacity);
+      silhouetteOpacityValue = Math.min(1, Math.max(0, parsed));
     }
   } catch (error) {
     silhouetteVisible = false;
@@ -6129,11 +6192,7 @@ function createTrackingControls(trackingController) {
   silhouetteOpacitySlider.title = 'Deckkraft der Silhouette';
 
   function persistSilhouetteOpacitySetting() {
-    try {
-      localStorage.setItem(silhouetteOpacityStorageKey, String(silhouetteOpacityValue));
-    } catch (error) {
-      // Ignore storage failures for local settings.
-    }
+    persistSettingsState();
   }
 
   function updateSilhouetteOpacityControl() {
@@ -6156,20 +6215,17 @@ function createTrackingControls(trackingController) {
   videoSofteningButton.className = 'tracking-controls-button';
 
   try {
-    const raw = localStorage.getItem(videoSofteningStorageKey);
-    if (raw !== null) {
-      videoSofteningEnabled = raw === 'true';
+    const savedSettings = readSavedSettings();
+    if (typeof savedSettings.videoSofteningEnabled === 'boolean') {
+      videoSofteningEnabled = savedSettings.videoSofteningEnabled;
     }
 
-    const settingsRaw = localStorage.getItem(videoSofteningSettingsStorageKey);
-    if (settingsRaw) {
-      const parsed = JSON.parse(settingsRaw);
-      if (Number.isFinite(Number(parsed.blurPx))) {
-        videoSofteningBlurPx = Math.min(20, Math.max(2, Number(parsed.blurPx)));
-      }
-      if (Number.isFinite(Number(parsed.brightness))) {
-        videoSofteningBrightness = Math.min(0.9, Math.max(0.2, Number(parsed.brightness)));
-      }
+    if (Number.isFinite(Number(savedSettings.videoSofteningBlurPx))) {
+      videoSofteningBlurPx = Math.min(20, Math.max(2, Number(savedSettings.videoSofteningBlurPx)));
+    }
+
+    if (Number.isFinite(Number(savedSettings.videoSofteningBrightness))) {
+      videoSofteningBrightness = Math.min(0.9, Math.max(0.2, Number(savedSettings.videoSofteningBrightness)));
     }
   } catch (error) {
     videoSofteningEnabled = true;
@@ -6178,15 +6234,7 @@ function createTrackingControls(trackingController) {
   }
 
   function persistVideoSofteningSettings() {
-    try {
-      localStorage.setItem(videoSofteningStorageKey, String(videoSofteningEnabled));
-      localStorage.setItem(videoSofteningSettingsStorageKey, JSON.stringify({
-        blurPx: videoSofteningBlurPx,
-        brightness: videoSofteningBrightness
-      }));
-    } catch (error) {
-      // Ignore storage failures for local settings.
-    }
+    persistSettingsState();
   }
 
   function updateVideoSofteningLabel() {
@@ -6287,6 +6335,7 @@ function createTrackingControls(trackingController) {
     input.addEventListener('change', () => {
       if (input.checked) {
         selectedPlaybackMode = mode;
+        persistSettingsState();
       }
     });
 
@@ -6360,16 +6409,37 @@ function createTrackingControls(trackingController) {
       }
     }
 
-    let best = candidatePool[0];
-    candidatePool.slice(1).forEach((candidate) => {
-      const currentTimestamp = Number(candidate.entry?.timestamp) || 0;
-      const bestTimestamp = Number(best.entry?.timestamp) || 0;
-      if (currentTimestamp > bestTimestamp) {
-        best = candidate;
+    const normalizeTimestamp = (value) => {
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        return value;
       }
-    });
+      if (typeof value === 'string' && value.trim() !== '') {
+        const parsed = Date.parse(value);
+        if (Number.isFinite(parsed)) {
+          return parsed;
+        }
+        const numeric = Number(value);
+        if (Number.isFinite(numeric)) {
+          return numeric;
+        }
+      }
+      return Number.NaN;
+    };
 
-    return best ? best.index : null;
+    const validCandidates = candidatePool.filter(({ entry }) => Number.isFinite(normalizeTimestamp(entry?.timestamp)));
+    if (validCandidates.length > 0) {
+      let best = validCandidates[0];
+      validCandidates.slice(1).forEach((candidate) => {
+        const currentTimestamp = normalizeTimestamp(candidate.entry?.timestamp);
+        const bestTimestamp = normalizeTimestamp(best.entry?.timestamp);
+        if (currentTimestamp > bestTimestamp) {
+          best = candidate;
+        }
+      });
+      return best.index;
+    }
+
+    return candidatePool.length > 0 ? candidatePool[candidatePool.length - 1].index : null;
   }
 
   function setCalibrationPoseSets(poseSets = []) {
@@ -6416,16 +6486,53 @@ function createTrackingControls(trackingController) {
     });
 
     const persistedIndex = readPersistedCalibrationIndex();
-    const parsedCurrent = Number(currentValue);
-    const preferredIndex = resolvePreferredCalibrationIndex(poseSets, persistedIndex);
+    const parsedCurrent = currentValue === '' || currentValue === null || typeof currentValue === 'undefined'
+      ? null
+      : Number(currentValue);
+    const currentLevelManagerIndex = levelManagerRef && Number.isInteger(levelManagerRef.getSelectedCalibrationPoseSetIndex?.())
+      ? levelManagerRef.getSelectedCalibrationPoseSetIndex()
+      : null;
     const hasCurrent = Number.isInteger(parsedCurrent) && parsedCurrent >= 0 && parsedCurrent < poseSets.length;
     const currentEntry = hasCurrent ? poseSets[parsedCurrent] : null;
     const currentIsVisible = !!currentEntry && !isFallbackCalibrationSet(currentEntry);
-    selectedCalibrationSetIndex = preferredIndex ?? (
-      currentIsVisible
-        ? parsedCurrent
-        : (visiblePoseSets.length > 0 ? poseSets.indexOf(visiblePoseSets[visiblePoseSets.length - 1]) : null)
-    );
+    const validLevelManagerSelection = Number.isInteger(currentLevelManagerIndex)
+      && currentLevelManagerIndex >= 0
+      && currentLevelManagerIndex < poseSets.length
+      && !isFallbackCalibrationSet(poseSets[currentLevelManagerIndex])
+      ? currentLevelManagerIndex
+      : null;
+    const validStateSelection = Number.isInteger(selectedCalibrationSetIndex)
+      && selectedCalibrationSetIndex >= 0
+      && selectedCalibrationSetIndex < poseSets.length
+      && !isFallbackCalibrationSet(poseSets[selectedCalibrationSetIndex])
+      ? selectedCalibrationSetIndex
+      : null;
+    const validPersistedSelection = Number.isInteger(persistedIndex)
+      && persistedIndex >= 0
+      && persistedIndex < poseSets.length
+      && !isFallbackCalibrationSet(poseSets[persistedIndex])
+      ? persistedIndex
+      : null;
+    const preferredIndex = validLevelManagerSelection
+      ?? validPersistedSelection
+      ?? validStateSelection
+      ?? (hasCurrent && currentIsVisible ? parsedCurrent : null)
+      ?? resolvePreferredCalibrationIndex(poseSets, persistedIndex)
+      ?? (visiblePoseSets.length > 0 ? poseSets.indexOf(visiblePoseSets[visiblePoseSets.length - 1]) : null);
+    console.log('calibration-preference-debug', {
+      persistedIndex,
+      validPersistedSelection,
+      validStateSelection,
+      validLevelManagerSelection,
+      hasCurrent,
+      parsedCurrent,
+      currentValue,
+      selectedCalibrationSetIndex,
+      preferredIndex,
+      poseSetCount: poseSets.length,
+      visiblePoseSets: visiblePoseSets.map((entry, idx) => ({ idx, timestamp: entry.timestamp, name: entry.name }))
+    });
+    selectedCalibrationSetIndex = preferredIndex;
     calibrationSetSelect.value = String(selectedCalibrationSetIndex);
     if (calibrationSetChangeHandler) {
       calibrationSetChangeHandler(selectedCalibrationSetIndex);
@@ -6464,11 +6571,7 @@ function createTrackingControls(trackingController) {
   }
 
   function persistSilhouetteSetting() {
-    try {
-      localStorage.setItem(silhouetteStorageKey, String(silhouetteVisible));
-    } catch (error) {
-      // Ignore storage failures for local settings.
-    }
+    persistSettingsState();
   }
 
   function updateSilhouetteLabel() {

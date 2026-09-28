@@ -154,9 +154,12 @@ export class LevelManager {
       const rawSettings = localStorage.getItem('motionai.settings-panel-state');
       if (rawSettings) {
         const parsedSettings = JSON.parse(rawSettings);
-        const candidate = Number(parsedSettings?.calibrationSetIndex);
-        if (Number.isInteger(candidate) && candidate >= 0 && candidate < this.calibrationPoseSets.length) {
-          persistedCalibrationSetIndex = candidate;
+        const rawValue = parsedSettings?.calibrationSetIndex;
+        if (rawValue !== null && typeof rawValue !== 'undefined' && rawValue !== '') {
+          const candidate = Number(rawValue);
+          if (Number.isInteger(candidate) && candidate >= 0 && candidate < this.calibrationPoseSets.length) {
+            persistedCalibrationSetIndex = candidate;
+          }
         }
       }
     } catch (error) {
@@ -1717,16 +1720,37 @@ export class LevelManager {
       }
     }
 
-    let best = effectivePool[0];
-    effectivePool.slice(1).forEach((candidate) => {
-      const currentTimestamp = Number(candidate.entry?.timestamp) || 0;
-      const bestTimestamp = Number(best.entry?.timestamp) || 0;
-      if (currentTimestamp > bestTimestamp) {
-        best = candidate;
+    const normalizeTimestamp = (value) => {
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        return value;
       }
-    });
+      if (typeof value === 'string' && value.trim() !== '') {
+        const parsed = Date.parse(value);
+        if (Number.isFinite(parsed)) {
+          return parsed;
+        }
+        const numeric = Number(value);
+        if (Number.isFinite(numeric)) {
+          return numeric;
+        }
+      }
+      return Number.NaN;
+    };
 
-    return best ? best.index : null;
+    const validCandidates = effectivePool.filter(({ entry }) => Number.isFinite(normalizeTimestamp(entry?.timestamp)));
+    if (validCandidates.length > 0) {
+      let best = validCandidates[0];
+      validCandidates.slice(1).forEach((candidate) => {
+        const currentTimestamp = normalizeTimestamp(candidate.entry?.timestamp);
+        const bestTimestamp = normalizeTimestamp(best.entry?.timestamp);
+        if (currentTimestamp > bestTimestamp) {
+          best = candidate;
+        }
+      });
+      return best.index;
+    }
+
+    return effectivePool.length > 0 ? effectivePool[effectivePool.length - 1].index : null;
   }
 
   getSelectedCalibrationPoseSet() {
@@ -1734,10 +1758,19 @@ export class LevelManager {
       return this.getFallbackCalibrationPoseSet();
     }
 
+    const currentSelectionIsValid = Number.isInteger(this.selectedCalibrationPoseSetIndex)
+      && this.selectedCalibrationPoseSetIndex >= 0
+      && this.selectedCalibrationPoseSetIndex < this.calibrationPoseSets.length
+      && !this.isFallbackCalibrationPoseSetEntry(this.calibrationPoseSets[this.selectedCalibrationPoseSetIndex]);
+
+    if (currentSelectionIsValid) {
+      return this.calibrationPoseSets[this.selectedCalibrationPoseSetIndex];
+    }
+
     const preferredIndex = this.resolvePreferredCalibrationSetIndex(this.selectedCalibrationPoseSetIndex);
     if (Number.isInteger(preferredIndex) && preferredIndex >= 0 && preferredIndex < this.calibrationPoseSets.length) {
       this.selectedCalibrationPoseSetIndex = preferredIndex;
-    } else if (!Number.isInteger(this.selectedCalibrationPoseSetIndex)) {
+    } else {
       this.selectedCalibrationPoseSetIndex = this.calibrationPoseSets.length - 1;
     }
 
