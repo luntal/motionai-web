@@ -1,4 +1,5 @@
 export const DEFAULT_MOTIONAI_STORAGE = {
+  callibration_date: [],
   'motionai.settings-panel-state': {
     model: 'pose',
     cameraEnabled: true,
@@ -70,10 +71,10 @@ export const DEFAULT_MOTIONAI_STORAGE = {
 
 export function clearMotionAiStorageState() {
   try {
-    const keysToRemove = [];
+    const keysToRemove = new Set();
     for (const key of Object.keys(localStorage)) {
-      if (key.startsWith('motionai.')) {
-        keysToRemove.push(key);
+      if (key.startsWith('motionai.') || key === 'callibration_date') {
+        keysToRemove.add(key);
       }
     }
     keysToRemove.forEach((key) => localStorage.removeItem(key));
