@@ -1,35 +1,17 @@
 import { initApp } from './app.js';
 import {
-  DEFAULT_MOTIONAI_STORAGE,
-  applyDefaultStorageSnapshot,
   fetchMotionAiDefaultsSnapshot,
-  getMotionAiStorageSnapshot,
-  hasMotionAiDefaultsInitialized,
-  hasMotionAiStorageState,
-  markMotionAiDefaultsInitialized,
-  shouldInitializeMotionAiDefaults
+  getMotionAiActiveUserId,
+  getMotionAiUserStorageSnapshot,
+  installMotionAiStorageBridge,
+  resetMotionAiUserStorageToDefaults
 } from './defaultSettings.js';
 
 if (typeof window !== 'undefined') {
-  const shouldInitializeDefaults = shouldInitializeMotionAiDefaults();
-
-  if (shouldInitializeDefaults) {
-    fetchMotionAiDefaultsSnapshot()
-      .then((snapshot) => {
-        applyDefaultStorageSnapshot(snapshot);
-        markMotionAiDefaultsInitialized();
-      })
-      .catch((error) => {
-        console.error('Failed to initialize motionai defaults from JSON:', error);
-        applyDefaultStorageSnapshot(DEFAULT_MOTIONAI_STORAGE);
-        markMotionAiDefaultsInitialized();
-      });
-  } else if (!hasMotionAiDefaultsInitialized()) {
-    markMotionAiDefaultsInitialized();
-  }
+  installMotionAiStorageBridge();
 
   window.exportDefaults = () => {
-    const snapshot = getMotionAiStorageSnapshot();
+    const snapshot = getMotionAiUserStorageSnapshot(getMotionAiActiveUserId());
     const settingsState = snapshot['motionai.settings-panel-state'];
     const exportedAt = new Date().toISOString();
 
@@ -75,7 +57,7 @@ if (typeof window !== 'undefined') {
       return false;
     }
 
-    applyDefaultStorageSnapshot(snapshot);
+    resetMotionAiUserStorageToDefaults(getMotionAiActiveUserId(), snapshot);
     console.log('MotionAI defaults loaded from snapshot.');
     return true;
   };
@@ -90,7 +72,6 @@ if (typeof window !== 'undefined') {
       const snapshot = await fetchMotionAiDefaultsSnapshot();
       const success = window.loadDefaultSettings(snapshot);
       if (success) {
-        markMotionAiDefaultsInitialized();
         window.location.reload();
       }
       return success;

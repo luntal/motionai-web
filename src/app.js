@@ -26,7 +26,21 @@ import {
   onCanvasResize
 } from './tracking.js';
 import { LevelManager } from './levels.js';
-import { DEFAULT_MOTIONAI_STORAGE, fetchMotionAiDefaultsSnapshot } from './defaultSettings.js';
+import {
+  DEFAULT_MOTIONAI_STORAGE,
+  MOTIONAI_ACTIVE_USER_STORAGE_KEY,
+  normalizeMotionAiBucketSnapshot,
+  fetchMotionAiDefaultsSnapshot,
+  getMotionAiActiveUserId,
+  setMotionAiActiveUserId,
+  ensureMotionAiDefaultUserStorage,
+  getMotionAiUserRegistry,
+  createMotionAiUser,
+  getMotionAiUserStorageBucket,
+  setMotionAiUserStorageBucket,
+  getMotionAiBucketValue,
+  setMotionAiBucketValue
+} from './defaultSettings.js';
 import { getLevelCountForChapter, levelTitles, uiElementDescriptions } from './constants.js';
 
 function normalizeHelpKey(value) {
@@ -36,6 +50,30 @@ function normalizeHelpKey(value) {
     .replace(/ß/g, 'ss')
     .replace(/[^a-zA-Z0-9]/g, '')
     .toLowerCase();
+}
+
+function getMotionAiBucketSectionKey(storageKey) {
+  if (typeof storageKey !== 'string') {
+    return null;
+  }
+
+  if (storageKey === 'callibration_date') {
+    return 'calibrationPoseSets';
+  }
+
+  if (storageKey.startsWith('motionai.')) {
+    return storageKey.replace(/^motionai\./, '');
+  }
+
+  return storageKey;
+}
+
+function getUserScopedStorageValue(storageKey, fallback = null) {
+  return getMotionAiBucketValue(storageKey, fallback, getMotionAiActiveUserId());
+}
+
+function setUserScopedStorageValue(storageKey, value) {
+  return setMotionAiBucketValue(storageKey, value, getMotionAiActiveUserId());
 }
 
 function getUiDescriptionForSection(sectionName, key) {
@@ -180,19 +218,12 @@ function readLevelSettingsVisibilityState() {
   const storageKey = 'motionai.levelSettingsVisibility';
 
   try {
-    const raw = localStorage.getItem(storageKey);
-    if (raw === null) {
-      return false;
+    const bucketValue = getUserScopedStorageValue(storageKey, false);
+    if (typeof bucketValue === 'boolean') {
+      return bucketValue;
     }
-    if (raw === 'true' || raw === 'false') {
-      return raw === 'true';
-    }
-    const parsed = JSON.parse(raw);
-    if (typeof parsed === 'boolean') {
-      return parsed;
-    }
-    if (parsed && typeof parsed === 'object') {
-      return Boolean(parsed.visible ?? parsed.value ?? false);
+    if (bucketValue && typeof bucketValue === 'object') {
+      return Boolean(bucketValue.visible ?? bucketValue.value ?? false);
     }
     return false;
   } catch (error) {
@@ -205,7 +236,7 @@ function writeLevelSettingsVisibilityState(visible) {
   const nextValue = Boolean(visible);
 
   try {
-    localStorage.setItem(storageKey, JSON.stringify(nextValue));
+    setUserScopedStorageValue(storageKey, nextValue);
   } catch (error) {
     // ignore storage errors
   }
@@ -272,8 +303,8 @@ function createFigureModePanel(initialManager, options = {}) {
   const chapterId = Number(options.chapterId ?? 3);
   let storedFigureSettings = {};
   try {
-    const stored = localStorage.getItem(figureSettingsStorageKey);
-    storedFigureSettings = stored ? JSON.parse(stored) : {};
+    const stored = getUserScopedStorageValue(figureSettingsStorageKey, {});
+    storedFigureSettings = stored && typeof stored === 'object' ? stored : {};
   } catch (error) {
     storedFigureSettings = {};
   }
@@ -812,7 +843,7 @@ function createFigureModePanel(initialManager, options = {}) {
 
   function persistFigureSettings() {
     try {
-      localStorage.setItem(figureSettingsStorageKey, JSON.stringify({
+      setUserScopedStorageValue(figureSettingsStorageKey, {
         figureVariant: selectedVariant,
         figureSide: selectedSide,
         figureScale: Number(sizeSlider.value),
@@ -831,7 +862,7 @@ function createFigureModePanel(initialManager, options = {}) {
           timing: Number(weightControls.timing?.slider.value ?? 30),
           direction: Number(weightControls.direction?.slider.value ?? 25)
         }
-      }));
+      });
     } catch (error) {
       return;
     }
@@ -1162,22 +1193,22 @@ function createFigureModePanel(initialManager, options = {}) {
   let selectedPresetByLevel = {};
 
   try {
-    const stored = localStorage.getItem(presetStorageKey);
-    presetData = stored ? JSON.parse(stored) : {};
+    const stored = getUserScopedStorageValue(presetStorageKey, {});
+    presetData = stored && typeof stored === 'object' ? stored : {};
   } catch (error) {
     presetData = {};
   }
 
   try {
-    const stored = localStorage.getItem(selectedPresetStorageKey);
-    selectedPresetByLevel = stored ? JSON.parse(stored) : {};
+    const stored = getUserScopedStorageValue(selectedPresetStorageKey, {});
+    selectedPresetByLevel = stored && typeof stored === 'object' ? stored : {};
   } catch (error) {
     selectedPresetByLevel = {};
   }
 
   function persistPresets() {
     try {
-      localStorage.setItem(presetStorageKey, JSON.stringify(presetData));
+      setUserScopedStorageValue(presetStorageKey, presetData);
     } catch (error) {
       return;
     }
@@ -1185,7 +1216,7 @@ function createFigureModePanel(initialManager, options = {}) {
 
   function persistSelectedPresets() {
     try {
-      localStorage.setItem(selectedPresetStorageKey, JSON.stringify(selectedPresetByLevel));
+      setUserScopedStorageValue(selectedPresetStorageKey, selectedPresetByLevel);
     } catch (error) {
       return;
     }
@@ -1360,14 +1391,14 @@ function createDynamicFigureModePanel() {
   let selectedPresetByLevel = {};
 
   try {
-    const stored = localStorage.getItem(presetStorageKey);
-    presetData = stored ? JSON.parse(stored) : {};
+    const stored = getUserScopedStorageValue(presetStorageKey, {});
+    presetData = stored && typeof stored === 'object' ? stored : {};
   } catch (error) {
     presetData = {};
   }
   try {
-    const stored = localStorage.getItem(selectedPresetStorageKey);
-    selectedPresetByLevel = stored ? JSON.parse(stored) : {};
+    const stored = getUserScopedStorageValue(selectedPresetStorageKey, {});
+    selectedPresetByLevel = stored && typeof stored === 'object' ? stored : {};
   } catch (error) {
     selectedPresetByLevel = {};
   }
@@ -1420,7 +1451,7 @@ function createDynamicFigureModePanel() {
 
   function persistPresets() {
     try {
-      localStorage.setItem(presetStorageKey, JSON.stringify(presetData));
+      setUserScopedStorageValue(presetStorageKey, presetData);
     } catch (error) {
       return;
     }
@@ -1428,7 +1459,7 @@ function createDynamicFigureModePanel() {
 
   function persistSelectedPresets() {
     try {
-      localStorage.setItem(selectedPresetStorageKey, JSON.stringify(selectedPresetByLevel));
+      setUserScopedStorageValue(selectedPresetStorageKey, selectedPresetByLevel);
     } catch (error) {
       return;
     }
@@ -1636,7 +1667,7 @@ function createExerciseFieldPanel() {
 
   const readPresetMap = () => {
     try {
-      const stored = JSON.parse(localStorage.getItem(presetsKey) || '{}');
+      const stored = getUserScopedStorageValue(presetsKey, {});
       return stored && typeof stored === 'object' ? stored : {};
     } catch (error) {
       return {};
@@ -1684,7 +1715,7 @@ function createExerciseFieldPanel() {
 
   const readSavedSettings = () => {
     try {
-      const stored = JSON.parse(localStorage.getItem(storageKey) || '{}');
+      const stored = getUserScopedStorageValue(storageKey, {});
       const enabled = stored.enabled;
       const scale = Number(stored.scale);
       const xOffset = Number(stored.xOffset);
@@ -1758,7 +1789,7 @@ function createExerciseFieldPanel() {
 
   const saveSettings = () => {
     try {
-      localStorage.setItem(storageKey, JSON.stringify(getCurrentState()));
+      setUserScopedStorageValue(storageKey, getCurrentState());
     } catch (error) {
       // no-op: localStorage limits or privacy modes may block this safely
     }
@@ -1943,7 +1974,7 @@ function createExerciseFieldPanel() {
     }
     const nextBucket = { selectedSlot: 0 };
     presets[String(safeLevel)] = nextBucket;
-    localStorage.setItem(presetsKey, JSON.stringify(presets));
+    setUserScopedStorageValue(presetsKey, presets);
     return nextBucket;
   };
 
@@ -1971,7 +2002,7 @@ function createExerciseFieldPanel() {
         currentBucket.selectedSlot = slot;
         const presets = readPresetMap();
         presets[String(currentExerciseLevel)] = currentBucket;
-        localStorage.setItem(presetsKey, JSON.stringify(presets));
+        setUserScopedStorageValue(presetsKey, presets);
         const nextPreset = currentBucket[String(slot)];
         if (nextPreset && typeof nextPreset === 'object') {
           setControlsFromState(nextPreset);
@@ -1997,7 +2028,7 @@ function createExerciseFieldPanel() {
     const presets = readPresetMap();
     presets[String(exerciseLevel)] = { selectedSlot: 0 };
     selectedPresetSlot = 0;
-    localStorage.setItem(presetsKey, JSON.stringify(presets));
+    setUserScopedStorageValue(presetsKey, presets);
     renderPresetSlots();
   });
 
@@ -2460,7 +2491,7 @@ function createExerciseFieldPanel() {
     presetBucket.selectedSlot = presetIndex;
     const presets = readPresetMap();
     presets[String(exerciseLevel)] = presetBucket;
-    localStorage.setItem(presetsKey, JSON.stringify(presets));
+    setUserScopedStorageValue(presetsKey, presets);
     selectedPresetSlot = presetIndex;
     renderPresetSlots();
     return presetIndex;
@@ -2474,7 +2505,8 @@ function createExerciseFieldPanel() {
 
     try {
       const defaults = await fetchMotionAiDefaultsSnapshot();
-      const nextPanelSettings = defaults['motionai.exercise-field-panel-settings'] || {
+      const normalizedDefaults = normalizeMotionAiBucketSnapshot(defaults);
+      const nextPanelSettings = normalizedDefaults['exercise-field-panel-settings'] || {
         enabled: true,
         scale: 1,
         xOffset: 0,
@@ -2487,7 +2519,7 @@ function createExerciseFieldPanel() {
         tempoBpm: 60,
         metronomeEnabled: false
       };
-      const nextPresets = defaults['motionai.exercise-field-presets'] || {};
+      const nextPresets = normalizedDefaults['exercise-field-presets'] || {};
       const activeExerciseLevel = Number.isInteger(uiState?.activeLevel) && uiState.activeLevel >= 0 && uiState.activeLevel <= 2
         ? uiState.activeLevel
         : 0;
@@ -2495,7 +2527,7 @@ function createExerciseFieldPanel() {
       const defaultsBucket = nextPresets[String(activeExerciseLevel)] || { selectedSlot: 0 };
       const activePreset = defaultsBucket[String(Number(defaultsBucket.selectedSlot ?? 0))] || defaultsBucket['0'] || nextPanelSettings || {};
 
-      localStorage.setItem(storageKey, JSON.stringify({
+      setUserScopedStorageValue(storageKey, {
         enabled: typeof nextPanelSettings.enabled === 'boolean' ? nextPanelSettings.enabled : true,
         scale: Number.isFinite(Number(nextPanelSettings.scale)) ? Number(nextPanelSettings.scale) : 1,
         xOffset: Number.isFinite(Number(nextPanelSettings.xOffset)) ? Number(nextPanelSettings.xOffset) : 0,
@@ -2506,10 +2538,10 @@ function createExerciseFieldPanel() {
         fieldBeat: sanitizeAssignmentBeat(nextPanelSettings.fieldBeat ?? 1, sanitizeStrikeCount(nextPanelSettings.strikeCount ?? 2)),
         mode: nextPanelSettings.mode === 'tempo' ? 'tempo' : 'free',
         tempoBpm: Number.isFinite(Number(nextPanelSettings.tempoBpm)) ? Math.min(180, Math.max(30, Number(nextPanelSettings.tempoBpm))) : 60
-      }));
+      });
       const nextPresetMap = readPresetMap();
       nextPresetMap[String(activeExerciseLevel)] = { ...resetBucket, ...defaultsBucket, selectedSlot: 0 };
-      localStorage.setItem(presetsKey, JSON.stringify(nextPresetMap));
+      setUserScopedStorageValue(presetsKey, nextPresetMap);
 
       setControlsFromState({
         enabled: typeof activePreset.enabled === 'boolean' ? activePreset.enabled : true,
@@ -2696,7 +2728,7 @@ function createSquareExercisePanel() {
   let managerRef = null;
   let settings = {};
   try {
-    const stored = JSON.parse(localStorage.getItem(storageKey) || '{}');
+    const stored = getUserScopedStorageValue(storageKey, {});
     settings = stored && typeof stored === 'object' ? stored : {};
   } catch (error) {
     settings = {};
@@ -2866,7 +2898,7 @@ function createSquareExercisePanel() {
 
   const readStoredPointSlots = () => {
     try {
-      const storedSlots = JSON.parse(localStorage.getItem(pointStorageKey) || '{}');
+      const storedSlots = getUserScopedStorageValue(pointStorageKey, {});
       if (storedSlots && typeof storedSlots === 'object') {
         return Object.fromEntries(
           Object.entries(storedSlots).map(([key, value]) => [normalizePointSlot(key), normalizePointPresetEntry(value)])
@@ -2880,7 +2912,7 @@ function createSquareExercisePanel() {
 
   const readStoredPointPanelState = () => {
     try {
-      const storedState = JSON.parse(localStorage.getItem(pointSessionStorageKey) || '{}');
+      const storedState = getUserScopedStorageValue(pointSessionStorageKey, {});
       if (storedState && typeof storedState === 'object') {
         return storedState;
       }
@@ -2921,12 +2953,12 @@ function createSquareExercisePanel() {
 
   const persistPointState = () => {
     try {
-      localStorage.setItem(pointStorageKey, JSON.stringify(pointSavedSlots));
+      setUserScopedStorageValue(pointStorageKey, pointSavedSlots);
     } catch (error) {
       // Ignore storage failures for local settings.
     }
     try {
-      localStorage.setItem(pointSessionStorageKey, JSON.stringify({
+      setUserScopedStorageValue(pointSessionStorageKey, {
         pointEditMode,
         pointSelectedSlot,
         pointSelectedHand,
@@ -2934,7 +2966,7 @@ function createSquareExercisePanel() {
         pointSymmetryMode,
         pointPalindromMode,
         pointSequence: sanitizePointSequence(pointSequence)
-      }));
+      });
     } catch (error) {
       // Ignore storage failures for local settings.
     }
@@ -2957,7 +2989,7 @@ function createSquareExercisePanel() {
       alternatingAxisSwap: selectedAlternatingAxisSwap
     };
     try {
-      localStorage.setItem(storageKey, JSON.stringify(snapshot));
+      setUserScopedStorageValue(storageKey, snapshot);
     } catch (error) {
       // Ignore storage failures for local settings.
     }
@@ -3077,7 +3109,7 @@ function createSquareExercisePanel() {
 
   const readSquarePresetData = () => {
     try {
-      const stored = JSON.parse(localStorage.getItem(squarePresetStorageKey) || '{}');
+      const stored = getUserScopedStorageValue(squarePresetStorageKey, {});
       if (stored && typeof stored === 'object') {
         return stored;
       }
@@ -3089,7 +3121,7 @@ function createSquareExercisePanel() {
 
   const persistSquarePresetData = () => {
     try {
-      localStorage.setItem(squarePresetStorageKey, JSON.stringify(squarePresetData));
+      setUserScopedStorageValue(squarePresetStorageKey, squarePresetData);
     } catch (error) {
       // Ignore storage failures for local settings.
     }
@@ -5131,7 +5163,7 @@ function createHandIndependencePanel() {
   let settings = {};
   let presets = {};
   try {
-    const storedSettings = JSON.parse(localStorage.getItem(storageKey) || '{}');
+    const storedSettings = getUserScopedStorageValue(storageKey, {});
     settings = storedSettings && typeof storedSettings === 'object' ? storedSettings : {};
   } catch (error) { settings = {}; }
   settings.sharedX = settings.sharedX ?? 0;
@@ -5146,7 +5178,7 @@ function createHandIndependencePanel() {
     settings.countVisible = settings.countTimesVisible;
   }
   try {
-    const storedPresets = JSON.parse(localStorage.getItem(presetKey) || '{}');
+    const storedPresets = getUserScopedStorageValue(presetKey, {});
     presets = storedPresets && typeof storedPresets === 'object' ? storedPresets : {};
   } catch (error) { presets = {}; }
 
@@ -5284,7 +5316,7 @@ function createHandIndependencePanel() {
 
   function persistPresets() {
     try {
-      localStorage.setItem(presetKey, JSON.stringify(presets));
+      setUserScopedStorageValue(presetKey, presets);
     } catch (error) {
       return;
     }
@@ -5605,7 +5637,7 @@ function createHandIndependencePanel() {
   attachPanelHoverHelp(panel);
   levelSettingsVisibility.sync();
 
-  function persist() { try { localStorage.setItem(storageKey, JSON.stringify(settings)); } catch (error) { return; } }
+  function persist() { try { setUserScopedStorageValue(storageKey, settings); } catch (error) { return; } }
   function apply(next) {
     const safeNext = next && typeof next === 'object' ? next : {};
     settings = { ...settings, ...safeNext };
@@ -5899,47 +5931,10 @@ function createTrackingControls(trackingController) {
 
   function readSavedSettings() {
     try {
-      const stored = localStorage.getItem(settingsStorageKey);
-      const parsed = stored ? JSON.parse(stored) : {};
-      const base = parsed && typeof parsed === 'object' ? parsed : {};
-
-      const legacySilhouetteEnabled = localStorage.getItem('motionai.silhouette-enabled');
-      const legacySilhouetteOpacity = localStorage.getItem('motionai.silhouette-opacity');
-      const legacyVideoSofteningEnabled = localStorage.getItem('motionai.video-softening-enabled');
-      const legacyVideoSofteningSettings = localStorage.getItem('motionai.video-softening-settings');
-
-      if (legacySilhouetteEnabled !== null && typeof base.silhouetteVisible !== 'boolean') {
-        base.silhouetteVisible = legacySilhouetteEnabled === 'true';
-      }
-
-      if (legacySilhouetteOpacity !== null && !Number.isFinite(Number(base.silhouetteOpacity))) {
-        const parsedOpacity = Number(legacySilhouetteOpacity);
-        base.silhouetteOpacity = Number.isFinite(parsedOpacity)
-          ? Math.min(1, Math.max(0, parsedOpacity))
-          : 0.2;
-      }
-
-      if (legacyVideoSofteningEnabled !== null && typeof base.videoSofteningEnabled !== 'boolean') {
-        base.videoSofteningEnabled = legacyVideoSofteningEnabled === 'true';
-      }
-
-      if (legacyVideoSofteningSettings !== null && !Number.isFinite(Number(base.videoSofteningBlurPx)) && !Number.isFinite(Number(base.videoSofteningBrightness))) {
-        try {
-          const parsedSettings = JSON.parse(legacyVideoSofteningSettings);
-          if (parsedSettings && typeof parsedSettings === 'object') {
-            if (Number.isFinite(Number(parsedSettings.blurPx))) {
-              base.videoSofteningBlurPx = Math.min(20, Math.max(2, Number(parsedSettings.blurPx)));
-            }
-            if (Number.isFinite(Number(parsedSettings.brightness))) {
-              base.videoSofteningBrightness = Math.min(0.9, Math.max(0.2, Number(parsedSettings.brightness)));
-            }
-          }
-        } catch (error) {
-          // Ignore invalid legacy video softening payloads.
-        }
-      }
-
-      return base;
+      const activeUserId = getMotionAiActiveUserId();
+      const bucket = getMotionAiUserStorageBucket(activeUserId);
+      const stored = bucket && typeof bucket === 'object' ? bucket['settings-panel-state'] : undefined;
+      return stored && typeof stored === 'object' ? stored : {};
     } catch (error) {
       return {};
     }
@@ -5947,15 +5942,13 @@ function createTrackingControls(trackingController) {
 
   function readPersistedCalibrationIndex() {
     try {
-      const stored = localStorage.getItem(settingsStorageKey);
-      if (!stored) {
+      const activeUserId = getMotionAiActiveUserId();
+      const bucket = getMotionAiUserStorageBucket(activeUserId);
+      const stored = bucket && typeof bucket === 'object' ? bucket['settings-panel-state'] : undefined;
+      if (!stored || typeof stored !== 'object') {
         return null;
       }
-      const parsed = JSON.parse(stored);
-      if (!parsed || typeof parsed !== 'object') {
-        return null;
-      }
-      const rawValue = parsed.calibrationSetIndex;
+      const rawValue = stored.calibrationSetIndex;
       if (rawValue === null || typeof rawValue === 'undefined' || rawValue === '') {
         return null;
       }
@@ -5968,7 +5961,9 @@ function createTrackingControls(trackingController) {
 
   function getDefaultCreatedAtValue() {
     const saved = readSavedSettings();
-    const candidate = saved && typeof saved.createdAt === 'string' ? saved.createdAt : DEFAULT_MOTIONAI_STORAGE['motionai.settings-panel-state'].createdAt;
+    const candidate = saved && typeof saved.createdAt === 'string'
+      ? saved.createdAt
+      : (DEFAULT_MOTIONAI_STORAGE['motionai.settings-panel-state'] && DEFAULT_MOTIONAI_STORAGE['motionai.settings-panel-state'].createdAt);
     if (!candidate) {
       return null;
     }
@@ -6021,7 +6016,7 @@ function createTrackingControls(trackingController) {
         poseWarningLandmarksVisible,
         createdAt: getDefaultCreatedAtValue()
       };
-      localStorage.setItem(settingsStorageKey, JSON.stringify(snapshot));
+      setUserScopedStorageValue(settingsStorageKey, snapshot);
       if (defaultCreatedAtText) {
         defaultCreatedAtText.textContent = getCreatedAtDisplayText();
       }
@@ -6145,9 +6140,6 @@ function createTrackingControls(trackingController) {
   const eyesButton = document.createElement('button');
   eyesButton.type = 'button';
   eyesButton.className = 'tracking-controls-button';
-  const silhouetteStorageKey = 'motionai.silhouette-enabled';
-  const silhouetteOpacityStorageKey = 'motionai.silhouette-opacity';
-
   try {
     const savedSettings = readSavedSettings();
     if (typeof savedSettings.silhouetteVisible === 'boolean') {
@@ -6202,25 +6194,12 @@ function createTrackingControls(trackingController) {
   }
 
   const videoCanvas = document.getElementById('canvas');
-  const videoSofteningStorageKey = 'motionai.video-softening-enabled';
-  const videoSofteningSettingsStorageKey = 'motionai.video-softening-settings';
   const videoSofteningButton = document.createElement('button');
   videoSofteningButton.type = 'button';
   videoSofteningButton.className = 'tracking-controls-button';
 
   try {
-    const savedSettings = readSavedSettings();
-    if (typeof savedSettings.videoSofteningEnabled === 'boolean') {
-      videoSofteningEnabled = savedSettings.videoSofteningEnabled;
-    }
-
-    if (Number.isFinite(Number(savedSettings.videoSofteningBlurPx))) {
-      videoSofteningBlurPx = Math.min(20, Math.max(2, Number(savedSettings.videoSofteningBlurPx)));
-    }
-
-    if (Number.isFinite(Number(savedSettings.videoSofteningBrightness))) {
-      videoSofteningBrightness = Math.min(0.9, Math.max(0.2, Number(savedSettings.videoSofteningBrightness)));
-    }
+    syncVideoSofteningStateFromStorage();
   } catch (error) {
     videoSofteningEnabled = true;
     videoSofteningBlurPx = 5;
@@ -6229,6 +6208,33 @@ function createTrackingControls(trackingController) {
 
   function persistVideoSofteningSettings() {
     persistSettingsState();
+  }
+
+  function syncVideoSofteningStateFromStorage() {
+    try {
+      const savedSettings = readSavedSettings();
+      const nextEnabled = typeof savedSettings.videoSofteningEnabled === 'boolean'
+        ? savedSettings.videoSofteningEnabled
+        : true;
+      const nextBlur = Number.isFinite(Number(savedSettings.videoSofteningBlurPx))
+        ? Math.min(20, Math.max(2, Number(savedSettings.videoSofteningBlurPx)))
+        : 5;
+      const nextBrightness = Number.isFinite(Number(savedSettings.videoSofteningBrightness))
+        ? Math.min(0.9, Math.max(0.2, Number(savedSettings.videoSofteningBrightness)))
+        : 0.75;
+
+      videoSofteningEnabled = nextEnabled;
+      videoSofteningBlurPx = nextBlur;
+      videoSofteningBrightness = nextBrightness;
+      setVideoSofteningEnabled(nextEnabled);
+      setVideoSofteningStyle(nextBlur, nextBrightness);
+    } catch (error) {
+      videoSofteningEnabled = true;
+      videoSofteningBlurPx = 5;
+      videoSofteningBrightness = 0.75;
+      setVideoSofteningEnabled(true);
+      setVideoSofteningStyle(5, 0.75);
+    }
   }
 
   function updateVideoSofteningLabel() {
@@ -7120,7 +7126,7 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
     const panelState = ensureExamPanelState(safeLevel);
     const storageKey = getExamStorageKey(safeLevel ?? 0);
     try {
-      const stored = JSON.parse(localStorage.getItem(storageKey) || '[]');
+      const stored = getUserScopedStorageValue(storageKey, []);
       const nextTasks = Array.isArray(stored) && stored.length > 0
         ? stored.map((task, index) => {
             const chapterId = Number.isInteger(Number(task.chapterId)) ? Math.min(6, Math.max(1, Number(task.chapterId))) : 1;
@@ -7159,7 +7165,7 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
       panelState.tasks = tasks;
     }
     try {
-      localStorage.setItem(getExamStorageKey(safeLevel), JSON.stringify(tasks));
+      setUserScopedStorageValue(getExamStorageKey(safeLevel), tasks);
     } catch (error) {
       // ignore storage failures
     }
@@ -7170,7 +7176,7 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
     const panelState = ensureExamPanelState(safeLevel);
     const storageKey = getExamResultsStorageKey(safeLevel ?? 0);
     try {
-      const stored = JSON.parse(localStorage.getItem(storageKey) || '[]');
+      const stored = getUserScopedStorageValue(storageKey, []);
       const nextResults = Array.isArray(stored) ? stored : [];
       if (panelState) {
         panelState.results = nextResults;
@@ -7194,7 +7200,7 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
       panelState.results = results;
     }
     try {
-      localStorage.setItem(getExamResultsStorageKey(safeLevel), JSON.stringify(results));
+      setUserScopedStorageValue(getExamResultsStorageKey(safeLevel), results);
     } catch (error) {
       // ignore storage failures
     }
@@ -7776,7 +7782,190 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
   };
 }
 
-export function initApp() {
+function createUserStorageSelector(defaultsSnapshot = DEFAULT_MOTIONAI_STORAGE) {
+  const container = document.createElement('div');
+  container.style.position = 'fixed';
+  container.style.top = '12px';
+  container.style.left = '50%';
+  container.style.transform = 'translateX(-50%)';
+  container.style.zIndex = '9999';
+  container.style.fontSize = '13px';
+  container.style.fontFamily = 'system-ui, sans-serif';
+  container.style.color = '#fff';
+
+  const toggleButton = document.createElement('button');
+  toggleButton.type = 'button';
+  toggleButton.style.display = 'flex';
+  toggleButton.style.alignItems = 'center';
+  toggleButton.style.gap = '8px';
+  toggleButton.style.padding = '8px 14px';
+  toggleButton.style.borderRadius = '999px';
+  toggleButton.style.background = 'rgba(20, 26, 35, 0.88)';
+  toggleButton.style.border = '1px solid rgba(255,255,255,0.18)';
+  toggleButton.style.boxShadow = '0 8px 30px rgba(0, 0, 0, 0.2)';
+  toggleButton.style.color = '#fff';
+  toggleButton.style.cursor = 'pointer';
+
+  const panel = document.createElement('div');
+  panel.style.position = 'absolute';
+  panel.style.top = 'calc(100% + 8px)';
+  panel.style.left = '50%';
+  panel.style.transform = 'translateX(-50%)';
+  panel.style.minWidth = '220px';
+  panel.style.padding = '10px';
+  panel.style.borderRadius = '14px';
+  panel.style.background = 'rgba(20, 26, 35, 0.94)';
+  panel.style.border = '1px solid rgba(255,255,255,0.18)';
+  panel.style.boxShadow = '0 8px 30px rgba(0, 0, 0, 0.25)';
+  panel.style.display = 'none';
+  panel.style.flexDirection = 'column';
+  panel.style.gap = '6px';
+
+  const userList = document.createElement('div');
+  userList.style.display = 'flex';
+  userList.style.flexDirection = 'column';
+  userList.style.gap = '4px';
+  userList.style.maxHeight = '220px';
+  userList.style.overflowY = 'auto';
+
+  const createUserButton = document.createElement('button');
+  createUserButton.type = 'button';
+  createUserButton.textContent = '+ Neuer Nutzer';
+  createUserButton.style.marginTop = '4px';
+  createUserButton.style.padding = '6px 10px';
+  createUserButton.style.borderRadius = '8px';
+  createUserButton.style.border = '1px solid rgba(255,255,255,0.25)';
+  createUserButton.style.background = 'rgba(255,255,255,0.08)';
+  createUserButton.style.color = '#fff';
+  createUserButton.style.cursor = 'pointer';
+
+  const logoutButton = document.createElement('button');
+  logoutButton.type = 'button';
+  logoutButton.textContent = 'Abmelden';
+  logoutButton.style.padding = '6px 10px';
+  logoutButton.style.borderRadius = '8px';
+  logoutButton.style.border = '1px solid rgba(255,255,255,0.25)';
+  logoutButton.style.background = 'rgba(255,255,255,0.08)';
+  logoutButton.style.color = '#fff';
+  logoutButton.style.cursor = 'pointer';
+  logoutButton.style.display = 'none';
+
+  function updateToggleLabel() {
+    const activeUserId = getMotionAiActiveUserId();
+    if (activeUserId === 'default') {
+      toggleButton.textContent = '👤';
+      return;
+    }
+    const registry = getMotionAiUserRegistry();
+    const activeEntry = registry.find((entry) => entry.id === activeUserId);
+    toggleButton.textContent = `👤 ${activeEntry ? activeEntry.label : activeUserId}`;
+  }
+
+  function updateLogoutButtonVisibility() {
+    logoutButton.style.display = getMotionAiActiveUserId() === 'default' ? 'none' : 'block';
+  }
+
+  function renderUserList() {
+    userList.innerHTML = '';
+    const activeUserId = getMotionAiActiveUserId();
+
+    getMotionAiUserRegistry()
+      .filter((entry) => entry.id !== 'default')
+      .forEach((entry) => {
+        const optionWrap = document.createElement('label');
+        optionWrap.style.display = 'flex';
+        optionWrap.style.alignItems = 'center';
+        optionWrap.style.gap = '6px';
+        optionWrap.style.padding = '4px 6px';
+        optionWrap.style.borderRadius = '8px';
+        optionWrap.style.cursor = 'pointer';
+
+        const input = document.createElement('input');
+        input.type = 'radio';
+        input.name = 'motionai-user-selector';
+        input.value = entry.id;
+        input.checked = entry.id === activeUserId;
+
+        const text = document.createElement('span');
+        text.textContent = entry.label;
+
+        input.addEventListener('change', () => {
+          if (!input.checked) {
+            return;
+          }
+          setMotionAiActiveUserId(entry.id);
+          window.location.reload();
+        });
+
+        optionWrap.appendChild(input);
+        optionWrap.appendChild(text);
+        userList.appendChild(optionWrap);
+      });
+
+    updateLogoutButtonVisibility();
+  }
+
+  createUserButton.addEventListener('click', () => {
+    const label = window.prompt('Name für den neuen Nutzer:');
+    if (label === null) {
+      return;
+    }
+
+    const trimmedLabel = label.trim();
+    if (!trimmedLabel) {
+      window.alert('Bitte gib einen Namen ein.');
+      return;
+    }
+
+    const created = createMotionAiUser(trimmedLabel, defaultsSnapshot);
+    if (!created) {
+      window.alert('Der Nutzer konnte nicht erstellt werden.');
+      return;
+    }
+
+    setMotionAiActiveUserId(created.id);
+    window.location.reload();
+  });
+
+  logoutButton.addEventListener('click', () => {
+    setMotionAiActiveUserId('default');
+    window.location.reload();
+  });
+
+  toggleButton.addEventListener('click', () => {
+    const isOpen = panel.style.display !== 'none';
+    if (isOpen) {
+      panel.style.display = 'none';
+      return;
+    }
+    renderUserList();
+    panel.style.display = 'flex';
+  });
+
+  document.addEventListener('click', (event) => {
+    if (!container.contains(event.target)) {
+      panel.style.display = 'none';
+    }
+  });
+
+  panel.appendChild(userList);
+  panel.appendChild(createUserButton);
+  panel.appendChild(logoutButton);
+  container.appendChild(toggleButton);
+  container.appendChild(panel);
+  document.body.appendChild(container);
+
+  updateToggleLabel();
+
+  return { container, toggleButton, panel };
+}
+
+export async function initApp() {
+  const defaultsSnapshot = await fetchMotionAiDefaultsSnapshot();
+  ensureMotionAiDefaultUserStorage(defaultsSnapshot);
+  createUserStorageSelector(defaultsSnapshot);
+
+
   const videoElement = document.getElementById('video');
   const canvasElement = document.getElementById('canvas');
 
