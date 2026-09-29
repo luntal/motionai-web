@@ -9,7 +9,8 @@ import {
   setHoverHelpEnabled,
   uiState,
   attachPanelHoverHelp,
-  registerHoverHelp
+  registerHoverHelp,
+  requestFinalExamPassword
 } from './ui.js';
 import {
   startTracking,
@@ -6616,6 +6617,27 @@ function createTrackingControls(trackingController) {
     }
   });
 
+  const exportExamsButton = document.createElement('button');
+  exportExamsButton.type = 'button';
+  exportExamsButton.className = 'tracking-controls-button';
+  exportExamsButton.textContent = 'export exams';
+  exportExamsButton.addEventListener('click', async () => {
+    try {
+      const grantedAccess = await requestFinalExamPassword();
+      if (!grantedAccess) {
+        return;
+      }
+      if (typeof window.exportExams === 'function') {
+        window.exportExams();
+        return;
+      }
+      throw new Error('exportExams is not defined');
+    } catch (error) {
+      console.error('Failed to export exam results:', error);
+      window.alert('Das Herunterladen der Prüfungsergebnisse ist fehlgeschlagen.');
+    }
+  });
+
   const restoreDefaultsButton = document.createElement('button');
   restoreDefaultsButton.type = 'button';
   restoreDefaultsButton.className = 'tracking-controls-button';
@@ -6894,6 +6916,7 @@ function createTrackingControls(trackingController) {
   bindUiGroupDescription([eyesButton], 'Einstellungen', 'Silhouette');
   bindUiGroupDescription([silhouetteOpacityLabel, silhouetteOpacityValueLabel, silhouetteOpacitySlider], 'Einstellungen', 'Silhouette Deckkraft');
   bindUiGroupDescription([exportDefaultsButton], 'Einstellungen', 'Defaults exportieren');
+  bindUiGroupDescription([exportExamsButton], 'Einstellungen', 'Export Exams');
   bindUiGroupDescription([restoreDefaultsButton], 'Einstellungen', 'Werkseinstellung');
   bindUiGroupDescription([videoSofteningButton], 'Einstellungen', 'Weichzeichnen');
   bindUiGroupDescription([blurLabel, blurSlider], 'Einstellungen', 'Weichzeichnen');
@@ -6922,6 +6945,7 @@ function createTrackingControls(trackingController) {
   container.appendChild(silhouetteOpacitySlider);
   container.appendChild(poseWarningLandmarksButton);
   container.appendChild(exportDefaultsButton);
+  container.appendChild(exportExamsButton);
   container.appendChild(restoreDefaultsButton);
   container.appendChild(defaultCreatedAtText);
   container.appendChild(videoSofteningDivider);
@@ -7587,17 +7611,13 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
       return;
     }
     if (activeExamLevel === FINAL_EXAM_LEVEL) {
-      const name = window.prompt('Bitte gib deinen Namen für die Prüfung ein:');
-      if (name === null) {
-        return;
-      }
-      const trimmedName = String(name ?? '').trim();
-      if (!trimmedName) {
-        window.alert('Ein Name ist für die Prüfung erforderlich.');
-        return;
-      }
-      examCandidateName = trimmedName;
-      uiState.finalExamCandidateName = trimmedName;
+      const activeUserId = getMotionAiActiveUserId();
+      const activeUserEntry = getMotionAiUserRegistry().find((entry) => entry && entry.id === activeUserId);
+      const defaultName = activeUserEntry && typeof activeUserEntry.label === 'string' && activeUserEntry.label.trim()
+        ? activeUserEntry.label.trim()
+        : activeUserId || 'Default';
+      examCandidateName = defaultName;
+      uiState.finalExamCandidateName = defaultName;
     } else {
       examCandidateName = uiState.finalExamCandidateName || '';
     }

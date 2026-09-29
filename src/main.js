@@ -2,6 +2,8 @@ import { initApp } from './app.js';
 import {
   fetchMotionAiDefaultsSnapshot,
   getMotionAiActiveUserId,
+  getMotionAiUserRegistry,
+  getMotionAiUserStorageBucket,
   getMotionAiUserStorageSnapshot,
   installMotionAiStorageBridge,
   resetMotionAiUserStorageToDefaults
@@ -32,6 +34,47 @@ if (typeof window !== 'undefined') {
     link.remove();
     URL.revokeObjectURL(url);
     console.log('MotionAI defaults exported:', payload);
+    return payload;
+  };
+
+  window.exportExams = () => {
+    const registry = getMotionAiUserRegistry();
+    const exportedAt = new Date().toISOString();
+    const users = registry.map((userEntry) => {
+      const userId = userEntry && typeof userEntry.id === 'string' ? userEntry.id : 'default';
+      const userBucket = getMotionAiUserStorageBucket(userId) || {};
+      const resultsByLevel = {};
+
+      Object.entries(userBucket).forEach(([sectionName, value]) => {
+        const normalizedSection = String(sectionName || '').replace(/^motionai\./, '');
+        if (!normalizedSection.startsWith('exam.results.level.')) {
+          return;
+        }
+
+        const levelKey = normalizedSection.replace(/^exam\.results\.level\./, '');
+        if (typeof value !== 'undefined') {
+          resultsByLevel[levelKey] = value;
+        }
+      });
+
+      return {
+        userId,
+        label: userEntry && typeof userEntry.label === 'string' ? userEntry.label : userId,
+        results: resultsByLevel
+      };
+    });
+
+    const payload = JSON.stringify({ exportedAt, users }, null, 2);
+    const blob = new Blob([payload], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'motionai-exams.json';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    console.log('MotionAI exam exports generated:', payload);
     return payload;
   };
 
