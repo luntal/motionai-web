@@ -1,35 +1,19 @@
 import { initApp } from './app.js';
 import {
-  DEFAULT_MOTIONAI_STORAGE,
-  applyDefaultStorageSnapshot,
   fetchMotionAiDefaultsSnapshot,
-  getMotionAiStorageSnapshot,
-  hasMotionAiDefaultsInitialized,
-  hasMotionAiStorageState,
-  markMotionAiDefaultsInitialized,
-  shouldInitializeMotionAiDefaults
+  getMotionAiActiveUserId,
+  getMotionAiUserRegistry,
+  getMotionAiUserStorageBucket,
+  getMotionAiUserStorageSnapshot,
+  installMotionAiStorageBridge,
+  resetMotionAiUserStorageToDefaults
 } from './defaultSettings.js';
 
 if (typeof window !== 'undefined') {
-  const shouldInitializeDefaults = shouldInitializeMotionAiDefaults();
-
-  if (shouldInitializeDefaults) {
-    fetchMotionAiDefaultsSnapshot()
-      .then((snapshot) => {
-        applyDefaultStorageSnapshot(snapshot);
-        markMotionAiDefaultsInitialized();
-      })
-      .catch((error) => {
-        console.error('Failed to initialize motionai defaults from JSON:', error);
-        applyDefaultStorageSnapshot(DEFAULT_MOTIONAI_STORAGE);
-        markMotionAiDefaultsInitialized();
-      });
-  } else if (!hasMotionAiDefaultsInitialized()) {
-    markMotionAiDefaultsInitialized();
-  }
+  installMotionAiStorageBridge();
 
   window.exportDefaults = () => {
-    const snapshot = getMotionAiStorageSnapshot();
+    const snapshot = getMotionAiUserStorageSnapshot(getMotionAiActiveUserId());
     const settingsState = snapshot['motionai.settings-panel-state'];
     const exportedAt = new Date().toISOString();
 
@@ -50,6 +34,47 @@ if (typeof window !== 'undefined') {
     link.remove();
     URL.revokeObjectURL(url);
     console.log('MotionAI defaults exported:', payload);
+    return payload;
+  };
+
+  window.exportExams = () => {
+    const registry = getMotionAiUserRegistry();
+    const exportedAt = new Date().toISOString();
+    const users = registry.map((userEntry) => {
+      const userId = userEntry && typeof userEntry.id === 'string' ? userEntry.id : 'default';
+      const userBucket = getMotionAiUserStorageBucket(userId) || {};
+      const resultsByLevel = {};
+
+      Object.entries(userBucket).forEach(([sectionName, value]) => {
+        const normalizedSection = String(sectionName || '').replace(/^motionai\./, '');
+        if (!normalizedSection.startsWith('exam.results.level.')) {
+          return;
+        }
+
+        const levelKey = normalizedSection.replace(/^exam\.results\.level\./, '');
+        if (typeof value !== 'undefined') {
+          resultsByLevel[levelKey] = value;
+        }
+      });
+
+      return {
+        userId,
+        label: userEntry && typeof userEntry.label === 'string' ? userEntry.label : userId,
+        results: resultsByLevel
+      };
+    });
+
+    const payload = JSON.stringify({ exportedAt, users }, null, 2);
+    const blob = new Blob([payload], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'motionai-exams.json';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    console.log('MotionAI exam exports generated:', payload);
     return payload;
   };
 
@@ -75,7 +100,7 @@ if (typeof window !== 'undefined') {
       return false;
     }
 
-    applyDefaultStorageSnapshot(snapshot);
+    resetMotionAiUserStorageToDefaults(getMotionAiActiveUserId(), snapshot);
     console.log('MotionAI defaults loaded from snapshot.');
     return true;
   };
@@ -90,7 +115,6 @@ if (typeof window !== 'undefined') {
       const snapshot = await fetchMotionAiDefaultsSnapshot();
       const success = window.loadDefaultSettings(snapshot);
       if (success) {
-        markMotionAiDefaultsInitialized();
         window.location.reload();
       }
       return success;

@@ -15,7 +15,7 @@ export const uiState = {
   finalExamCandidateName: ''
 };
 
-function requestFinalExamPassword() {
+export function requestFinalExamPassword() {
   return new Promise((resolve) => {
     const overlay = document.createElement('div');
     overlay.style.position = 'fixed';

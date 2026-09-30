@@ -1,4 +1,11 @@
 import { basicFigurePaths, basicFigurePathsStyle2, extendedFigurePaths } from './constants.js';
+import {
+  getMotionAiActiveUserId,
+  getMotionAiBucketValue,
+  getMotionAiUserStorageBucket,
+  setMotionAiBucketValue,
+  setMotionAiUserStorageBucket
+} from './defaultSettings.js';
 import { registerHoverHelp } from './ui.js';
 
 function applyLevelSettingsVisibilityToPanel(panel, visible) {
@@ -34,19 +41,12 @@ function readLevelSettingsVisibilityState() {
   const storageKey = 'motionai.levelSettingsVisibility';
 
   try {
-    const raw = localStorage.getItem(storageKey);
-    if (raw === null) {
-      return false;
+    const bucketValue = getMotionAiBucketValue(storageKey, false, getMotionAiActiveUserId());
+    if (typeof bucketValue === 'boolean') {
+      return bucketValue;
     }
-    if (raw === 'true' || raw === 'false') {
-      return raw === 'true';
-    }
-    const parsed = JSON.parse(raw);
-    if (typeof parsed === 'boolean') {
-      return parsed;
-    }
-    if (parsed && typeof parsed === 'object') {
-      return Boolean(parsed.visible ?? parsed.value ?? false);
+    if (bucketValue && typeof bucketValue === 'object') {
+      return Boolean(bucketValue.visible ?? bucketValue.value ?? false);
     }
     return false;
   } catch (error) {
@@ -59,7 +59,7 @@ function writeLevelSettingsVisibilityState(visible) {
   const nextValue = Boolean(visible);
 
   try {
-    localStorage.setItem(storageKey, JSON.stringify(nextValue));
+    setMotionAiBucketValue(storageKey, nextValue, getMotionAiActiveUserId());
   } catch (error) {
     // ignore storage errors
   }
@@ -151,10 +151,12 @@ export class LevelManager {
 
     let persistedCalibrationSetIndex = null;
     try {
-      const rawSettings = localStorage.getItem('motionai.settings-panel-state');
+      const activeUserId = getMotionAiActiveUserId();
+      const bucket = getMotionAiUserStorageBucket(activeUserId);
+      const settingsBucket = bucket && typeof bucket === 'object' ? bucket['settings-panel-state'] : null;
+      const rawSettings = settingsBucket && typeof settingsBucket === 'object' ? settingsBucket : null;
       if (rawSettings) {
-        const parsedSettings = JSON.parse(rawSettings);
-        const rawValue = parsedSettings?.calibrationSetIndex;
+        const rawValue = rawSettings.calibrationSetIndex;
         if (rawValue !== null && typeof rawValue !== 'undefined' && rawValue !== '') {
           const candidate = Number(rawValue);
           if (Number.isInteger(candidate) && candidate >= 0 && candidate < this.calibrationPoseSets.length) {
@@ -393,13 +395,15 @@ export class LevelManager {
 
   persistSelectedCalibrationSetIndex() {
     try {
-      const raw = localStorage.getItem('motionai.settings-panel-state');
-      const base = raw ? JSON.parse(raw) : {};
+      const activeUserId = getMotionAiActiveUserId();
+      const bucket = getMotionAiUserStorageBucket(activeUserId);
+      const base = bucket && typeof bucket === 'object' ? bucket['settings-panel-state'] : {};
       if (!base || typeof base !== 'object') {
         return;
       }
       base.calibrationSetIndex = this.selectedCalibrationPoseSetIndex;
-      localStorage.setItem('motionai.settings-panel-state', JSON.stringify(base));
+      bucket['settings-panel-state'] = base;
+      setMotionAiUserStorageBucket(activeUserId, bucket);
     } catch (error) {
       // Ignore storage failures for local settings.
     }
@@ -1978,12 +1982,14 @@ export class LevelManager {
 
   loadCalibrationPoseSets() {
     try {
-      const raw = localStorage.getItem(this.calibrationPoseSetsStorageKey);
-      if (!raw) {
+      const userId = getMotionAiActiveUserId();
+      const bucket = getMotionAiUserStorageBucket(userId);
+      const rawValue = bucket && typeof bucket === 'object' ? bucket.calibrationPoseSets : undefined;
+      if (!rawValue) {
         return [];
       }
 
-      const parsed = JSON.parse(raw);
+      const parsed = Array.isArray(rawValue) ? rawValue : JSON.parse(JSON.stringify(rawValue));
       if (!Array.isArray(parsed)) {
         return [];
       }
@@ -2007,7 +2013,10 @@ export class LevelManager {
 
   persistCalibrationPoseSets() {
     try {
-      localStorage.setItem(this.calibrationPoseSetsStorageKey, JSON.stringify(this.calibrationPoseSets));
+      const userId = getMotionAiActiveUserId();
+      const bucket = getMotionAiUserStorageBucket(userId);
+      bucket.calibrationPoseSets = this.calibrationPoseSets;
+      setMotionAiUserStorageBucket(userId, bucket);
     } catch (error) {
       console.warn('Failed to persist calibration pose sets:', error);
     }
@@ -2481,22 +2490,22 @@ export class LevelManager {
 
   readConsistencySettingsMap() {
     try {
-      const raw = localStorage.getItem(this.consistencySettingsStorageKey);
-      const parsed = raw ? JSON.parse(raw) : {};
-      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-        return {};
-      }
-      const hasLevelBuckets = Object.keys(parsed).some((key) => /^\d+$/.test(key));
-      if (!hasLevelBuckets && Object.prototype.hasOwnProperty.call(parsed, 'tempoBpm')) {
+      const userId = getMotionAiActiveUserId();
+      const bucket = getMotionAiUserStorageBucket(userId);
+      const sectionKey = this.consistencySettingsStorageKey.replace(/^motionai\./, '');
+      const parsed = bucket && typeof bucket === 'object' ? bucket[sectionKey] : undefined;
+      const actual = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+      const hasLevelBuckets = Object.keys(actual).some((key) => /^\d+$/.test(key));
+      if (!hasLevelBuckets && Object.prototype.hasOwnProperty.call(actual, 'tempoBpm')) {
         return {
           '0': {
-            tempoBpm: Number(parsed.tempoBpm),
-            strictnessPercent: Number(parsed.strictnessPercent),
-            motionBlendPercent: Number(parsed.motionBlendPercent)
+            tempoBpm: Number(actual.tempoBpm),
+            strictnessPercent: Number(actual.strictnessPercent),
+            motionBlendPercent: Number(actual.motionBlendPercent)
           }
         };
       }
-      return parsed;
+      return actual;
     } catch (error) {
       return {};
     }
@@ -2504,7 +2513,10 @@ export class LevelManager {
 
   writeConsistencySettingsMap(map) {
     try {
-      localStorage.setItem(this.consistencySettingsStorageKey, JSON.stringify(map));
+      const userId = getMotionAiActiveUserId();
+      const bucket = getMotionAiUserStorageBucket(userId);
+      bucket[this.consistencySettingsStorageKey.replace(/^motionai\./, '')] = map;
+      setMotionAiUserStorageBucket(userId, bucket);
     } catch (error) {
       // Ignore storage failures for local settings.
     }
@@ -2562,16 +2574,16 @@ export class LevelManager {
 
   readConsistencyPresetMap() {
     try {
-      const raw = localStorage.getItem(this.consistencyPresetStorageKey);
-      const parsed = raw ? JSON.parse(raw) : {};
-      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-        return {};
+      const userId = getMotionAiActiveUserId();
+      const bucket = getMotionAiUserStorageBucket(userId);
+      const sectionKey = this.consistencyPresetStorageKey.replace(/^motionai\./, '');
+      const parsed = bucket && typeof bucket === 'object' ? bucket[sectionKey] : undefined;
+      const actual = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+      const hasLevelBuckets = Object.keys(actual).some((key) => /^\d+$/.test(key));
+      if (!hasLevelBuckets && Object.prototype.hasOwnProperty.call(actual, 'selectedSlot')) {
+        return { '0': actual };
       }
-      const hasLevelBuckets = Object.keys(parsed).some((key) => /^\d+$/.test(key));
-      if (!hasLevelBuckets && Object.prototype.hasOwnProperty.call(parsed, 'selectedSlot')) {
-        return { '0': parsed };
-      }
-      return parsed;
+      return actual;
     } catch (error) {
       return {};
     }
@@ -2579,7 +2591,10 @@ export class LevelManager {
 
   writeConsistencyPresetMap(map) {
     try {
-      localStorage.setItem(this.consistencyPresetStorageKey, JSON.stringify(map));
+      const userId = getMotionAiActiveUserId();
+      const bucket = getMotionAiUserStorageBucket(userId);
+      bucket[this.consistencyPresetStorageKey.replace(/^motionai\./, '')] = map;
+      setMotionAiUserStorageBucket(userId, bucket);
     } catch (error) {
       // Ignore storage failures for local presets.
     }
@@ -4326,11 +4341,10 @@ export class LevelManager {
     }
 
     try {
-      const raw = localStorage.getItem(storageKey);
-      if (raw === null) {
-        return Boolean(fallback);
-      }
-      const parsed = JSON.parse(raw);
+      const activeUserId = getMotionAiActiveUserId();
+      const bucket = getMotionAiUserStorageBucket(activeUserId);
+      const sectionKey = storageKey.startsWith('motionai.') ? storageKey.replace(/^motionai\./, '') : storageKey;
+      const parsed = bucket && typeof bucket === 'object' ? bucket[sectionKey] : null;
       if (!parsed || typeof parsed !== 'object') {
         return Boolean(fallback);
       }
@@ -4355,23 +4369,21 @@ export class LevelManager {
 
     const dynamicRangeSettings = (() => {
       try {
-        const raw = localStorage.getItem('motionai.dynamic-range-panel-settings');
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (parsed && typeof parsed === 'object') {
-            return parsed;
-          }
+        const userId = getMotionAiActiveUserId();
+        const bucket = getMotionAiUserStorageBucket(userId);
+        const direct = bucket && typeof bucket === 'object' ? bucket['dynamic-range-panel-settings'] : null;
+        if (direct && typeof direct === 'object') {
+          return direct;
         }
       } catch (error) {
         // Ignore malformed storage values.
       }
       try {
-        const raw = localStorage.getItem('motionai.dynamic-range-guide-settings');
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (parsed && typeof parsed === 'object') {
-            return parsed;
-          }
+        const userId = getMotionAiActiveUserId();
+        const bucket = getMotionAiUserStorageBucket(userId);
+        const direct = bucket && typeof bucket === 'object' ? bucket['dynamic-range-guide-settings'] : null;
+        if (direct && typeof direct === 'object') {
+          return direct;
         }
       } catch (error) {
         // Ignore malformed storage values.
@@ -4386,11 +4398,9 @@ export class LevelManager {
 
     const handSettings = (() => {
       try {
-        const raw = localStorage.getItem('motionai.hand-independence-panel-settings');
-        if (!raw) {
-          return {};
-        }
-        const parsed = JSON.parse(raw);
+        const userId = getMotionAiActiveUserId();
+        const bucket = getMotionAiUserStorageBucket(userId);
+        const parsed = bucket && typeof bucket === 'object' ? bucket['hand-independence-panel-settings'] : null;
         return parsed && typeof parsed === 'object' ? parsed : {};
       } catch (error) {
         return {};
@@ -4426,8 +4436,9 @@ export class LevelManager {
 
   loadDynamicFigureCornerHeights() {
     try {
-      const stored = localStorage.getItem('motionai.dynamic-figure-corner-heights');
-      const parsed = stored ? JSON.parse(stored) : {};
+      const userId = getMotionAiActiveUserId();
+      const bucket = getMotionAiUserStorageBucket(userId);
+      const parsed = bucket && typeof bucket === 'object' ? bucket['dynamic-figure-corner-heights'] : null;
       return parsed && typeof parsed === 'object' ? parsed : {};
     } catch (error) {
       return {};
@@ -4441,10 +4452,10 @@ export class LevelManager {
 
     this.dynamicFigureCornerHeightsByLevel[this.level] = this.dynamicFigureCornerHeights.slice();
     try {
-      localStorage.setItem(
-        'motionai.dynamic-figure-corner-heights',
-        JSON.stringify(this.dynamicFigureCornerHeightsByLevel)
-      );
+      const userId = getMotionAiActiveUserId();
+      const bucket = getMotionAiUserStorageBucket(userId);
+      bucket['dynamic-figure-corner-heights'] = this.dynamicFigureCornerHeightsByLevel;
+      setMotionAiUserStorageBucket(userId, bucket);
     } catch (error) {
       return;
     }
@@ -4627,8 +4638,11 @@ export class LevelManager {
 
     try {
       const payload = { dynamicRangeGuideVisible: this.dynamicRangeGuideVisible };
-      localStorage.setItem('motionai.dynamic-range-panel-settings', JSON.stringify(payload));
-      localStorage.setItem('motionai.dynamic-range-guide-settings', JSON.stringify(payload));
+      const userId = getMotionAiActiveUserId();
+      const bucket = getMotionAiUserStorageBucket(userId);
+      bucket['dynamic-range-panel-settings'] = payload;
+      bucket['dynamic-range-guide-settings'] = payload;
+      setMotionAiUserStorageBucket(userId, bucket);
     } catch (error) {
       // Ignore storage failures.
     }
