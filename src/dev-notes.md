@@ -30,6 +30,15 @@
     - Prüfung für normale profile nicht sichtbar. 
 - Tooltips überarbeiten (vor allem bei Ziffern und Punkte nochmal drüberschauen).
 
+- Übungen einbauen, die nur für Dozenten einsehbar sind. Diese können dann aussschließlich für Prfüfungen verwendet werden. 
+    - Dozentenaccount ist immer da und kann nur mit passwort geöffnet werden. 
+    - Die Prüfung wird aus dem Dozentenaccount für alle Nutzer gelesen. So hat man eine einheitliche Prüfung, die von den Standard-Übungen abweichen kann. 
+- x-shift für ipad einbauen.
+- Prüfungsergebnisse und Kalibrierungs-sets müssen nicht in den defaults.json gespeichert werden.
+-Stabilisierun und one-repeat-auto radio button entfernen
+- Seitenpanel bei Prüfungen anpassen: Pfeile und Start/Stop oben, dann Leistungen, dann Aufgaben. 
+    - evtl. Aufgaben Übersicht mit Bearbeiten button ein und ausblenden. 
+
 
 Youtube links:
 - Dirigieren lernen (Taktart 4/4, 3/4, 2/4 und 6/8). Channel: dirigierenlernen.de
