@@ -6,6 +6,7 @@ import {
   getMotionAiUserStorageBucket,
   getMotionAiUserStorageSnapshot,
   installMotionAiStorageBridge,
+  MOTIONAI_DOZENT_USER_ID,
   resetMotionAiUserStorageToDefaults
 } from './defaultSettings.js';
 
@@ -28,7 +29,7 @@ if (typeof window !== 'undefined') {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = 'motionai-defaults.json';
+    link.download = getMotionAiActiveUserId() === MOTIONAI_DOZENT_USER_ID ? 'motionai-d.json' : 'motionai-defaults.json';
     document.body.appendChild(link);
     link.click();
     link.remove();

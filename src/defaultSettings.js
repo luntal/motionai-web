@@ -157,6 +157,47 @@ export function buildMotionAiUserBucketFromSnapshot(snapshot = DEFAULT_MOTIONAI_
   return nextBucket;
 }
 
+const MOTIONAI_DEFAULTS_APPLIED_SECTION = 'defaults-applied-at';
+const MOTIONAI_DEFAULTS_DECLINED_SECTION = 'defaults-declined-at';
+
+// Personal data that a defaults update must never overwrite.
+function isMotionAiPreservedSectionOnReset(section) {
+  return section === 'calibration-sets'
+    || section === 'calibration-pose-sets'
+    || section === 'callibration_date'
+    || section.startsWith('exam.results');
+}
+
+// The defaults file carries its version as settings-panel-state.createdAt (written by exportDefaults).
+export function getMotionAiDefaultsStamp(snapshot) {
+  const stamp = snapshot && snapshot['motionai.settings-panel-state'] && snapshot['motionai.settings-panel-state'].createdAt;
+  return typeof stamp === 'string' && Number.isFinite(Date.parse(stamp)) ? stamp : null;
+}
+
+// Returns the file's stamp when it is newer than what this user applied and was not declined yet.
+export function getMotionAiPendingDefaultsStamp(userId, snapshot) {
+  const stamp = getMotionAiDefaultsStamp(snapshot);
+  if (!stamp) {
+    return null;
+  }
+
+  const bucket = getMotionAiUserStorageBucket(userId);
+  if (bucket[MOTIONAI_DEFAULTS_DECLINED_SECTION] === stamp) {
+    return null;
+  }
+  const applied = bucket[MOTIONAI_DEFAULTS_APPLIED_SECTION];
+  if (typeof applied === 'string' && Date.parse(applied) >= Date.parse(stamp)) {
+    return null;
+  }
+  return stamp;
+}
+
+export function declineMotionAiDefaultsUpdate(userId, stamp) {
+  const bucket = getMotionAiUserStorageBucket(userId);
+  bucket[MOTIONAI_DEFAULTS_DECLINED_SECTION] = stamp;
+  setMotionAiUserStorageBucket(userId, bucket);
+}
+
 export function ensureMotionAiUserStorage(userId = 'default', snapshot = DEFAULT_MOTIONAI_STORAGE) {
   const normalizedUserId = normalizeMotionAiUserId(userId, 'default');
   const bucket = getMotionAiUserStorageBucket(normalizedUserId);
@@ -165,15 +206,28 @@ export function ensureMotionAiUserStorage(userId = 'default', snapshot = DEFAULT
   }
 
   const nextBucket = buildMotionAiUserBucketFromSnapshot(snapshot);
+  const stamp = getMotionAiDefaultsStamp(snapshot);
+  if (stamp) {
+    nextBucket[MOTIONAI_DEFAULTS_APPLIED_SECTION] = stamp;
+  }
   setMotionAiUserStorageBucket(normalizedUserId, nextBucket);
   return nextBucket;
 }
 
-// Unlike ensureMotionAiUserStorage, this always overwrites the user's bucket,
-// used for an explicit "Werkseinstellung" reset rather than first-time seeding.
+// Replaces everything the defaults file defines but keeps calibration sets and exam results.
 export function resetMotionAiUserStorageToDefaults(userId = getMotionAiActiveUserId(), snapshot = DEFAULT_MOTIONAI_STORAGE) {
   const normalizedUserId = normalizeMotionAiUserId(userId, 'default');
+  const previousBucket = getMotionAiUserStorageBucket(normalizedUserId);
   const nextBucket = buildMotionAiUserBucketFromSnapshot(snapshot);
+  Object.entries(previousBucket).forEach(([section, value]) => {
+    if (isMotionAiPreservedSectionOnReset(section)) {
+      nextBucket[section] = value;
+    }
+  });
+  const stamp = getMotionAiDefaultsStamp(snapshot);
+  if (stamp) {
+    nextBucket[MOTIONAI_DEFAULTS_APPLIED_SECTION] = stamp;
+  }
   setMotionAiUserStorageBucket(normalizedUserId, nextBucket);
   return nextBucket;
 }
@@ -311,6 +365,21 @@ export function createMotionAiUser(label, snapshot = DEFAULT_MOTIONAI_STORAGE) {
   return { id: candidateId, label: trimmedLabel };
 }
 
+// Reads of the listed sections for the active user are served from another user's bucket (and writes are dropped).
+let presetReadRedirect = null;
+
+export function setMotionAiPresetReadRedirect(sourceUserId, sectionNames = []) {
+  presetReadRedirect = sourceUserId
+    ? { userId: normalizeMotionAiUserId(sourceUserId, 'default'), sections: new Set(sectionNames) }
+    : null;
+}
+
+function isMotionAiSectionRedirected(section, userId) {
+  return Boolean(presetReadRedirect)
+    && presetReadRedirect.sections.has(section)
+    && normalizeMotionAiUserId(userId, 'default') === getMotionAiActiveUserId();
+}
+
 export function getMotionAiBucketValue(storageKey, fallback = null, userId = getMotionAiActiveUserId()) {
   const sectionName = typeof storageKey === 'string' ? storageKey.trim() : '';
   if (!sectionName) {
@@ -318,7 +387,7 @@ export function getMotionAiBucketValue(storageKey, fallback = null, userId = get
   }
 
   const normalizedKey = sectionName.replace(/^motionai\./, '');
-  const bucket = getMotionAiUserStorageBucket(userId);
+  const bucket = getMotionAiUserStorageBucket(isMotionAiSectionRedirected(normalizedKey, userId) ? presetReadRedirect.userId : userId);
   if (bucket && Object.prototype.hasOwnProperty.call(bucket, normalizedKey)) {
     return bucket[normalizedKey];
   }
@@ -336,6 +405,11 @@ export function setMotionAiBucketValue(storageKey, value, userId = getMotionAiAc
 
   const normalizedSection = sectionName.replace(/^motionai\./, '');
   const safeUserId = normalizeMotionAiUserId(userId, 'default');
+
+  // While redirected (exam on the shared Prüfung) these sections are read-only, so nobody's stored data is touched.
+  if (isMotionAiSectionRedirected(normalizedSection, safeUserId)) {
+    return value;
+  }
 
   // Write only into the user's own bucket; never mirror into a shared root key,
   // otherwise every user's writes would clobber a single shared value.
@@ -394,7 +468,9 @@ export function installMotionAiStorageBridge() {
 
 const EXCLUDED_MOTIONAI_DEFAULT_KEYS = new Set([
   'motionai.calibration-sets',
-  'motionai.exam.results'
+  'motionai.exam.results',
+  'motionai.defaults-applied-at',
+  'motionai.defaults-declined-at'
 ]);
 
 export function filterMotionAiDefaultExportSnapshot(snapshot = {}) {
@@ -518,22 +594,41 @@ export function applyDefaultStorageSnapshot(snapshot = {}) {
   });
 }
 
-export async function fetchMotionAiDefaultsSnapshot() {
-  try {
-    const response = await fetch('./motionai-defaults.json', { cache: 'no-store' });
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
+const MOTIONAI_DEFAULTS_FILE = './motionai-defaults.json';
+const MOTIONAI_DOZENT_DEFAULTS_FILE = './motionai-d.json';
 
-    const json = await response.json();
-    return json && typeof json === 'object' ? filterMotionAiDefaultExportSnapshot(json) : DEFAULT_MOTIONAI_STORAGE;
-  } catch (error) {
-    console.warn('Falling back to embedded default snapshot because motionai-defaults.json could not be loaded.', error);
-    return DEFAULT_MOTIONAI_STORAGE;
+async function fetchMotionAiDefaultsFile(url) {
+  const response = await fetch(url, { cache: 'no-store' });
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
   }
+
+  const json = await response.json();
+  if (!json || typeof json !== 'object') {
+    throw new Error('Defaults file is not a JSON object');
+  }
+  return filterMotionAiDefaultExportSnapshot(json);
 }
 
-// Returns deep copies of the requested 'motionai.<section>' entries from motionai-defaults.json (undefined if absent).
+// DozentIn reads its own defaults file; every other user reads the standard one.
+export async function fetchMotionAiDefaultsSnapshot(userId = getMotionAiActiveUserId()) {
+  const files = normalizeMotionAiUserId(userId, 'default') === MOTIONAI_DOZENT_USER_ID
+    ? [MOTIONAI_DOZENT_DEFAULTS_FILE, MOTIONAI_DEFAULTS_FILE]
+    : [MOTIONAI_DEFAULTS_FILE];
+
+  for (const url of files) {
+    try {
+      return await fetchMotionAiDefaultsFile(url);
+    } catch (error) {
+      console.warn(`Could not load ${url}.`, error);
+    }
+  }
+
+  console.warn('Falling back to embedded default snapshot.');
+  return DEFAULT_MOTIONAI_STORAGE;
+}
+
+// Returns deep copies of the requested 'motionai.<section>' entries from the active user's defaults file (undefined if absent).
 export async function fetchMotionAiDefaultsSections(sectionNames = []) {
   const snapshot = normalizeMotionAiBucketSnapshot(await fetchMotionAiDefaultsSnapshot());
   const sections = {};

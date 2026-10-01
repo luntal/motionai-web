@@ -2523,10 +2523,7 @@ export class LevelManager {
 
   readConsistencySettingsMap() {
     try {
-      const userId = getMotionAiActiveUserId();
-      const bucket = getMotionAiUserStorageBucket(userId);
-      const sectionKey = this.consistencySettingsStorageKey.replace(/^motionai\./, '');
-      const parsed = bucket && typeof bucket === 'object' ? bucket[sectionKey] : undefined;
+      const parsed = getMotionAiBucketValue(this.consistencySettingsStorageKey, undefined, getMotionAiActiveUserId());
       const actual = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
       const hasLevelBuckets = Object.keys(actual).some((key) => /^\d+$/.test(key));
       if (!hasLevelBuckets && Object.prototype.hasOwnProperty.call(actual, 'tempoBpm')) {
@@ -2546,10 +2543,7 @@ export class LevelManager {
 
   writeConsistencySettingsMap(map) {
     try {
-      const userId = getMotionAiActiveUserId();
-      const bucket = getMotionAiUserStorageBucket(userId);
-      bucket[this.consistencySettingsStorageKey.replace(/^motionai\./, '')] = map;
-      setMotionAiUserStorageBucket(userId, bucket);
+      setMotionAiBucketValue(this.consistencySettingsStorageKey, map, getMotionAiActiveUserId());
     } catch (error) {
       // Ignore storage failures for local settings.
     }
@@ -2607,10 +2601,7 @@ export class LevelManager {
 
   readConsistencyPresetMap() {
     try {
-      const userId = getMotionAiActiveUserId();
-      const bucket = getMotionAiUserStorageBucket(userId);
-      const sectionKey = this.consistencyPresetStorageKey.replace(/^motionai\./, '');
-      const parsed = bucket && typeof bucket === 'object' ? bucket[sectionKey] : undefined;
+      const parsed = getMotionAiBucketValue(this.consistencyPresetStorageKey, undefined, getMotionAiActiveUserId());
       const actual = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
       const hasLevelBuckets = Object.keys(actual).some((key) => /^\d+$/.test(key));
       if (!hasLevelBuckets && Object.prototype.hasOwnProperty.call(actual, 'selectedSlot')) {
@@ -2624,10 +2615,7 @@ export class LevelManager {
 
   writeConsistencyPresetMap(map) {
     try {
-      const userId = getMotionAiActiveUserId();
-      const bucket = getMotionAiUserStorageBucket(userId);
-      bucket[this.consistencyPresetStorageKey.replace(/^motionai\./, '')] = map;
-      setMotionAiUserStorageBucket(userId, bucket);
+      setMotionAiBucketValue(this.consistencyPresetStorageKey, map, getMotionAiActiveUserId());
     } catch (error) {
       // Ignore storage failures for local presets.
     }

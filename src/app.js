@@ -44,7 +44,11 @@ import {
   MOTIONAI_DOZENT_USER_ID,
   setMotionAiUserStorageBucket,
   getMotionAiBucketValue,
-  setMotionAiBucketValue
+  setMotionAiBucketValue,
+  setMotionAiPresetReadRedirect,
+  getMotionAiPendingDefaultsStamp,
+  declineMotionAiDefaultsUpdate,
+  resetMotionAiUserStorageToDefaults
 } from './defaultSettings.js';
 import { getLevelCountForChapter, levelTitles, uiElementDescriptions } from './constants.js';
 
@@ -1427,6 +1431,22 @@ function createFigureModePanel(initialManager, options = {}) {
     }
   }
 
+  // Re-reads preset data from storage, which may be redirected to the DozentIn bucket during the shared Prüfung.
+  function reloadPresets() {
+    try {
+      const stored = getUserScopedStorageValue(presetStorageKey, {});
+      presetData = stored && typeof stored === 'object' ? stored : {};
+    } catch (error) {
+      presetData = {};
+    }
+    try {
+      const stored = getUserScopedStorageValue(selectedPresetStorageKey, {});
+      selectedPresetByLevel = stored && typeof stored === 'object' ? stored : {};
+    } catch (error) {
+      selectedPresetByLevel = {};
+    }
+  }
+
   return {
     panel,
     setVisible,
@@ -1438,6 +1458,7 @@ function createFigureModePanel(initialManager, options = {}) {
     setLevelManager,
     setLevel,
     applyPreset,
+    reloadPresets,
     getVariant: () => selectedVariant,
     getSide: () => selectedSide,
     syncFigureDynamicsToggleFromManager,
@@ -1737,8 +1758,24 @@ function createDynamicFigureModePanel() {
     }
   }
 
+  function reloadPresets() {
+    try {
+      const stored = getUserScopedStorageValue(presetStorageKey, {});
+      presetData = stored && typeof stored === 'object' ? stored : {};
+    } catch (error) {
+      presetData = {};
+    }
+    try {
+      const stored = getUserScopedStorageValue(selectedPresetStorageKey, {});
+      selectedPresetByLevel = stored && typeof stored === 'object' ? stored : {};
+    } catch (error) {
+      selectedPresetByLevel = {};
+    }
+  }
+
   return {
     ...basePanel,
+    reloadPresets,
     setLevelManager,
     setLevel,
     applyPreset,
@@ -5305,6 +5342,14 @@ function createSquareExercisePanel() {
       return applied;
     },
     renderPointList,
+    reloadPresets: () => {
+      squarePresetData = readSquarePresetData();
+      if (Number.isInteger(Number(squarePresetData.selectedPresetSlot))) {
+        selectedSquarePresetSlot = normalizeSquarePresetSlot(squarePresetData.selectedPresetSlot);
+      }
+      pointSavedSlots = readStoredPointSlots();
+      managerRef?.setPointExerciseSavedSlots?.(pointSavedSlots);
+    },
     syncGuitarFieldPosition: (x, y) => {
       selectedGuitarFieldX = Math.max(0, Math.min(1, Number(x)));
       selectedGuitarFieldY = Math.max(0, Math.min(1, Number(y)));
@@ -6273,6 +6318,14 @@ function createHandIndependencePanel() {
     },
     savePresetFromPrompt,
     resetPresets,
+    reloadPresets: () => {
+      try {
+        const stored = getUserScopedStorageValue(presetKey, {});
+        presets = stored && typeof stored === 'object' ? stored : {};
+      } catch (error) {
+        presets = {};
+      }
+    },
     syncCurrentToggleStateForChapter
   };
 }
@@ -7454,6 +7507,31 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
   const taskStorageKey = 'motionai.exam.tasks';
   const resultsStorageKey = 'motionai.exam.results';
   const FINAL_EXAM_LEVEL = 4;
+
+  // The shared Prüfung runs on the DozentIn's presets; the examinee's own stored presets stay untouched.
+  const examPresetSections = [
+    'figure-presets',
+    'figure-selected-presets',
+    'dynamic-figure-presets',
+    'dynamic-figure-selected-presets',
+    'hand-independence-presets',
+    'exercise-field-presets',
+    'square-exercise-presets',
+    'point-exercise-saved-slots',
+    'consistency-presets',
+    'consistency-panel-settings'
+  ];
+  let examPresetRedirectActive = false;
+  const setExamPresetRedirect = (active) => {
+    if (examPresetRedirectActive === active) {
+      return;
+    }
+    examPresetRedirectActive = active;
+    setMotionAiPresetReadRedirect(active ? MOTIONAI_DOZENT_USER_ID : null, examPresetSections);
+    [figurePanel, dynamicFigurePanel, handIndependencePanel, squareExercisePanel].forEach((presetPanel) => {
+      presetPanel?.reloadPresets?.();
+    });
+  };
   const examChapterOptions = [
     { id: 1, label: 'Eingewöhnung' },
     { id: 2, label: 'Gleichmäßigkeit' },
@@ -7835,6 +7913,7 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
   };
 
   const stopExam = () => {
+    setExamPresetRedirect(false);
     if (examState.previewTimeout) {
       clearTimeout(examState.previewTimeout);
       examState.previewTimeout = null;
@@ -7953,6 +8032,7 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
       return;
     }
 
+    setExamPresetRedirect(activeExamLevel === FINAL_EXAM_LEVEL && getMotionAiActiveUserId() !== MOTIONAI_DOZENT_USER_ID);
     applyTaskSelection(task);
     if (task.chapterId === 2 && examLevelManagerRef && typeof examLevelManagerRef.resetConsistencyTaskStrictnessHistory === 'function') {
       examLevelManagerRef.resetConsistencyTaskStrictnessHistory();
@@ -8469,10 +8549,27 @@ function createUserStorageSelector(defaultsSnapshot = DEFAULT_MOTIONAI_STORAGE) 
 }
 
 export async function initApp() {
-  const defaultsSnapshot = await fetchMotionAiDefaultsSnapshot();
+  const defaultsSnapshot = await fetchMotionAiDefaultsSnapshot('default');
+  const dozentDefaultsSnapshot = await fetchMotionAiDefaultsSnapshot(MOTIONAI_DOZENT_USER_ID);
   ensureMotionAiDefaultUserStorage(defaultsSnapshot);
-  ensureMotionAiDozentUser(defaultsSnapshot);
+  ensureMotionAiDozentUser(dozentDefaultsSnapshot);
   createUserStorageSelector(defaultsSnapshot);
+
+  const activeDefaultsUserId = getMotionAiActiveUserId();
+  const activeDefaultsSnapshot = activeDefaultsUserId === MOTIONAI_DOZENT_USER_ID ? dozentDefaultsSnapshot : defaultsSnapshot;
+  const pendingDefaultsStamp = getMotionAiPendingDefaultsStamp(activeDefaultsUserId, activeDefaultsSnapshot);
+  if (pendingDefaultsStamp && activeDefaultsUserId === 'default') {
+    resetMotionAiUserStorageToDefaults(activeDefaultsUserId, activeDefaultsSnapshot);
+  } else if (pendingDefaultsStamp) {
+    const accepted = window.confirm(
+      `Es gibt aktualisierte Werkseinstellungen (Stand: ${new Date(pendingDefaultsStamp).toLocaleString()}).\n\nJetzt übernehmen? Presets und Einstellungen werden ersetzt, Kalibrierungen und Prüfungsergebnisse bleiben erhalten.`
+    );
+    if (accepted) {
+      resetMotionAiUserStorageToDefaults(activeDefaultsUserId, activeDefaultsSnapshot);
+    } else {
+      declineMotionAiDefaultsUpdate(activeDefaultsUserId, pendingDefaultsStamp);
+    }
+  }
 
 
   const videoElement = document.getElementById('video');
