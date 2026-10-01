@@ -8006,7 +8006,7 @@ function createUserStorageSelector(defaultsSnapshot = DEFAULT_MOTIONAI_STORAGE) 
   function updateToggleLabel() {
     const activeUserId = getMotionAiActiveUserId();
     if (activeUserId === 'default') {
-      toggleButton.textContent = '👤';
+      toggleButton.textContent = '👤 Anmelden';
       return;
     }
     const registry = getMotionAiUserRegistry();

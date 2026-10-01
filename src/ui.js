@@ -6,7 +6,7 @@ import {
   levelDescriptions,
   getLevelCountForChapter
 } from './constants.js';
-import { isMotionAiExamPasswordCorrect } from './defaultSettings.js';
+import { getMotionAiActiveUserId, isMotionAiExamPasswordCorrect, MOTIONAI_DOZENT_USER_ID } from './defaultSettings.js';
 
 export const uiState = {
   activeChapter: null,
@@ -325,7 +325,7 @@ function renderLevelButtons(levelRow) {
           return;
         }
 
-        if (uiState.activeChapter === 7 && index === 4) {
+        if (uiState.activeChapter === 7 && index === 4 && getMotionAiActiveUserId() !== MOTIONAI_DOZENT_USER_ID) {
           const grantedAccess = await requestFinalExamPassword();
           if (!grantedAccess) {
             return;
