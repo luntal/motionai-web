@@ -2404,7 +2404,7 @@ export class LevelManager {
 
       this.calibrationInfoEl.innerHTML = `
         <h3>Kallibrierung - Oberkörper</h3>
-        <p>Bitte circa 1,5 m von der Kamera entfernt stehen, die Kamera auf Brusthöhe und gerade ausgerichtet positionieren. Am besten eignet sich eine feste Laptop- oder Webcam-Position.</p>
+        <p>Bitte circa 1 m von der Kamera entfernt stehen, die Kamera auf Brusthöhe und gerade ausgerichtet positionieren. Am besten eignet sich eine feste Laptop- oder Webcam-Position.</p>
         <h4>Neukalibrierung:</h4>
         <ol>
           <li>Stelle dein Gesicht in das rote Augen-Rechteck.</li>

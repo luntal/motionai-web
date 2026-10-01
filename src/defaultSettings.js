@@ -1,5 +1,7 @@
 export const MOTIONAI_STORAGE_ROOT = 'motionai';
 export const MOTIONAI_ACTIVE_USER_STORAGE_KEY = 'motionai.active-user-id';
+export const MOTIONAI_EXAM_PASSWORD = 'moki';
+export const MOTIONAI_DOZENT_USER_ID = 'DozentIn';
 export const MOTIONAI_STORAGE_LEGACY_ALIASES = {
   callibration_date: 'motionai.calibration-sets',
   'motionai.callibration_date': 'motionai.calibration-sets',
@@ -146,7 +148,7 @@ export function buildMotionAiUserBucketFromSnapshot(snapshot = DEFAULT_MOTIONAI_
 
   Object.entries(normalizedSnapshot).forEach(([key, value]) => {
     const sectionName = key.replace(new RegExp(`^${MOTIONAI_STORAGE_ROOT}\.`), '');
-    if (!sectionName || sectionName.startsWith('users.')) {
+    if (!sectionName || sectionName.startsWith('users.') || EXCLUDED_MOTIONAI_DEFAULT_KEYS.has(key)) {
       return;
     }
     nextBucket[sectionName] = value;
@@ -192,6 +194,27 @@ function slugifyMotionAiUserLabel(label) {
   return slug || 'user';
 }
 
+export function isMotionAiExamPasswordCorrect(value) {
+  return typeof value === 'string' && value === MOTIONAI_EXAM_PASSWORD;
+}
+
+export function ensureMotionAiDozentUser(snapshot = DEFAULT_MOTIONAI_STORAGE) {
+  const registry = getMotionAiUserRegistry();
+  const hasDozentUser = registry.some((entry) => entry && entry.id === MOTIONAI_DOZENT_USER_ID);
+
+  if (!hasDozentUser) {
+    registry.push({
+      id: MOTIONAI_DOZENT_USER_ID,
+      label: 'DozentIn',
+      createdAt: new Date().toISOString()
+    });
+    setMotionAiUserRegistry(registry);
+  }
+
+  ensureMotionAiUserStorage(MOTIONAI_DOZENT_USER_ID, snapshot);
+  return getMotionAiUserRegistry();
+}
+
 export function getMotionAiUserRegistry() {
   let registry;
   try {
@@ -210,6 +233,15 @@ export function getMotionAiUserRegistry() {
     registry = [{ id: 'default', label: 'Default', createdAt: new Date().toISOString() }, ...registry];
   }
 
+  // The mentor account exists permanently and is protected by the exam password.
+  if (!registry.some((entry) => entry && entry.id === MOTIONAI_DOZENT_USER_ID)) {
+    registry.push({
+      id: MOTIONAI_DOZENT_USER_ID,
+      label: 'DozentIn',
+      createdAt: new Date().toISOString()
+    });
+  }
+
   return registry;
 }
 
@@ -219,6 +251,25 @@ export function setMotionAiUserRegistry(registry) {
   } catch (error) {
     // Ignore storage failures.
   }
+}
+
+export function deleteMotionAiUser(userId) {
+  const normalizedId = normalizeMotionAiUserId(userId, null);
+  if (!normalizedId || normalizedId === 'default' || normalizedId === MOTIONAI_DOZENT_USER_ID) {
+    return false;
+  }
+
+  const registry = getMotionAiUserRegistry().filter((entry) => entry && entry.id !== normalizedId);
+  setMotionAiUserRegistry(registry);
+
+  try {
+    localStorage.removeItem(getMotionAiUserStorageBucketKey(normalizedId));
+  } catch (error) {
+    // Ignore storage failures.
+  }
+
+  setMotionAiActiveUserId('default');
+  return true;
 }
 
 export function registerMotionAiUser(userId, label) {
@@ -341,8 +392,28 @@ export function installMotionAiStorageBridge() {
   return true;
 }
 
+const EXCLUDED_MOTIONAI_DEFAULT_KEYS = new Set([
+  'motionai.calibration-sets',
+  'motionai.exam.results'
+]);
+
+export function filterMotionAiDefaultExportSnapshot(snapshot = {}) {
+  if (!snapshot || typeof snapshot !== 'object') {
+    return {};
+  }
+
+  const nextSnapshot = {};
+  Object.entries(snapshot).forEach(([key, value]) => {
+    if (EXCLUDED_MOTIONAI_DEFAULT_KEYS.has(String(key))) {
+      return;
+    }
+    nextSnapshot[key] = value;
+  });
+
+  return nextSnapshot;
+}
+
 export const DEFAULT_MOTIONAI_STORAGE = {
-  'motionai.calibration-sets': [],
   'motionai.settings-panel-state': {
     model: 'pose',
     cameraEnabled: true,
@@ -427,7 +498,7 @@ export function clearMotionAiStorageState() {
 }
 
 export function applyDefaultStorageSnapshot(snapshot = {}) {
-  const nextSnapshot = snapshot && typeof snapshot === 'object' ? snapshot : {};
+  const nextSnapshot = filterMotionAiDefaultExportSnapshot(snapshot && typeof snapshot === 'object' ? snapshot : {});
 
   clearMotionAiStorageState();
 
@@ -455,7 +526,7 @@ export async function fetchMotionAiDefaultsSnapshot() {
     }
 
     const json = await response.json();
-    return json && typeof json === 'object' ? json : DEFAULT_MOTIONAI_STORAGE;
+    return json && typeof json === 'object' ? filterMotionAiDefaultExportSnapshot(json) : DEFAULT_MOTIONAI_STORAGE;
   } catch (error) {
     console.warn('Falling back to embedded default snapshot because motionai-defaults.json could not be loaded.', error);
     return DEFAULT_MOTIONAI_STORAGE;
@@ -512,7 +583,11 @@ export function getMotionAiUserStorageSnapshot(userId = getMotionAiActiveUserId(
   const snapshot = {};
 
   Object.entries(bucket).forEach(([sectionName, value]) => {
-    snapshot[`${MOTIONAI_STORAGE_ROOT}.${sectionName}`] = value;
+    const fullKey = `${MOTIONAI_STORAGE_ROOT}.${sectionName}`;
+    if (EXCLUDED_MOTIONAI_DEFAULT_KEYS.has(fullKey)) {
+      return;
+    }
+    snapshot[fullKey] = value;
   });
 
   return snapshot;

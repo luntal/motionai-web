@@ -35,9 +35,12 @@ import {
   getMotionAiActiveUserId,
   setMotionAiActiveUserId,
   ensureMotionAiDefaultUserStorage,
+  ensureMotionAiDozentUser,
   getMotionAiUserRegistry,
   createMotionAiUser,
+  deleteMotionAiUser,
   getMotionAiUserStorageBucket,
+  MOTIONAI_DOZENT_USER_ID,
   setMotionAiUserStorageBucket,
   getMotionAiBucketValue,
   setMotionAiBucketValue
@@ -6127,10 +6130,6 @@ function createTrackingControls(trackingController) {
   calibrationStrictnessRow.appendChild(calibrationStrictnessLabel);
   calibrationStrictnessRow.appendChild(calibrationStrictnessValue);
 
-  const stabilizationButton = document.createElement('button');
-  stabilizationButton.type = 'button';
-  stabilizationButton.className = 'tracking-controls-button';
-
   const landmarkDrawingButton = document.createElement('button');
   landmarkDrawingButton.type = 'button';
   landmarkDrawingButton.className = 'tracking-controls-button';
@@ -6311,44 +6310,10 @@ function createTrackingControls(trackingController) {
     }
   }
 
-  const modeLabel = document.createElement('div');
-  modeLabel.textContent = 'Playback';
-  modeLabel.className = 'tracking-controls-label';
-
-  const modeGroup = document.createElement('div');
-  modeGroup.className = 'tracking-controls-radio-group';
-
   let calibrationSetChangeHandler = null;
   let calibrationStrictnessChangeHandler = null;
 
   selectedPlaybackMode = savedPlaybackMode;
-
-  function createModeOption(mode) {
-    const label = document.createElement('label');
-    label.className = 'tracking-controls-radio-option';
-
-    const input = document.createElement('input');
-    input.type = 'radio';
-    input.name = 'level-playback-mode';
-    input.value = mode;
-    input.checked = mode === selectedPlaybackMode;
-
-    input.addEventListener('change', () => {
-      if (input.checked) {
-        selectedPlaybackMode = mode;
-        persistSettingsState();
-      }
-    });
-
-    const text = document.createElement('span');
-    text.textContent = mode;
-
-    label.appendChild(input);
-    label.appendChild(text);
-    modeGroup.appendChild(label);
-  }
-
-  playbackModes.forEach((mode) => createModeOption(mode));
 
   function formatCalibrationSetOption(entry, index) {
     if (!entry || !entry.timestamp) {
@@ -6561,11 +6526,6 @@ function createTrackingControls(trackingController) {
     }
   }
 
-  function updateStabilizationLabel() {
-    stabilizationButton.textContent = stabilizationEnabled ? 'Stabilization: ON' : 'Stabilization: OFF';
-    stabilizationButton.setAttribute('aria-pressed', String(stabilizationEnabled));
-  }
-
   function updateLandmarkDrawingLabel() {
     landmarkDrawingButton.textContent = landmarkDrawingVisible ? 'Landmarks: ON' : 'Landmarks: OFF';
     landmarkDrawingButton.setAttribute('aria-pressed', String(landmarkDrawingVisible));
@@ -6775,13 +6735,6 @@ function createTrackingControls(trackingController) {
     persistSettingsState();
   });
 
-  stabilizationButton.addEventListener('click', () => {
-    stabilizationEnabled = !stabilizationEnabled;
-    setStabilizationEnabled(stabilizationEnabled);
-    updateStabilizationLabel();
-    persistSettingsState();
-  });
-
   landmarkDrawingButton.addEventListener('click', () => {
     landmarkDrawingVisible = !landmarkDrawingVisible;
     setLandmarkDrawingEnabled(landmarkDrawingVisible);
@@ -6878,7 +6831,6 @@ function createTrackingControls(trackingController) {
   if (levelManagerRef) {
     levelManagerRef.setPoseWarningLandmarksEnabled(poseWarningLandmarksVisible);
   }
-  updateStabilizationLabel();
   updateLandmarkDrawingLabel();
   updateSilhouetteLabel();
   updateEyesLabel();
@@ -6909,8 +6861,6 @@ function createTrackingControls(trackingController) {
   bindUiGroupDescription([hoverHelpToggleButton], 'Einstellungen', 'Info Box');
   bindUiGroupDescription([calibrationSetLabel, calibrationSetSelect], 'Einstellungen', 'Calibration Sets');
   bindUiGroupDescription([calibrationStrictnessLabel, calibrationStrictnessSlider], 'Einstellungen', 'Calibration Strictness');
-  bindUiGroupDescription([modeLabel, ...modeGroup.querySelectorAll('label, input')], 'Einstellungen', 'Playback');
-  bindUiGroupDescription([stabilizationButton], 'Einstellungen', 'Stabilization');
   bindUiGroupDescription([landmarkDrawingButton], 'Einstellungen', 'Landmarks');
   bindUiGroupDescription([silhouetteButton], 'Einstellungen', 'Silhouette');
   bindUiGroupDescription([eyesButton], 'Einstellungen', 'Silhouette');
@@ -6935,9 +6885,6 @@ function createTrackingControls(trackingController) {
   container.appendChild(calibrationSetSelect);
   container.appendChild(calibrationStrictnessRow);
   container.appendChild(calibrationStrictnessSlider);
-  container.appendChild(modeLabel);
-  container.appendChild(modeGroup);
-  container.appendChild(stabilizationButton);
   container.appendChild(landmarkDrawingButton);
   container.appendChild(silhouetteButton);
   container.appendChild(eyesButton);
@@ -7054,7 +7001,6 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
   const taskStorageKey = 'motionai.exam.tasks';
   const resultsStorageKey = 'motionai.exam.results';
   const FINAL_EXAM_LEVEL = 4;
-  const FINAL_EXAM_PASSWORD = 'moki';
   const examChapterOptions = [
     { id: 1, label: 'Eingewöhnung' },
     { id: 2, label: 'Gleichmäßigkeit' },
@@ -7891,14 +7837,30 @@ function createUserStorageSelector(defaultsSnapshot = DEFAULT_MOTIONAI_STORAGE) 
 
     getMotionAiUserRegistry()
       .filter((entry) => entry.id !== 'default')
+      .sort((a, b) => {
+        if (a.id === MOTIONAI_DOZENT_USER_ID) {
+          return -1;
+        }
+        if (b.id === MOTIONAI_DOZENT_USER_ID) {
+          return 1;
+        }
+        return 0;
+      })
       .forEach((entry) => {
-        const optionWrap = document.createElement('label');
+        const optionWrap = document.createElement('div');
         optionWrap.style.display = 'flex';
         optionWrap.style.alignItems = 'center';
+        optionWrap.style.justifyContent = 'space-between';
         optionWrap.style.gap = '6px';
         optionWrap.style.padding = '4px 6px';
         optionWrap.style.borderRadius = '8px';
-        optionWrap.style.cursor = 'pointer';
+
+        const label = document.createElement('label');
+        label.style.display = 'flex';
+        label.style.alignItems = 'center';
+        label.style.gap = '6px';
+        label.style.cursor = 'pointer';
+        label.style.flex = '1';
 
         const input = document.createElement('input');
         input.type = 'radio';
@@ -7909,16 +7871,64 @@ function createUserStorageSelector(defaultsSnapshot = DEFAULT_MOTIONAI_STORAGE) 
         const text = document.createElement('span');
         text.textContent = entry.label;
 
-        input.addEventListener('change', () => {
+        input.addEventListener('change', async () => {
           if (!input.checked) {
             return;
           }
+
+          if (entry.id === MOTIONAI_DOZENT_USER_ID) {
+            const granted = await requestFinalExamPassword();
+            if (!granted) {
+              input.checked = false;
+              return;
+            }
+          }
+
           setMotionAiActiveUserId(entry.id);
           window.location.reload();
         });
 
-        optionWrap.appendChild(input);
-        optionWrap.appendChild(text);
+        const isPermanentUser = entry.id === MOTIONAI_DOZENT_USER_ID;
+
+        const deleteButton = document.createElement('button');
+        deleteButton.type = 'button';
+        deleteButton.textContent = 'Löschen';
+        deleteButton.style.padding = '4px 8px';
+        deleteButton.style.borderRadius = '6px';
+        deleteButton.style.border = '1px solid rgba(255,255,255,0.25)';
+        deleteButton.style.background = 'rgba(255,255,255,0.08)';
+        deleteButton.style.color = '#fff';
+        deleteButton.style.cursor = 'pointer';
+        deleteButton.disabled = isPermanentUser;
+        deleteButton.style.display = isPermanentUser ? 'none' : 'inline-block';
+        deleteButton.title = isPermanentUser ? 'Der DozentIn-Account bleibt permanent.' : 'Nutzer löschen';
+        if (!isPermanentUser) {
+          deleteButton.addEventListener('click', async () => {
+            const granted = await requestFinalExamPassword();
+            if (!granted) {
+              return;
+            }
+
+            const confirmed = window.confirm(`Möchtest du den Nutzer "${entry.label}" wirklich löschen?`);
+            if (!confirmed) {
+              return;
+            }
+
+            const deleted = deleteMotionAiUser(entry.id);
+            if (!deleted) {
+              window.alert('Der Nutzer konnte nicht gelöscht werden.');
+              return;
+            }
+
+            setMotionAiActiveUserId('default');
+            window.location.reload();
+          });
+        }
+
+        label.appendChild(input);
+        label.appendChild(text);
+        optionWrap.appendChild(label);
+        optionWrap.appendChild(deleteButton);
         userList.appendChild(optionWrap);
       });
 
@@ -7983,6 +7993,7 @@ function createUserStorageSelector(defaultsSnapshot = DEFAULT_MOTIONAI_STORAGE) 
 export async function initApp() {
   const defaultsSnapshot = await fetchMotionAiDefaultsSnapshot();
   ensureMotionAiDefaultUserStorage(defaultsSnapshot);
+  ensureMotionAiDozentUser(defaultsSnapshot);
   createUserStorageSelector(defaultsSnapshot);
 
 

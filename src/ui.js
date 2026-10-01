@@ -6,6 +6,7 @@ import {
   levelDescriptions,
   getLevelCountForChapter
 } from './constants.js';
+import { isMotionAiExamPasswordCorrect } from './defaultSettings.js';
 
 export const uiState = {
   activeChapter: null,
@@ -86,7 +87,7 @@ export function requestFinalExamPassword() {
     cancelButton.addEventListener('click', () => finish(false));
     confirmButton.addEventListener('click', () => {
       const password = String(input.value ?? '');
-      if (password !== 'moki') {
+      if (!isMotionAiExamPasswordCorrect(password)) {
         window.alert('Das Passwort ist falsch.');
         input.value = '';
         input.focus();
