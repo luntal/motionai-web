@@ -2861,6 +2861,7 @@ function createSquareExercisePanel() {
     : 0.7;
   let selectedWalkingBassMode = ['single', 'walking'].includes(settings.walkingBassMode) ? settings.walkingBassMode : 'single';
   const walkingBassSoundOptions = [
+    { value: 'none', label: 'Kein Sound' },
     { value: 'bass', label: 'Bass' },
     { value: 'cymbal', label: 'Cymbal' },
     { value: 'clave', label: 'Clave' }
@@ -2872,6 +2873,7 @@ function createSquareExercisePanel() {
   let selectedBubbleSoundSquare = Boolean(settings.bubbleSoundSquare);
   let selectedBubbleSoundPoints = Boolean(settings.bubbleSoundPoints);
   let selectedGuitarFieldVisible = typeof settings.guitarFieldVisible === 'boolean' ? settings.guitarFieldVisible : true;
+  let selectedGuitarFieldMotion = ['right', 'left'].includes(settings.guitarFieldMotion) ? settings.guitarFieldMotion : 'fix';
   let selectedGuitarFieldX = Number.isFinite(Number(settings.guitarFieldX)) ? Math.max(0, Math.min(1, Number(settings.guitarFieldX))) : 0.5;
   let selectedGuitarFieldY = Number.isFinite(Number(settings.guitarFieldY)) ? Math.max(0, Math.min(1, Number(settings.guitarFieldY))) : 0.55;
   let selectedWalkingBassMetronome = Boolean(settings.walkingBassMetronome);
@@ -3117,6 +3119,7 @@ function createSquareExercisePanel() {
       bubbleSoundSquare: selectedBubbleSoundSquare,
       bubbleSoundPoints: selectedBubbleSoundPoints,
       guitarFieldVisible: selectedGuitarFieldVisible,
+      guitarFieldMotion: selectedGuitarFieldMotion,
       guitarFieldX: selectedGuitarFieldX,
       guitarFieldY: selectedGuitarFieldY,
       walkingBassMetronome: selectedWalkingBassMetronome,
@@ -5020,6 +5023,43 @@ function createSquareExercisePanel() {
   });
   bindUiGroupDescription([guitarFieldToggleWrap], 'Eingewöhnung', 'Gitarrenfeld');
 
+  const guitarFieldMotionWrap = document.createElement('div');
+  guitarFieldMotionWrap.className = 'figure-side-group';
+  guitarFieldMotionWrap.hidden = true;
+  const guitarFieldMotionLabel = document.createElement('div');
+  guitarFieldMotionLabel.className = 'figure-size-label';
+  guitarFieldMotionLabel.textContent = 'Gitarrenfeld-Bewegung';
+  const guitarFieldMotionGroup = document.createElement('div');
+  guitarFieldMotionGroup.className = 'figure-mode-group';
+  [
+    { value: 'fix', label: 'Fix' },
+    { value: 'right', label: 'Random Walk Rechts' },
+    { value: 'left', label: 'Random Walk Links' }
+  ].forEach(({ value, label }) => {
+    const option = document.createElement('label');
+    option.className = 'figure-side-option';
+    const input = document.createElement('input');
+    input.type = 'radio';
+    input.name = 'guitar-field-motion';
+    input.value = value;
+    input.checked = selectedGuitarFieldMotion === value;
+    const text = document.createElement('span');
+    text.textContent = label;
+    input.addEventListener('change', () => {
+      if (!input.checked) {
+        return;
+      }
+      selectedGuitarFieldMotion = value;
+      persistSettings();
+      managerRef?.setGuitarFieldMotion?.(value);
+    });
+    option.append(input, text);
+    guitarFieldMotionGroup.appendChild(option);
+  });
+  guitarFieldMotionWrap.append(guitarFieldMotionLabel, guitarFieldMotionGroup);
+  bindUiGroupDescription([guitarFieldMotionLabel, ...guitarFieldMotionGroup.querySelectorAll('label, input')], 'Eingewöhnung', 'GitarrenfeldBewegung');
+  panel.appendChild(guitarFieldMotionWrap);
+
   const walkingBassMetronomeToggleWrap = createWalkingBassToggle('Metronom', selectedWalkingBassMetronome, (checked) => {
     selectedWalkingBassMetronome = checked;
     persistSettings();
@@ -5142,7 +5182,7 @@ function createSquareExercisePanel() {
       activeTouchFadeWrap.hidden = !shouldShowFadeToggle;
       activeTouchFadeWrap.style.display = shouldShowFadeToggle ? '' : 'none';
     }
-    [walkingBassSoundLeftWrap, walkingBassSoundRightWrap, walkingBassModeWrap, claveToneModeWrap, walkingBassThresholdWrap, walkingBassSensitivityWrap, guitarFieldToggleWrap, walkingBassMetronomeToggleWrap, walkingBassMetronomeBpmWrap].forEach((wrap) => {
+    [walkingBassSoundLeftWrap, walkingBassSoundRightWrap, walkingBassModeWrap, claveToneModeWrap, walkingBassThresholdWrap, walkingBassSensitivityWrap, guitarFieldToggleWrap, guitarFieldMotionWrap, walkingBassMetronomeToggleWrap, walkingBassMetronomeBpmWrap].forEach((wrap) => {
       wrap.hidden = !isWalkingBass;
       wrap.style.display = isWalkingBass ? '' : 'none';
     });
@@ -5573,6 +5613,7 @@ function createSquareExercisePanel() {
         managerRef?.setWalkingBassHandSound?.('right', selectedWalkingBassSoundRight);
         managerRef?.setGuitarFieldPosition?.(selectedGuitarFieldX, selectedGuitarFieldY);
         managerRef?.setGuitarFieldVisible?.(selectedGuitarFieldVisible);
+        managerRef?.setGuitarFieldMotion?.(selectedGuitarFieldMotion);
         managerRef?.setWalkingBassMetronomeBpm?.(selectedWalkingBassMetronomeBpm);
         managerRef?.setWalkingBassMetronomeEnabled?.(selectedWalkingBassMetronome);
         managerRef?.setActiveTouchFadeEnabled?.(selectedActiveTouchFadeEnabled);
@@ -8864,6 +8905,7 @@ export async function initApp() {
     setBubbleSoundEnabled: (level, value) => levelManager.setBubbleSoundEnabled(level, value),
     setWalkingBassHandSound: (hand, value) => levelManager.setWalkingBassHandSound(hand, value),
     setGuitarFieldVisible: (value) => levelManager.setGuitarFieldVisible(value),
+    setGuitarFieldMotion: (value) => levelManager.setGuitarFieldMotion(value),
     setGuitarFieldPosition: (x, y) => levelManager.setGuitarFieldPosition(x, y),
     setWalkingBassMetronomeBpm: (value) => levelManager.setWalkingBassMetronomeBpm(value),
     setWalkingBassMetronomeEnabled: (value) => levelManager.setWalkingBassMetronomeEnabled(value),

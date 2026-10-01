@@ -399,6 +399,7 @@ export class LevelManager {
     this.walkingBassPitchSteps = [0, 3, 5, 10, 0, 3, 5, 10, 0, 3, 5, 10, 12, 15, 12, 3];
     this.guitarSampleNames = ['Dmaj7', 'Emin7', 'Gbmin7', 'Gmaj7'];
     this.guitarFieldVisible = true;
+    this.guitarFieldMotion = 'fix';
     this.guitarFieldX = 0.5;
     this.guitarFieldY = 0.55;
     this.guitarBuffers = [null, null, null, null];
@@ -4176,7 +4177,7 @@ export class LevelManager {
     if (!['left', 'right'].includes(hand)) {
       return;
     }
-    this.walkingBassSoundByHand[hand] = ['bass', 'cymbal', 'clave'].includes(value) ? value : 'bass';
+    this.walkingBassSoundByHand[hand] = ['none', 'bass', 'cymbal', 'clave'].includes(value) ? value : 'bass';
   }
 
   setBubbleSoundEnabled(level, enabled) {
@@ -4375,6 +4376,9 @@ export class LevelManager {
   // `shape` is the speed-derived 0..1 value that drives decay (cymbal) and pitch (clave); `gain` drives loudness.
   playWalkingBassSound(hand, gain, shape) {
     const sound = this.walkingBassSoundByHand[hand];
+    if (sound === 'none') {
+      return;
+    }
     if (sound === 'cymbal') {
       this.playWalkingBassCymbal(gain, shape);
     } else if (sound === 'clave') {
@@ -4650,19 +4654,45 @@ export class LevelManager {
     this.requestRender();
   }
 
-  // Square clamped fully inside the canvas; position is stored as the normalized center.
+  setGuitarFieldMotion(value) {
+    this.guitarFieldMotion = ['right', 'left'].includes(value) ? value : 'fix';
+    if (this.guitarFieldMotion !== 'fix') {
+      this.guitarDrag = null;
+    }
+    this.requestRender();
+  }
+
+  // Square clamped fully inside the canvas; fixed mode uses the stored normalized center, random walk a pseudo-random but cyclic path.
   getGuitarFieldRect() {
     const width = this.canvas.width;
     const height = this.canvas.height;
     const size = Math.max(60, height * 0.22);
     const half = size / 2;
+
+    if (this.guitarFieldMotion !== 'fix') {
+      const t = performance.now() / 1000;
+      const minX = this.guitarFieldMotion === 'right' ? width / 2 + half : half;
+      const maxX = this.guitarFieldMotion === 'right' ? width - half : width / 2 - half;
+      const minY = half;
+      const maxY = height - half;
+      // Incommensurate frequencies make the loop look random while it stays periodic.
+      const patternX = (Math.sin(0.37 * t) + 0.6 * Math.sin(0.91 * t + 1.3)) / 1.6;
+      const patternY = (Math.sin(0.53 * t + 0.7) + 0.6 * Math.sin(1.13 * t)) / 1.6;
+      return {
+        centerX: (minX + maxX) / 2 + ((maxX - minX) / 2) * patternX,
+        centerY: (minY + maxY) / 2 + ((maxY - minY) / 2) * patternY,
+        half,
+        size
+      };
+    }
+
     const centerX = Math.max(half, Math.min(width - half, this.guitarFieldX * width));
     const centerY = Math.max(half, Math.min(height - half, this.guitarFieldY * height));
     return { centerX, centerY, half, size };
   }
 
   beginGuitarFieldDrag(x, y) {
-    if (!this.guitarFieldVisible || !(this.chapter === 1 && this.level === 3)) {
+    if (!this.guitarFieldVisible || this.guitarFieldMotion !== 'fix' || !(this.chapter === 1 && this.level === 3)) {
       return false;
     }
     const rect = this.getGuitarFieldRect();
@@ -4831,7 +4861,7 @@ export class LevelManager {
     this.ctx.fillText(this.guitarSampleNames[this.guitarNextIndex], rect.centerX, rect.centerY);
     this.ctx.restore();
 
-    if (flash > 0) {
+    if (flash > 0 || this.guitarFieldMotion !== 'fix') {
       this.requestRender();
     }
   }

@@ -195,6 +195,7 @@ export const uiElementDescriptions = {
     WalkingBassSound: 'Wähle den Sound, der von dieser Hand beim Richtungswechsel gespielt wird: Bass-Sample, synthetische Cymbal (Abklingzeit und Lautstärke folgen der Anschlaggeschwindigkeit) oder Clave (Lautstärke und Tonhöhe folgen der Anschlaggeschwindigkeit).',
     WalkingBassModus: 'Single Note spielt bei jedem Anschlag das Sample unverändert. Walking verschiebt die Tonhöhe bei jedem Anschlag nach einer festen Folge (0, 3, 5, 10, 0, 3, 5, 10, 0, 3, 5, 10, 12, 15, 12, 3 Halbtöne), getrennt für jede Hand.',
     Gitarrenfeld: 'Blendet das Gitarrenfeld ein oder aus. Das Feld lässt sich mit der Maus an eine beliebige Stelle ziehen. Jede Berührung mit einer Hand spielt den nächsten der vier Gitarrenakkorde im Loop.',
+    GitarrenfeldBewegung: 'Fix: Das Feld bleibt, wo du es mit der Maus hinziehst. Random Walk Rechts/Links: Das Feld wandert in einem scheinbar zufälligen, aber sich wiederholenden Muster nur auf der rechten bzw. linken Hälfte des Canvas.',
     WalkingBassMetronom: 'Schaltet den Metronom-Klick ein oder aus. Das Tempo wird mit dem Regler darunter eingestellt.',
     WalkingBassSchwellwert: 'Mindestbewegung auf der senkrechten Achse, ab der ein Richtungswechsel erkannt wird. Höhere Werte unterdrücken Zittern durch die Posenerkennung, niedrigere Werte reagieren empfindlicher.',
     WalkingBassDynamik: 'Bestimmt, wie stark die Geschwindigkeit der Abwärtsbewegung die Lautstärke des Anschlags beeinflusst. Bei 0 % klingt jeder Anschlag gleich laut.',
