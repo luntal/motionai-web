@@ -91,11 +91,11 @@ export const levelDescriptions = [
     'Viervierteltakt: Wählt den Vierviertel-Takt und setzt die Schlaganzahl auf 4.'
   ],
   [
-    'Preset 1: Konfiguriere die Einsatzfelder und speichere die Einstellungen für die erste Übung.',
-    'Preset 2: Konfiguriere die Einsatzfelder und speichere die Einstellungen für die zweite Übung.',
-    'Preset 3: Konfiguriere die Einsatzfelder und speichere die Einstellungen für die dritte Übung.',
-    'Preset 4: Konfiguriere die Einsatzfelder und speichere die Einstellungen für die vierte Übung.',
-    'Preset 5: Konfiguriere die Einsatzfelder und speichere die Einstellungen für die fünfte Übung.'
+    'Test 1: Hier kannst du deine Fähigkeiten testen. Es können eigenen Testabläufe mit verschiedenen Übungen erstellt werden. Am Ende des Tests werden die Ergebnisse bewertet und gespeichert.',
+    'Teest 2: Hier kannst du deine Fähigkeiten testen. Es können eigenen Testabläufe mit verschiedenen Übungen erstellt werden. Am Ende des Tests werden die Ergebnisse bewertet und gespeichert.',
+    'Test 3: Hier kannst du deine Fähigkeiten testen. Es können eigenen Testabläufe mit verschiedenen Übungen erstellt werden. Am Ende des Tests werden die Ergebnisse bewertet und gespeichert.',
+    'Test 4: Hier kannst du deine Fähigkeiten testen. Es können eigenen Testabläufe mit verschiedenen Übungen erstellt werden. Am Ende des Tests werden die Ergebnisse bewertet und gespeichert.',
+    'Prüfung: Hier wird deine Fähigkeit getestet. Die Ergebnisse werden bewertet und gespeichert. Dieser Bereich ist Passwortgeschützt, um die Integrität der Prüfung zu gewährleisten. Bitte kontaktiere DozentIn/SHK, um Zugang zu erhalten.'
   ]
 ];
 
@@ -187,6 +187,7 @@ export const uiElementDescriptions = {
     Palindrom: 'Wenn diese Option aktiviert ist, wird die Reihenfolge der Kreise einmal vorwärts und dann rückwärts ausgeführt. So muss eine symmetrische Bewegung nur einmal definiert werden.',
     Symmetrie: 'Wenn diese Option aktiviert ist, wird bei jedem neuen Kreis automatisch ein spiegelbildlicher Kreis auf der gegenüberliegenden Handseite ergänzt. So muss eine symmetrische Form nur einmal definiert werden.',
     Reset: 'Lösche die aktuelle Auswahl an Kreisen. Es werden keine bereits gespeicherten Presets gelöscht.',
+    PresetZurücksetzen: 'Setzt die Presets dieses Levels auf die Werkseinstellungen zurück.',
     Liste: 'Zeigt die aktuelle Liste der Kreise an, die du beim Bearbeiten der Bewegung ausgewählt hast. Die Kreise werden in der Reihenfolge angezeigt, in der sie angeklickt wurden. Mit Reset kann diese Liste gelöscht werden, ohne dass bereits gespeicherte Presets gelöscht werden.',
     Speichern: 'Speichere die aktuelle Konfiguration. Die gespeicherte Konfiguration kann später über die Presets wieder aufgerufen werden. Beim Speichern in einen Slot wird der vorherige Inhalt des Slots überschrieben.',
     KontaktFade: 'Stelle den Kontakt-Fade-Effekt ein oder aus. Der Effekt bewirkt, dass die Kreise nach dem Berühren langsam ausblenden, anstatt sofort zu verschwinden. So kannst du besser nachvollziehen, was für eine Bewegung ausgeführt wurde.',

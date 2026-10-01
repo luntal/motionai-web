@@ -31027,87 +31027,89 @@
     "6": 0
   },
   "motionai.square-exercise-presets": {
-    "1": {
-      "slot": 1,
-      "shape": "1",
-      "handMode": "right",
-      "syncMode": "asynchronous",
-      "palindromMode": false,
-      "resolution": 1,
-      "gridResolution": 12,
-      "centerDistance": 0.25
-    },
-    "2": {
-      "slot": 2,
-      "shape": "2",
-      "handMode": "right",
-      "syncMode": "asynchronous",
-      "palindromMode": false,
-      "resolution": 1,
-      "gridResolution": 12,
-      "centerDistance": 0.5
-    },
-    "3": {
-      "slot": 3,
-      "shape": "3",
-      "handMode": "right",
-      "syncMode": "asynchronous",
-      "palindromMode": false,
-      "resolution": 1,
-      "gridResolution": 14,
-      "centerDistance": 0.3
-    },
-    "4": {
-      "slot": 4,
-      "shape": "4",
-      "handMode": "right",
-      "syncMode": "asynchronous",
-      "palindromMode": false,
-      "resolution": 1,
-      "gridResolution": 14,
-      "centerDistance": 0.3
-    },
-    "5": {
-      "slot": 5,
-      "shape": "5",
-      "handMode": "right",
-      "syncMode": "asynchronous",
-      "palindromMode": false,
-      "resolution": 1,
-      "gridResolution": 14,
-      "centerDistance": 0.3
-    },
-    "6": {
-      "slot": 6,
-      "shape": "1",
-      "handMode": "both",
-      "syncMode": "asynchronous",
-      "palindromMode": false,
-      "resolution": 1,
-      "gridResolution": 22,
-      "centerDistance": 0.3
-    },
-    "7": {
-      "slot": 7,
-      "shape": "2",
-      "handMode": "both",
-      "syncMode": "asynchronous",
-      "palindromMode": true,
-      "resolution": 1,
-      "gridResolution": 22,
-      "centerDistance": 0.3
-    },
-    "8": {
-      "slot": 8,
-      "shape": "3",
-      "handMode": "both",
-      "syncMode": "synchronous",
-      "palindromMode": true,
-      "resolution": 1,
-      "gridResolution": 22,
-      "centerDistance": 0.3
-    },
-    "selectedPresetSlot": 8
+    "0": {
+      "1": {
+        "slot": 1,
+        "shape": "1",
+        "handMode": "right",
+        "syncMode": "asynchronous",
+        "palindromMode": false,
+        "resolution": 1,
+        "gridResolution": 12,
+        "centerDistance": 0.25
+      },
+      "2": {
+        "slot": 2,
+        "shape": "2",
+        "handMode": "right",
+        "syncMode": "asynchronous",
+        "palindromMode": false,
+        "resolution": 1,
+        "gridResolution": 12,
+        "centerDistance": 0.5
+      },
+      "3": {
+        "slot": 3,
+        "shape": "3",
+        "handMode": "right",
+        "syncMode": "asynchronous",
+        "palindromMode": false,
+        "resolution": 1,
+        "gridResolution": 14,
+        "centerDistance": 0.3
+      },
+      "4": {
+        "slot": 4,
+        "shape": "4",
+        "handMode": "right",
+        "syncMode": "asynchronous",
+        "palindromMode": false,
+        "resolution": 1,
+        "gridResolution": 14,
+        "centerDistance": 0.3
+      },
+      "5": {
+        "slot": 5,
+        "shape": "5",
+        "handMode": "right",
+        "syncMode": "asynchronous",
+        "palindromMode": false,
+        "resolution": 1,
+        "gridResolution": 14,
+        "centerDistance": 0.3
+      },
+      "6": {
+        "slot": 6,
+        "shape": "1",
+        "handMode": "both",
+        "syncMode": "asynchronous",
+        "palindromMode": false,
+        "resolution": 1,
+        "gridResolution": 22,
+        "centerDistance": 0.3
+      },
+      "7": {
+        "slot": 7,
+        "shape": "2",
+        "handMode": "both",
+        "syncMode": "asynchronous",
+        "palindromMode": true,
+        "resolution": 1,
+        "gridResolution": 22,
+        "centerDistance": 0.3
+      },
+      "8": {
+        "slot": 8,
+        "shape": "3",
+        "handMode": "both",
+        "syncMode": "synchronous",
+        "palindromMode": true,
+        "resolution": 1,
+        "gridResolution": 22,
+        "centerDistance": 0.3
+      },
+      "selectedPresetSlot": 8
+    }
   },
   "motionai.video-softening-enabled": true,
   "motionai.levelSettingsVisibility": false,
@@ -31237,1324 +31239,1326 @@
   "motionai.silhouette-enabled": true,
   "motionai.point-exercise-saved-slots": {
     "1": {
-      "sequence": [
-        {
-          "row": 15,
-          "col": 7,
-          "hand": "right"
-        },
-        {
-          "row": 15,
-          "col": 22,
-          "hand": "left"
-        },
-        {
-          "row": 15,
-          "col": 8,
-          "hand": "right"
-        },
-        {
-          "row": 15,
-          "col": 21,
-          "hand": "left"
-        },
-        {
-          "row": 15,
-          "col": 9,
-          "hand": "right"
-        },
-        {
-          "row": 15,
-          "col": 20,
-          "hand": "left"
-        },
-        {
-          "row": 15,
-          "col": 10,
-          "hand": "right"
-        },
-        {
-          "row": 15,
-          "col": 19,
-          "hand": "left"
-        },
-        {
-          "row": 15,
-          "col": 11,
-          "hand": "right"
-        },
-        {
-          "row": 15,
-          "col": 18,
-          "hand": "left"
-        },
-        {
-          "row": 15,
-          "col": 12,
-          "hand": "right"
-        },
-        {
-          "row": 15,
-          "col": 17,
-          "hand": "left"
-        },
-        {
-          "row": 14,
-          "col": 12,
-          "hand": "right"
-        },
-        {
-          "row": 14,
-          "col": 17,
-          "hand": "left"
-        },
-        {
-          "row": 14,
-          "col": 11,
-          "hand": "right"
-        },
-        {
-          "row": 14,
-          "col": 18,
-          "hand": "left"
-        },
-        {
-          "row": 14,
-          "col": 10,
-          "hand": "right"
-        },
-        {
-          "row": 14,
-          "col": 19,
-          "hand": "left"
-        },
-        {
-          "row": 14,
-          "col": 9,
-          "hand": "right"
-        },
-        {
-          "row": 14,
-          "col": 20,
-          "hand": "left"
-        },
-        {
-          "row": 14,
-          "col": 8,
-          "hand": "right"
-        },
-        {
-          "row": 14,
-          "col": 21,
-          "hand": "left"
-        },
-        {
-          "row": 14,
-          "col": 7,
-          "hand": "right"
-        },
-        {
-          "row": 14,
-          "col": 22,
-          "hand": "left"
-        },
-        {
-          "row": 13,
-          "col": 7,
-          "hand": "right"
-        },
-        {
-          "row": 13,
-          "col": 22,
-          "hand": "left"
-        },
-        {
-          "row": 13,
-          "col": 8,
-          "hand": "right"
-        },
-        {
-          "row": 13,
-          "col": 21,
-          "hand": "left"
-        },
-        {
-          "row": 13,
-          "col": 9,
-          "hand": "right"
-        },
-        {
-          "row": 13,
-          "col": 20,
-          "hand": "left"
-        },
-        {
-          "row": 13,
-          "col": 10,
-          "hand": "right"
-        },
-        {
-          "row": 13,
-          "col": 19,
-          "hand": "left"
-        },
-        {
-          "row": 13,
-          "col": 11,
-          "hand": "right"
-        },
-        {
-          "row": 13,
-          "col": 18,
-          "hand": "left"
-        },
-        {
-          "row": 13,
-          "col": 12,
-          "hand": "right"
-        },
-        {
-          "row": 13,
-          "col": 17,
-          "hand": "left"
-        },
-        {
-          "row": 12,
-          "col": 12,
-          "hand": "right"
-        },
-        {
-          "row": 12,
-          "col": 17,
-          "hand": "left"
-        },
-        {
-          "row": 11,
-          "col": 12,
-          "hand": "right"
-        },
-        {
-          "row": 11,
-          "col": 17,
-          "hand": "left"
-        },
-        {
-          "row": 10,
-          "col": 12,
-          "hand": "right"
-        },
-        {
-          "row": 10,
-          "col": 17,
-          "hand": "left"
-        },
-        {
-          "row": 9,
-          "col": 12,
-          "hand": "right"
-        },
-        {
-          "row": 9,
-          "col": 17,
-          "hand": "left"
-        },
-        {
-          "row": 8,
-          "col": 12,
-          "hand": "right"
-        },
-        {
-          "row": 8,
-          "col": 17,
-          "hand": "left"
-        },
-        {
-          "row": 7,
-          "col": 12,
-          "hand": "right"
-        },
-        {
-          "row": 7,
-          "col": 17,
-          "hand": "left"
-        }
-      ],
-      "gridResolution": 22,
-      "resolution": 1,
-      "hand": "auto",
-      "sequentialMode": "independent",
-      "symmetryMode": true,
-      "palindromMode": true
-    },
-    "2": {
-      "sequence": [
-        {
-          "row": 6,
-          "col": 11,
-          "hand": "right"
-        },
-        {
-          "row": 6,
-          "col": 18,
-          "hand": "left"
-        },
-        {
-          "row": 7,
-          "col": 11,
-          "hand": "right"
-        },
-        {
-          "row": 7,
-          "col": 18,
-          "hand": "left"
-        },
-        {
-          "row": 8,
-          "col": 11,
-          "hand": "right"
-        },
-        {
-          "row": 8,
-          "col": 18,
-          "hand": "left"
-        },
-        {
-          "row": 9,
-          "col": 11,
-          "hand": "right"
-        },
-        {
-          "row": 9,
-          "col": 18,
-          "hand": "left"
-        },
-        {
-          "row": 10,
-          "col": 11,
-          "hand": "right"
-        },
-        {
-          "row": 10,
-          "col": 18,
-          "hand": "left"
-        },
-        {
-          "row": 11,
-          "col": 11,
-          "hand": "right"
-        },
-        {
-          "row": 11,
-          "col": 18,
-          "hand": "left"
-        },
-        {
-          "row": 12,
-          "col": 11,
-          "hand": "right"
-        },
-        {
-          "row": 12,
-          "col": 18,
-          "hand": "left"
-        },
-        {
-          "row": 12,
-          "col": 10,
-          "hand": "right"
-        },
-        {
-          "row": 12,
-          "col": 19,
-          "hand": "left"
-        },
-        {
-          "row": 12,
-          "col": 9,
-          "hand": "right"
-        },
-        {
-          "row": 12,
-          "col": 20,
-          "hand": "left"
-        },
-        {
-          "row": 12,
-          "col": 8,
-          "hand": "right"
-        },
-        {
-          "row": 12,
-          "col": 21,
-          "hand": "left"
-        },
-        {
-          "row": 11,
-          "col": 8,
-          "hand": "right"
-        },
-        {
-          "row": 11,
-          "col": 21,
-          "hand": "left"
-        },
-        {
-          "row": 10,
-          "col": 8,
-          "hand": "right"
-        },
-        {
-          "row": 10,
-          "col": 21,
-          "hand": "left"
-        },
-        {
-          "row": 9,
-          "col": 8,
-          "hand": "right"
-        },
-        {
-          "row": 9,
-          "col": 21,
-          "hand": "left"
-        },
-        {
-          "row": 8,
-          "col": 8,
-          "hand": "right"
-        },
-        {
-          "row": 8,
-          "col": 21,
-          "hand": "left"
-        },
-        {
-          "row": 7,
-          "col": 8,
-          "hand": "right"
-        },
-        {
-          "row": 7,
-          "col": 21,
-          "hand": "left"
-        },
-        {
-          "row": 6,
-          "col": 8,
-          "hand": "right"
-        },
-        {
-          "row": 6,
-          "col": 21,
-          "hand": "left"
-        }
-      ],
-      "gridResolution": 22,
-      "resolution": 1,
-      "hand": "auto",
-      "sequentialMode": "independent",
-      "symmetryMode": true,
-      "palindromMode": true
-    },
-    "3": {
-      "sequence": [
-        {
-          "row": 3,
-          "col": 5,
-          "hand": "right"
-        },
-        {
-          "row": 3,
-          "col": 10,
-          "hand": "left"
-        },
-        {
-          "row": 4,
-          "col": 5,
-          "hand": "right"
-        },
-        {
-          "row": 4,
-          "col": 10,
-          "hand": "left"
-        },
-        {
-          "row": 5,
-          "col": 5,
-          "hand": "right"
-        },
-        {
-          "row": 5,
-          "col": 10,
-          "hand": "left"
-        },
-        {
-          "row": 6,
-          "col": 5,
-          "hand": "right"
-        },
-        {
-          "row": 6,
-          "col": 10,
-          "hand": "left"
-        },
-        {
-          "row": 7,
-          "col": 5,
-          "hand": "right"
-        },
-        {
-          "row": 7,
-          "col": 10,
-          "hand": "left"
-        },
-        {
-          "row": 8,
-          "col": 5,
-          "hand": "right"
-        },
-        {
-          "row": 8,
-          "col": 10,
-          "hand": "left"
-        }
-      ],
-      "gridResolution": 12,
-      "resolution": 1,
-      "hand": "left",
-      "sequentialMode": "independent",
-      "symmetryMode": true,
-      "palindromMode": true
-    },
-    "4": {
-      "sequence": [
-        {
-          "row": 3,
-          "col": 6,
-          "hand": "right"
-        },
-        {
-          "row": 3,
-          "col": 9,
-          "hand": "left"
-        },
-        {
-          "row": 4,
-          "col": 6,
-          "hand": "right"
-        },
-        {
-          "row": 4,
-          "col": 9,
-          "hand": "left"
-        },
-        {
-          "row": 5,
-          "col": 6,
-          "hand": "right"
-        },
-        {
-          "row": 5,
-          "col": 9,
-          "hand": "left"
-        },
-        {
-          "row": 6,
-          "col": 6,
-          "hand": "right"
-        },
-        {
-          "row": 6,
-          "col": 9,
-          "hand": "left"
-        },
-        {
-          "row": 7,
-          "col": 6,
-          "hand": "right"
-        },
-        {
-          "row": 7,
-          "col": 9,
-          "hand": "left"
-        },
-        {
-          "row": 7,
-          "col": 5,
-          "hand": "right"
-        },
-        {
-          "row": 7,
-          "col": 10,
-          "hand": "left"
-        },
-        {
-          "row": 7,
-          "col": 4,
-          "hand": "right"
-        },
-        {
-          "row": 7,
-          "col": 11,
-          "hand": "left"
-        },
-        {
-          "row": 6,
-          "col": 4,
-          "hand": "right"
-        },
-        {
-          "row": 6,
-          "col": 11,
-          "hand": "left"
-        },
-        {
-          "row": 5,
-          "col": 4,
-          "hand": "right"
-        },
-        {
-          "row": 5,
-          "col": 11,
-          "hand": "left"
-        },
-        {
-          "row": 4,
-          "col": 4,
-          "hand": "right"
-        },
-        {
-          "row": 4,
-          "col": 11,
-          "hand": "left"
-        },
-        {
-          "row": 3,
-          "col": 4,
-          "hand": "right"
-        },
-        {
-          "row": 3,
-          "col": 11,
-          "hand": "left"
-        }
-      ],
-      "gridResolution": 12,
-      "resolution": 1,
-      "hand": "auto",
-      "sequentialMode": "simultaneous",
-      "symmetryMode": true,
-      "palindromMode": true
-    },
-    "5": {
-      "sequence": [
-        {
-          "row": 5,
-          "col": 9,
-          "hand": "right"
-        },
-        {
-          "row": 5,
-          "col": 16,
-          "hand": "left"
-        },
-        {
-          "row": 13,
-          "col": 9,
-          "hand": "right"
-        },
-        {
-          "row": 13,
-          "col": 16,
-          "hand": "left"
-        },
-        {
-          "row": 9,
-          "col": 6,
-          "hand": "right"
-        },
-        {
-          "row": 9,
-          "col": 19,
-          "hand": "left"
-        },
-        {
-          "row": 11,
-          "col": 11,
-          "hand": "right"
-        },
-        {
-          "row": 11,
-          "col": 14,
-          "hand": "left"
-        },
-        {
-          "row": 9,
-          "col": 11,
-          "hand": "right"
-        },
-        {
-          "row": 9,
-          "col": 14,
-          "hand": "left"
-        },
-        {
-          "row": 11,
-          "col": 7,
-          "hand": "right"
-        },
-        {
-          "row": 11,
-          "col": 18,
-          "hand": "left"
-        }
-      ],
-      "gridResolution": 20,
-      "resolution": 1,
-      "hand": "auto",
-      "sequentialMode": "simultaneous",
-      "symmetryMode": true,
-      "palindromMode": false
-    },
-    "6": {
-      "sequence": [
-        {
-          "row": 5,
-          "col": 9,
-          "hand": "right"
-        },
-        {
-          "row": 5,
-          "col": 14,
-          "hand": "left"
-        },
-        {
-          "row": 6,
-          "col": 9,
-          "hand": "right"
-        },
-        {
-          "row": 6,
-          "col": 14,
-          "hand": "left"
-        },
-        {
-          "row": 7,
-          "col": 9,
-          "hand": "right"
-        },
-        {
-          "row": 7,
-          "col": 14,
-          "hand": "left"
-        },
-        {
-          "row": 8,
-          "col": 9,
-          "hand": "right"
-        },
-        {
-          "row": 8,
-          "col": 14,
-          "hand": "left"
-        },
-        {
-          "row": 9,
-          "col": 9,
-          "hand": "right"
-        },
-        {
-          "row": 9,
-          "col": 14,
-          "hand": "left"
-        },
-        {
-          "row": 10,
-          "col": 9,
-          "hand": "right"
-        },
-        {
-          "row": 10,
-          "col": 14,
-          "hand": "left"
-        },
-        {
-          "row": 11,
-          "col": 9,
-          "hand": "right"
-        },
-        {
-          "row": 11,
-          "col": 14,
-          "hand": "left"
-        },
-        {
-          "row": 12,
-          "col": 9,
-          "hand": "right"
-        },
-        {
-          "row": 12,
-          "col": 14,
-          "hand": "left"
-        },
-        {
-          "row": 12,
-          "col": 8,
-          "hand": "right"
-        },
-        {
-          "row": 12,
-          "col": 15,
-          "hand": "left"
-        },
-        {
-          "row": 12,
-          "col": 7,
-          "hand": "right"
-        },
-        {
-          "row": 12,
-          "col": 16,
-          "hand": "left"
-        },
-        {
-          "row": 12,
-          "col": 6,
-          "hand": "right"
-        },
-        {
-          "row": 12,
-          "col": 17,
-          "hand": "left"
-        },
-        {
-          "row": 11,
-          "col": 6,
-          "hand": "right"
-        },
-        {
-          "row": 11,
-          "col": 17,
-          "hand": "left"
-        },
-        {
-          "row": 10,
-          "col": 6,
-          "hand": "right"
-        },
-        {
-          "row": 10,
-          "col": 17,
-          "hand": "left"
-        },
-        {
-          "row": 9,
-          "col": 6,
-          "hand": "right"
-        },
-        {
-          "row": 9,
-          "col": 17,
-          "hand": "left"
-        },
-        {
-          "row": 8,
-          "col": 6,
-          "hand": "right"
-        },
-        {
-          "row": 8,
-          "col": 17,
-          "hand": "left"
-        },
-        {
-          "row": 7,
-          "col": 6,
-          "hand": "right"
-        },
-        {
-          "row": 7,
-          "col": 17,
-          "hand": "left"
-        },
-        {
-          "row": 6,
-          "col": 6,
-          "hand": "right"
-        },
-        {
-          "row": 6,
-          "col": 17,
-          "hand": "left"
-        },
-        {
-          "row": 5,
-          "col": 6,
-          "hand": "right"
-        },
-        {
-          "row": 5,
-          "col": 17,
-          "hand": "left"
-        }
-      ],
-      "gridResolution": 18,
-      "resolution": 1,
-      "hand": "auto",
-      "sequentialMode": "sequential",
-      "symmetryMode": true,
-      "palindromMode": true
-    },
-    "7": {
-      "sequence": [
-        {
-          "row": 5,
-          "col": 11,
-          "hand": "right"
-        },
-        {
-          "row": 5,
-          "col": 18,
-          "hand": "left"
-        },
-        {
-          "row": 7,
-          "col": 11,
-          "hand": "right"
-        },
-        {
-          "row": 7,
-          "col": 18,
-          "hand": "left"
-        },
-        {
-          "row": 9,
-          "col": 11,
-          "hand": "right"
-        },
-        {
-          "row": 9,
-          "col": 18,
-          "hand": "left"
-        },
-        {
-          "row": 11,
-          "col": 11,
-          "hand": "right"
-        },
-        {
-          "row": 11,
-          "col": 18,
-          "hand": "left"
-        },
-        {
-          "row": 13,
-          "col": 11,
-          "hand": "right"
-        },
-        {
-          "row": 13,
-          "col": 18,
-          "hand": "left"
-        },
-        {
-          "row": 15,
-          "col": 11,
-          "hand": "right"
-        },
-        {
-          "row": 15,
-          "col": 18,
-          "hand": "left"
-        },
-        {
-          "row": 14,
-          "col": 9,
-          "hand": "right"
-        },
-        {
-          "row": 14,
-          "col": 20,
-          "hand": "left"
-        },
-        {
-          "row": 13,
-          "col": 7,
-          "hand": "right"
-        },
-        {
-          "row": 13,
-          "col": 22,
-          "hand": "left"
-        },
-        {
-          "row": 12,
-          "col": 5,
-          "hand": "right"
-        },
-        {
-          "row": 12,
-          "col": 24,
-          "hand": "left"
-        },
-        {
-          "row": 13,
-          "col": 8,
-          "hand": "right"
-        },
-        {
-          "row": 13,
-          "col": 21,
-          "hand": "left"
-        }
-      ],
-      "gridResolution": 22,
-      "resolution": 1,
-      "hand": "auto",
-      "sequentialMode": "simultaneous",
-      "symmetryMode": true,
-      "palindromMode": false
-    },
-    "8": {
-      "sequence": [
-        {
-          "row": 5,
-          "col": 17,
-          "hand": "left"
-        },
-        {
-          "row": 5,
-          "col": 12,
-          "hand": "right"
-        },
-        {
-          "row": 5,
-          "col": 18,
-          "hand": "left"
-        },
-        {
-          "row": 5,
-          "col": 11,
-          "hand": "right"
-        },
-        {
-          "row": 5,
-          "col": 19,
-          "hand": "left"
-        },
-        {
-          "row": 5,
-          "col": 10,
-          "hand": "right"
-        },
-        {
-          "row": 5,
-          "col": 20,
-          "hand": "left"
-        },
-        {
-          "row": 5,
-          "col": 9,
-          "hand": "right"
-        },
-        {
-          "row": 5,
-          "col": 21,
-          "hand": "left"
-        },
-        {
-          "row": 5,
-          "col": 8,
-          "hand": "right"
-        },
-        {
-          "row": 5,
-          "col": 22,
-          "hand": "left"
-        },
-        {
-          "row": 5,
-          "col": 7,
-          "hand": "right"
-        },
-        {
-          "row": 5,
-          "col": 23,
-          "hand": "left"
-        },
-        {
-          "row": 5,
-          "col": 6,
-          "hand": "right"
-        },
-        {
-          "row": 6,
-          "col": 23,
-          "hand": "left"
-        },
-        {
-          "row": 6,
-          "col": 6,
-          "hand": "right"
-        },
-        {
-          "row": 7,
-          "col": 23,
-          "hand": "left"
-        },
-        {
-          "row": 7,
-          "col": 6,
-          "hand": "right"
-        },
-        {
-          "row": 7,
-          "col": 22,
-          "hand": "left"
-        },
-        {
-          "row": 7,
-          "col": 7,
-          "hand": "right"
-        },
-        {
-          "row": 7,
-          "col": 21,
-          "hand": "left"
-        },
-        {
-          "row": 7,
-          "col": 8,
-          "hand": "right"
-        },
-        {
-          "row": 7,
-          "col": 20,
-          "hand": "left"
-        },
-        {
-          "row": 7,
-          "col": 9,
-          "hand": "right"
-        },
-        {
-          "row": 7,
-          "col": 19,
-          "hand": "left"
-        },
-        {
-          "row": 7,
-          "col": 10,
-          "hand": "right"
-        },
-        {
-          "row": 7,
-          "col": 18,
-          "hand": "left"
-        },
-        {
-          "row": 7,
-          "col": 11,
-          "hand": "right"
-        },
-        {
-          "row": 7,
-          "col": 17,
-          "hand": "left"
-        },
-        {
-          "row": 7,
-          "col": 12,
-          "hand": "right"
-        },
-        {
-          "row": 8,
-          "col": 17,
-          "hand": "left"
-        },
-        {
-          "row": 8,
-          "col": 12,
-          "hand": "right"
-        },
-        {
-          "row": 9,
-          "col": 17,
-          "hand": "left"
-        },
-        {
-          "row": 9,
-          "col": 12,
-          "hand": "right"
-        },
-        {
-          "row": 10,
-          "col": 17,
-          "hand": "left"
-        },
-        {
-          "row": 10,
-          "col": 12,
-          "hand": "right"
-        },
-        {
-          "row": 10,
-          "col": 18,
-          "hand": "left"
-        },
-        {
-          "row": 10,
-          "col": 11,
-          "hand": "right"
-        },
-        {
-          "row": 10,
-          "col": 19,
-          "hand": "left"
-        },
-        {
-          "row": 10,
-          "col": 10,
-          "hand": "right"
-        },
-        {
-          "row": 10,
-          "col": 20,
-          "hand": "left"
-        },
-        {
-          "row": 10,
-          "col": 9,
-          "hand": "right"
-        },
-        {
-          "row": 10,
-          "col": 21,
-          "hand": "left"
-        },
-        {
-          "row": 10,
-          "col": 8,
-          "hand": "right"
-        },
-        {
-          "row": 10,
-          "col": 22,
-          "hand": "left"
-        },
-        {
-          "row": 10,
-          "col": 7,
-          "hand": "right"
-        },
-        {
-          "row": 10,
-          "col": 23,
-          "hand": "left"
-        },
-        {
-          "row": 10,
-          "col": 6,
-          "hand": "right"
-        },
-        {
-          "row": 11,
-          "col": 23,
-          "hand": "left"
-        },
-        {
-          "row": 11,
-          "col": 6,
-          "hand": "right"
-        },
-        {
-          "row": 12,
-          "col": 23,
-          "hand": "left"
-        },
-        {
-          "row": 12,
-          "col": 6,
-          "hand": "right"
-        },
-        {
-          "row": 13,
-          "col": 23,
-          "hand": "left"
-        },
-        {
-          "row": 13,
-          "col": 6,
-          "hand": "right"
-        },
-        {
-          "row": 13,
-          "col": 22,
-          "hand": "left"
-        },
-        {
-          "row": 13,
-          "col": 7,
-          "hand": "right"
-        },
-        {
-          "row": 13,
-          "col": 21,
-          "hand": "left"
-        },
-        {
-          "row": 13,
-          "col": 8,
-          "hand": "right"
-        },
-        {
-          "row": 13,
-          "col": 20,
-          "hand": "left"
-        },
-        {
-          "row": 13,
-          "col": 9,
-          "hand": "right"
-        },
-        {
-          "row": 13,
-          "col": 19,
-          "hand": "left"
-        },
-        {
-          "row": 13,
-          "col": 10,
-          "hand": "right"
-        },
-        {
-          "row": 13,
-          "col": 18,
-          "hand": "left"
-        },
-        {
-          "row": 13,
-          "col": 11,
-          "hand": "right"
-        },
-        {
-          "row": 13,
-          "col": 17,
-          "hand": "left"
-        },
-        {
-          "row": 13,
-          "col": 12,
-          "hand": "right"
-        }
-      ],
-      "gridResolution": 22,
-      "resolution": 1,
-      "hand": "auto",
-      "sequentialMode": "independent",
-      "symmetryMode": true,
-      "palindromMode": true
+      "1": {
+        "sequence": [
+          {
+            "row": 15,
+            "col": 7,
+            "hand": "right"
+          },
+          {
+            "row": 15,
+            "col": 22,
+            "hand": "left"
+          },
+          {
+            "row": 15,
+            "col": 8,
+            "hand": "right"
+          },
+          {
+            "row": 15,
+            "col": 21,
+            "hand": "left"
+          },
+          {
+            "row": 15,
+            "col": 9,
+            "hand": "right"
+          },
+          {
+            "row": 15,
+            "col": 20,
+            "hand": "left"
+          },
+          {
+            "row": 15,
+            "col": 10,
+            "hand": "right"
+          },
+          {
+            "row": 15,
+            "col": 19,
+            "hand": "left"
+          },
+          {
+            "row": 15,
+            "col": 11,
+            "hand": "right"
+          },
+          {
+            "row": 15,
+            "col": 18,
+            "hand": "left"
+          },
+          {
+            "row": 15,
+            "col": 12,
+            "hand": "right"
+          },
+          {
+            "row": 15,
+            "col": 17,
+            "hand": "left"
+          },
+          {
+            "row": 14,
+            "col": 12,
+            "hand": "right"
+          },
+          {
+            "row": 14,
+            "col": 17,
+            "hand": "left"
+          },
+          {
+            "row": 14,
+            "col": 11,
+            "hand": "right"
+          },
+          {
+            "row": 14,
+            "col": 18,
+            "hand": "left"
+          },
+          {
+            "row": 14,
+            "col": 10,
+            "hand": "right"
+          },
+          {
+            "row": 14,
+            "col": 19,
+            "hand": "left"
+          },
+          {
+            "row": 14,
+            "col": 9,
+            "hand": "right"
+          },
+          {
+            "row": 14,
+            "col": 20,
+            "hand": "left"
+          },
+          {
+            "row": 14,
+            "col": 8,
+            "hand": "right"
+          },
+          {
+            "row": 14,
+            "col": 21,
+            "hand": "left"
+          },
+          {
+            "row": 14,
+            "col": 7,
+            "hand": "right"
+          },
+          {
+            "row": 14,
+            "col": 22,
+            "hand": "left"
+          },
+          {
+            "row": 13,
+            "col": 7,
+            "hand": "right"
+          },
+          {
+            "row": 13,
+            "col": 22,
+            "hand": "left"
+          },
+          {
+            "row": 13,
+            "col": 8,
+            "hand": "right"
+          },
+          {
+            "row": 13,
+            "col": 21,
+            "hand": "left"
+          },
+          {
+            "row": 13,
+            "col": 9,
+            "hand": "right"
+          },
+          {
+            "row": 13,
+            "col": 20,
+            "hand": "left"
+          },
+          {
+            "row": 13,
+            "col": 10,
+            "hand": "right"
+          },
+          {
+            "row": 13,
+            "col": 19,
+            "hand": "left"
+          },
+          {
+            "row": 13,
+            "col": 11,
+            "hand": "right"
+          },
+          {
+            "row": 13,
+            "col": 18,
+            "hand": "left"
+          },
+          {
+            "row": 13,
+            "col": 12,
+            "hand": "right"
+          },
+          {
+            "row": 13,
+            "col": 17,
+            "hand": "left"
+          },
+          {
+            "row": 12,
+            "col": 12,
+            "hand": "right"
+          },
+          {
+            "row": 12,
+            "col": 17,
+            "hand": "left"
+          },
+          {
+            "row": 11,
+            "col": 12,
+            "hand": "right"
+          },
+          {
+            "row": 11,
+            "col": 17,
+            "hand": "left"
+          },
+          {
+            "row": 10,
+            "col": 12,
+            "hand": "right"
+          },
+          {
+            "row": 10,
+            "col": 17,
+            "hand": "left"
+          },
+          {
+            "row": 9,
+            "col": 12,
+            "hand": "right"
+          },
+          {
+            "row": 9,
+            "col": 17,
+            "hand": "left"
+          },
+          {
+            "row": 8,
+            "col": 12,
+            "hand": "right"
+          },
+          {
+            "row": 8,
+            "col": 17,
+            "hand": "left"
+          },
+          {
+            "row": 7,
+            "col": 12,
+            "hand": "right"
+          },
+          {
+            "row": 7,
+            "col": 17,
+            "hand": "left"
+          }
+        ],
+        "gridResolution": 22,
+        "resolution": 1,
+        "hand": "auto",
+        "sequentialMode": "independent",
+        "symmetryMode": true,
+        "palindromMode": true
+      },
+      "2": {
+        "sequence": [
+          {
+            "row": 6,
+            "col": 11,
+            "hand": "right"
+          },
+          {
+            "row": 6,
+            "col": 18,
+            "hand": "left"
+          },
+          {
+            "row": 7,
+            "col": 11,
+            "hand": "right"
+          },
+          {
+            "row": 7,
+            "col": 18,
+            "hand": "left"
+          },
+          {
+            "row": 8,
+            "col": 11,
+            "hand": "right"
+          },
+          {
+            "row": 8,
+            "col": 18,
+            "hand": "left"
+          },
+          {
+            "row": 9,
+            "col": 11,
+            "hand": "right"
+          },
+          {
+            "row": 9,
+            "col": 18,
+            "hand": "left"
+          },
+          {
+            "row": 10,
+            "col": 11,
+            "hand": "right"
+          },
+          {
+            "row": 10,
+            "col": 18,
+            "hand": "left"
+          },
+          {
+            "row": 11,
+            "col": 11,
+            "hand": "right"
+          },
+          {
+            "row": 11,
+            "col": 18,
+            "hand": "left"
+          },
+          {
+            "row": 12,
+            "col": 11,
+            "hand": "right"
+          },
+          {
+            "row": 12,
+            "col": 18,
+            "hand": "left"
+          },
+          {
+            "row": 12,
+            "col": 10,
+            "hand": "right"
+          },
+          {
+            "row": 12,
+            "col": 19,
+            "hand": "left"
+          },
+          {
+            "row": 12,
+            "col": 9,
+            "hand": "right"
+          },
+          {
+            "row": 12,
+            "col": 20,
+            "hand": "left"
+          },
+          {
+            "row": 12,
+            "col": 8,
+            "hand": "right"
+          },
+          {
+            "row": 12,
+            "col": 21,
+            "hand": "left"
+          },
+          {
+            "row": 11,
+            "col": 8,
+            "hand": "right"
+          },
+          {
+            "row": 11,
+            "col": 21,
+            "hand": "left"
+          },
+          {
+            "row": 10,
+            "col": 8,
+            "hand": "right"
+          },
+          {
+            "row": 10,
+            "col": 21,
+            "hand": "left"
+          },
+          {
+            "row": 9,
+            "col": 8,
+            "hand": "right"
+          },
+          {
+            "row": 9,
+            "col": 21,
+            "hand": "left"
+          },
+          {
+            "row": 8,
+            "col": 8,
+            "hand": "right"
+          },
+          {
+            "row": 8,
+            "col": 21,
+            "hand": "left"
+          },
+          {
+            "row": 7,
+            "col": 8,
+            "hand": "right"
+          },
+          {
+            "row": 7,
+            "col": 21,
+            "hand": "left"
+          },
+          {
+            "row": 6,
+            "col": 8,
+            "hand": "right"
+          },
+          {
+            "row": 6,
+            "col": 21,
+            "hand": "left"
+          }
+        ],
+        "gridResolution": 22,
+        "resolution": 1,
+        "hand": "auto",
+        "sequentialMode": "independent",
+        "symmetryMode": true,
+        "palindromMode": true
+      },
+      "3": {
+        "sequence": [
+          {
+            "row": 3,
+            "col": 5,
+            "hand": "right"
+          },
+          {
+            "row": 3,
+            "col": 10,
+            "hand": "left"
+          },
+          {
+            "row": 4,
+            "col": 5,
+            "hand": "right"
+          },
+          {
+            "row": 4,
+            "col": 10,
+            "hand": "left"
+          },
+          {
+            "row": 5,
+            "col": 5,
+            "hand": "right"
+          },
+          {
+            "row": 5,
+            "col": 10,
+            "hand": "left"
+          },
+          {
+            "row": 6,
+            "col": 5,
+            "hand": "right"
+          },
+          {
+            "row": 6,
+            "col": 10,
+            "hand": "left"
+          },
+          {
+            "row": 7,
+            "col": 5,
+            "hand": "right"
+          },
+          {
+            "row": 7,
+            "col": 10,
+            "hand": "left"
+          },
+          {
+            "row": 8,
+            "col": 5,
+            "hand": "right"
+          },
+          {
+            "row": 8,
+            "col": 10,
+            "hand": "left"
+          }
+        ],
+        "gridResolution": 12,
+        "resolution": 1,
+        "hand": "left",
+        "sequentialMode": "independent",
+        "symmetryMode": true,
+        "palindromMode": true
+      },
+      "4": {
+        "sequence": [
+          {
+            "row": 3,
+            "col": 6,
+            "hand": "right"
+          },
+          {
+            "row": 3,
+            "col": 9,
+            "hand": "left"
+          },
+          {
+            "row": 4,
+            "col": 6,
+            "hand": "right"
+          },
+          {
+            "row": 4,
+            "col": 9,
+            "hand": "left"
+          },
+          {
+            "row": 5,
+            "col": 6,
+            "hand": "right"
+          },
+          {
+            "row": 5,
+            "col": 9,
+            "hand": "left"
+          },
+          {
+            "row": 6,
+            "col": 6,
+            "hand": "right"
+          },
+          {
+            "row": 6,
+            "col": 9,
+            "hand": "left"
+          },
+          {
+            "row": 7,
+            "col": 6,
+            "hand": "right"
+          },
+          {
+            "row": 7,
+            "col": 9,
+            "hand": "left"
+          },
+          {
+            "row": 7,
+            "col": 5,
+            "hand": "right"
+          },
+          {
+            "row": 7,
+            "col": 10,
+            "hand": "left"
+          },
+          {
+            "row": 7,
+            "col": 4,
+            "hand": "right"
+          },
+          {
+            "row": 7,
+            "col": 11,
+            "hand": "left"
+          },
+          {
+            "row": 6,
+            "col": 4,
+            "hand": "right"
+          },
+          {
+            "row": 6,
+            "col": 11,
+            "hand": "left"
+          },
+          {
+            "row": 5,
+            "col": 4,
+            "hand": "right"
+          },
+          {
+            "row": 5,
+            "col": 11,
+            "hand": "left"
+          },
+          {
+            "row": 4,
+            "col": 4,
+            "hand": "right"
+          },
+          {
+            "row": 4,
+            "col": 11,
+            "hand": "left"
+          },
+          {
+            "row": 3,
+            "col": 4,
+            "hand": "right"
+          },
+          {
+            "row": 3,
+            "col": 11,
+            "hand": "left"
+          }
+        ],
+        "gridResolution": 12,
+        "resolution": 1,
+        "hand": "auto",
+        "sequentialMode": "simultaneous",
+        "symmetryMode": true,
+        "palindromMode": true
+      },
+      "5": {
+        "sequence": [
+          {
+            "row": 5,
+            "col": 9,
+            "hand": "right"
+          },
+          {
+            "row": 5,
+            "col": 16,
+            "hand": "left"
+          },
+          {
+            "row": 13,
+            "col": 9,
+            "hand": "right"
+          },
+          {
+            "row": 13,
+            "col": 16,
+            "hand": "left"
+          },
+          {
+            "row": 9,
+            "col": 6,
+            "hand": "right"
+          },
+          {
+            "row": 9,
+            "col": 19,
+            "hand": "left"
+          },
+          {
+            "row": 11,
+            "col": 11,
+            "hand": "right"
+          },
+          {
+            "row": 11,
+            "col": 14,
+            "hand": "left"
+          },
+          {
+            "row": 9,
+            "col": 11,
+            "hand": "right"
+          },
+          {
+            "row": 9,
+            "col": 14,
+            "hand": "left"
+          },
+          {
+            "row": 11,
+            "col": 7,
+            "hand": "right"
+          },
+          {
+            "row": 11,
+            "col": 18,
+            "hand": "left"
+          }
+        ],
+        "gridResolution": 20,
+        "resolution": 1,
+        "hand": "auto",
+        "sequentialMode": "simultaneous",
+        "symmetryMode": true,
+        "palindromMode": false
+      },
+      "6": {
+        "sequence": [
+          {
+            "row": 5,
+            "col": 9,
+            "hand": "right"
+          },
+          {
+            "row": 5,
+            "col": 14,
+            "hand": "left"
+          },
+          {
+            "row": 6,
+            "col": 9,
+            "hand": "right"
+          },
+          {
+            "row": 6,
+            "col": 14,
+            "hand": "left"
+          },
+          {
+            "row": 7,
+            "col": 9,
+            "hand": "right"
+          },
+          {
+            "row": 7,
+            "col": 14,
+            "hand": "left"
+          },
+          {
+            "row": 8,
+            "col": 9,
+            "hand": "right"
+          },
+          {
+            "row": 8,
+            "col": 14,
+            "hand": "left"
+          },
+          {
+            "row": 9,
+            "col": 9,
+            "hand": "right"
+          },
+          {
+            "row": 9,
+            "col": 14,
+            "hand": "left"
+          },
+          {
+            "row": 10,
+            "col": 9,
+            "hand": "right"
+          },
+          {
+            "row": 10,
+            "col": 14,
+            "hand": "left"
+          },
+          {
+            "row": 11,
+            "col": 9,
+            "hand": "right"
+          },
+          {
+            "row": 11,
+            "col": 14,
+            "hand": "left"
+          },
+          {
+            "row": 12,
+            "col": 9,
+            "hand": "right"
+          },
+          {
+            "row": 12,
+            "col": 14,
+            "hand": "left"
+          },
+          {
+            "row": 12,
+            "col": 8,
+            "hand": "right"
+          },
+          {
+            "row": 12,
+            "col": 15,
+            "hand": "left"
+          },
+          {
+            "row": 12,
+            "col": 7,
+            "hand": "right"
+          },
+          {
+            "row": 12,
+            "col": 16,
+            "hand": "left"
+          },
+          {
+            "row": 12,
+            "col": 6,
+            "hand": "right"
+          },
+          {
+            "row": 12,
+            "col": 17,
+            "hand": "left"
+          },
+          {
+            "row": 11,
+            "col": 6,
+            "hand": "right"
+          },
+          {
+            "row": 11,
+            "col": 17,
+            "hand": "left"
+          },
+          {
+            "row": 10,
+            "col": 6,
+            "hand": "right"
+          },
+          {
+            "row": 10,
+            "col": 17,
+            "hand": "left"
+          },
+          {
+            "row": 9,
+            "col": 6,
+            "hand": "right"
+          },
+          {
+            "row": 9,
+            "col": 17,
+            "hand": "left"
+          },
+          {
+            "row": 8,
+            "col": 6,
+            "hand": "right"
+          },
+          {
+            "row": 8,
+            "col": 17,
+            "hand": "left"
+          },
+          {
+            "row": 7,
+            "col": 6,
+            "hand": "right"
+          },
+          {
+            "row": 7,
+            "col": 17,
+            "hand": "left"
+          },
+          {
+            "row": 6,
+            "col": 6,
+            "hand": "right"
+          },
+          {
+            "row": 6,
+            "col": 17,
+            "hand": "left"
+          },
+          {
+            "row": 5,
+            "col": 6,
+            "hand": "right"
+          },
+          {
+            "row": 5,
+            "col": 17,
+            "hand": "left"
+          }
+        ],
+        "gridResolution": 18,
+        "resolution": 1,
+        "hand": "auto",
+        "sequentialMode": "sequential",
+        "symmetryMode": true,
+        "palindromMode": true
+      },
+      "7": {
+        "sequence": [
+          {
+            "row": 5,
+            "col": 11,
+            "hand": "right"
+          },
+          {
+            "row": 5,
+            "col": 18,
+            "hand": "left"
+          },
+          {
+            "row": 7,
+            "col": 11,
+            "hand": "right"
+          },
+          {
+            "row": 7,
+            "col": 18,
+            "hand": "left"
+          },
+          {
+            "row": 9,
+            "col": 11,
+            "hand": "right"
+          },
+          {
+            "row": 9,
+            "col": 18,
+            "hand": "left"
+          },
+          {
+            "row": 11,
+            "col": 11,
+            "hand": "right"
+          },
+          {
+            "row": 11,
+            "col": 18,
+            "hand": "left"
+          },
+          {
+            "row": 13,
+            "col": 11,
+            "hand": "right"
+          },
+          {
+            "row": 13,
+            "col": 18,
+            "hand": "left"
+          },
+          {
+            "row": 15,
+            "col": 11,
+            "hand": "right"
+          },
+          {
+            "row": 15,
+            "col": 18,
+            "hand": "left"
+          },
+          {
+            "row": 14,
+            "col": 9,
+            "hand": "right"
+          },
+          {
+            "row": 14,
+            "col": 20,
+            "hand": "left"
+          },
+          {
+            "row": 13,
+            "col": 7,
+            "hand": "right"
+          },
+          {
+            "row": 13,
+            "col": 22,
+            "hand": "left"
+          },
+          {
+            "row": 12,
+            "col": 5,
+            "hand": "right"
+          },
+          {
+            "row": 12,
+            "col": 24,
+            "hand": "left"
+          },
+          {
+            "row": 13,
+            "col": 8,
+            "hand": "right"
+          },
+          {
+            "row": 13,
+            "col": 21,
+            "hand": "left"
+          }
+        ],
+        "gridResolution": 22,
+        "resolution": 1,
+        "hand": "auto",
+        "sequentialMode": "simultaneous",
+        "symmetryMode": true,
+        "palindromMode": false
+      },
+      "8": {
+        "sequence": [
+          {
+            "row": 5,
+            "col": 17,
+            "hand": "left"
+          },
+          {
+            "row": 5,
+            "col": 12,
+            "hand": "right"
+          },
+          {
+            "row": 5,
+            "col": 18,
+            "hand": "left"
+          },
+          {
+            "row": 5,
+            "col": 11,
+            "hand": "right"
+          },
+          {
+            "row": 5,
+            "col": 19,
+            "hand": "left"
+          },
+          {
+            "row": 5,
+            "col": 10,
+            "hand": "right"
+          },
+          {
+            "row": 5,
+            "col": 20,
+            "hand": "left"
+          },
+          {
+            "row": 5,
+            "col": 9,
+            "hand": "right"
+          },
+          {
+            "row": 5,
+            "col": 21,
+            "hand": "left"
+          },
+          {
+            "row": 5,
+            "col": 8,
+            "hand": "right"
+          },
+          {
+            "row": 5,
+            "col": 22,
+            "hand": "left"
+          },
+          {
+            "row": 5,
+            "col": 7,
+            "hand": "right"
+          },
+          {
+            "row": 5,
+            "col": 23,
+            "hand": "left"
+          },
+          {
+            "row": 5,
+            "col": 6,
+            "hand": "right"
+          },
+          {
+            "row": 6,
+            "col": 23,
+            "hand": "left"
+          },
+          {
+            "row": 6,
+            "col": 6,
+            "hand": "right"
+          },
+          {
+            "row": 7,
+            "col": 23,
+            "hand": "left"
+          },
+          {
+            "row": 7,
+            "col": 6,
+            "hand": "right"
+          },
+          {
+            "row": 7,
+            "col": 22,
+            "hand": "left"
+          },
+          {
+            "row": 7,
+            "col": 7,
+            "hand": "right"
+          },
+          {
+            "row": 7,
+            "col": 21,
+            "hand": "left"
+          },
+          {
+            "row": 7,
+            "col": 8,
+            "hand": "right"
+          },
+          {
+            "row": 7,
+            "col": 20,
+            "hand": "left"
+          },
+          {
+            "row": 7,
+            "col": 9,
+            "hand": "right"
+          },
+          {
+            "row": 7,
+            "col": 19,
+            "hand": "left"
+          },
+          {
+            "row": 7,
+            "col": 10,
+            "hand": "right"
+          },
+          {
+            "row": 7,
+            "col": 18,
+            "hand": "left"
+          },
+          {
+            "row": 7,
+            "col": 11,
+            "hand": "right"
+          },
+          {
+            "row": 7,
+            "col": 17,
+            "hand": "left"
+          },
+          {
+            "row": 7,
+            "col": 12,
+            "hand": "right"
+          },
+          {
+            "row": 8,
+            "col": 17,
+            "hand": "left"
+          },
+          {
+            "row": 8,
+            "col": 12,
+            "hand": "right"
+          },
+          {
+            "row": 9,
+            "col": 17,
+            "hand": "left"
+          },
+          {
+            "row": 9,
+            "col": 12,
+            "hand": "right"
+          },
+          {
+            "row": 10,
+            "col": 17,
+            "hand": "left"
+          },
+          {
+            "row": 10,
+            "col": 12,
+            "hand": "right"
+          },
+          {
+            "row": 10,
+            "col": 18,
+            "hand": "left"
+          },
+          {
+            "row": 10,
+            "col": 11,
+            "hand": "right"
+          },
+          {
+            "row": 10,
+            "col": 19,
+            "hand": "left"
+          },
+          {
+            "row": 10,
+            "col": 10,
+            "hand": "right"
+          },
+          {
+            "row": 10,
+            "col": 20,
+            "hand": "left"
+          },
+          {
+            "row": 10,
+            "col": 9,
+            "hand": "right"
+          },
+          {
+            "row": 10,
+            "col": 21,
+            "hand": "left"
+          },
+          {
+            "row": 10,
+            "col": 8,
+            "hand": "right"
+          },
+          {
+            "row": 10,
+            "col": 22,
+            "hand": "left"
+          },
+          {
+            "row": 10,
+            "col": 7,
+            "hand": "right"
+          },
+          {
+            "row": 10,
+            "col": 23,
+            "hand": "left"
+          },
+          {
+            "row": 10,
+            "col": 6,
+            "hand": "right"
+          },
+          {
+            "row": 11,
+            "col": 23,
+            "hand": "left"
+          },
+          {
+            "row": 11,
+            "col": 6,
+            "hand": "right"
+          },
+          {
+            "row": 12,
+            "col": 23,
+            "hand": "left"
+          },
+          {
+            "row": 12,
+            "col": 6,
+            "hand": "right"
+          },
+          {
+            "row": 13,
+            "col": 23,
+            "hand": "left"
+          },
+          {
+            "row": 13,
+            "col": 6,
+            "hand": "right"
+          },
+          {
+            "row": 13,
+            "col": 22,
+            "hand": "left"
+          },
+          {
+            "row": 13,
+            "col": 7,
+            "hand": "right"
+          },
+          {
+            "row": 13,
+            "col": 21,
+            "hand": "left"
+          },
+          {
+            "row": 13,
+            "col": 8,
+            "hand": "right"
+          },
+          {
+            "row": 13,
+            "col": 20,
+            "hand": "left"
+          },
+          {
+            "row": 13,
+            "col": 9,
+            "hand": "right"
+          },
+          {
+            "row": 13,
+            "col": 19,
+            "hand": "left"
+          },
+          {
+            "row": 13,
+            "col": 10,
+            "hand": "right"
+          },
+          {
+            "row": 13,
+            "col": 18,
+            "hand": "left"
+          },
+          {
+            "row": 13,
+            "col": 11,
+            "hand": "right"
+          },
+          {
+            "row": 13,
+            "col": 17,
+            "hand": "left"
+          },
+          {
+            "row": 13,
+            "col": 12,
+            "hand": "right"
+          }
+        ],
+        "gridResolution": 22,
+        "resolution": 1,
+        "hand": "auto",
+        "sequentialMode": "independent",
+        "symmetryMode": true,
+        "palindromMode": true
+      }
     }
   },
   "motionai.hand-independence-presets": {

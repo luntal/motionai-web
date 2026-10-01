@@ -533,6 +533,17 @@ export async function fetchMotionAiDefaultsSnapshot() {
   }
 }
 
+// Returns deep copies of the requested 'motionai.<section>' entries from motionai-defaults.json (undefined if absent).
+export async function fetchMotionAiDefaultsSections(sectionNames = []) {
+  const snapshot = normalizeMotionAiBucketSnapshot(await fetchMotionAiDefaultsSnapshot());
+  const sections = {};
+  sectionNames.forEach((name) => {
+    const value = snapshot[`${MOTIONAI_STORAGE_ROOT}.${name}`];
+    sections[name] = typeof value === 'undefined' ? undefined : JSON.parse(JSON.stringify(value));
+  });
+  return sections;
+}
+
 export function getMotionAiStorageEntries() {
   const entries = {};
 

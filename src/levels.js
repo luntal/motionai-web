@@ -1,5 +1,6 @@
-import { basicFigurePaths, basicFigurePathsStyle2, extendedFigurePaths } from './constants.js';
+import { basicFigurePaths, basicFigurePathsStyle2, extendedFigurePaths, levelTitles } from './constants.js';
 import {
+  fetchMotionAiDefaultsSections,
   getMotionAiActiveUserId,
   getMotionAiBucketValue,
   getMotionAiUserStorageBucket,
@@ -2663,16 +2664,39 @@ export class LevelManager {
     this.updateConsistencyPanelContent();
   }
 
-  resetConsistencyPreset() {
+  async resetConsistencyPreset() {
     const safeLevel = Number.isInteger(this.level) ? Math.max(0, Math.min(5, this.level)) : 0;
+    const levelLabel = levelTitles[2]?.[safeLevel] || `Level ${safeLevel + 1}`;
+    const confirmed = window.confirm(`Soll „${levelLabel}“ wirklich auf die Werkseinstellungen zurückgesetzt werden?\nNur die Presets dieses Levels werden zurückgesetzt, alle anderen Bereiche bleiben unverändert.`);
+    if (!confirmed) {
+      return;
+    }
+
+    let defaults;
+    try {
+      defaults = await fetchMotionAiDefaultsSections(['consistency-presets', 'consistency-panel-settings']);
+    } catch (error) {
+      console.error('Failed to reset level presets to defaults:', error);
+      window.alert('Die Werkseinstellungen konnten nicht geladen werden. Es wurde nichts zurückgesetzt.');
+      return;
+    }
+
+    const levelKey = String(safeLevel);
+    const defaultBucket = defaults['consistency-presets']?.[levelKey];
+    const nextBucket = defaultBucket && typeof defaultBucket === 'object' && !Array.isArray(defaultBucket)
+      ? defaultBucket
+      : {};
+    const defaultSlot = Number(nextBucket.selectedSlot);
+    nextBucket.selectedSlot = Number.isInteger(defaultSlot) && defaultSlot >= 0 && defaultSlot <= 3 ? defaultSlot : 0;
     const buckets = this.readConsistencyPresetMap();
-    buckets[String(safeLevel)] = { selectedSlot: 0 };
+    buckets[levelKey] = nextBucket;
     this.writeConsistencyPresetMap(buckets);
-    this.consistencyTempoBpm = 100;
-    this.consistencyStrictnessPercent = 100;
-    this.consistencyMotionBlendPercent = 0;
-    this.persistConsistencySettings();
-    this.updateConsistencyPanelContent();
+
+    const defaultSettings = defaults['consistency-panel-settings']?.[levelKey] || {};
+    this.consistencyTempoBpm = Number.isFinite(Number(defaultSettings.tempoBpm)) ? Math.min(170, Math.max(30, Number(defaultSettings.tempoBpm))) : 100;
+    this.consistencyStrictnessPercent = Number.isFinite(Number(defaultSettings.strictnessPercent)) ? Math.min(160, Math.max(70, Number(defaultSettings.strictnessPercent))) : 100;
+    this.consistencyMotionBlendPercent = Number.isFinite(Number(defaultSettings.motionBlendPercent)) ? Math.min(100, Math.max(0, Number(defaultSettings.motionBlendPercent))) : 0;
+    this.applyConsistencyPreset(safeLevel, nextBucket.selectedSlot);
   }
 
   createConsistencyInfoPanel() {

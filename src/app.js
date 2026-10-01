@@ -32,6 +32,7 @@ import {
   MOTIONAI_ACTIVE_USER_STORAGE_KEY,
   normalizeMotionAiBucketSnapshot,
   fetchMotionAiDefaultsSnapshot,
+  fetchMotionAiDefaultsSections,
   getMotionAiActiveUserId,
   setMotionAiActiveUserId,
   ensureMotionAiDefaultUserStorage,
@@ -78,6 +79,51 @@ function getUserScopedStorageValue(storageKey, fallback = null) {
 
 function setUserScopedStorageValue(storageKey, value) {
   return setMotionAiBucketValue(storageKey, value, getMotionAiActiveUserId());
+}
+
+function confirmLevelPresetReset(chapterId, levelIndex) {
+  const label = levelTitles[chapterId]?.[levelIndex] || `Level ${Number(levelIndex) + 1}`;
+  return window.confirm(`Soll „${label}“ wirklich auf die Werkseinstellungen zurückgesetzt werden?\nNur die Presets dieses Levels werden zurückgesetzt, alle anderen Bereiche bleiben unverändert.`);
+}
+
+function alertLevelPresetResetFailed(error) {
+  console.error('Failed to reset level presets to defaults:', error);
+  window.alert('Die Werkseinstellungen konnten nicht geladen werden. Es wurde nichts zurückgesetzt.');
+}
+
+// Chapter 1 presets are stored per level: { "<level>": slotMap }. Legacy data was a flat slotMap.
+const CHAPTER1_SQUARE_PRESET_LEVEL = 0;
+const CHAPTER1_POINT_PRESET_LEVEL = 1;
+
+function isFlatSquarePresetMap(map) {
+  return Object.prototype.hasOwnProperty.call(map, 'selectedPresetSlot')
+    || Object.values(map).some((entry) => entry && typeof entry === 'object' && Object.prototype.hasOwnProperty.call(entry, 'shape'));
+}
+
+function isFlatPointPresetMap(map) {
+  return Object.values(map).some((entry) => Array.isArray(entry)
+    || (entry && typeof entry === 'object' && (Array.isArray(entry.sequence) || Array.isArray(entry.points))));
+}
+
+function getChapter1LevelPresetBucket(map, level, isFlat, legacyLevel) {
+  if (!map || typeof map !== 'object' || Array.isArray(map)) {
+    return {};
+  }
+  if (isFlat(map)) {
+    return level === legacyLevel ? map : {};
+  }
+  const bucket = map[String(level)];
+  return bucket && typeof bucket === 'object' && !Array.isArray(bucket) ? bucket : {};
+}
+
+function writeChapter1LevelPresetBucket(storageKey, level, bucket, isFlat, legacyLevel) {
+  const stored = getUserScopedStorageValue(storageKey, {});
+  let map = stored && typeof stored === 'object' && !Array.isArray(stored) ? stored : {};
+  if (isFlat(map)) {
+    map = { [String(legacyLevel)]: map };
+  }
+  map[String(level)] = bucket;
+  setUserScopedStorageValue(storageKey, map);
 }
 
 function getUiDescriptionForSection(sectionName, key) {
@@ -191,6 +237,15 @@ function applyPanelVisibilityState(panel, visible) {
 
 function applyLevelSettingsVisibilityToPanel(panel, visible) {
   if (!(panel instanceof Element)) {
+    return;
+  }
+
+  // Exam panel: the toggle only controls the tasks section, not nav/history.
+  if (panel.classList.contains('exam-panel')) {
+    const tasksSection = panel.querySelector('.exam-tasks-section');
+    if (tasksSection) {
+      tasksSection.style.display = visible ? '' : 'none';
+    }
     return;
   }
 
@@ -1322,18 +1377,40 @@ function createFigureModePanel(initialManager, options = {}) {
     renderPresetSlots();
   });
 
-  presetResetButton.addEventListener('click', () => {
+  presetResetButton.addEventListener('click', async () => {
     if (!Number.isInteger(currentLevel)) {
       return;
     }
+    const resetLevel = currentLevel;
+    if (!confirmLevelPresetReset(3, resetLevel)) {
+      return;
+    }
 
-    delete presetData[String(currentLevel)];
-    selectedPreset = 0;
-    selectedPresetByLevel[String(currentLevel)] = 0;
+    let defaults;
+    try {
+      defaults = await fetchMotionAiDefaultsSections(['figure-presets', 'figure-selected-presets']);
+    } catch (error) {
+      alertLevelPresetResetFailed(error);
+      return;
+    }
+
+    const levelKey = String(resetLevel);
+    const defaultLevelPresets = defaults['figure-presets']?.[levelKey];
+    if (defaultLevelPresets && typeof defaultLevelPresets === 'object') {
+      presetData[levelKey] = defaultLevelPresets;
+    } else {
+      delete presetData[levelKey];
+    }
+    const defaultSlot = Number(defaults['figure-selected-presets']?.[levelKey]);
+    selectedPreset = Number.isInteger(defaultSlot) && defaultSlot >= 0 && defaultSlot < presetCount ? defaultSlot : 0;
+    selectedPresetByLevel[levelKey] = selectedPreset;
     persistPresets();
     persistSelectedPresets();
-    renderPresetSlots();
-    setSettings(getFactoryPreset(0));
+    if (currentLevel === resetLevel) {
+      applyPreset(selectedPreset);
+    } else {
+      renderPresetSlots();
+    }
   });
 
   function setLevel(level) {
@@ -1559,17 +1636,40 @@ function createDynamicFigureModePanel() {
     renderPresetSlots();
   });
 
-  presetResetButton.addEventListener('click', () => {
+  presetResetButton.addEventListener('click', async () => {
     if (!Number.isInteger(currentLevel)) {
       return;
     }
-    presetData = {};
-    selectedPreset = 0;
-    selectedPresetByLevel[String(currentLevel)] = 0;
+    const resetLevel = currentLevel;
+    if (!confirmLevelPresetReset(4, resetLevel)) {
+      return;
+    }
+
+    let defaults;
+    try {
+      defaults = await fetchMotionAiDefaultsSections(['dynamic-figure-presets', 'dynamic-figure-selected-presets']);
+    } catch (error) {
+      alertLevelPresetResetFailed(error);
+      return;
+    }
+
+    const levelKey = String(resetLevel);
+    const defaultLevelPresets = defaults['dynamic-figure-presets']?.[levelKey];
+    if (defaultLevelPresets && typeof defaultLevelPresets === 'object') {
+      presetData[levelKey] = defaultLevelPresets;
+    } else {
+      delete presetData[levelKey];
+    }
+    const defaultSlot = Number(defaults['dynamic-figure-selected-presets']?.[levelKey]);
+    selectedPreset = Number.isInteger(defaultSlot) && defaultSlot >= 0 && defaultSlot < presetCount ? defaultSlot : 0;
+    selectedPresetByLevel[levelKey] = selectedPreset;
     persistPresets();
     persistSelectedPresets();
-    renderPresetSlots();
-    applyPreset(0);
+    if (currentLevel === resetLevel) {
+      applyPreset(selectedPreset);
+    } else {
+      renderPresetSlots();
+    }
   });
 
   function setLevel(level, applySelectedPreset = true) {
@@ -2028,12 +2128,7 @@ function createExerciseFieldPanel() {
   });
 
   presetResetButton.addEventListener('click', () => {
-    const exerciseLevel = Number.isInteger(Number(uiState.activeLevel)) ? Math.max(0, Math.min(2, Number(uiState.activeLevel))) : 0;
-    const presets = readPresetMap();
-    presets[String(exerciseLevel)] = { selectedSlot: 0 };
-    selectedPresetSlot = 0;
-    setUserScopedStorageValue(presetsKey, presets);
-    renderPresetSlots();
+    resetPresets();
   });
 
   const toggleInput = document.createElement('input');
@@ -2502,72 +2597,30 @@ function createExerciseFieldPanel() {
   };
 
   const resetPresets = async () => {
-    const confirmed = window.confirm('Möchtest du die Presets für das Kapitel „Einsätze geben“ wirklich auf die Werkseinstellungen zurücksetzen?');
-    if (!confirmed) {
+    const exerciseLevel = Number.isInteger(Number(uiState.activeLevel)) ? Math.max(0, Math.min(2, Number(uiState.activeLevel))) : 0;
+    if (!confirmLevelPresetReset(6, exerciseLevel)) {
       return false;
     }
 
+    let defaults;
     try {
-      const defaults = await fetchMotionAiDefaultsSnapshot();
-      const normalizedDefaults = normalizeMotionAiBucketSnapshot(defaults);
-      const nextPanelSettings = normalizedDefaults['exercise-field-panel-settings'] || {
-        enabled: true,
-        scale: 1,
-        xOffset: 0,
-        strikeCount: 2,
-        strikeRadius: 12,
-        fieldSide: 'left',
-        fieldVertical: 'top',
-        fieldBeat: 1,
-        mode: 'free',
-        tempoBpm: 60,
-        metronomeEnabled: false
-      };
-      const nextPresets = normalizedDefaults['exercise-field-presets'] || {};
-      const activeExerciseLevel = Number.isInteger(uiState?.activeLevel) && uiState.activeLevel >= 0 && uiState.activeLevel <= 2
-        ? uiState.activeLevel
-        : 0;
-      const resetBucket = { selectedSlot: 0 };
-      const defaultsBucket = nextPresets[String(activeExerciseLevel)] || { selectedSlot: 0 };
-      const activePreset = defaultsBucket[String(Number(defaultsBucket.selectedSlot ?? 0))] || defaultsBucket['0'] || nextPanelSettings || {};
-
-      setUserScopedStorageValue(storageKey, {
-        enabled: typeof nextPanelSettings.enabled === 'boolean' ? nextPanelSettings.enabled : true,
-        scale: Number.isFinite(Number(nextPanelSettings.scale)) ? Number(nextPanelSettings.scale) : 1,
-        xOffset: Number.isFinite(Number(nextPanelSettings.xOffset)) ? Number(nextPanelSettings.xOffset) : 0,
-        strikeCount: sanitizeStrikeCount(nextPanelSettings.strikeCount ?? 2),
-        strikeRadius: Number.isFinite(Number(nextPanelSettings.strikeRadius)) ? Number(nextPanelSettings.strikeRadius) : 12,
-        fieldSide: nextPanelSettings.fieldSide === 'right' ? 'right' : 'left',
-        fieldVertical: nextPanelSettings.fieldVertical === 'bottom' ? 'bottom' : 'top',
-        fieldBeat: sanitizeAssignmentBeat(nextPanelSettings.fieldBeat ?? 1, sanitizeStrikeCount(nextPanelSettings.strikeCount ?? 2)),
-        mode: nextPanelSettings.mode === 'tempo' ? 'tempo' : 'free',
-        tempoBpm: Number.isFinite(Number(nextPanelSettings.tempoBpm)) ? Math.min(180, Math.max(30, Number(nextPanelSettings.tempoBpm))) : 60
-      });
-      const nextPresetMap = readPresetMap();
-      nextPresetMap[String(activeExerciseLevel)] = { ...resetBucket, ...defaultsBucket, selectedSlot: 0 };
-      setUserScopedStorageValue(presetsKey, nextPresetMap);
-
-      setControlsFromState({
-        enabled: typeof activePreset.enabled === 'boolean' ? activePreset.enabled : true,
-        scale: Number.isFinite(Number(activePreset.scale)) ? Number(activePreset.scale) : 1,
-        xOffset: Number.isFinite(Number(activePreset.xOffset)) ? Number(activePreset.xOffset) : 0,
-        strikeCount: sanitizeStrikeCount(activePreset.strikeCount ?? 2),
-        strikeRadius: Number.isFinite(Number(activePreset.strikeRadius)) ? Number(activePreset.strikeRadius) : 12,
-        fieldSide: activePreset.fieldSide === 'right' ? 'right' : 'left',
-        fieldVertical: activePreset.fieldVertical === 'bottom' ? 'bottom' : 'top',
-        fieldBeat: sanitizeAssignmentBeat(activePreset.fieldBeat ?? 1, sanitizeStrikeCount(activePreset.strikeCount ?? 2)),
-        mode: activePreset.mode === 'tempo' ? 'tempo' : 'free',
-        tempoBpm: Number.isFinite(Number(activePreset.tempoBpm)) ? Math.min(180, Math.max(30, Number(activePreset.tempoBpm))) : 60,
-        strikePositions: sanitizeExerciseFieldStrikePositions(activePreset.strikePositions || {}, sanitizeStrikeCount(activePreset.strikeCount ?? 2))
-      });
-      applyPreset(activeExerciseLevel, 0);
-      window.alert('Die Presets für das Kapitel „Einsätze geben“ wurden auf die Werkseinstellungen zurückgesetzt.');
-      return true;
+      defaults = await fetchMotionAiDefaultsSections(['exercise-field-presets']);
     } catch (error) {
-      console.error('Failed to load exercise field defaults:', error);
-      window.alert('Die Werkseinstellungen für das Kapitel „Einsätze geben“ konnten nicht geladen werden.');
+      alertLevelPresetResetFailed(error);
       return false;
     }
+
+    const defaultBucket = defaults['exercise-field-presets']?.[String(exerciseLevel)];
+    const nextBucket = defaultBucket && typeof defaultBucket === 'object' && !Array.isArray(defaultBucket)
+      ? defaultBucket
+      : {};
+    const defaultSlot = Number(nextBucket.selectedSlot);
+    nextBucket.selectedSlot = Number.isInteger(defaultSlot) && defaultSlot >= 0 && defaultSlot <= 3 ? defaultSlot : 0;
+    const presets = readPresetMap();
+    presets[String(exerciseLevel)] = nextBucket;
+    setUserScopedStorageValue(presetsKey, presets);
+    applyPreset(exerciseLevel, nextBucket.selectedSlot);
+    return true;
   };
 
   attachPanelHoverHelp(panel);
@@ -2902,16 +2955,18 @@ function createSquareExercisePanel() {
 
   const readStoredPointSlots = () => {
     try {
-      const storedSlots = getUserScopedStorageValue(pointStorageKey, {});
-      if (storedSlots && typeof storedSlots === 'object') {
-        return Object.fromEntries(
-          Object.entries(storedSlots).map(([key, value]) => [normalizePointSlot(key), normalizePointPresetEntry(value)])
-        );
-      }
+      const storedSlots = getChapter1LevelPresetBucket(
+        getUserScopedStorageValue(pointStorageKey, {}),
+        CHAPTER1_POINT_PRESET_LEVEL,
+        isFlatPointPresetMap,
+        CHAPTER1_POINT_PRESET_LEVEL
+      );
+      return Object.fromEntries(
+        Object.entries(storedSlots).map(([key, value]) => [normalizePointSlot(key), normalizePointPresetEntry(value)])
+      );
     } catch (error) {
       return {};
     }
-    return {};
   };
 
   const readStoredPointPanelState = () => {
@@ -2957,7 +3012,7 @@ function createSquareExercisePanel() {
 
   const persistPointState = () => {
     try {
-      setUserScopedStorageValue(pointStorageKey, pointSavedSlots);
+      writeChapter1LevelPresetBucket(pointStorageKey, CHAPTER1_POINT_PRESET_LEVEL, pointSavedSlots, isFlatPointPresetMap, CHAPTER1_POINT_PRESET_LEVEL);
     } catch (error) {
       // Ignore storage failures for local settings.
     }
@@ -3113,10 +3168,12 @@ function createSquareExercisePanel() {
 
   const readSquarePresetData = () => {
     try {
-      const stored = getUserScopedStorageValue(squarePresetStorageKey, {});
-      if (stored && typeof stored === 'object') {
-        return stored;
-      }
+      return getChapter1LevelPresetBucket(
+        getUserScopedStorageValue(squarePresetStorageKey, {}),
+        CHAPTER1_SQUARE_PRESET_LEVEL,
+        isFlatSquarePresetMap,
+        CHAPTER1_SQUARE_PRESET_LEVEL
+      );
     } catch (error) {
       // Ignore storage failures for local settings.
     }
@@ -3125,7 +3182,7 @@ function createSquareExercisePanel() {
 
   const persistSquarePresetData = () => {
     try {
-      setUserScopedStorageValue(squarePresetStorageKey, squarePresetData);
+      writeChapter1LevelPresetBucket(squarePresetStorageKey, CHAPTER1_SQUARE_PRESET_LEVEL, squarePresetData, isFlatSquarePresetMap, CHAPTER1_SQUARE_PRESET_LEVEL);
     } catch (error) {
       // Ignore storage failures for local settings.
     }
@@ -3454,10 +3511,23 @@ function createSquareExercisePanel() {
   squarePresetResetButton.type = 'button';
   squarePresetResetButton.className = 'figure-point-action';
   squarePresetResetButton.textContent = 'Zurücksetzen';
-  squarePresetResetButton.addEventListener('click', () => {
-    squarePresetData = {};
-    squarePresetData.selectedPresetSlot = 1;
-    selectedSquarePresetSlot = 1;
+  squarePresetResetButton.addEventListener('click', async () => {
+    if (!confirmLevelPresetReset(1, 0)) {
+      return;
+    }
+
+    let defaults;
+    try {
+      defaults = await fetchMotionAiDefaultsSections(['square-exercise-presets']);
+    } catch (error) {
+      alertLevelPresetResetFailed(error);
+      return;
+    }
+
+    const defaultPresets = defaults['square-exercise-presets'];
+    squarePresetData = getChapter1LevelPresetBucket(defaultPresets, CHAPTER1_SQUARE_PRESET_LEVEL, isFlatSquarePresetMap, CHAPTER1_SQUARE_PRESET_LEVEL);
+    selectedSquarePresetSlot = normalizeSquarePresetSlot(squarePresetData.selectedPresetSlot);
+    squarePresetData.selectedPresetSlot = selectedSquarePresetSlot;
     persistSquarePresetData();
     squarePresetInputs.forEach((input) => {
       input.checked = Number(input.value) === selectedSquarePresetSlot;
@@ -3663,9 +3733,7 @@ function createSquareExercisePanel() {
     pointEditMode = nextEditMode;
     writeLevelSettingsVisibilityState(nextEditMode);
     if (pointEditMode) {
-      pointSequence = [];
       renderPointList();
-      managerRef?.setPointExerciseSequence([]);
     }
     updatePointPanelVisibility();
     setChapter1ExerciseMode(squareExerciseMode);
@@ -3891,8 +3959,8 @@ function createSquareExercisePanel() {
 
   const updatePointPresetInputsState = () => {
     pointSlotLabels.forEach((input) => {
-      input.disabled = pointEditMode;
-      input.setAttribute('aria-disabled', String(pointEditMode));
+      input.disabled = false;
+      input.setAttribute('aria-disabled', 'false');
     });
   };
 
@@ -3914,7 +3982,10 @@ function createSquareExercisePanel() {
         return;
       }
       pointSelectedSlot = normalizePointSlot(slotNumber);
-      loadPointPresetIntoCurrentSequence(pointSelectedSlot);
+      const loadedPreset = loadPointPresetIntoCurrentSequence(pointSelectedSlot, { force: pointEditMode });
+      if (pointEditMode && !loadedPreset) {
+        clearTemporaryPointSequence();
+      }
       persistPointState();
       managerRef?.setPointExerciseSelectedSlot(pointSelectedSlot);
       renderPointList();
@@ -3940,9 +4011,48 @@ function createSquareExercisePanel() {
   const pointResetButton = document.createElement('button');
   pointResetButton.type = 'button';
   pointResetButton.className = 'figure-point-action';
-  pointResetButton.textContent = 'Reset';
+  pointResetButton.textContent = 'Reset Punktfolge';
   pointResetButton.addEventListener('click', () => {
     clearTemporaryPointSequence();
+  });
+
+  const pointResetRow = document.createElement('div');
+  pointResetRow.className = 'figure-point-action-row';
+  pointResetRow.hidden = !pointEditMode;
+  pointResetRow.appendChild(pointResetButton);
+
+  const pointPresetResetButton = document.createElement('button');
+  pointPresetResetButton.type = 'button';
+  pointPresetResetButton.className = 'figure-point-action';
+  pointPresetResetButton.textContent = 'Zurücksetzen';
+  pointPresetResetButton.addEventListener('click', async () => {
+    if (!confirmLevelPresetReset(1, CHAPTER1_POINT_PRESET_LEVEL)) {
+      return;
+    }
+
+    let defaults;
+    try {
+      defaults = await fetchMotionAiDefaultsSections(['point-exercise-saved-slots']);
+    } catch (error) {
+      alertLevelPresetResetFailed(error);
+      return;
+    }
+
+    const defaultSlots = getChapter1LevelPresetBucket(
+      defaults['point-exercise-saved-slots'],
+      CHAPTER1_POINT_PRESET_LEVEL,
+      isFlatPointPresetMap,
+      CHAPTER1_POINT_PRESET_LEVEL
+    );
+    pointSavedSlots = Object.fromEntries(
+      Object.entries(defaultSlots).map(([key, value]) => [normalizePointSlot(key), normalizePointPresetEntry(value)])
+    );
+    clearTemporaryPointSequence();
+    loadPointPresetIntoCurrentSequence(pointSelectedSlot, { force: true });
+    persistPointState();
+    managerRef?.setPointExerciseSavedSlots(pointSavedSlots);
+    managerRef?.setPointExerciseSelectedSlot(pointSelectedSlot);
+    renderPointList();
   });
 
   const pointSaveDialog = document.createElement('div');
@@ -4111,18 +4221,20 @@ function createSquareExercisePanel() {
   });
 
   pointActions.appendChild(pointSaveButton);
-  pointActions.appendChild(pointResetButton);
+  pointActions.appendChild(pointPresetResetButton);
   pointSection.insertBefore(pointPresetTitle, pointSequenceModeTitle);
   pointSection.insertBefore(pointSlotRow, pointSequenceModeTitle);
   pointSection.insertBefore(pointPresetInfo, pointSequenceModeTitle);
   pointSection.insertBefore(pointActions, pointSequenceModeTitle);
   bindUiGroupDescription([pointResetButton], 'Eingewöhnung', 'Reset');
+  bindUiGroupDescription([pointPresetResetButton], 'Eingewöhnung', 'PresetZurücksetzen');
   bindUiGroupDescription([pointSaveButton], 'Eingewöhnung', 'Speichern');
 
   const pointListWrap = document.createElement('div');
   pointListWrap.className = 'figure-point-list';
   pointListWrap.hidden = !pointEditMode;
   pointSection.appendChild(pointListWrap);
+  pointSection.insertBefore(pointResetRow, pointListWrap);
   bindUiGroupDescription([pointListWrap], 'Eingewöhnung', 'Liste');
 
   const updatePointPanelVisibility = () => {
@@ -4181,6 +4293,8 @@ function createSquareExercisePanel() {
 
     pointActions.hidden = !showEditActions;
     pointActions.style.display = showEditActions ? '' : 'none';
+    pointResetRow.hidden = !showEditActions;
+    pointResetRow.style.display = showEditActions ? '' : 'none';
     pointListWrap.hidden = !showEditActions;
     pointListWrap.style.display = showEditActions ? '' : 'none';
 
@@ -4276,9 +4390,7 @@ function createSquareExercisePanel() {
   pointToggleInput.addEventListener('change', () => {
     pointEditMode = pointToggleInput.checked;
     if (pointEditMode) {
-      pointSequence = [];
       renderPointList();
-      managerRef?.setPointExerciseSequence([]);
     }
     updatePointPanelVisibility();
     setChapter1ExerciseMode(squareExerciseMode);
@@ -4894,6 +5006,7 @@ function createSquareExercisePanel() {
   syncPointToggleButton();
   updatePointPanelVisibility();
   attachPanelHoverHelp(panel);
+  let pointPresetInitialized = false;
 
   return {
     panel,
@@ -4960,6 +5073,21 @@ function createSquareExercisePanel() {
       const selectedPreset = pointSavedSlots[currentSlot] || pointSavedSlots[1] || {};
       const entry = normalizePointPresetEntry(selectedPreset);
       const hasPresetSequence = Array.isArray(entry.sequence) && entry.sequence.length > 0;
+      const isFirstInitialization = !pointPresetInitialized;
+      pointPresetInitialized = true;
+      // Grid and circle size must follow the active preset even in edit mode or for empty slots.
+      if (pointSavedSlots[currentSlot]) {
+        const activeEntry = normalizePointPresetEntry(pointSavedSlots[currentSlot]);
+        setGridResolution(activeEntry.gridResolution);
+        setResolution(activeEntry.resolution);
+        persistSettings();
+        managerRef?.setSquareExerciseGridResolution(activeEntry.gridResolution);
+        managerRef?.setSquareExerciseResolution(activeEntry.resolution);
+      }
+      // After a reload or user switch with edit mode on, the first entry must still show the active preset.
+      if (pointEditMode && isFirstInitialization && loadPointPresetIntoCurrentSequence(currentSlot, { force: true })) {
+        return true;
+      }
       if (!pointEditMode && hasPresetSequence) {
         loadPointPresetIntoCurrentSequence(currentSlot, { force: true });
         return true;
@@ -5370,11 +5498,7 @@ function createHandIndependencePanel() {
   });
 
   presetResetButton.addEventListener('click', () => {
-    const figureLevel = Number.isInteger(Number(settings.figureLevel)) ? Number(settings.figureLevel) : 0;
-    presets[String(figureLevel)] = {};
-    selectedPresetSlot = 0;
-    persistPresets();
-    renderPresetSlots();
+    resetPresets();
   });
 
   const createSection = (label) => {
@@ -5743,12 +5867,35 @@ function createHandIndependencePanel() {
     renderPresetSlots();
     return slot;
   }
-  function resetPresets() {
+  async function resetPresets() {
     const figureLevel = Number.isInteger(Number(settings.figureLevel)) ? Number(settings.figureLevel) : 0;
-    presets[String(figureLevel)] = {};
-    selectedPresetSlot = 0;
+    if (!confirmLevelPresetReset(5, figureLevel)) {
+      return false;
+    }
+
+    let defaults;
+    try {
+      defaults = await fetchMotionAiDefaultsSections(['hand-independence-presets']);
+    } catch (error) {
+      alertLevelPresetResetFailed(error);
+      return false;
+    }
+
+    const defaultBucket = defaults['hand-independence-presets']?.[String(figureLevel)];
+    const nextBucket = defaultBucket && typeof defaultBucket === 'object' && !Array.isArray(defaultBucket)
+      ? defaultBucket
+      : {};
+    presets[String(figureLevel)] = nextBucket;
+    const defaultSlot = resolvePresetSlotForLevel(figureLevel, nextBucket.selectedSlot);
+    nextBucket.selectedSlot = defaultSlot;
+    selectedPresetSlot = defaultSlot;
     persistPresets();
     renderPresetSlots();
+    const activePreset = nextBucket[String(defaultSlot)];
+    if (activePreset && typeof activePreset === 'object') {
+      apply(activePreset);
+    }
+    return true;
   }
   function rebuildCornerControls(figureLevelOverride = settings.figureLevel) {
     updateFigureVariationVisibility();
@@ -6958,7 +7105,11 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
   startStopButton.textContent = 'Start';
 
   titleRow.appendChild(title);
-  titleRow.appendChild(startStopButton);
+  const examSettingsVisibility = createLevelSettingsVisibilityController(panel, {
+    chapterId: 7,
+    levelResolver: () => uiState.activeLevel
+  });
+  titleRow.appendChild(examSettingsVisibility.button);
   panel.appendChild(titleRow);
 
   const navRow = document.createElement('div');
@@ -6973,19 +7124,10 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
   nextButton.className = 'exam-mini-button';
   nextButton.textContent = '→';
   nextButton.title = 'Nächste Aufgabe';
+  navRow.appendChild(startStopButton);
   navRow.appendChild(previousButton);
   navRow.appendChild(nextButton);
   panel.appendChild(navRow);
-
-  const taskList = document.createElement('div');
-  taskList.className = 'exam-task-list';
-  panel.appendChild(taskList);
-
-  const addTaskButton = document.createElement('button');
-  addTaskButton.type = 'button';
-  addTaskButton.className = 'exam-add-button';
-  addTaskButton.textContent = '+ Aufgabe hinzufügen';
-  panel.appendChild(addTaskButton);
 
   const historyLabel = document.createElement('div');
   historyLabel.className = 'exam-history-label';
@@ -6997,6 +7139,26 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
   historySelect.innerHTML = '<option value="">Keine Auswahl</option>';
   historySelect.disabled = true;
   panel.appendChild(historySelect);
+
+  const tasksSection = document.createElement('div');
+  tasksSection.className = 'exam-tasks-section';
+  panel.appendChild(tasksSection);
+
+  const tasksLabel = document.createElement('div');
+  tasksLabel.className = 'exam-history-label';
+  tasksLabel.textContent = 'Aufgaben';
+  tasksSection.appendChild(tasksLabel);
+
+  const taskList = document.createElement('div');
+  taskList.className = 'exam-task-list';
+  tasksSection.appendChild(taskList);
+
+  const addTaskButton = document.createElement('button');
+  addTaskButton.type = 'button';
+  addTaskButton.className = 'exam-add-button';
+  addTaskButton.textContent = '+ Aufgabe hinzufügen';
+  tasksSection.appendChild(addTaskButton);
+  examSettingsVisibility.sync();
 
   const taskStorageKey = 'motionai.exam.tasks';
   const resultsStorageKey = 'motionai.exam.results';
@@ -7047,6 +7209,11 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
   const getExamStorageKey = (levelIndex) => `${taskStorageKey}.level.${normalizeExamLevel(levelIndex) ?? 0}`;
   const getExamResultsStorageKey = (levelIndex) => `${resultsStorageKey}.level.${normalizeExamLevel(levelIndex) ?? 0}`;
 
+  // Final exam tasks live only in the DozentIn bucket; results always stay in the active user's bucket.
+  const isSharedExamLevel = (levelIndex) => normalizeExamLevel(levelIndex) === FINAL_EXAM_LEVEL;
+  const getExamTasksOwnerId = (levelIndex) => (isSharedExamLevel(levelIndex) ? MOTIONAI_DOZENT_USER_ID : getMotionAiActiveUserId());
+  const isExamLevelEditable = (levelIndex) => !isSharedExamLevel(levelIndex) || getMotionAiActiveUserId() === MOTIONAI_DOZENT_USER_ID;
+
   const getExamPresetCount = (chapterId, levelIndex = 0) => {
     const safeChapterId = Number(chapterId);
     const safeLevel = Number.isInteger(levelIndex) && levelIndex >= 0 ? Number(levelIndex) : 0;
@@ -7096,7 +7263,7 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
     const panelState = ensureExamPanelState(safeLevel);
     const storageKey = getExamStorageKey(safeLevel ?? 0);
     try {
-      const stored = getUserScopedStorageValue(storageKey, []);
+      const stored = getMotionAiBucketValue(storageKey, [], getExamTasksOwnerId(safeLevel));
       const nextTasks = Array.isArray(stored) && stored.length > 0
         ? stored.map((task, index) => {
             const chapterId = Number.isInteger(Number(task.chapterId)) ? Math.min(6, Math.max(1, Number(task.chapterId))) : 1;
@@ -7130,12 +7297,15 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
     if (safeLevel === null) {
       return;
     }
+    if (!isExamLevelEditable(safeLevel)) {
+      return;
+    }
     const panelState = ensureExamPanelState(safeLevel);
     if (panelState) {
       panelState.tasks = tasks;
     }
     try {
-      setUserScopedStorageValue(getExamStorageKey(safeLevel), tasks);
+      setMotionAiBucketValue(getExamStorageKey(safeLevel), tasks, getExamTasksOwnerId(safeLevel));
     } catch (error) {
       // ignore storage failures
     }
@@ -7217,11 +7387,17 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
   resultCard.appendChild(resultTotal);
   resultCard.appendChild(resultSummary);
   resultModal.appendChild(resultCard);
-  resultModal.addEventListener('click', () => {
+  const closeResultModal = () => {
     resultModal.classList.add('hidden');
-  });
-  resultCloseButton.addEventListener('click', () => {
-    resultModal.classList.add('hidden');
+    historySelect.value = '';
+  };
+  resultModal.addEventListener('click', closeResultModal);
+  resultCloseButton.addEventListener('click', closeResultModal);
+  document.addEventListener('click', (event) => {
+    if (resultModal.classList.contains('hidden') || historySelect.contains(event.target)) {
+      return;
+    }
+    closeResultModal();
   });
   stageFrame.appendChild(resultModal);
 
@@ -7247,7 +7423,7 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
       renderHistory();
       return;
     }
-    tasks = panelState?.tasks?.length ? panelState.tasks : loadExamTasks(nextLevel);
+    tasks = panelState?.tasks?.length && !isSharedExamLevel(nextLevel) ? panelState.tasks : loadExamTasks(nextLevel);
     if (panelState) {
       panelState.tasks = tasks;
     }
@@ -7657,6 +7833,13 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
       renderTasks();
     });
 
+    if (!isExamLevelEditable(activeExamLevel)) {
+      chapterSelect.disabled = true;
+      levelSelect.disabled = true;
+      presetSelect.disabled = true;
+      deleteButton.style.display = 'none';
+    }
+
     row.appendChild(chapterSelect);
     row.appendChild(levelSelect);
     row.appendChild(presetSelect);
@@ -7665,6 +7848,7 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
   };
 
   const renderTasks = () => {
+    addTaskButton.style.display = isExamLevelEditable(activeExamLevel) ? '' : 'none';
     taskList.innerHTML = '';
     tasks.forEach((task, index) => {
       taskList.appendChild(createTaskRow(task, index));
@@ -7672,6 +7856,9 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
   };
 
   addTaskButton.addEventListener('click', () => {
+    if (!isExamLevelEditable(activeExamLevel)) {
+      return;
+    }
     const lastTask = tasks[tasks.length - 1] || { chapterId: 1, levelIndex: 0, presetIndex: 0 };
     tasks.push({
       id: Date.now() + tasks.length,
@@ -8513,6 +8700,10 @@ export async function initApp() {
       examPanel.setVisible(true);
       return;
     }
+    // Grid resolution and points must be set before setLevel(), so the level is built with the preset's grid.
+    if (uiState.activeChapter === 1 && getChapter1ExercisePanelVisibility(level).points) {
+      squareExercisePanel.initializeCurrentPointPreset?.();
+    }
     levelManager.setLevel(level);
     syncLevelCanvasPointerState();
     if ([3, 4, 5].includes(uiState.activeChapter) && level !== null) {
@@ -8595,9 +8786,6 @@ export async function initApp() {
       );
       if (!uiState.examSelectionInProgress && Number.isInteger(level) && level >= 0 && level <= 4 && !showPointsExercisePanel) {
         squareExercisePanel.restoreSelectedPreset?.();
-      }
-      if (showPointsExercisePanel && !uiState.examSelectionInProgress) {
-        squareExercisePanel.initializeCurrentPointPreset?.();
       }
     } else {
       figurePanel.setVisible(false);
