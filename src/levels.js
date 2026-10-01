@@ -381,6 +381,38 @@ export class LevelManager {
     this.symmetricExerciseCenterDistance = 0.5;
     this.chapter1GridResolution = 8;
     this.chapter1CircleDiameter = 1;
+    this.walkingBassThresholdPercent = 3;
+    this.walkingBassVelocitySensitivity = 0.7;
+    this.walkingBassBuffer = null;
+    this.walkingBassBufferPromise = null;
+    this.walkingBassStateByHand = { left: null, right: null };
+    this.walkingBassVoiceByHand = { left: null, right: null };
+    this.walkingBassHits = [];
+    this.walkingBassMode = 'single';
+    this.walkingBassSoundByHand = { left: 'bass', right: 'bass' };
+    this.claveToneMode = 'continuous';
+    this.bubbleSoundEnabledByLevel = { 0: false, 1: false };
+    this.bubbleSoundLastCircleByHand = { left: -1, right: -1 };
+    this.bubbleSoundLastAtByHand = { left: 0, right: 0 };
+    this.bubbleSaturationCurve = null;
+    this.walkingBassStepByHand = { left: 0, right: 0 };
+    this.walkingBassPitchSteps = [0, 3, 5, 10, 0, 3, 5, 10, 0, 3, 5, 10, 12, 15, 12, 3];
+    this.guitarSampleNames = ['Dmaj7', 'Emin7', 'Gbmin7', 'Gmaj7'];
+    this.guitarFieldVisible = true;
+    this.guitarFieldX = 0.5;
+    this.guitarFieldY = 0.55;
+    this.guitarBuffers = [null, null, null, null];
+    this.guitarBuffersPromise = null;
+    this.guitarNextIndex = 0;
+    this.guitarInsideByHand = { left: false, right: false };
+    this.guitarFlashAt = -Infinity;
+    this.guitarDrag = null;
+    this.guitarVoice = null;
+    this.walkingBassMetronomeEnabled = false;
+    this.walkingBassMetronomeBpm = 60;
+    this.walkingBassMetronomeTimer = null;
+    this.walkingBassMetronomeNextTime = 0;
+    this.walkingBassMetronomeBeat = 0;
     this.symmetricExerciseOrientation = 'vertical';
     this.scaledCalibrationCache = {
       set: null,
@@ -3992,6 +4024,947 @@ export class LevelManager {
     });
   }
 
+  setWalkingBassThreshold(percent) {
+    const next = Number(percent);
+    if (!Number.isFinite(next)) {
+      return;
+    }
+    this.walkingBassThresholdPercent = Math.max(0.5, Math.min(10, next));
+  }
+
+  setWalkingBassMode(value) {
+    this.walkingBassMode = value === 'walking' ? 'walking' : 'single';
+    this.walkingBassStepByHand = { left: 0, right: 0 };
+  }
+
+  setWalkingBassVelocitySensitivity(value) {
+    const next = Number(value);
+    if (!Number.isFinite(next)) {
+      return;
+    }
+    this.walkingBassVelocitySensitivity = Math.max(0, Math.min(1, next));
+  }
+
+  loadWalkingBassSample() {
+    if (this.walkingBassBufferPromise) {
+      return this.walkingBassBufferPromise;
+    }
+    const ctx = this.ensureAudioEngine();
+    if (!ctx) {
+      return null;
+    }
+    // A failed load keeps the resolved promise so playback does not retry every frame.
+    this.walkingBassBufferPromise = fetch('./assets/Bass-A1.aif')
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        return response.arrayBuffer();
+      })
+      .then((data) => ctx.decodeAudioData(data.slice(0)).catch(() => this.decodeAiffBuffer(ctx, data)))
+      .then((buffer) => {
+        this.walkingBassBuffer = buffer;
+        return buffer;
+      })
+      .catch((error) => {
+        console.warn('Walking Bass sample could not be loaded:', error);
+        return null;
+      });
+    return this.walkingBassBufferPromise;
+  }
+
+  // Browsers differ in AIFF support (e.g. 24-bit big-endian PCM), so uncompressed AIFF is decoded by hand as a fallback.
+  decodeAiffBuffer(ctx, arrayBuffer) {
+    const view = new DataView(arrayBuffer);
+    const tag = (offset) => String.fromCharCode(
+      view.getUint8(offset),
+      view.getUint8(offset + 1),
+      view.getUint8(offset + 2),
+      view.getUint8(offset + 3)
+    );
+    if (view.byteLength < 12 || tag(0) !== 'FORM' || tag(8) !== 'AIFF') {
+      throw new Error('Not an uncompressed AIFF file');
+    }
+
+    let channels = 0;
+    let frames = 0;
+    let bits = 0;
+    let sampleRate = 0;
+    let dataOffset = -1;
+    let offset = 12;
+    while (offset + 8 <= view.byteLength) {
+      const id = tag(offset);
+      const size = view.getUint32(offset + 4);
+      const body = offset + 8;
+      if (id === 'COMM') {
+        channels = view.getUint16(body);
+        frames = view.getUint32(body + 2);
+        bits = view.getUint16(body + 6);
+        const exponent = (view.getUint16(body + 8) & 0x7fff) - 16383;
+        sampleRate = view.getUint32(body + 10) * Math.pow(2, exponent - 31) + view.getUint32(body + 14) * Math.pow(2, exponent - 63);
+      } else if (id === 'SSND') {
+        dataOffset = body + 8 + view.getUint32(body);
+      }
+      offset = body + size + (size % 2);
+    }
+
+    if (!channels || !frames || dataOffset < 0 || ![8, 16, 24, 32].includes(bits)) {
+      throw new Error('Unsupported AIFF format');
+    }
+
+    const bytesPerSample = bits / 8;
+    const scale = Math.pow(2, bits - 1);
+    const buffer = ctx.createBuffer(channels, frames, Math.round(sampleRate));
+    for (let channel = 0; channel < channels; channel += 1) {
+      const out = buffer.getChannelData(channel);
+      for (let i = 0; i < frames; i += 1) {
+        const position = dataOffset + (i * channels + channel) * bytesPerSample;
+        let value;
+        if (bits === 8) {
+          value = view.getInt8(position);
+        } else if (bits === 16) {
+          value = view.getInt16(position);
+        } else if (bits === 24) {
+          value = (view.getUint8(position) << 16) | (view.getUint8(position + 1) << 8) | view.getUint8(position + 2);
+          if (value & 0x800000) {
+            value -= 0x1000000;
+          }
+        } else {
+          value = view.getInt32(position);
+        }
+        out[i] = value / scale;
+      }
+    }
+    return buffer;
+  }
+
+  playWalkingBass(hand, gainValue) {
+    const ctx = this.ensureAudioEngine();
+    if (!ctx || !this.walkingBassBuffer) {
+      return;
+    }
+
+    const startAt = ctx.currentTime;
+    const previous = this.walkingBassVoiceByHand[hand];
+    if (previous) {
+      try {
+        previous.gain.gain.cancelScheduledValues(startAt);
+        previous.gain.gain.setValueAtTime(Math.max(0.0001, previous.gain.gain.value), startAt);
+        previous.gain.gain.linearRampToValueAtTime(0.0001, startAt + 0.05);
+        previous.source.stop(startAt + 0.06);
+      } catch (error) {
+        // The previous voice may already have ended.
+      }
+    }
+
+    const source = ctx.createBufferSource();
+    source.buffer = this.walkingBassBuffer;
+    if (this.walkingBassMode === 'walking') {
+      const steps = this.walkingBassPitchSteps;
+      const step = this.walkingBassStepByHand[hand] % steps.length;
+      source.playbackRate.value = Math.pow(2, steps[step] / 12);
+      this.walkingBassStepByHand[hand] = (step + 1) % steps.length;
+    }
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(gainValue, startAt);
+    source.connect(gain);
+    gain.connect(ctx.destination);
+    const voice = { source, gain };
+    this.walkingBassVoiceByHand[hand] = voice;
+    source.onended = () => {
+      try {
+        gain.disconnect();
+      } catch (error) {
+        // Already disconnected.
+      }
+      if (this.walkingBassVoiceByHand[hand] === voice) {
+        this.walkingBassVoiceByHand[hand] = null;
+      }
+    };
+    source.start(startAt);
+  }
+
+  setWalkingBassHandSound(hand, value) {
+    if (!['left', 'right'].includes(hand)) {
+      return;
+    }
+    this.walkingBassSoundByHand[hand] = ['bass', 'cymbal', 'clave'].includes(value) ? value : 'bass';
+  }
+
+  setBubbleSoundEnabled(level, enabled) {
+    if (level !== 0 && level !== 1) {
+      return;
+    }
+    this.bubbleSoundEnabledByLevel[level] = Boolean(enabled);
+    this.bubbleSoundLastCircleByHand = { left: -1, right: -1 };
+  }
+
+  // Runs before the target logic advances, so entering the active circle is still classified as active.
+  updateBubbleSound() {
+    if (!this.bubbleSoundEnabledByLevel[this.level]) {
+      this.bubbleSoundLastCircleByHand = { left: -1, right: -1 };
+      return;
+    }
+
+    const nowMs = performance.now();
+    ['left', 'right'].forEach((hand) => {
+      const tip = hand === 'left' ? this.leftTip : this.rightTip;
+      const inFrame = hand === 'left' ? this.leftTipInFrame : this.rightTipInFrame;
+      if (!tip || !inFrame) {
+        this.bubbleSoundLastCircleByHand[hand] = -1;
+        return;
+      }
+
+      const circleIndex = this.getCircleIndex(tip);
+      if (!Number.isInteger(circleIndex) || circleIndex < 0) {
+        this.bubbleSoundLastCircleByHand[hand] = -1;
+        return;
+      }
+      if (circleIndex === this.bubbleSoundLastCircleByHand[hand]) {
+        return;
+      }
+
+      this.bubbleSoundLastCircleByHand[hand] = circleIndex;
+      if (nowMs - this.bubbleSoundLastAtByHand[hand] < 60) {
+        return;
+      }
+      this.bubbleSoundLastAtByHand[hand] = nowMs;
+      this.playBubblePop(this.getCurrentTargetForCircle(circleIndex) !== null);
+    });
+  }
+
+  // Inactive circles: a quiet, slow-attack pad swell that stays in the background.
+  playBubblePad() {
+    const ctx = this.ensureAudioEngine();
+    if (!ctx) {
+      return;
+    }
+
+    const startAt = ctx.currentTime;
+    const baseFrequency = 392 * (1 + (Math.random() - 0.5) * 0.1);
+    const attack = 0.05;
+    const total = attack + 0.3;
+
+    const lowpass = ctx.createBiquadFilter();
+    lowpass.type = 'lowpass';
+    lowpass.frequency.value = 1100;
+    lowpass.Q.value = 0.4;
+    lowpass.connect(ctx.destination);
+
+    const envelope = ctx.createGain();
+    envelope.gain.setValueAtTime(0.0001, startAt);
+    envelope.gain.exponentialRampToValueAtTime(0.05, startAt + attack);
+    envelope.gain.exponentialRampToValueAtTime(0.0001, startAt + total);
+    envelope.connect(lowpass);
+
+    const oscillators = [
+      { type: 'sine', frequency: baseFrequency, detune: -7, level: 1 },
+      { type: 'sine', frequency: baseFrequency, detune: 7, level: 1 },
+      { type: 'triangle', frequency: baseFrequency * 0.5, detune: 0, level: 0.4 }
+    ].map(({ type, frequency, detune, level }) => {
+      const oscillator = ctx.createOscillator();
+      oscillator.type = type;
+      oscillator.frequency.setValueAtTime(frequency, startAt);
+      oscillator.detune.value = detune;
+      const levelGain = ctx.createGain();
+      levelGain.gain.value = level;
+      oscillator.connect(levelGain);
+      levelGain.connect(envelope);
+      oscillator.start(startAt);
+      oscillator.stop(startAt + total + 0.03);
+      return { oscillator, levelGain };
+    });
+
+    oscillators[0].oscillator.onended = () => {
+      [...oscillators.flatMap(({ oscillator, levelGain }) => [oscillator, levelGain]), envelope, lowpass].forEach((node) => {
+        try {
+          node.disconnect();
+        } catch (error) {
+          // Already disconnected.
+        }
+      });
+    };
+  }
+
+  // Short pitch-swept sine with a triangle sub, soft saturation and a lowpass for warmth, plus a tiny noise transient.
+  playBubblePop(isActive) {
+    if (!isActive) {
+      this.playBubblePad();
+      return;
+    }
+
+    const ctx = this.ensureAudioEngine();
+    if (!ctx) {
+      return;
+    }
+
+    if (!this.bubbleSaturationCurve) {
+      const curve = new Float32Array(1024);
+      for (let index = 0; index < curve.length; index += 1) {
+        const x = (index / (curve.length - 1)) * 2 - 1;
+        curve[index] = Math.tanh(x * 1.6);
+      }
+      this.bubbleSaturationCurve = curve;
+    }
+
+    const startAt = ctx.currentTime;
+    const variation = 1 + (Math.random() - 0.5) * 0.12;
+    const baseFrequency = (isActive ? 760 : 520) * variation;
+    const peakFrequency = baseFrequency * (isActive ? 1.7 : 1.4);
+    const duration = isActive ? 0.17 : 0.1;
+    const peak = isActive ? 0.34 : 0.11;
+
+    const lowpass = ctx.createBiquadFilter();
+    lowpass.type = 'lowpass';
+    lowpass.frequency.value = isActive ? 3200 : 1900;
+    lowpass.Q.value = 0.5;
+    lowpass.connect(ctx.destination);
+
+    const shaper = ctx.createWaveShaper();
+    shaper.curve = this.bubbleSaturationCurve;
+    shaper.connect(lowpass);
+
+    const envelope = ctx.createGain();
+    envelope.gain.setValueAtTime(0.0001, startAt);
+    envelope.gain.exponentialRampToValueAtTime(peak, startAt + 0.006);
+    envelope.gain.exponentialRampToValueAtTime(0.0001, startAt + duration);
+    envelope.connect(shaper);
+
+    const body = ctx.createOscillator();
+    body.type = 'sine';
+    body.frequency.setValueAtTime(baseFrequency, startAt);
+    body.frequency.exponentialRampToValueAtTime(peakFrequency, startAt + duration * 0.55);
+    body.connect(envelope);
+
+    const subGain = ctx.createGain();
+    subGain.gain.value = 0.35;
+    subGain.connect(envelope);
+    const sub = ctx.createOscillator();
+    sub.type = 'triangle';
+    sub.frequency.setValueAtTime(baseFrequency * 0.5, startAt);
+    sub.frequency.exponentialRampToValueAtTime(peakFrequency * 0.5, startAt + duration * 0.55);
+    sub.connect(subGain);
+
+    const noiseBuffer = ctx.createBuffer(1, Math.max(1, Math.floor(ctx.sampleRate * 0.012)), ctx.sampleRate);
+    const noiseData = noiseBuffer.getChannelData(0);
+    for (let index = 0; index < noiseData.length; index += 1) {
+      noiseData[index] = Math.random() * 2 - 1;
+    }
+    const noiseSource = ctx.createBufferSource();
+    noiseSource.buffer = noiseBuffer;
+    const noiseFilter = ctx.createBiquadFilter();
+    noiseFilter.type = 'bandpass';
+    noiseFilter.frequency.value = peakFrequency * 2;
+    noiseFilter.Q.value = 1.2;
+    const noiseGain = ctx.createGain();
+    noiseGain.gain.setValueAtTime(peak * (isActive ? 0.25 : 0.15), startAt);
+    noiseGain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.012);
+    noiseSource.connect(noiseFilter);
+    noiseFilter.connect(noiseGain);
+    noiseGain.connect(lowpass);
+
+    body.start(startAt);
+    body.stop(startAt + duration + 0.03);
+    sub.start(startAt);
+    sub.stop(startAt + duration + 0.03);
+    noiseSource.start(startAt);
+    noiseSource.stop(startAt + 0.02);
+    body.onended = () => {
+      [body, sub, subGain, envelope, shaper, noiseSource, noiseFilter, noiseGain, lowpass].forEach((node) => {
+        try {
+          node.disconnect();
+        } catch (error) {
+          // Already disconnected.
+        }
+      });
+    };
+  }
+
+  setClaveToneMode(value) {
+    this.claveToneMode = value === 'two' ? 'two' : 'continuous';
+  }
+
+  // `shape` is the speed-derived 0..1 value that drives decay (cymbal) and pitch (clave); `gain` drives loudness.
+  playWalkingBassSound(hand, gain, shape) {
+    const sound = this.walkingBassSoundByHand[hand];
+    if (sound === 'cymbal') {
+      this.playWalkingBassCymbal(gain, shape);
+    } else if (sound === 'clave') {
+      this.playWalkingBassClave(gain, shape);
+    } else {
+      this.playWalkingBass(hand, gain);
+    }
+  }
+
+  playWalkingBassCymbal(gain, shape) {
+    const ctx = this.ensureAudioEngine();
+    if (!ctx) {
+      return;
+    }
+
+    const startAt = ctx.currentTime;
+    const decay = 0.3 + 2.2 * shape;
+    const peak = Math.max(0.0002, 0.4 * gain);
+
+    const output = ctx.createGain();
+    output.gain.setValueAtTime(0.0001, startAt);
+    output.gain.exponentialRampToValueAtTime(peak, startAt + 0.003);
+    output.gain.exponentialRampToValueAtTime(0.0001, startAt + decay);
+    output.connect(ctx.destination);
+
+    const highpass = ctx.createBiquadFilter();
+    highpass.type = 'highpass';
+    highpass.frequency.value = 7000;
+    highpass.connect(output);
+
+    const bandpass = ctx.createBiquadFilter();
+    bandpass.type = 'bandpass';
+    bandpass.frequency.value = 10000;
+    bandpass.Q.value = 0.6;
+    bandpass.connect(highpass);
+
+    // Inharmonic square oscillators give the metallic body; filtered noise adds the shimmer.
+    const oscillators = [263, 400, 421, 474, 587, 845].map((frequency) => {
+      const oscillator = ctx.createOscillator();
+      oscillator.type = 'square';
+      oscillator.frequency.setValueAtTime(frequency, startAt);
+      oscillator.connect(bandpass);
+      oscillator.start(startAt);
+      oscillator.stop(startAt + decay + 0.05);
+      return oscillator;
+    });
+
+    const noiseBuffer = ctx.createBuffer(1, Math.max(1, Math.floor(ctx.sampleRate * (decay + 0.05))), ctx.sampleRate);
+    const noiseData = noiseBuffer.getChannelData(0);
+    for (let index = 0; index < noiseData.length; index += 1) {
+      noiseData[index] = Math.random() * 2 - 1;
+    }
+    const noiseSource = ctx.createBufferSource();
+    noiseSource.buffer = noiseBuffer;
+    const noiseFilter = ctx.createBiquadFilter();
+    noiseFilter.type = 'highpass';
+    noiseFilter.frequency.value = 6000;
+    const noiseGain = ctx.createGain();
+    noiseGain.gain.value = 0.6;
+    noiseSource.connect(noiseFilter);
+    noiseFilter.connect(noiseGain);
+    noiseGain.connect(output);
+    noiseSource.start(startAt);
+    noiseSource.stop(startAt + decay + 0.05);
+
+    oscillators[0].onended = () => {
+      [...oscillators, noiseSource, noiseFilter, noiseGain, bandpass, highpass, output].forEach((node) => {
+        try {
+          node.disconnect();
+        } catch (error) {
+          // Already disconnected.
+        }
+      });
+    };
+  }
+
+  playWalkingBassClave(gain, shape) {
+    const ctx = this.ensureAudioEngine();
+    if (!ctx) {
+      return;
+    }
+
+    const startAt = ctx.currentTime;
+    const frequency = this.claveToneMode === 'two'
+      ? (shape >= 0.5 ? 3200 : 1800)
+      : 1800 + 1400 * shape;
+    const duration = 0.14;
+
+    const oscillator = ctx.createOscillator();
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(frequency, startAt);
+    oscillator.frequency.exponentialRampToValueAtTime(frequency * 0.96, startAt + 0.06);
+
+    const gainNode = ctx.createGain();
+    gainNode.gain.setValueAtTime(0.0001, startAt);
+    gainNode.gain.exponentialRampToValueAtTime(Math.max(0.0002, 0.8 * gain), startAt + 0.001);
+    gainNode.gain.exponentialRampToValueAtTime(0.0001, startAt + duration);
+
+    const clickBuffer = ctx.createBuffer(1, Math.max(1, Math.floor(ctx.sampleRate * 0.01)), ctx.sampleRate);
+    const clickData = clickBuffer.getChannelData(0);
+    for (let index = 0; index < clickData.length; index += 1) {
+      clickData[index] = Math.random() * 2 - 1;
+    }
+    const clickSource = ctx.createBufferSource();
+    clickSource.buffer = clickBuffer;
+    const clickFilter = ctx.createBiquadFilter();
+    clickFilter.type = 'bandpass';
+    clickFilter.frequency.value = frequency;
+    clickFilter.Q.value = 2;
+    const clickGain = ctx.createGain();
+    clickGain.gain.setValueAtTime(Math.max(0.0002, 0.3 * gain), startAt);
+    clickGain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.01);
+
+    oscillator.connect(gainNode);
+    gainNode.connect(ctx.destination);
+    clickSource.connect(clickFilter);
+    clickFilter.connect(clickGain);
+    clickGain.connect(ctx.destination);
+
+    oscillator.start(startAt);
+    oscillator.stop(startAt + duration + 0.03);
+    clickSource.start(startAt);
+    clickSource.stop(startAt + 0.02);
+    oscillator.onended = () => {
+      [oscillator, gainNode, clickSource, clickFilter, clickGain].forEach((node) => {
+        try {
+          node.disconnect();
+        } catch (error) {
+          // Already disconnected.
+        }
+      });
+    };
+  }
+
+  // Fires when a hand reverses from a downward to an upward stroke; the threshold ignores tracking jitter.
+  updateWalkingBass(nowMs) {
+    const height = Math.max(1, this.canvas.height);
+    const threshold = (this.walkingBassThresholdPercent / 100) * height;
+    const fullScaleSpeed = 2; // canvas heights per second that count as maximum velocity
+
+    ['left', 'right'].forEach((hand) => {
+      const tip = hand === 'left' ? this.leftTip : this.rightTip;
+      const inFrame = hand === 'left' ? this.leftTipInFrame : this.rightTipInFrame;
+      if (!tip || !inFrame) {
+        this.walkingBassStateByHand[hand] = null;
+        return;
+      }
+
+      const y = tip.y;
+      const state = this.walkingBassStateByHand[hand];
+      if (!state) {
+        this.walkingBassStateByHand[hand] = {
+          direction: null,
+          extremeX: tip.x,
+          extremeY: y,
+          extremeAt: nowMs,
+          strokeStartY: y,
+          strokeStartAt: nowMs
+        };
+        return;
+      }
+
+      const turn = (nextDirection) => {
+        state.direction = nextDirection;
+        state.strokeStartY = state.extremeY;
+        state.strokeStartAt = state.extremeAt;
+        state.extremeX = tip.x;
+        state.extremeY = y;
+        state.extremeAt = nowMs;
+      };
+
+      if (state.direction === null) {
+        if (y > state.extremeY + threshold) {
+          turn('down');
+        } else if (y < state.extremeY - threshold) {
+          turn('up');
+        }
+        return;
+      }
+
+      if (state.direction === 'down') {
+        if (y > state.extremeY) {
+          state.extremeX = tip.x;
+          state.extremeY = y;
+          state.extremeAt = nowMs;
+        } else if (y < state.extremeY - threshold) {
+          const distance = (state.extremeY - state.strokeStartY) / height;
+          const seconds = Math.max(0.05, (state.extremeAt - state.strokeStartAt) / 1000);
+          const velocity = Math.max(0, Math.min(1, distance / seconds / fullScaleSpeed));
+          const sensitivity = this.walkingBassVelocitySensitivity;
+          this.playWalkingBassSound(
+            hand,
+            Math.max(0.05, (1 - sensitivity) + sensitivity * velocity),
+            (1 - sensitivity) * 0.5 + sensitivity * velocity
+          );
+          this.walkingBassHits.push({ hand, x: state.extremeX, y: state.extremeY, startedAt: nowMs });
+          if (this.walkingBassHits.length > 32) {
+            this.walkingBassHits.shift();
+          }
+          this.requestRender();
+          turn('up');
+        }
+        return;
+      }
+
+      if (y < state.extremeY) {
+        state.extremeY = y;
+        state.extremeAt = nowMs;
+      } else if (y > state.extremeY + threshold) {
+        turn('down');
+      }
+    });
+  }
+
+  drawWalkingBassHits() {
+    const nowMs = performance.now();
+    const fadeMs = 2000;
+    this.walkingBassHits = this.walkingBassHits.filter((hit) => nowMs - hit.startedAt < fadeMs);
+    const baseRadius = Math.max(8, this.canvas.height * 0.022);
+
+    this.walkingBassHits.forEach((hit) => {
+      const age = nowMs - hit.startedAt;
+      const alpha = Math.pow(1 - age / fadeMs, 1.5);
+      const radius = baseRadius * (1 + 0.8 * Math.max(0, 1 - age / 150));
+      const rgb = hit.hand === 'left' ? '90, 170, 255' : '255, 170, 60';
+
+      this.ctx.save();
+      const glow = this.ctx.createRadialGradient(hit.x, hit.y, 0, hit.x, hit.y, radius * 2.4);
+      glow.addColorStop(0, `rgba(${rgb}, ${0.55 * alpha})`);
+      glow.addColorStop(1, `rgba(${rgb}, 0)`);
+      this.ctx.fillStyle = glow;
+      this.ctx.beginPath();
+      this.ctx.arc(hit.x, hit.y, radius * 2.4, 0, Math.PI * 2);
+      this.ctx.fill();
+
+      this.ctx.fillStyle = `rgba(${rgb}, ${alpha})`;
+      this.ctx.shadowBlur = 18;
+      this.ctx.shadowColor = `rgba(${rgb}, ${alpha})`;
+      this.ctx.beginPath();
+      this.ctx.arc(hit.x, hit.y, radius, 0, Math.PI * 2);
+      this.ctx.fill();
+
+      this.ctx.shadowBlur = 0;
+      this.ctx.fillStyle = `rgba(255, 255, 255, ${0.9 * alpha})`;
+      this.ctx.beginPath();
+      this.ctx.arc(hit.x, hit.y, radius * 0.45, 0, Math.PI * 2);
+      this.ctx.fill();
+      this.ctx.restore();
+    });
+
+    if (this.walkingBassHits.length > 0) {
+      this.requestRender();
+    }
+  }
+
+  setGuitarFieldVisible(visible) {
+    this.guitarFieldVisible = Boolean(visible);
+    if (!this.guitarFieldVisible) {
+      this.guitarDrag = null;
+      this.guitarInsideByHand = { left: false, right: false };
+    }
+    this.requestRender();
+  }
+
+  setGuitarFieldPosition(x, y) {
+    const nextX = Number(x);
+    const nextY = Number(y);
+    if (!Number.isFinite(nextX) || !Number.isFinite(nextY)) {
+      return;
+    }
+    this.guitarFieldX = Math.max(0, Math.min(1, nextX));
+    this.guitarFieldY = Math.max(0, Math.min(1, nextY));
+    this.requestRender();
+  }
+
+  // Square clamped fully inside the canvas; position is stored as the normalized center.
+  getGuitarFieldRect() {
+    const width = this.canvas.width;
+    const height = this.canvas.height;
+    const size = Math.max(60, height * 0.22);
+    const half = size / 2;
+    const centerX = Math.max(half, Math.min(width - half, this.guitarFieldX * width));
+    const centerY = Math.max(half, Math.min(height - half, this.guitarFieldY * height));
+    return { centerX, centerY, half, size };
+  }
+
+  beginGuitarFieldDrag(x, y) {
+    if (!this.guitarFieldVisible || !(this.chapter === 1 && this.level === 3)) {
+      return false;
+    }
+    const rect = this.getGuitarFieldRect();
+    if (Math.abs(x - rect.centerX) > rect.half || Math.abs(y - rect.centerY) > rect.half) {
+      return false;
+    }
+    this.guitarDrag = { offsetX: x - rect.centerX, offsetY: y - rect.centerY };
+    return true;
+  }
+
+  updateGuitarFieldDrag(x, y) {
+    if (!this.guitarDrag) {
+      return false;
+    }
+    this.setGuitarFieldPosition(
+      (x - this.guitarDrag.offsetX) / Math.max(1, this.canvas.width),
+      (y - this.guitarDrag.offsetY) / Math.max(1, this.canvas.height)
+    );
+    return true;
+  }
+
+  endGuitarFieldDrag() {
+    const wasDragging = Boolean(this.guitarDrag);
+    this.guitarDrag = null;
+    return wasDragging;
+  }
+
+  fetchAudioBuffer(ctx, url) {
+    return fetch(url)
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        return response.arrayBuffer();
+      })
+      .then((data) => ctx.decodeAudioData(data.slice(0)).catch(() => this.decodeAiffBuffer(ctx, data)));
+  }
+
+  loadGuitarSamples() {
+    if (this.guitarBuffersPromise) {
+      return this.guitarBuffersPromise;
+    }
+    const ctx = this.ensureAudioEngine();
+    if (!ctx) {
+      return null;
+    }
+    // A failed load keeps the resolved promise so playback does not retry every frame.
+    this.guitarBuffersPromise = Promise.all(this.guitarSampleNames.map((name, index) => {
+      const timestamps = ['203919', '203921', '203923', '203924'];
+      const fileName = `Guitar Electric Taka ${name} [2026-10-01 ${timestamps[index]}].aif`;
+      return this.fetchAudioBuffer(ctx, `./assets/${encodeURIComponent(fileName)}`)
+        .then((buffer) => {
+          this.guitarBuffers[index] = buffer;
+          return buffer;
+        })
+        .catch((error) => {
+          console.warn(`Guitar sample ${name} could not be loaded:`, error);
+          return null;
+        });
+    }));
+    return this.guitarBuffersPromise;
+  }
+
+  playGuitarSample() {
+    const ctx = this.ensureAudioEngine();
+    const buffer = this.guitarBuffers[this.guitarNextIndex];
+    if (!ctx || !buffer) {
+      return;
+    }
+
+    const startAt = ctx.currentTime;
+    const previous = this.guitarVoice;
+    if (previous) {
+      try {
+        previous.gain.gain.cancelScheduledValues(startAt);
+        previous.gain.gain.setValueAtTime(Math.max(0.0001, previous.gain.gain.value), startAt);
+        previous.gain.gain.linearRampToValueAtTime(0.0001, startAt + 0.08);
+        previous.source.stop(startAt + 0.09);
+      } catch (error) {
+        // The previous voice may already have ended.
+      }
+    }
+
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.9, startAt);
+    source.connect(gain);
+    gain.connect(ctx.destination);
+    const voice = { source, gain };
+    this.guitarVoice = voice;
+    source.onended = () => {
+      try {
+        gain.disconnect();
+      } catch (error) {
+        // Already disconnected.
+      }
+      if (this.guitarVoice === voice) {
+        this.guitarVoice = null;
+      }
+    };
+    source.start(startAt);
+
+    this.guitarFlashAt = performance.now();
+    this.guitarNextIndex = (this.guitarNextIndex + 1) % this.guitarBuffers.length;
+    this.requestRender();
+  }
+
+  // Each hand entering the square plays the next of the four samples; a margin avoids retriggering on tracking jitter.
+  updateGuitarField() {
+    if (!this.guitarFieldVisible) {
+      return;
+    }
+    const rect = this.getGuitarFieldRect();
+    const exitMargin = 12;
+
+    ['left', 'right'].forEach((hand) => {
+      const tip = hand === 'left' ? this.leftTip : this.rightTip;
+      const inFrame = hand === 'left' ? this.leftTipInFrame : this.rightTipInFrame;
+      if (!tip || !inFrame) {
+        this.guitarInsideByHand[hand] = false;
+        return;
+      }
+
+      const dx = Math.abs(tip.x - rect.centerX);
+      const dy = Math.abs(tip.y - rect.centerY);
+      if (this.guitarInsideByHand[hand]) {
+        if (dx > rect.half + exitMargin || dy > rect.half + exitMargin) {
+          this.guitarInsideByHand[hand] = false;
+        }
+        return;
+      }
+
+      if (dx <= rect.half && dy <= rect.half) {
+        this.guitarInsideByHand[hand] = true;
+        this.playGuitarSample();
+      }
+    });
+  }
+
+  drawGuitarField() {
+    if (!this.guitarFieldVisible) {
+      return;
+    }
+    const rect = this.getGuitarFieldRect();
+    const flash = Math.max(0, 1 - (performance.now() - this.guitarFlashAt) / 600);
+    const x = rect.centerX - rect.half;
+    const y = rect.centerY - rect.half;
+
+    this.ctx.save();
+    this.ctx.fillStyle = `rgba(255, 200, 80, ${0.12 + 0.45 * flash})`;
+    this.ctx.strokeStyle = `rgba(255, 200, 80, ${0.7 + 0.3 * flash})`;
+    this.ctx.lineWidth = 3;
+    this.ctx.shadowBlur = 8 + 22 * flash;
+    this.ctx.shadowColor = 'rgba(255, 200, 80, 0.8)';
+    this.ctx.beginPath();
+    this.ctx.rect(x, y, rect.size, rect.size);
+    this.ctx.fill();
+    this.ctx.stroke();
+
+    this.ctx.shadowBlur = 0;
+    this.ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+    this.ctx.font = '700 18px Arial';
+    this.ctx.textAlign = 'center';
+    this.ctx.textBaseline = 'middle';
+    this.ctx.fillText(this.guitarSampleNames[this.guitarNextIndex], rect.centerX, rect.centerY);
+    this.ctx.restore();
+
+    if (flash > 0) {
+      this.requestRender();
+    }
+  }
+
+  setWalkingBassMetronomeBpm(value) {
+    const next = Number(value);
+    if (!Number.isFinite(next)) {
+      return;
+    }
+    this.walkingBassMetronomeBpm = Math.max(30, Math.min(180, Math.round(next)));
+  }
+
+  setWalkingBassMetronomeEnabled(enabled) {
+    this.walkingBassMetronomeEnabled = Boolean(enabled);
+    if (this.walkingBassMetronomeEnabled && this.chapter === 1 && this.level === 3) {
+      this.startWalkingBassMetronome();
+    } else {
+      this.stopWalkingBassMetronome();
+    }
+  }
+
+  // Own click synth and audio path so it never touches the Einsätze-geben metronome; beats are scheduled on the audio clock.
+  startWalkingBassMetronome() {
+    if (this.walkingBassMetronomeTimer) {
+      return;
+    }
+    const ctx = this.ensureAudioEngine();
+    if (!ctx) {
+      return;
+    }
+    this.walkingBassMetronomeNextTime = ctx.currentTime + 0.05;
+    this.walkingBassMetronomeBeat = 0;
+    this.walkingBassMetronomeTimer = window.setInterval(() => {
+      const audioContext = this.ensureAudioEngine();
+      if (!audioContext) {
+        return;
+      }
+      if (audioContext.state !== 'running') {
+        // A suspended clock does not advance; restart the grid once it runs again.
+        this.walkingBassMetronomeNextTime = audioContext.currentTime + 0.05;
+        return;
+      }
+      const beatSeconds = 60 / this.walkingBassMetronomeBpm;
+      if (this.walkingBassMetronomeNextTime < audioContext.currentTime - 0.1) {
+        this.walkingBassMetronomeNextTime = audioContext.currentTime + 0.05;
+      }
+      while (this.walkingBassMetronomeNextTime < audioContext.currentTime + 0.15) {
+        const beatNumber = (this.walkingBassMetronomeBeat % 4) + 1;
+        this.playWalkingBassClick(audioContext, beatNumber, this.walkingBassMetronomeNextTime);
+        this.walkingBassMetronomeBeat += 1;
+        this.walkingBassMetronomeNextTime += beatSeconds;
+      }
+    }, 25);
+  }
+
+  playWalkingBassClick(ctx, beatNumber, startAt) {
+    const isPrimary = beatNumber === 1;
+    if (!this.walkingBassMetronomeGain || this.walkingBassMetronomeGain.context !== ctx) {
+      this.walkingBassMetronomeGain = ctx.createGain();
+      this.walkingBassMetronomeGain.gain.value = 1;
+      this.walkingBassMetronomeGain.connect(ctx.destination);
+    }
+    const output = this.walkingBassMetronomeGain;
+    const duration = isPrimary ? 0.08 : 0.05;
+
+    const oscillator = ctx.createOscillator();
+    oscillator.type = isPrimary ? 'square' : 'triangle';
+    oscillator.frequency.setValueAtTime(isPrimary ? 880 : 660, startAt);
+
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(isPrimary ? 2200 : 1600, startAt);
+    filter.Q.setValueAtTime(0.8, startAt);
+
+    const gainNode = ctx.createGain();
+    gainNode.gain.setValueAtTime(0.0001, startAt);
+    gainNode.gain.exponentialRampToValueAtTime(isPrimary ? 0.5 : 0.35, startAt + 0.008);
+    gainNode.gain.exponentialRampToValueAtTime(0.0001, startAt + duration);
+
+    const noiseBuffer = ctx.createBuffer(1, Math.max(1, Math.floor(ctx.sampleRate * 0.02)), ctx.sampleRate);
+    const noiseData = noiseBuffer.getChannelData(0);
+    for (let index = 0; index < noiseData.length; index += 1) {
+      noiseData[index] = (Math.random() * 2 - 1) * (isPrimary ? 0.8 : 0.55);
+    }
+    const noiseSource = ctx.createBufferSource();
+    noiseSource.buffer = noiseBuffer;
+    const noiseFilter = ctx.createBiquadFilter();
+    noiseFilter.type = 'highpass';
+    noiseFilter.frequency.value = isPrimary ? 2500 : 1800;
+    const noiseGain = ctx.createGain();
+    noiseGain.gain.setValueAtTime(isPrimary ? 0.22 : 0.14, startAt);
+    noiseGain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.02);
+
+    oscillator.connect(filter);
+    filter.connect(gainNode);
+    gainNode.connect(output);
+    noiseSource.connect(noiseFilter);
+    noiseFilter.connect(noiseGain);
+    noiseGain.connect(output);
+
+    oscillator.start(startAt);
+    oscillator.stop(startAt + duration + 0.04);
+    noiseSource.start(startAt);
+    noiseSource.stop(startAt + 0.03);
+    oscillator.onended = () => {
+      oscillator.disconnect();
+      filter.disconnect();
+      gainNode.disconnect();
+      noiseSource.disconnect();
+      noiseFilter.disconnect();
+      noiseGain.disconnect();
+    };
+  }
+
+  stopWalkingBassMetronome() {
+    if (this.walkingBassMetronomeTimer) {
+      window.clearInterval(this.walkingBassMetronomeTimer);
+      this.walkingBassMetronomeTimer = null;
+    }
+  }
+
   ensureAudioEngine() {
     if (typeof window === 'undefined') {
       return null;
@@ -4131,10 +5104,6 @@ export class LevelManager {
     }
 
     const activeSet = this.activeTouchCircleByHand[hand] || new Set();
-    if (activeSet.has(circleIndex)) {
-      return;
-    }
-    activeSet.add(circleIndex);
     this.activeTouchCircleByHand[hand] = activeSet;
 
     this.registerChapter1Touch(hand, circleIndex);
@@ -6786,6 +7755,10 @@ export class LevelManager {
     this.consistencyActive = false;
     this.setConsistencyPanelVisible(false);
 
+    if (!(this.chapter === 1 && this.level === 3)) {
+      this.stopWalkingBassMetronome();
+    }
+
     if (this.chapter !== 1 || this.level === null) {
       this.active = false;
       this.render();
@@ -6793,6 +7766,18 @@ export class LevelManager {
     }
 
     if ([3, 4].includes(this.level)) {
+      if (this.level === 3) {
+        this.walkingBassStateByHand = { left: null, right: null };
+        this.walkingBassHits = [];
+        this.walkingBassStepByHand = { left: 0, right: 0 };
+        this.loadWalkingBassSample();
+        this.loadGuitarSamples();
+        this.guitarInsideByHand = { left: false, right: false };
+        this.guitarNextIndex = 0;
+        if (this.walkingBassMetronomeEnabled) {
+          this.startWalkingBassMetronome();
+        }
+      }
       this.targets = [];
       this.targetIndexByCircle.clear();
       this.nextTarget = 0;
@@ -7725,6 +8710,10 @@ export class LevelManager {
 
     if (!this.active) {
       this.setPoseAlignmentPanelVisible(false);
+      if (this.chapter === 1 && this.level === 3) {
+        this.drawGuitarField();
+        this.drawWalkingBassHits();
+      }
       return;
     }
 
@@ -9554,9 +10543,18 @@ export class LevelManager {
     }
 
     const freeMovementActive = this.chapter === 1 && Number.isInteger(this.level) && this.level === 2;
+    if (this.chapter === 1 && this.level === 3) {
+      this.updateWalkingBass(performance.now());
+      this.updateGuitarField();
+    }
     const leftIdx = this.leftTip ? this.getCircleIndex(this.leftTip) : -1;
     const rightIdx = this.rightTip ? this.getCircleIndex(this.rightTip) : -1;
     const nowMs = performance.now();
+    // Snapshot before the fade loop below overwrites the active sets; tone triggering needs the previous frame.
+    const previousTouchByHand = {
+      left: new Set(this.activeTouchCircleByHand.left || []),
+      right: new Set(this.activeTouchCircleByHand.right || [])
+    };
 
     for (const hand of ['left', 'right']) {
       if (!freeMovementActive) {
@@ -9610,8 +10608,8 @@ export class LevelManager {
       const leftIdx = this.leftTip ? this.getCircleIndex(this.leftTip) : -1;
       const rightIdx = this.rightTip ? this.getCircleIndex(this.rightTip) : -1;
 
-      const leftPrevious = this.activeTouchCircleByHand.left || new Set();
-      const rightPrevious = this.activeTouchCircleByHand.right || new Set();
+      const leftPrevious = previousTouchByHand.left;
+      const rightPrevious = previousTouchByHand.right;
 
       if (leftIdx !== -1) {
         targetScales[leftIdx] = 1.5;
@@ -9646,6 +10644,10 @@ export class LevelManager {
       }
       this.requestRender();
       return;
+    }
+
+    if (this.chapter === 1 && (this.level === 0 || this.level === 1)) {
+      this.updateBubbleSound();
     }
 
     if (this.chapter === 1 && Number.isInteger(this.level) && this.level >= 0 && this.level <= 4) {

@@ -33,7 +33,7 @@ export const chapterDescriptions = [
 
 export const levelTitles = [
   ['Oberkörper', 'Maximum', 'Minimum', 'Dynamikbereich'],
-  ['Ziffern', 'Punkte', 'Freie Bewegung', 'Leer 1', 'Leer 2'],
+  ['Ziffern', 'Punkte', 'Freie Bewegung', 'Walking Bass', 'Leer 2'],
   ['Rechte Linie', 'Linke Linie', 'Synchron', 'Versetzt', '2:1 Tempo', 'Ellipsen'],
   ['Einserfigur', 'Zweierfigur', 'Dreierfigur', 'Viererfigur', 'Fünferfigur', 'Sechserfigur', 'Siebenerfigur'],
   ['Einsertakt', 'Zweiertakt', 'Dreiertakt', 'Vierertakt'],
@@ -53,7 +53,7 @@ export const levelDescriptions = [
     'Ziffern: Malen nach Zahlen. Berühre die orangenen Kreise mit der rechten Hand und die blauen Kreise mit der linken.',
     'Punkte: Berühre den aktiven Punkt. Die aktiven Punkte erscheinen nacheinander und müssen in der richtigen Reihenfolge berührt werden. Außerdem können in dieser Übung eigene Formen und Abläufe erstellt werden, die dann in den Presets gespeichert werden können.',
     'Freie Bewegung: Führe freie Bewegungen mit beiden Händen aus. Tipp: Durch das langsame Ausblenden der Kreise nach dem Berühren kann die Bewegung besser nachvollzogen werden. Versuche beipielsweise eine gerade Linie zu zeichnen und verfolge live die Bewegungsgenauigkeit mit.',
-    'Leer 1: Berühre den aktiven Punkt.',
+    'Walking Bass: Bewege die Hand nach unten und wieder nach oben. Beim Richtungswechsel am unteren Umkehrpunkt erklingt ein Basston. Je schneller die Abwärtsbewegung, desto lauter der Anschlag. Jede Hand spielt für sich.',
     'Leer 2: Berühre den aktiven Punkt.'
   ],
   [
@@ -190,6 +190,14 @@ export const uiElementDescriptions = {
     PresetZurücksetzen: 'Setzt die Presets dieses Levels auf die Werkseinstellungen zurück.',
     Liste: 'Zeigt die aktuelle Liste der Kreise an, die du beim Bearbeiten der Bewegung ausgewählt hast. Die Kreise werden in der Reihenfolge angezeigt, in der sie angeklickt wurden. Mit Reset kann diese Liste gelöscht werden, ohne dass bereits gespeicherte Presets gelöscht werden.',
     Speichern: 'Speichere die aktuelle Konfiguration. Die gespeicherte Konfiguration kann später über die Presets wieder aufgerufen werden. Beim Speichern in einen Slot wird der vorherige Inhalt des Slots überschrieben.',
+    BubbleSound: 'Spielt bei jeder Berührung eines Kreises einen weichen Blasen-Klang. Aktive Kreise klingen präsenter und lauter, alle anderen Kreise dezent und leiser.',
+    ClaveTonhoehe: 'Chromatisch: Die Tonhöhe der Clave folgt stufenlos der Anschlaggeschwindigkeit. Zwei Pitches: Es wird nur zwischen einem tiefen Ton (leiser/langsamer Anschlag) und einem hohen Ton (lauter/schneller Anschlag) gewechselt.',
+    WalkingBassSound: 'Wähle den Sound, der von dieser Hand beim Richtungswechsel gespielt wird: Bass-Sample, synthetische Cymbal (Abklingzeit und Lautstärke folgen der Anschlaggeschwindigkeit) oder Clave (Lautstärke und Tonhöhe folgen der Anschlaggeschwindigkeit).',
+    WalkingBassModus: 'Single Note spielt bei jedem Anschlag das Sample unverändert. Walking verschiebt die Tonhöhe bei jedem Anschlag nach einer festen Folge (0, 3, 5, 10, 0, 3, 5, 10, 0, 3, 5, 10, 12, 15, 12, 3 Halbtöne), getrennt für jede Hand.',
+    Gitarrenfeld: 'Blendet das Gitarrenfeld ein oder aus. Das Feld lässt sich mit der Maus an eine beliebige Stelle ziehen. Jede Berührung mit einer Hand spielt den nächsten der vier Gitarrenakkorde im Loop.',
+    WalkingBassMetronom: 'Schaltet den Metronom-Klick ein oder aus. Das Tempo wird mit dem Regler darunter eingestellt.',
+    WalkingBassSchwellwert: 'Mindestbewegung auf der senkrechten Achse, ab der ein Richtungswechsel erkannt wird. Höhere Werte unterdrücken Zittern durch die Posenerkennung, niedrigere Werte reagieren empfindlicher.',
+    WalkingBassDynamik: 'Bestimmt, wie stark die Geschwindigkeit der Abwärtsbewegung die Lautstärke des Anschlags beeinflusst. Bei 0 % klingt jeder Anschlag gleich laut.',
     KontaktFade: 'Stelle den Kontakt-Fade-Effekt ein oder aus. Der Effekt bewirkt, dass die Kreise nach dem Berühren langsam ausblenden, anstatt sofort zu verschwinden. So kannst du besser nachvollziehen, was für eine Bewegung ausgeführt wurde.',
   },
   'Gleichmäßigkeit': {

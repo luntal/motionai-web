@@ -2816,6 +2816,31 @@ function createSquareExercisePanel() {
     : true;
   let selectedAlternatingFrequencyModulation = Boolean(settings.alternatingFrequencyModulation);
   let selectedAlternatingAxisSwap = Boolean(settings.alternatingAxisSwap);
+  let selectedWalkingBassThreshold = Number.isFinite(Number(settings.walkingBassThreshold))
+    ? Math.max(0.5, Math.min(10, Number(settings.walkingBassThreshold)))
+    : 3;
+  let selectedWalkingBassSensitivity = Number.isFinite(Number(settings.walkingBassSensitivity))
+    ? Math.max(0, Math.min(1, Number(settings.walkingBassSensitivity)))
+    : 0.7;
+  let selectedWalkingBassMode = ['single', 'walking'].includes(settings.walkingBassMode) ? settings.walkingBassMode : 'single';
+  const walkingBassSoundOptions = [
+    { value: 'bass', label: 'Bass' },
+    { value: 'cymbal', label: 'Cymbal' },
+    { value: 'clave', label: 'Clave' }
+  ];
+  const normalizeWalkingBassSound = (value) => (walkingBassSoundOptions.some((option) => option.value === value) ? value : 'bass');
+  let selectedWalkingBassSoundLeft = normalizeWalkingBassSound(settings.walkingBassSoundLeft);
+  let selectedWalkingBassSoundRight = normalizeWalkingBassSound(settings.walkingBassSoundRight);
+  let selectedClaveToneMode = settings.claveToneMode === 'two' ? 'two' : 'continuous';
+  let selectedBubbleSoundSquare = Boolean(settings.bubbleSoundSquare);
+  let selectedBubbleSoundPoints = Boolean(settings.bubbleSoundPoints);
+  let selectedGuitarFieldVisible = typeof settings.guitarFieldVisible === 'boolean' ? settings.guitarFieldVisible : true;
+  let selectedGuitarFieldX = Number.isFinite(Number(settings.guitarFieldX)) ? Math.max(0, Math.min(1, Number(settings.guitarFieldX))) : 0.5;
+  let selectedGuitarFieldY = Number.isFinite(Number(settings.guitarFieldY)) ? Math.max(0, Math.min(1, Number(settings.guitarFieldY))) : 0.55;
+  let selectedWalkingBassMetronome = Boolean(settings.walkingBassMetronome);
+  let selectedWalkingBassMetronomeBpm = Number.isFinite(Number(settings.walkingBassMetronomeBpm))
+    ? Math.max(30, Math.min(180, Math.round(Number(settings.walkingBassMetronomeBpm))))
+    : 60;
   let pointEditMode = Boolean(settings.pointEditMode);
   let pointSequence = Array.isArray(settings.pointSequence) ? settings.pointSequence : [];
   let pointSequenceMode = ['independent', 'sequential', 'simultaneous'].includes(settings.pointSequenceMode)
@@ -3045,7 +3070,20 @@ function createSquareExercisePanel() {
       alternatingVolume: selectedAlternatingVolume,
       activeTouchFadeEnabled: selectedActiveTouchFadeEnabled,
       alternatingFrequencyModulation: selectedAlternatingFrequencyModulation,
-      alternatingAxisSwap: selectedAlternatingAxisSwap
+      alternatingAxisSwap: selectedAlternatingAxisSwap,
+      walkingBassThreshold: selectedWalkingBassThreshold,
+      walkingBassSensitivity: selectedWalkingBassSensitivity,
+      walkingBassMode: selectedWalkingBassMode,
+      walkingBassSoundLeft: selectedWalkingBassSoundLeft,
+      walkingBassSoundRight: selectedWalkingBassSoundRight,
+      claveToneMode: selectedClaveToneMode,
+      bubbleSoundSquare: selectedBubbleSoundSquare,
+      bubbleSoundPoints: selectedBubbleSoundPoints,
+      guitarFieldVisible: selectedGuitarFieldVisible,
+      guitarFieldX: selectedGuitarFieldX,
+      guitarFieldY: selectedGuitarFieldY,
+      walkingBassMetronome: selectedWalkingBassMetronome,
+      walkingBassMetronomeBpm: selectedWalkingBassMetronomeBpm
     };
     try {
       setUserScopedStorageValue(storageKey, snapshot);
@@ -4560,7 +4598,7 @@ function createSquareExercisePanel() {
   panel.appendChild(alternatingScaleWrap);
 
   const alternatingFmWrap = document.createElement('label');
-  alternatingFmWrap.className = 'figure-size-wrap';
+  alternatingFmWrap.className = 'figure-size-wrap exercise-toggle';
   alternatingFmWrap.hidden = true;
 
   const alternatingFmCheckbox = document.createElement('input');
@@ -4588,7 +4626,7 @@ function createSquareExercisePanel() {
   panel.appendChild(alternatingFmWrap);
 
   const alternatingAxisSwapWrap = document.createElement('label');
-  alternatingAxisSwapWrap.className = 'figure-size-wrap';
+  alternatingAxisSwapWrap.className = 'figure-size-wrap exercise-toggle';
   alternatingAxisSwapWrap.hidden = true;
 
   const alternatingAxisSwapCheckbox = document.createElement('input');
@@ -4735,7 +4773,7 @@ function createSquareExercisePanel() {
   panel.appendChild(alternatingVolumeWrap);
 
   const activeTouchFadeWrap = document.createElement('label');
-  activeTouchFadeWrap.className = 'figure-size-wrap';
+  activeTouchFadeWrap.className = 'figure-size-wrap exercise-toggle';
   activeTouchFadeWrap.hidden = true;
 
   const activeTouchFadeLabel = document.createElement('div');
@@ -4769,6 +4807,230 @@ function createSquareExercisePanel() {
   bindUiGroupDescription([activeTouchFadeLabel, activeTouchFadeCheckbox, activeTouchFadeValue], 'Eingewöhnung', 'KontaktFade');
   panel.appendChild(activeTouchFadeWrap);
 
+  const createWalkingBassSoundSelect = (labelText, initialValue, onChange) => {
+    const wrap = document.createElement('label');
+    wrap.className = 'figure-size-wrap';
+    wrap.hidden = true;
+    const label = document.createElement('div');
+    label.className = 'figure-size-label';
+    label.textContent = labelText;
+    const select = document.createElement('select');
+    select.className = 'exercise-select-input';
+    select.innerHTML = walkingBassSoundOptions.map((option) => `<option value="${option.value}">${option.label}</option>`).join('');
+    select.value = initialValue;
+    select.addEventListener('change', () => onChange(normalizeWalkingBassSound(select.value)));
+    wrap.append(label, select);
+    panel.appendChild(wrap);
+    return wrap;
+  };
+
+  const walkingBassSoundLeftWrap = createWalkingBassSoundSelect('Sound linke Hand', selectedWalkingBassSoundLeft, (value) => {
+    selectedWalkingBassSoundLeft = value;
+    persistSettings();
+    managerRef?.setWalkingBassHandSound?.('left', value);
+  });
+  const walkingBassSoundRightWrap = createWalkingBassSoundSelect('Sound rechte Hand', selectedWalkingBassSoundRight, (value) => {
+    selectedWalkingBassSoundRight = value;
+    persistSettings();
+    managerRef?.setWalkingBassHandSound?.('right', value);
+  });
+  bindUiGroupDescription([walkingBassSoundLeftWrap, walkingBassSoundRightWrap], 'Eingewöhnung', 'WalkingBassSound');
+
+  const walkingBassModeWrap = document.createElement('div');
+  walkingBassModeWrap.className = 'figure-side-group';
+  walkingBassModeWrap.hidden = true;
+  const walkingBassModeLabel = document.createElement('div');
+  walkingBassModeLabel.className = 'figure-size-label';
+  walkingBassModeLabel.textContent = 'Bass-Modus';
+  const walkingBassModeGroup = document.createElement('div');
+  walkingBassModeGroup.className = 'figure-mode-group';
+  [{ value: 'single', label: 'Single Note' }, { value: 'walking', label: 'Walking' }].forEach(({ value, label }) => {
+    const option = document.createElement('label');
+    option.className = 'figure-side-option';
+    const input = document.createElement('input');
+    input.type = 'radio';
+    input.name = 'walking-bass-mode';
+    input.value = value;
+    input.checked = selectedWalkingBassMode === value;
+    const text = document.createElement('span');
+    text.textContent = label;
+    input.addEventListener('change', () => {
+      if (!input.checked) {
+        return;
+      }
+      selectedWalkingBassMode = value;
+      persistSettings();
+      managerRef?.setWalkingBassMode?.(value);
+    });
+    option.append(input, text);
+    walkingBassModeGroup.appendChild(option);
+  });
+  walkingBassModeWrap.append(walkingBassModeLabel, walkingBassModeGroup);
+  bindUiGroupDescription([walkingBassModeLabel, ...walkingBassModeGroup.querySelectorAll('label, input')], 'Eingewöhnung', 'WalkingBassModus');
+  panel.appendChild(walkingBassModeWrap);
+
+  const claveToneModeWrap = document.createElement('div');
+  claveToneModeWrap.className = 'figure-side-group';
+  claveToneModeWrap.hidden = true;
+  const claveToneModeLabel = document.createElement('div');
+  claveToneModeLabel.className = 'figure-size-label';
+  claveToneModeLabel.textContent = 'Clave-Pitch';
+  const claveToneModeGroup = document.createElement('div');
+  claveToneModeGroup.className = 'figure-mode-group';
+  [{ value: 'continuous', label: 'Chromatisch' }, { value: 'two', label: 'Zwei Pitches' }].forEach(({ value, label }) => {
+    const option = document.createElement('label');
+    option.className = 'figure-side-option';
+    const input = document.createElement('input');
+    input.type = 'radio';
+    input.name = 'clave-tone-mode';
+    input.value = value;
+    input.checked = selectedClaveToneMode === value;
+    const text = document.createElement('span');
+    text.textContent = label;
+    input.addEventListener('change', () => {
+      if (!input.checked) {
+        return;
+      }
+      selectedClaveToneMode = value;
+      persistSettings();
+      managerRef?.setClaveToneMode?.(value);
+    });
+    option.append(input, text);
+    claveToneModeGroup.appendChild(option);
+  });
+  claveToneModeWrap.append(claveToneModeLabel, claveToneModeGroup);
+  bindUiGroupDescription([claveToneModeLabel, ...claveToneModeGroup.querySelectorAll('label, input')], 'Eingewöhnung', 'ClaveTonhoehe');
+  panel.appendChild(claveToneModeWrap);
+
+  const walkingBassThresholdWrap = document.createElement('label');
+  walkingBassThresholdWrap.className = 'figure-size-wrap';
+  walkingBassThresholdWrap.hidden = true;
+  const walkingBassThresholdLabel = document.createElement('div');
+  walkingBassThresholdLabel.className = 'figure-size-label';
+  walkingBassThresholdLabel.textContent = 'Schwellwert (Zittern)';
+  const walkingBassThresholdSlider = document.createElement('input');
+  walkingBassThresholdSlider.type = 'range';
+  walkingBassThresholdSlider.min = '0.5';
+  walkingBassThresholdSlider.max = '10';
+  walkingBassThresholdSlider.step = '0.5';
+  walkingBassThresholdSlider.value = String(selectedWalkingBassThreshold);
+  const walkingBassThresholdValue = document.createElement('div');
+  walkingBassThresholdValue.className = 'figure-size-value';
+  walkingBassThresholdValue.textContent = `${selectedWalkingBassThreshold.toFixed(1)}%`;
+  walkingBassThresholdSlider.addEventListener('input', () => {
+    const next = Math.max(0.5, Math.min(10, Number(walkingBassThresholdSlider.value)));
+    selectedWalkingBassThreshold = next;
+    walkingBassThresholdValue.textContent = `${next.toFixed(1)}%`;
+    persistSettings();
+    managerRef?.setWalkingBassThreshold?.(next);
+  });
+  walkingBassThresholdWrap.append(walkingBassThresholdLabel, walkingBassThresholdSlider, walkingBassThresholdValue);
+  bindUiGroupDescription([walkingBassThresholdLabel, walkingBassThresholdSlider, walkingBassThresholdValue], 'Eingewöhnung', 'WalkingBassSchwellwert');
+  panel.appendChild(walkingBassThresholdWrap);
+
+  const walkingBassSensitivityWrap = document.createElement('label');
+  walkingBassSensitivityWrap.className = 'figure-size-wrap';
+  walkingBassSensitivityWrap.hidden = true;
+  const walkingBassSensitivityLabel = document.createElement('div');
+  walkingBassSensitivityLabel.className = 'figure-size-label';
+  walkingBassSensitivityLabel.textContent = 'Lautstärke-Dynamik';
+  const walkingBassSensitivitySlider = document.createElement('input');
+  walkingBassSensitivitySlider.type = 'range';
+  walkingBassSensitivitySlider.min = '0';
+  walkingBassSensitivitySlider.max = '100';
+  walkingBassSensitivitySlider.step = '5';
+  walkingBassSensitivitySlider.value = String(Math.round(selectedWalkingBassSensitivity * 100));
+  const walkingBassSensitivityValue = document.createElement('div');
+  walkingBassSensitivityValue.className = 'figure-size-value';
+  walkingBassSensitivityValue.textContent = `${Math.round(selectedWalkingBassSensitivity * 100)}%`;
+  walkingBassSensitivitySlider.addEventListener('input', () => {
+    const next = Math.max(0, Math.min(100, Number(walkingBassSensitivitySlider.value))) / 100;
+    selectedWalkingBassSensitivity = next;
+    walkingBassSensitivityValue.textContent = `${Math.round(next * 100)}%`;
+    persistSettings();
+    managerRef?.setWalkingBassVelocitySensitivity?.(next);
+  });
+  walkingBassSensitivityWrap.append(walkingBassSensitivityLabel, walkingBassSensitivitySlider, walkingBassSensitivityValue);
+  bindUiGroupDescription([walkingBassSensitivityLabel, walkingBassSensitivitySlider, walkingBassSensitivityValue], 'Eingewöhnung', 'WalkingBassDynamik');
+  panel.appendChild(walkingBassSensitivityWrap);
+
+  const createWalkingBassToggle = (labelText, initialValue, onChange) => {
+    const wrap = document.createElement('label');
+    wrap.className = 'figure-size-wrap exercise-toggle';
+    wrap.hidden = true;
+    const label = document.createElement('div');
+    label.className = 'figure-size-label';
+    label.textContent = labelText;
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = initialValue;
+    const value = document.createElement('div');
+    value.className = 'figure-size-value';
+    value.textContent = initialValue ? 'An' : 'Aus';
+    checkbox.addEventListener('change', () => {
+      value.textContent = checkbox.checked ? 'An' : 'Aus';
+      onChange(checkbox.checked);
+    });
+    wrap.append(label, checkbox, value);
+    panel.appendChild(wrap);
+    return wrap;
+  };
+
+  const guitarFieldToggleWrap = createWalkingBassToggle('Gitarrenfeld', selectedGuitarFieldVisible, (checked) => {
+    selectedGuitarFieldVisible = checked;
+    persistSettings();
+    managerRef?.setGuitarFieldVisible?.(checked);
+  });
+  bindUiGroupDescription([guitarFieldToggleWrap], 'Eingewöhnung', 'Gitarrenfeld');
+
+  const walkingBassMetronomeToggleWrap = createWalkingBassToggle('Metronom', selectedWalkingBassMetronome, (checked) => {
+    selectedWalkingBassMetronome = checked;
+    persistSettings();
+    managerRef?.setWalkingBassMetronomeEnabled?.(checked);
+  });
+  bindUiGroupDescription([walkingBassMetronomeToggleWrap], 'Eingewöhnung', 'WalkingBassMetronom');
+
+  const bubbleSoundSquareWrap = createWalkingBassToggle('Sound', selectedBubbleSoundSquare, (checked) => {
+    selectedBubbleSoundSquare = checked;
+    persistSettings();
+    managerRef?.setBubbleSoundEnabled?.(0, checked);
+  });
+  const bubbleSoundPointsWrap = createWalkingBassToggle('Sound', selectedBubbleSoundPoints, (checked) => {
+    selectedBubbleSoundPoints = checked;
+    persistSettings();
+    managerRef?.setBubbleSoundEnabled?.(1, checked);
+  });
+  squarePresetActions.after(bubbleSoundSquareWrap);
+  pointActions.after(bubbleSoundPointsWrap);
+  [bubbleSoundSquareWrap, bubbleSoundPointsWrap].forEach((wrap) => {
+    bindUiGroupDescription([wrap], 'Eingewöhnung', 'BubbleSound');
+  });
+
+  const walkingBassMetronomeBpmWrap = document.createElement('label');
+  walkingBassMetronomeBpmWrap.className = 'figure-size-wrap';
+  walkingBassMetronomeBpmWrap.hidden = true;
+  const walkingBassMetronomeBpmLabel = document.createElement('div');
+  walkingBassMetronomeBpmLabel.className = 'figure-size-label';
+  walkingBassMetronomeBpmLabel.textContent = 'Tempo';
+  const walkingBassMetronomeBpmSlider = document.createElement('input');
+  walkingBassMetronomeBpmSlider.type = 'range';
+  walkingBassMetronomeBpmSlider.min = '30';
+  walkingBassMetronomeBpmSlider.max = '180';
+  walkingBassMetronomeBpmSlider.step = '1';
+  walkingBassMetronomeBpmSlider.value = String(selectedWalkingBassMetronomeBpm);
+  const walkingBassMetronomeBpmValue = document.createElement('div');
+  walkingBassMetronomeBpmValue.className = 'figure-size-value';
+  walkingBassMetronomeBpmValue.textContent = `${selectedWalkingBassMetronomeBpm} BPM`;
+  walkingBassMetronomeBpmSlider.addEventListener('input', () => {
+    const next = Math.max(30, Math.min(180, Math.round(Number(walkingBassMetronomeBpmSlider.value))));
+    selectedWalkingBassMetronomeBpm = next;
+    walkingBassMetronomeBpmValue.textContent = `${next} BPM`;
+    persistSettings();
+    managerRef?.setWalkingBassMetronomeBpm?.(next);
+  });
+  walkingBassMetronomeBpmWrap.append(walkingBassMetronomeBpmLabel, walkingBassMetronomeBpmSlider, walkingBassMetronomeBpmValue);
+  panel.appendChild(walkingBassMetronomeBpmWrap);
+
   pointEditSliderControls[1] = resolutionWrap;
   pointEditSliderControls[2] = gridResolutionWrap;
   pointEditSliderControls[3] = centerDistanceWrap;
@@ -4794,9 +5056,11 @@ function createSquareExercisePanel() {
     const isPoints = squareExerciseMode === 'points';
     const isSymmetric = squareExerciseMode === 'symmetric';
     const isAlternating = squareExerciseMode === 'alternating';
-    const isBlank = squareExerciseMode === 'blank';
+    const isWalkingBass = squareExerciseMode === 'walking-bass';
+    const isBlank = squareExerciseMode === 'blank' || isWalkingBass;
     const isFreeMovement = squareExerciseMode === 'free-movement';
     const activeEditMode = Boolean(pointEditMode);
+    const showSoundControls = isAlternating || (isFreeMovement && activeEditMode);
     const hideUnusedSquareControls = isSymmetric || isPoints || isAlternating || isBlank || isFreeMovement;
     const squareShowEditControls = !isPoints && !isSymmetric && !isAlternating && !isBlank && !isFreeMovement && activeEditMode;
     const squareShowPresetControls = !isPoints && !isSymmetric && !isAlternating && !isBlank && !isFreeMovement;
@@ -4817,30 +5081,40 @@ function createSquareExercisePanel() {
       centerDistanceWrap.style.display = shouldShowCenterDistance ? '' : 'none';
     }
     if (alternatingScaleWrap) {
-      alternatingScaleWrap.hidden = !isAlternating;
-      alternatingScaleWrap.style.display = isAlternating ? '' : 'none';
+      alternatingScaleWrap.hidden = !showSoundControls;
+      alternatingScaleWrap.style.display = showSoundControls ? '' : 'none';
     }
     if (alternatingFmWrap) {
-      alternatingFmWrap.hidden = !isAlternating;
-      alternatingFmWrap.style.display = isAlternating ? '' : 'none';
+      alternatingFmWrap.hidden = !showSoundControls;
+      alternatingFmWrap.style.display = showSoundControls ? '' : 'none';
     }
     if (alternatingAxisSwapWrap) {
-      alternatingAxisSwapWrap.hidden = !isAlternating;
-      alternatingAxisSwapWrap.style.display = isAlternating ? '' : 'none';
+      alternatingAxisSwapWrap.hidden = !showSoundControls;
+      alternatingAxisSwapWrap.style.display = showSoundControls ? '' : 'none';
     }
     if (alternatingStartNoteWrap) {
-      alternatingStartNoteWrap.hidden = !isAlternating;
-      alternatingStartNoteWrap.style.display = isAlternating ? '' : 'none';
+      alternatingStartNoteWrap.hidden = !showSoundControls;
+      alternatingStartNoteWrap.style.display = showSoundControls ? '' : 'none';
     }
     if (alternatingVolumeWrap) {
-      alternatingVolumeWrap.hidden = !isAlternating;
-      alternatingVolumeWrap.style.display = isAlternating ? '' : 'none';
+      alternatingVolumeWrap.hidden = !showSoundControls;
+      alternatingVolumeWrap.style.display = showSoundControls ? '' : 'none';
     }
     if (activeTouchFadeWrap) {
       const shouldShowFadeToggle = isFreeMovement && activeEditMode;
       activeTouchFadeWrap.hidden = !shouldShowFadeToggle;
       activeTouchFadeWrap.style.display = shouldShowFadeToggle ? '' : 'none';
     }
+    [walkingBassSoundLeftWrap, walkingBassSoundRightWrap, walkingBassModeWrap, claveToneModeWrap, walkingBassThresholdWrap, walkingBassSensitivityWrap, guitarFieldToggleWrap, walkingBassMetronomeToggleWrap, walkingBassMetronomeBpmWrap].forEach((wrap) => {
+      wrap.hidden = !isWalkingBass;
+      wrap.style.display = isWalkingBass ? '' : 'none';
+    });
+    const showSquareSound = squareExerciseMode === 'square' && activeEditMode;
+    bubbleSoundSquareWrap.hidden = !showSquareSound;
+    bubbleSoundSquareWrap.style.display = showSquareSound ? '' : 'none';
+    const showPointsSound = isPoints && activeEditMode;
+    bubbleSoundPointsWrap.hidden = !showPointsSound;
+    bubbleSoundPointsWrap.style.display = showPointsSound ? '' : 'none';
     if (resolutionWrap) {
       const shouldShowResolution = !isBlank && (
         (isFreeMovement && activeEditMode) ||
@@ -4998,7 +5272,7 @@ function createSquareExercisePanel() {
     if (title) {
       title.hidden = false;
       title.style.display = '';
-      title.textContent = isFreeMovement ? 'Freie Bewegung' : isPoints ? 'Punkte' : isSymmetric ? 'Symmetrisch' : isAlternating ? 'Alternierend' : 'Ziffern';
+      title.textContent = isWalkingBass ? 'Walking Bass' : isFreeMovement ? 'Freie Bewegung' : isPoints ? 'Punkte' : isSymmetric ? 'Symmetrisch' : isAlternating ? 'Alternierend' : 'Ziffern';
     }
   };
 
@@ -5031,6 +5305,11 @@ function createSquareExercisePanel() {
       return applied;
     },
     renderPointList,
+    syncGuitarFieldPosition: (x, y) => {
+      selectedGuitarFieldX = Math.max(0, Math.min(1, Number(x)));
+      selectedGuitarFieldY = Math.max(0, Math.min(1, Number(y)));
+      persistSettings();
+    },
     restoreSelectedPreset: () => {
       if (Number.isInteger(selectedSquarePresetSlot) && selectedSquarePresetSlot >= 1 && selectedSquarePresetSlot <= squarePresetCount) {
         applySquarePreset(selectedSquarePresetSlot);
@@ -5239,6 +5518,18 @@ function createSquareExercisePanel() {
         alternatingAxisSwapCheckbox.checked = selectedAlternatingAxisSwap;
         alternatingAxisSwapValue.textContent = selectedAlternatingAxisSwap ? 'Y=Ton' : 'X=Ton';
         managerRef?.setAlternatingExerciseVolume?.(selectedAlternatingVolume);
+        managerRef?.setWalkingBassThreshold?.(selectedWalkingBassThreshold);
+        managerRef?.setWalkingBassVelocitySensitivity?.(selectedWalkingBassSensitivity);
+        managerRef?.setWalkingBassMode?.(selectedWalkingBassMode);
+        managerRef?.setClaveToneMode?.(selectedClaveToneMode);
+        managerRef?.setBubbleSoundEnabled?.(0, selectedBubbleSoundSquare);
+        managerRef?.setBubbleSoundEnabled?.(1, selectedBubbleSoundPoints);
+        managerRef?.setWalkingBassHandSound?.('left', selectedWalkingBassSoundLeft);
+        managerRef?.setWalkingBassHandSound?.('right', selectedWalkingBassSoundRight);
+        managerRef?.setGuitarFieldPosition?.(selectedGuitarFieldX, selectedGuitarFieldY);
+        managerRef?.setGuitarFieldVisible?.(selectedGuitarFieldVisible);
+        managerRef?.setWalkingBassMetronomeBpm?.(selectedWalkingBassMetronomeBpm);
+        managerRef?.setWalkingBassMetronomeEnabled?.(selectedWalkingBassMetronome);
         managerRef?.setActiveTouchFadeEnabled?.(selectedActiveTouchFadeEnabled);
         managerRef?.setAlternatingExerciseFrequencyModulation?.(selectedAlternatingFrequencyModulation);
         managerRef?.setAlternatingExerciseAxisSwap?.(selectedAlternatingAxisSwap);
@@ -8344,7 +8635,8 @@ export async function initApp() {
       && Number.isInteger(uiState.activeLevel)
       && uiState.activeLevel >= 0
       && uiState.activeLevel <= 2;
-    levelCanvas.style.pointerEvents = exerciseFieldActive ? 'auto' : 'none';
+    const guitarFieldActive = uiState.activeChapter === 1 && uiState.activeLevel === 3;
+    levelCanvas.style.pointerEvents = exerciseFieldActive || guitarFieldActive ? 'auto' : 'none';
   };
 
   const levelManager = new LevelManager(levelCanvas);
@@ -8374,6 +8666,31 @@ export async function initApp() {
   });
   window.addEventListener('pointerup', () => {
     levelManager.endExerciseFieldDrag();
+  });
+  levelCanvas.addEventListener('pointerdown', (event) => {
+    if (uiState.activeChapter !== 1 || uiState.activeLevel !== 3) {
+      return;
+    }
+    const rect = levelCanvas.getBoundingClientRect();
+    const x = (event.clientX - rect.left) * (levelCanvas.width / rect.width);
+    const y = (event.clientY - rect.top) * (levelCanvas.height / rect.height);
+    if (levelManager.beginGuitarFieldDrag(x, y)) {
+      event.preventDefault();
+    }
+  });
+  levelCanvas.addEventListener('pointermove', (event) => {
+    if (!levelManager.guitarDrag) {
+      return;
+    }
+    const rect = levelCanvas.getBoundingClientRect();
+    const x = (event.clientX - rect.left) * (levelCanvas.width / rect.width);
+    const y = (event.clientY - rect.top) * (levelCanvas.height / rect.height);
+    levelManager.updateGuitarFieldDrag(x, y);
+  });
+  window.addEventListener('pointerup', () => {
+    if (levelManager.endGuitarFieldDrag()) {
+      squareExercisePanel.syncGuitarFieldPosition?.(levelManager.guitarFieldX, levelManager.guitarFieldY);
+    }
   });
   canvasElement.addEventListener('pointerdown', (event) => {
     if (uiState.activeChapter !== 1
@@ -8443,6 +8760,16 @@ export async function initApp() {
     setActiveTouchFadeEnabled: (value) => {
       levelManager.setActiveTouchFadeEnabled(value);
     },
+    setWalkingBassThreshold: (value) => levelManager.setWalkingBassThreshold(value),
+    setWalkingBassVelocitySensitivity: (value) => levelManager.setWalkingBassVelocitySensitivity(value),
+    setWalkingBassMode: (value) => levelManager.setWalkingBassMode(value),
+    setClaveToneMode: (value) => levelManager.setClaveToneMode(value),
+    setBubbleSoundEnabled: (level, value) => levelManager.setBubbleSoundEnabled(level, value),
+    setWalkingBassHandSound: (hand, value) => levelManager.setWalkingBassHandSound(hand, value),
+    setGuitarFieldVisible: (value) => levelManager.setGuitarFieldVisible(value),
+    setGuitarFieldPosition: (x, y) => levelManager.setGuitarFieldPosition(x, y),
+    setWalkingBassMetronomeBpm: (value) => levelManager.setWalkingBassMetronomeBpm(value),
+    setWalkingBassMetronomeEnabled: (value) => levelManager.setWalkingBassMetronomeEnabled(value),
     alternatingExerciseScaleMode: levelManager.alternatingScaleMode,
     alternatingExerciseStartNote: levelManager.alternatingExerciseStartNote,
     alternatingExerciseFrequencyModulation: levelManager.alternatingExerciseFrequencyModulation,
@@ -8562,7 +8889,7 @@ export async function initApp() {
 
   resizeOverlays();
 
-  const chapter1ExerciseTitles = ['Ziffern', 'Punkte', 'Alternierend', 'Parallele Linien', 'Kreis'];
+  const chapter1ExerciseTitles = ['Ziffern', 'Punkte', 'Alternierend', 'Walking Bass', 'Kreis'];
 
   const getChapter1ExercisePanelVisibility = (level) => {
     if (!Number.isInteger(level) || uiState.activeChapter !== 1) {
@@ -8727,6 +9054,7 @@ export async function initApp() {
     const showSymmetricExercisePanel = uiState.activeChapter === 1 && exerciseVisibility.symmetric;
     const showPointsExercisePanel = uiState.activeChapter === 1 && exerciseVisibility.points;
     const blankChapter1ExercisePanel = uiState.activeChapter === 1 && Number.isInteger(level) && [3, 4].includes(level);
+    const walkingBassExercisePanel = uiState.activeChapter === 1 && level === 3;
     const freeMovementExercisePanel = uiState.activeChapter === 1 && Number.isInteger(level) && level === 2;
     const alternatingExercisePanel = uiState.activeChapter === 1 && Number.isInteger(level) && level === 2 && false;
     const showExerciseFieldPanel = uiState.activeChapter === 6 && Number.isInteger(level) && level >= 0 && level <= 2;
@@ -8772,8 +9100,10 @@ export async function initApp() {
       handIndependencePanel.setVisible(false);
       squareExercisePanel.setVisible(showSquareExercisePanel || showSymmetricExercisePanel || showPointsExercisePanel || blankChapter1ExercisePanel || !!level);
       squareExercisePanel.setExerciseMode(
-        blankChapter1ExercisePanel
-          ? 'blank'
+        walkingBassExercisePanel
+          ? 'walking-bass'
+          : blankChapter1ExercisePanel
+            ? 'blank'
           : showPointsExercisePanel
             ? 'points'
             : showSymmetricExercisePanel
