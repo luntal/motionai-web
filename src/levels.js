@@ -389,6 +389,7 @@ export class LevelManager {
     this.walkingBassVoiceByHand = { left: null, right: null };
     this.walkingBassHits = [];
     this.walkingBassMode = 'single';
+    this.walkingBassAnticipationEnabled = false;
     this.walkingBassSoundByHand = { left: 'bass', right: 'bass' };
     this.claveToneMode = 'continuous';
     this.bubbleSoundEnabledByLevel = { 0: false, 1: false };
@@ -400,11 +401,34 @@ export class LevelManager {
     this.guitarSampleNames = ['Dmaj7', 'Emin7', 'Gbmin7', 'Gmaj7'];
     this.guitarFieldVisible = true;
     this.guitarFieldMotion = 'fix';
-    this.guitarFieldX = 0.5;
-    this.guitarFieldY = 0.55;
+    this.ensembleInstruments = [
+      { id: 'flute', label: 'Flöte', color: '120, 200, 255', octave: 12 },
+      { id: 'clarinet', label: 'Klarinette', color: '110, 220, 150', octave: 0 },
+      { id: 'brass', label: 'Brass', color: '255, 190, 80', octave: 0 },
+      { id: 'strings', label: 'Streicher', color: '200, 140, 255', octave: 12 }
+    ];
+    // Chords are [name, root pitch class, quality]; voiced as 1-5-7-3 with the third an octave up.
+    this.ensembleProgressions = [
+      { name: 'ii–V–I–VI', chords: [['Dm7', 2, 'm7'], ['G7', 7, '7'], ['Cmaj7', 0, 'maj7'], ['A7', 9, '7']] },
+      { name: 'I–vi–ii–V', chords: [['Cmaj7', 0, 'maj7'], ['Am7', 9, 'm7'], ['Dm7', 2, 'm7'], ['G7', 7, '7']] },
+      { name: 'Moll ii–V–i–iv', chords: [['Dm7♭5', 2, 'm7b5'], ['G7♭9', 7, '7b9'], ['Cm7', 0, 'm7'], ['Fm7', 5, 'm7']] }
+    ];
+    this.ensembleFieldsVisible = false;
+    // Default: upward arch (half circle) across the canvas.
+    this.ensemblePositions = [{ x: 0.125, y: 0.78 }, { x: 0.3125, y: 0.35 }, { x: 0.6875, y: 0.35 }, { x: 0.875, y: 0.78 }];
+    this.ensembleProgression = 0;
+    this.ensembleChordStep = 0;
+    this.ensembleInsideByHand = { left: [], right: [] };
+    this.ensembleFlashAt = [-Infinity, -Infinity, -Infinity, -Infinity];
+    this.ensembleVoices = [null, null, null, null];
+    this.ensembleDrag = null;
+    this.ensembleBassStepByHand = { left: 0, right: 0 };
+    this.guitarFieldX = 0.25;
+    this.guitarFieldY = 0.25;
     this.guitarBuffers = [null, null, null, null];
     this.guitarBuffersPromise = null;
     this.guitarNextIndex = 0;
+    this.guitarLastIndex = -1;
     this.guitarInsideByHand = { left: false, right: false };
     this.guitarFlashAt = -Infinity;
     this.guitarDrag = null;
@@ -4024,6 +4048,7 @@ export class LevelManager {
   setWalkingBassMode(value) {
     this.walkingBassMode = value === 'walking' ? 'walking' : 'single';
     this.walkingBassStepByHand = { left: 0, right: 0 };
+    this.ensembleBassStepByHand = { left: 0, right: 0 };
   }
 
   setWalkingBassVelocitySensitivity(value) {
@@ -4127,6 +4152,39 @@ export class LevelManager {
     return buffer;
   }
 
+  // With Ensemble Felder the bass sample (A1) follows the chord that was played last (the first chord before any touch).
+  getEnsembleBassSemitones(hand) {
+    if (!this.ensembleFieldsVisible && !this.guitarFieldVisible) {
+      return null;
+    }
+
+    let chord;
+    if (this.ensembleFieldsVisible) {
+      const chords = this.ensembleProgressions[this.ensembleProgression].chords;
+      chord = chords[(this.ensembleChordStep > 0 ? this.ensembleChordStep - 1 : 0) % chords.length];
+    } else {
+      // Guitar chords are defined by their sample file names, e.g. Gbmin7.
+      const match = /^([A-G])([b#]?)(maj7|min7|7)$/.exec(this.guitarSampleNames[Math.max(0, this.guitarLastIndex)]);
+      if (!match) {
+        return null;
+      }
+      const naturals = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+      const pitchClass = (naturals[match[1]] + (match[2] === 'b' ? -1 : match[2] === '#' ? 1 : 0) + 12) % 12;
+      chord = [null, pitchClass, match[3] === 'min7' ? 'm7' : match[3]];
+    }
+    // Root folded to the range A1 -6..+5 semitones so the sample stays close to its original pitch.
+    const rootShift = ((((chord[1] - 9 + 6) % 12) + 12) % 12) - 6;
+    if (this.walkingBassMode !== 'walking') {
+      return rootShift;
+    }
+
+    const toneIntervals = { maj7: [0, 4, 7, 11], m7: [0, 3, 7, 10], 7: [0, 4, 7, 10], m7b5: [0, 3, 6, 10], '7b9': [0, 4, 7, 10] };
+    const tones = toneIntervals[chord[2]] || toneIntervals.m7;
+    const step = this.ensembleBassStepByHand[hand] % tones.length;
+    this.ensembleBassStepByHand[hand] = (step + 1) % tones.length;
+    return rootShift + tones[step];
+  }
+
   playWalkingBass(hand, gainValue) {
     const ctx = this.ensureAudioEngine();
     if (!ctx || !this.walkingBassBuffer) {
@@ -4148,7 +4206,10 @@ export class LevelManager {
 
     const source = ctx.createBufferSource();
     source.buffer = this.walkingBassBuffer;
-    if (this.walkingBassMode === 'walking') {
+    const ensembleSemitones = this.getEnsembleBassSemitones(hand);
+    if (ensembleSemitones !== null) {
+      source.playbackRate.value = Math.pow(2, ensembleSemitones / 12);
+    } else if (this.walkingBassMode === 'walking') {
       const steps = this.walkingBassPitchSteps;
       const step = this.walkingBassStepByHand[hand] % steps.length;
       source.playbackRate.value = Math.pow(2, steps[step] / 12);
@@ -4178,6 +4239,10 @@ export class LevelManager {
       return;
     }
     this.walkingBassSoundByHand[hand] = ['none', 'bass', 'cymbal', 'clave'].includes(value) ? value : 'bass';
+    if (this.walkingBassSoundByHand[hand] === 'none') {
+      this.walkingBassStateByHand[hand] = null;
+      this.walkingBassHits = this.walkingBassHits.filter((hit) => hit.hand !== hand);
+    }
   }
 
   setBubbleSoundEnabled(level, enabled) {
@@ -4513,7 +4578,13 @@ export class LevelManager {
     };
   }
 
+  setWalkingBassAnticipationEnabled(enabled) {
+    this.walkingBassAnticipationEnabled = Boolean(enabled);
+    this.walkingBassStateByHand = { left: null, right: null };
+  }
+
   // Fires when a hand reverses from a downward to an upward stroke; the threshold ignores tracking jitter.
+  // With anticipation the hit fires early once a fast downstroke is clearly braking, compensating tracking latency.
   updateWalkingBass(nowMs) {
     const height = Math.max(1, this.canvas.height);
     const threshold = (this.walkingBassThresholdPercent / 100) * height;
@@ -4522,7 +4593,7 @@ export class LevelManager {
     ['left', 'right'].forEach((hand) => {
       const tip = hand === 'left' ? this.leftTip : this.rightTip;
       const inFrame = hand === 'left' ? this.leftTipInFrame : this.rightTipInFrame;
-      if (!tip || !inFrame) {
+      if (!tip || !inFrame || this.walkingBassSoundByHand[hand] === 'none') {
         this.walkingBassStateByHand[hand] = null;
         return;
       }
@@ -4536,12 +4607,43 @@ export class LevelManager {
           extremeY: y,
           extremeAt: nowMs,
           strokeStartY: y,
-          strokeStartAt: nowMs
+          strokeStartAt: nowMs,
+          lastY: y,
+          lastAt: nowMs,
+          vy: 0,
+          ay: 0,
+          peakVy: 0,
+          fired: false
         };
         return;
       }
 
+      // Smoothed vertical speed (px/s, positive = down) and braking (px/s^2, positive = slowing down).
+      const dtSeconds = Math.max(1, nowMs - state.lastAt) / 1000;
+      const nextVy = state.vy * 0.5 + ((y - state.lastY) / dtSeconds) * 0.5;
+      state.ay = state.ay * 0.6 + ((state.vy - nextVy) / dtSeconds) * 0.4;
+      state.vy = nextVy;
+      state.lastY = y;
+      state.lastAt = nowMs;
+
+      const fireHit = (hitX, hitY, distance, seconds) => {
+        const velocity = Math.max(0, Math.min(1, distance / seconds / fullScaleSpeed));
+        const sensitivity = this.walkingBassVelocitySensitivity;
+        this.playWalkingBassSound(
+          hand,
+          Math.max(0.05, (1 - sensitivity) + sensitivity * velocity),
+          (1 - sensitivity) * 0.5 + sensitivity * velocity
+        );
+        this.walkingBassHits.push({ hand, x: hitX, y: hitY, startedAt: nowMs });
+        if (this.walkingBassHits.length > 32) {
+          this.walkingBassHits.shift();
+        }
+        this.requestRender();
+      };
+
       const turn = (nextDirection) => {
+        state.fired = false;
+        state.peakVy = 0;
         state.direction = nextDirection;
         state.strokeStartY = state.extremeY;
         state.strokeStartAt = state.extremeAt;
@@ -4560,26 +4662,31 @@ export class LevelManager {
       }
 
       if (state.direction === 'down') {
+        state.peakVy = Math.max(state.peakVy, state.vy);
         if (y > state.extremeY) {
           state.extremeX = tip.x;
           state.extremeY = y;
           state.extremeAt = nowMs;
         } else if (y < state.extremeY - threshold) {
-          const distance = (state.extremeY - state.strokeStartY) / height;
-          const seconds = Math.max(0.05, (state.extremeAt - state.strokeStartAt) / 1000);
-          const velocity = Math.max(0, Math.min(1, distance / seconds / fullScaleSpeed));
-          const sensitivity = this.walkingBassVelocitySensitivity;
-          this.playWalkingBassSound(
-            hand,
-            Math.max(0.05, (1 - sensitivity) + sensitivity * velocity),
-            (1 - sensitivity) * 0.5 + sensitivity * velocity
-          );
-          this.walkingBassHits.push({ hand, x: state.extremeX, y: state.extremeY, startedAt: nowMs });
-          if (this.walkingBassHits.length > 32) {
-            this.walkingBassHits.shift();
+          if (!state.fired) {
+            const distance = (state.extremeY - state.strokeStartY) / height;
+            const seconds = Math.max(0.05, (state.extremeAt - state.strokeStartAt) / 1000);
+            fireHit(state.extremeX, state.extremeY, distance, seconds);
           }
-          this.requestRender();
           turn('up');
+          return;
+        }
+
+        if (this.walkingBassAnticipationEnabled && !state.fired && state.ay > 0 && state.vy < state.peakVy * 0.6 && y - state.strokeStartY > threshold) {
+          // Only fast strokes get a lead time; slow movements stay below the minimum speed and are not anticipated.
+          const strength = Math.max(0, Math.min(1, (state.peakVy / height - 0.5) / (fullScaleSpeed - 0.5)));
+          const secondsToStop = Math.max(0, state.vy) / state.ay;
+          if (strength > 0 && secondsToStop * 1000 <= 120 * strength) {
+            const distance = (y - state.strokeStartY) / height;
+            const seconds = Math.max(0.05, (nowMs - state.strokeStartAt) / 1000);
+            fireHit(tip.x, y, distance, seconds);
+            state.fired = true;
+          }
         }
         return;
       }
@@ -4797,6 +4904,7 @@ export class LevelManager {
     source.start(startAt);
 
     this.guitarFlashAt = performance.now();
+    this.guitarLastIndex = this.guitarNextIndex;
     this.guitarNextIndex = (this.guitarNextIndex + 1) % this.guitarBuffers.length;
     this.requestRender();
   }
@@ -4854,14 +4962,377 @@ export class LevelManager {
     this.ctx.stroke();
 
     this.ctx.shadowBlur = 0;
-    this.ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-    this.ctx.font = '700 18px Arial';
+    const scale = Math.max(0.8, Math.min(1.4, rect.size / 96));
+    const labelFont = `600 ${Math.round(9 * scale)}px Arial`;
     this.ctx.textAlign = 'center';
     this.ctx.textBaseline = 'middle';
-    this.ctx.fillText(this.guitarSampleNames[this.guitarNextIndex], rect.centerX, rect.centerY);
+    this.ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+    this.ctx.font = labelFont;
+    this.ctx.fillText('JETZT', rect.centerX, rect.centerY - rect.half * 0.55);
+    this.ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+    this.ctx.font = `700 ${Math.round(18 * scale)}px Arial`;
+    this.ctx.fillText(this.guitarLastIndex >= 0 ? this.guitarSampleNames[this.guitarLastIndex] : '–', rect.centerX, rect.centerY - rect.half * 0.27);
+    this.ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+    this.ctx.font = labelFont;
+    this.ctx.fillText('NÄCHSTER', rect.centerX, rect.centerY + rect.half * 0.22);
+    this.ctx.fillStyle = 'rgba(255, 200, 80, 1)';
+    this.ctx.font = `700 ${Math.round(16 * scale)}px Arial`;
+    this.ctx.fillText(this.guitarSampleNames[this.guitarNextIndex], rect.centerX, rect.centerY + rect.half * 0.5);
     this.ctx.restore();
 
     if (flash > 0 || this.guitarFieldMotion !== 'fix') {
+      this.requestRender();
+    }
+  }
+
+  setEnsembleFieldsVisible(visible) {
+    this.ensembleFieldsVisible = Boolean(visible);
+    if (!this.ensembleFieldsVisible) {
+      this.ensembleDrag = null;
+      this.ensembleInsideByHand = { left: [], right: [] };
+    }
+    this.requestRender();
+  }
+
+  setEnsemblePositions(positions) {
+    if (!Array.isArray(positions)) {
+      return;
+    }
+    this.ensemblePositions = this.ensemblePositions.map((current, index) => {
+      const next = positions[index];
+      if (!next || !Number.isFinite(Number(next.x)) || !Number.isFinite(Number(next.y))) {
+        return current;
+      }
+      return { x: Math.max(0, Math.min(1, Number(next.x))), y: Math.max(0, Math.min(1, Number(next.y))) };
+    });
+    this.requestRender();
+  }
+
+  setEnsembleProgression(value) {
+    const next = Number(value);
+    this.ensembleProgression = Number.isInteger(next) && next >= 0 && next < this.ensembleProgressions.length ? next : 0;
+    this.ensembleChordStep = 0;
+    this.ensembleBassStepByHand = { left: 0, right: 0 };
+    this.requestRender();
+  }
+
+  getEnsembleRects() {
+    const width = this.canvas.width;
+    const height = this.canvas.height;
+    const size = Math.max(72, height * 0.24);
+    const half = size / 2;
+    return this.ensemblePositions.map((position, index) => ({
+      index,
+      half,
+      size,
+      centerX: Math.max(half, Math.min(width - half, position.x * width)),
+      centerY: Math.max(half, Math.min(height - half, position.y * height))
+    }));
+  }
+
+  beginEnsembleFieldDrag(x, y) {
+    if (!this.ensembleFieldsVisible || !(this.chapter === 1 && this.level === 3)) {
+      return false;
+    }
+    const rects = this.getEnsembleRects();
+    for (let index = rects.length - 1; index >= 0; index -= 1) {
+      const rect = rects[index];
+      if (Math.abs(x - rect.centerX) <= rect.half && Math.abs(y - rect.centerY) <= rect.half) {
+        this.ensembleDrag = { index, offsetX: x - rect.centerX, offsetY: y - rect.centerY };
+        return true;
+      }
+    }
+    return false;
+  }
+
+  updateEnsembleFieldDrag(x, y) {
+    if (!this.ensembleDrag) {
+      return false;
+    }
+    const { index, offsetX, offsetY } = this.ensembleDrag;
+    this.ensemblePositions[index] = {
+      x: Math.max(0, Math.min(1, (x - offsetX) / Math.max(1, this.canvas.width))),
+      y: Math.max(0, Math.min(1, (y - offsetY) / Math.max(1, this.canvas.height)))
+    };
+    this.requestRender();
+    return true;
+  }
+
+  endEnsembleFieldDrag() {
+    const wasDragging = Boolean(this.ensembleDrag);
+    this.ensembleDrag = null;
+    return wasDragging;
+  }
+
+  getEnsembleNextChord() {
+    const chords = this.ensembleProgressions[this.ensembleProgression].chords;
+    return chords[this.ensembleChordStep % chords.length];
+  }
+
+  // Null until the first chord was played.
+  getEnsembleCurrentChord() {
+    if (this.ensembleChordStep <= 0) {
+      return null;
+    }
+    const chords = this.ensembleProgressions[this.ensembleProgression].chords;
+    return chords[(this.ensembleChordStep - 1) % chords.length];
+  }
+
+  getEnsembleChordFrequencies(chord, octave) {
+    const intervalsByQuality = {
+      maj7: [0, 7, 11, 16],
+      m7: [0, 7, 10, 15],
+      7: [0, 7, 10, 16],
+      m7b5: [0, 6, 10, 15],
+      '7b9': [0, 7, 10, 16, 13]
+    };
+    const pitchClass = chord[1];
+    const rootMidi = 45 + ((((pitchClass - 45) % 12) + 12) % 12);
+    return (intervalsByQuality[chord[2]] || intervalsByQuality.m7)
+      .map((interval) => 440 * Math.pow(2, (rootMidi + interval + octave - 69) / 12));
+  }
+
+  // Each hand entering a field plays the next chord of the progression on that field's instrument.
+  updateEnsembleFields() {
+    if (!this.ensembleFieldsVisible) {
+      return;
+    }
+    const rects = this.getEnsembleRects();
+    const exitMargin = 12;
+
+    ['left', 'right'].forEach((hand) => {
+      const tip = hand === 'left' ? this.leftTip : this.rightTip;
+      const inFrame = hand === 'left' ? this.leftTipInFrame : this.rightTipInFrame;
+      if (!tip || !inFrame) {
+        this.ensembleInsideByHand[hand] = [];
+        return;
+      }
+
+      const flags = this.ensembleInsideByHand[hand];
+      rects.forEach((rect) => {
+        const dx = Math.abs(tip.x - rect.centerX);
+        const dy = Math.abs(tip.y - rect.centerY);
+        if (flags[rect.index]) {
+          if (dx > rect.half + exitMargin || dy > rect.half + exitMargin) {
+            flags[rect.index] = false;
+          }
+          return;
+        }
+        if (dx <= rect.half && dy <= rect.half) {
+          flags[rect.index] = true;
+          this.playEnsembleChord(rect.index);
+        }
+      });
+    });
+  }
+
+  playEnsembleChord(index) {
+    const ctx = this.ensureAudioEngine();
+    const instrument = this.ensembleInstruments[index];
+    if (!ctx || !instrument) {
+      return;
+    }
+
+    const chord = this.getEnsembleNextChord();
+    this.ensembleChordStep += 1;
+    this.ensembleFlashAt[index] = performance.now();
+
+    const startAt = ctx.currentTime;
+    const previous = this.ensembleVoices[index];
+    if (previous) {
+      try {
+        previous.bus.gain.cancelScheduledValues(startAt);
+        previous.bus.gain.setValueAtTime(Math.max(0.0001, previous.bus.gain.value), startAt);
+        previous.bus.gain.linearRampToValueAtTime(0.0001, startAt + 0.08);
+        previous.sources.forEach((source) => source.stop(startAt + 0.1));
+      } catch (error) {
+        // The previous voice may already have ended.
+      }
+    }
+
+    this.ensembleVoices[index] = this.synthEnsembleChord(ctx, instrument.id, this.getEnsembleChordFrequencies(chord, instrument.octave), startAt);
+    this.requestRender();
+  }
+
+  // Simple subtractive voices: flute = sine + breath, clarinet = filtered square, brass = swelling saws, strings = detuned saw ensemble.
+  synthEnsembleChord(ctx, instrumentId, frequencies, startAt) {
+    const settings = {
+      flute: { attack: 0.06, duration: 1.2, noteGain: 0.09 },
+      clarinet: { attack: 0.04, duration: 1.2, noteGain: 0.08 },
+      brass: { attack: 0.05, duration: 1.0, noteGain: 0.07 },
+      strings: { attack: 0.14, duration: 1.8, noteGain: 0.05 }
+    }[instrumentId];
+    const endAt = startAt + settings.duration;
+    const nodes = [];
+    const sources = [];
+
+    const bus = ctx.createGain();
+    bus.gain.setValueAtTime(0.0001, startAt);
+    bus.gain.exponentialRampToValueAtTime(1, startAt + settings.attack);
+    bus.gain.setValueAtTime(1, startAt + settings.attack + settings.duration * 0.4);
+    bus.gain.exponentialRampToValueAtTime(0.0001, endAt);
+    bus.connect(ctx.destination);
+    nodes.push(bus);
+
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.connect(bus);
+    nodes.push(filter);
+    if (instrumentId === 'brass') {
+      filter.Q.value = 1;
+      filter.frequency.setValueAtTime(500, startAt);
+      filter.frequency.exponentialRampToValueAtTime(2800, startAt + 0.12);
+      filter.frequency.exponentialRampToValueAtTime(1800, startAt + 0.5);
+    } else if (instrumentId === 'clarinet') {
+      filter.frequency.value = 1500;
+    } else if (instrumentId === 'strings') {
+      filter.frequency.value = 2400;
+      filter.Q.value = 0.5;
+    } else {
+      filter.frequency.value = 5000;
+    }
+
+    const vibrato = ctx.createOscillator();
+    vibrato.frequency.value = instrumentId === 'strings' ? 5.2 : 5;
+    const vibratoDepth = ctx.createGain();
+    vibratoDepth.gain.setValueAtTime(0, startAt);
+    if (instrumentId === 'strings') {
+      vibratoDepth.gain.linearRampToValueAtTime(7, startAt + 0.5);
+    } else if (instrumentId === 'flute') {
+      vibratoDepth.gain.linearRampToValueAtTime(6, startAt + 0.3);
+    }
+    vibrato.connect(vibratoDepth);
+    vibrato.start(startAt);
+    vibrato.stop(endAt + 0.05);
+    sources.push(vibrato);
+    nodes.push(vibratoDepth);
+
+    const addOscillator = (type, frequency, detune, level) => {
+      const oscillator = ctx.createOscillator();
+      oscillator.type = type;
+      oscillator.frequency.setValueAtTime(frequency, startAt);
+      oscillator.detune.value = detune;
+      vibratoDepth.connect(oscillator.detune);
+      const gain = ctx.createGain();
+      gain.gain.value = settings.noteGain * level;
+      oscillator.connect(gain);
+      gain.connect(filter);
+      oscillator.start(startAt);
+      oscillator.stop(endAt + 0.05);
+      sources.push(oscillator);
+      nodes.push(oscillator, gain);
+    };
+
+    frequencies.forEach((frequency) => {
+      if (instrumentId === 'flute') {
+        addOscillator('sine', frequency, 0, 1);
+        addOscillator('triangle', frequency * 2, 0, 0.15);
+      } else if (instrumentId === 'clarinet') {
+        addOscillator('square', frequency, 0, 1);
+        addOscillator('sine', frequency, 0, 0.5);
+      } else if (instrumentId === 'brass') {
+        addOscillator('sawtooth', frequency, -5, 0.7);
+        addOscillator('sawtooth', frequency, 6, 0.7);
+      } else {
+        addOscillator('sawtooth', frequency, -9, 0.5);
+        addOscillator('sawtooth', frequency, 0, 0.5);
+        addOscillator('sawtooth', frequency, 9, 0.5);
+      }
+    });
+
+    if (instrumentId === 'flute') {
+      const noiseBuffer = ctx.createBuffer(1, Math.max(1, Math.floor(ctx.sampleRate * (settings.duration + 0.1))), ctx.sampleRate);
+      const noiseData = noiseBuffer.getChannelData(0);
+      for (let sample = 0; sample < noiseData.length; sample += 1) {
+        noiseData[sample] = Math.random() * 2 - 1;
+      }
+      const noiseSource = ctx.createBufferSource();
+      noiseSource.buffer = noiseBuffer;
+      const noiseFilter = ctx.createBiquadFilter();
+      noiseFilter.type = 'bandpass';
+      noiseFilter.frequency.value = 3500;
+      noiseFilter.Q.value = 0.7;
+      const noiseGain = ctx.createGain();
+      noiseGain.gain.value = 0.02;
+      noiseSource.connect(noiseFilter);
+      noiseFilter.connect(noiseGain);
+      noiseGain.connect(bus);
+      noiseSource.start(startAt);
+      noiseSource.stop(endAt + 0.05);
+      sources.push(noiseSource);
+      nodes.push(noiseFilter, noiseGain);
+    }
+
+    vibrato.onended = () => {
+      nodes.forEach((node) => {
+        try {
+          node.disconnect();
+        } catch (error) {
+          // Already disconnected.
+        }
+      });
+    };
+
+    return { bus, sources };
+  }
+
+  drawEnsembleFields() {
+    if (!this.ensembleFieldsVisible) {
+      return;
+    }
+
+    const nowMs = performance.now();
+    const nextChord = this.getEnsembleNextChord();
+    const currentChord = this.getEnsembleCurrentChord();
+    let animating = false;
+
+    this.getEnsembleRects().forEach((rect) => {
+      const instrument = this.ensembleInstruments[rect.index];
+      const flash = Math.max(0, 1 - (nowMs - this.ensembleFlashAt[rect.index]) / 600);
+      if (flash > 0) {
+        animating = true;
+      }
+      const x = rect.centerX - rect.half;
+      const y = rect.centerY - rect.half;
+
+      this.ctx.save();
+      this.ctx.fillStyle = `rgba(${instrument.color}, ${0.12 + 0.45 * flash})`;
+      this.ctx.strokeStyle = `rgba(${instrument.color}, ${0.7 + 0.3 * flash})`;
+      this.ctx.lineWidth = 3;
+      this.ctx.shadowBlur = 8 + 22 * flash;
+      this.ctx.shadowColor = `rgba(${instrument.color}, 0.8)`;
+      this.ctx.beginPath();
+      this.ctx.rect(x, y, rect.size, rect.size);
+      this.ctx.fill();
+      this.ctx.stroke();
+
+      this.ctx.shadowBlur = 0;
+      const scale = Math.max(0.8, Math.min(1.4, rect.size / 96));
+      const labelFont = `600 ${Math.round(9 * scale)}px Arial`;
+      this.ctx.textAlign = 'center';
+      this.ctx.textBaseline = 'middle';
+
+      this.ctx.fillStyle = `rgba(${instrument.color}, 1)`;
+      this.ctx.font = `700 ${Math.round(13 * scale)}px Arial`;
+      this.ctx.fillText(instrument.label, rect.centerX, rect.centerY - rect.half * 0.72);
+
+      this.ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+      this.ctx.font = labelFont;
+      this.ctx.fillText('JETZT', rect.centerX, rect.centerY - rect.half * 0.42);
+      this.ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+      this.ctx.font = `700 ${Math.round(18 * scale)}px Arial`;
+      this.ctx.fillText(currentChord ? currentChord[0] : '–', rect.centerX, rect.centerY - rect.half * 0.14);
+
+      this.ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+      this.ctx.font = labelFont;
+      this.ctx.fillText('NÄCHSTER', rect.centerX, rect.centerY + rect.half * 0.26);
+      this.ctx.fillStyle = `rgba(${instrument.color}, 1)`;
+      this.ctx.font = `700 ${Math.round(16 * scale)}px Arial`;
+      this.ctx.fillText(nextChord[0], rect.centerX, rect.centerY + rect.half * 0.54);
+      this.ctx.restore();
+    });
+
+    if (animating) {
       this.requestRender();
     }
   }
@@ -7792,6 +8263,9 @@ export class LevelManager {
         this.loadGuitarSamples();
         this.guitarInsideByHand = { left: false, right: false };
         this.guitarNextIndex = 0;
+        this.guitarLastIndex = -1;
+        this.ensembleInsideByHand = { left: [], right: [] };
+        this.ensembleChordStep = 0;
         if (this.walkingBassMetronomeEnabled) {
           this.startWalkingBassMetronome();
         }
@@ -8730,6 +9204,7 @@ export class LevelManager {
       this.setPoseAlignmentPanelVisible(false);
       if (this.chapter === 1 && this.level === 3) {
         this.drawGuitarField();
+        this.drawEnsembleFields();
         this.drawWalkingBassHits();
       }
       return;
@@ -10564,6 +11039,7 @@ export class LevelManager {
     if (this.chapter === 1 && this.level === 3) {
       this.updateWalkingBass(performance.now());
       this.updateGuitarField();
+      this.updateEnsembleFields();
     }
     const leftIdx = this.leftTip ? this.getCircleIndex(this.leftTip) : -1;
     const rightIdx = this.rightTip ? this.getCircleIndex(this.rightTip) : -1;
