@@ -168,6 +168,7 @@ export const uiElementDescriptions = {
     'Stabilization': 'Experimental: Aktiviert oder deaktiviert die Stabilisierung der Bewegungserkennung. Anstatt der rohen aktuellen Position wird die geglättete Position verwendet, um die Bewegungserkennung ruhiger zu gestalten. Allerdings gibt es dadurch eine minimale Verzögerung in der Bewegungserkennung.',
     'Landmarks': 'Blendet die Landmarken im Video für die Verifikation der Erkennung ein oder aus.',
     'Silhouette': 'Zeichnet eine leicht transparente Körper-Silhouette über die Live-Erkennung, ohne die Landmarken oder ihre Verbindungen zu verändern.',
+    'Bildmitte verschieben': 'Verschiebt Videobild und Landmarken horizontal gegenüber den geometrischen Formen, z. B. wenn die Kamera seitlich am Bildschirm sitzt. Doppelklick setzt den Wert zurück.',
     'Silhouette Deckkraft': 'Stellt die Transparenz der Silhouette ein. Niedrige Werte machen sie fast unsichtbar, hohe Werte machen sie kräftiger und deutlicher.',
     'Weichzeichnen': 'Weichzeichnet das Live-Video leicht und verdunkelt es minimal, damit die Bewegungserkennung ruhiger wirkt.',
     'Pose Warning Landmarks': 'Blendet zusätzliche Warnhinweise für die Pose-Erkennung ein oder aus. Es werden die relevanten Landmarks der aktuellen Kallibrierung als rote Punkte angezeigt.',

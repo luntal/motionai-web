@@ -6,6 +6,8 @@ let silhouetteOpacity = 0.2;
 let videoSofteningEnabled = true;
 let videoSofteningBlurPx = 5;
 let videoSofteningBrightness = 0.75;
+// Horizontal shift of video + landmarks as fraction of canvas width (positive = right).
+let videoCenterOffset = 0;
 const landmarksListeners = [];
 const poseListeners = [];
 let resizeCallback = null;
@@ -45,6 +47,15 @@ function getSoftenedImageSource(image, width, height) {
   softCtx.filter = `blur(${videoSofteningBlurPx}px) brightness(${videoSofteningBrightness})`;
   softCtx.drawImage(image, 0, 0, softCanvas.width, softCanvas.height);
   return softCanvas;
+}
+
+export function setVideoCenterOffset(value) {
+  const next = Number(value);
+  videoCenterOffset = Number.isFinite(next) ? Math.min(0.5, Math.max(-0.5, next)) : 0;
+}
+
+export function getVideoCenterOffset() {
+  return videoCenterOffset;
 }
 
 export function setStabilizationEnabled(enabled) {
@@ -233,7 +244,7 @@ export function startTracking(videoElement, canvasElement, options = {}) {
   }
 
   function toMirroredCanvasX(xValue) {
-    return canvasElement.width - (xValue * canvasElement.width);
+    return canvasElement.width - (xValue * canvasElement.width) + videoCenterOffset * canvasElement.width;
   }
 
   function drawConnections(landmarks, edges) {
@@ -749,6 +760,7 @@ export function startTracking(videoElement, canvasElement, options = {}) {
     })();
 
     ctx.save();
+    ctx.translate(videoCenterOffset * canvasElement.width, 0);
     ctx.scale(-1, 1);
     ctx.translate(-canvasElement.width, 0);
     ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
@@ -842,7 +854,7 @@ export function startTracking(videoElement, canvasElement, options = {}) {
       const leftTipMidpoint = createTriggerPointFromLandmarks(poseLandmarks, LEFT_PINKY_INDEX, LEFT_INDEX_FINGER);
       const leftHand = new Array(9).fill(null);
       leftHand[8] = {
-        x: (1 - leftTipMidpoint.x) * canvasElement.width,
+        x: toMirroredCanvasX(leftTipMidpoint.x),
         y: leftTipMidpoint.y * canvasElement.height,
         z: leftTipMidpoint.z
       };
@@ -855,7 +867,7 @@ export function startTracking(videoElement, canvasElement, options = {}) {
       const rightTipMidpoint = createTriggerPointFromLandmarks(poseLandmarks, RIGHT_PINKY_INDEX, RIGHT_INDEX_FINGER);
       const rightHand = new Array(9).fill(null);
       rightHand[8] = {
-        x: (1 - rightTipMidpoint.x) * canvasElement.width,
+        x: toMirroredCanvasX(rightTipMidpoint.x),
         y: rightTipMidpoint.y * canvasElement.height,
         z: rightTipMidpoint.z
       };
@@ -927,7 +939,7 @@ export function startTracking(videoElement, canvasElement, options = {}) {
           const invertedSide = rawSide === 'left' ? 'right' : rawSide === 'right' ? 'left' : null;
 
           const normalized = hand.map((landmark) => ({
-            x: (1 - landmark.x) * canvasElement.width,
+            x: toMirroredCanvasX(landmark.x),
             y: landmark.y * canvasElement.height,
             z: landmark.z
           }));
@@ -997,7 +1009,7 @@ export function startTracking(videoElement, canvasElement, options = {}) {
         landmarksListeners.forEach((listener) => listener(poseTipHands));
 
         const canvasPoseLandmarks = stablePose.map((landmark) => ({
-          x: (1 - landmark.x) * canvasElement.width,
+          x: toMirroredCanvasX(landmark.x),
           y: landmark.y * canvasElement.height,
           z: landmark.z,
           visibility: landmark.visibility

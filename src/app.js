@@ -24,6 +24,7 @@ import {
   setVideoSofteningEnabled,
   setVideoSofteningStyle,
   getVideoSofteningStyle,
+  setVideoCenterOffset,
   onCanvasResize
 } from './tracking.js';
 import { LevelManager } from './levels.js';
@@ -6538,6 +6539,7 @@ function createTrackingControls(trackingController) {
   let videoSofteningBlurPx = 5;
   let videoSofteningBrightness = 0.75;
   let poseWarningLandmarksVisible = false;
+  let videoCenterOffsetPercent = 0;
 
   const hoverHelpToggleButton = document.createElement('button');
   hoverHelpToggleButton.type = 'button';
@@ -6630,6 +6632,7 @@ function createTrackingControls(trackingController) {
         videoSofteningBlurPx,
         videoSofteningBrightness,
         poseWarningLandmarksVisible,
+        videoCenterOffsetPercent,
         createdAt: getDefaultCreatedAtValue()
       };
       setUserScopedStorageValue(settingsStorageKey, snapshot);
@@ -6726,6 +6729,9 @@ function createTrackingControls(trackingController) {
   videoSofteningBlurPx = savedVideoSofteningBlurPx;
   videoSofteningBrightness = savedVideoSofteningBrightness;
   poseWarningLandmarksVisible = savedPoseWarningLandmarksVisible;
+  videoCenterOffsetPercent = Number.isFinite(Number(savedSettings.videoCenterOffsetPercent))
+    ? Math.min(30, Math.max(-30, Number(savedSettings.videoCenterOffsetPercent)))
+    : 0;
   uiState.hoverHelpEnabled = savedHoverHelpEnabled;
   modelSelect.value = savedModel;
 
@@ -7174,6 +7180,45 @@ function createTrackingControls(trackingController) {
     updateSilhouetteOpacityControl();
   });
 
+  const videoCenterLabel = document.createElement('label');
+  videoCenterLabel.textContent = 'Bildmitte verschieben';
+  videoCenterLabel.className = 'tracking-controls-label';
+
+  const videoCenterValueLabel = document.createElement('div');
+  videoCenterValueLabel.className = 'tracking-controls-inline-value';
+
+  const videoCenterRow = document.createElement('div');
+  videoCenterRow.className = 'tracking-controls-row';
+  videoCenterRow.appendChild(videoCenterLabel);
+  videoCenterRow.appendChild(videoCenterValueLabel);
+
+  const videoCenterSlider = document.createElement('input');
+  videoCenterSlider.type = 'range';
+  videoCenterSlider.min = '-30';
+  videoCenterSlider.max = '30';
+  videoCenterSlider.step = '0.5';
+  videoCenterSlider.className = 'tracking-controls-range';
+  videoCenterSlider.title = 'Verschiebt Videobild und Landmarken horizontal gegenüber den Figuren (Doppelklick: zurücksetzen)';
+
+  function updateVideoCenterControl() {
+    videoCenterSlider.value = String(videoCenterOffsetPercent);
+    videoCenterValueLabel.textContent = `${videoCenterOffsetPercent > 0 ? '+' : ''}${Number(videoCenterOffsetPercent).toFixed(1)}%`;
+    setVideoCenterOffset(videoCenterOffsetPercent / 100);
+  }
+
+  videoCenterSlider.addEventListener('input', () => {
+    const next = Number(videoCenterSlider.value);
+    videoCenterOffsetPercent = Number.isFinite(next) ? next : 0;
+    updateVideoCenterControl();
+    persistSettingsState();
+  });
+
+  videoCenterSlider.addEventListener('dblclick', () => {
+    videoCenterOffsetPercent = 0;
+    updateVideoCenterControl();
+    persistSettingsState();
+  });
+
   const exportDefaultsButton = document.createElement('button');
   exportDefaultsButton.type = 'button';
   exportDefaultsButton.className = 'tracking-controls-button';
@@ -7447,6 +7492,7 @@ function createTrackingControls(trackingController) {
   updateSilhouetteLabel();
   updateEyesLabel();
   updateSilhouetteOpacityControl();
+  updateVideoCenterControl();
   updateVideoSofteningLabel();
   updateVideoSofteningControls();
   updatePoseWarningLandmarksLabel();
@@ -7477,6 +7523,7 @@ function createTrackingControls(trackingController) {
   bindUiGroupDescription([silhouetteButton], 'Einstellungen', 'Silhouette');
   bindUiGroupDescription([eyesButton], 'Einstellungen', 'Silhouette');
   bindUiGroupDescription([silhouetteOpacityLabel, silhouetteOpacityValueLabel, silhouetteOpacitySlider], 'Einstellungen', 'Silhouette Deckkraft');
+  bindUiGroupDescription([videoCenterLabel, videoCenterValueLabel, videoCenterSlider], 'Einstellungen', 'Bildmitte verschieben');
   bindUiGroupDescription([exportDefaultsButton], 'Einstellungen', 'Defaults exportieren');
   bindUiGroupDescription([exportExamsButton], 'Einstellungen', 'Export Exams');
   bindUiGroupDescription([restoreDefaultsButton], 'Einstellungen', 'Werkseinstellung');
@@ -7503,6 +7550,8 @@ function createTrackingControls(trackingController) {
   container.appendChild(silhouetteOpacityRow);
   container.appendChild(silhouetteOpacitySlider);
   container.appendChild(poseWarningLandmarksButton);
+  container.appendChild(videoCenterRow);
+  container.appendChild(videoCenterSlider);
   container.appendChild(exportDefaultsButton);
   container.appendChild(exportExamsButton);
   container.appendChild(restoreDefaultsButton);
