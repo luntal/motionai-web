@@ -714,7 +714,20 @@
     "alternatingVolume": 0,
     "activeTouchFadeEnabled": true,
     "alternatingFrequencyModulation": false,
-    "alternatingAxisSwap": false
+    "alternatingAxisSwap": false,
+    "walkingBassThreshold": 3,
+    "walkingBassSensitivity": 0.7,
+    "walkingBassMode": "single",
+    "walkingBassSoundLeft": "bass",
+    "walkingBassSoundRight": "bass",
+    "claveToneMode": "continuous",
+    "bubbleSoundSquare": false,
+    "bubbleSoundPoints": false,
+    "guitarFieldVisible": true,
+    "guitarFieldX": 0.5,
+    "guitarFieldY": 0.55,
+    "walkingBassMetronome": false,
+    "walkingBassMetronomeBpm": 60
   },
   "motionai.dynamic-figure-selected-presets": {
     "0": 0,
@@ -30835,21 +30848,21 @@
   "motionai.figure-panel-settings": {
     "figureVariant": "hard",
     "figureSide": "right",
-    "figureScale": 0.6,
+    "figureScale": 0.51,
     "figureStrokeWidth": 0.11,
-    "figureHorizontalOffset": 0.29,
-    "figureYPosition": 0.83,
+    "figureHorizontalOffset": 0.23,
+    "figureYPosition": 0.82,
     "figureTempoBpm": 30,
     "figureHardLinearity": 100,
     "figureSoftTransitionPercent": 0,
     "figureDynamicsVisible": false,
     "figureCountTimesVisible": true,
     "motionDistanceVisible": true,
-    "motionDistanceStrictness": 51,
+    "motionDistanceStrictness": 29,
     "motionDistanceScoreWeights": {
-      "path": 85,
-      "timing": 8,
-      "direction": 7
+      "path": 82,
+      "timing": 10,
+      "direction": 8
     }
   },
   "motionai.dynamic-figure-corner-heights": {
@@ -30961,7 +30974,7 @@
     "resolutionPreset": "high",
     "hoverHelpEnabled": false,
     "playbackMode": "one",
-    "calibrationSetIndex": 9,
+    "calibrationSetIndex": null,
     "calibrationStrictness": 60,
     "stabilizationEnabled": false,
     "landmarkDrawingVisible": false,
@@ -30972,7 +30985,7 @@
     "videoSofteningBlurPx": 18,
     "videoSofteningBrightness": 0.25,
     "poseWarningLandmarksVisible": true,
-    "createdAt": "2026-09-28T09:52:12.036Z"
+    "createdAt": "2026-10-01T20:56:05.005Z"
   },
   "motionai.hand-independence-panel-settings": {
     "variant": "soft",
@@ -30984,18 +30997,18 @@
     "dynamicsVisible": false,
     "sharedTempoBpm": 32,
     "sharedY": 0.71,
-    "corner0": 0.2,
+    "corner0": 0,
     "length": 24.8,
     "rotation": -90,
     "figureLevel": 0,
     "tempoRatio": "1:1",
     "figureHardLinearity": 57,
     "countTimesVisible": true,
-    "corner2": 8.2,
-    "corner1": 6.9,
-    "corner4": 11.3,
-    "corner5": -1,
-    "corner3": -11.3,
+    "corner2": -0.1,
+    "corner1": 0.1,
+    "corner4": 0,
+    "corner5": 0.1,
+    "corner3": 0,
     "countVisible": true,
     "shape": "line",
     "width": 16.8,
@@ -31112,7 +31125,7 @@
     }
   },
   "motionai.video-softening-enabled": true,
-  "motionai.levelSettingsVisibility": false,
+  "motionai.levelSettingsVisibility": true,
   "motionai.exam.tasks": [],
   "motionai.consistency-panel-settings": {
     "0": {
@@ -34103,7 +34116,7 @@
     }
   },
   "motionai.square-exercise-panel-settings-points": {
-    "pointEditMode": false,
+    "pointEditMode": true,
     "pointSelectedSlot": 4,
     "pointSelectedHand": "auto",
     "pointSequenceMode": "simultaneous",
@@ -34221,5 +34234,43 @@
         "hand": "left"
       }
     ]
-  }
+  },
+  "motionai.exam.tasks.level.4": [
+    {
+      "id": 1,
+      "chapterId": 1,
+      "levelIndex": 0,
+      "presetIndex": 0
+    },
+    {
+      "id": 1790888136483,
+      "chapterId": 1,
+      "levelIndex": 0,
+      "presetIndex": 1
+    },
+    {
+      "id": 1790888138454,
+      "chapterId": 1,
+      "levelIndex": 0,
+      "presetIndex": 2
+    },
+    {
+      "id": 1790888140840,
+      "chapterId": 2,
+      "levelIndex": 0,
+      "presetIndex": 0
+    },
+    {
+      "id": 1790888148180,
+      "chapterId": 2,
+      "levelIndex": 1,
+      "presetIndex": 0
+    },
+    {
+      "id": 1790888151958,
+      "chapterId": 3,
+      "levelIndex": 0,
+      "presetIndex": 0
+    }
+  ]
 }

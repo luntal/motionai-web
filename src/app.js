@@ -24,6 +24,7 @@ import {
   setVideoSofteningEnabled,
   setVideoSofteningStyle,
   getVideoSofteningStyle,
+  setVideoCenterOffset,
   onCanvasResize
 } from './tracking.js';
 import { LevelManager } from './levels.js';
@@ -32,15 +33,23 @@ import {
   MOTIONAI_ACTIVE_USER_STORAGE_KEY,
   normalizeMotionAiBucketSnapshot,
   fetchMotionAiDefaultsSnapshot,
+  fetchMotionAiDefaultsSections,
   getMotionAiActiveUserId,
   setMotionAiActiveUserId,
   ensureMotionAiDefaultUserStorage,
+  ensureMotionAiDozentUser,
   getMotionAiUserRegistry,
   createMotionAiUser,
+  deleteMotionAiUser,
   getMotionAiUserStorageBucket,
+  MOTIONAI_DOZENT_USER_ID,
   setMotionAiUserStorageBucket,
   getMotionAiBucketValue,
-  setMotionAiBucketValue
+  setMotionAiBucketValue,
+  setMotionAiPresetReadRedirect,
+  getMotionAiPendingDefaultsStamp,
+  declineMotionAiDefaultsUpdate,
+  resetMotionAiUserStorageToDefaults
 } from './defaultSettings.js';
 import { getLevelCountForChapter, levelTitles, uiElementDescriptions } from './constants.js';
 
@@ -75,6 +84,51 @@ function getUserScopedStorageValue(storageKey, fallback = null) {
 
 function setUserScopedStorageValue(storageKey, value) {
   return setMotionAiBucketValue(storageKey, value, getMotionAiActiveUserId());
+}
+
+function confirmLevelPresetReset(chapterId, levelIndex) {
+  const label = levelTitles[chapterId]?.[levelIndex] || `Level ${Number(levelIndex) + 1}`;
+  return window.confirm(`Soll „${label}“ wirklich auf die Werkseinstellungen zurückgesetzt werden?\nNur die Presets dieses Levels werden zurückgesetzt, alle anderen Bereiche bleiben unverändert.`);
+}
+
+function alertLevelPresetResetFailed(error) {
+  console.error('Failed to reset level presets to defaults:', error);
+  window.alert('Die Werkseinstellungen konnten nicht geladen werden. Es wurde nichts zurückgesetzt.');
+}
+
+// Chapter 1 presets are stored per level: { "<level>": slotMap }. Legacy data was a flat slotMap.
+const CHAPTER1_SQUARE_PRESET_LEVEL = 0;
+const CHAPTER1_POINT_PRESET_LEVEL = 1;
+
+function isFlatSquarePresetMap(map) {
+  return Object.prototype.hasOwnProperty.call(map, 'selectedPresetSlot')
+    || Object.values(map).some((entry) => entry && typeof entry === 'object' && Object.prototype.hasOwnProperty.call(entry, 'shape'));
+}
+
+function isFlatPointPresetMap(map) {
+  return Object.values(map).some((entry) => Array.isArray(entry)
+    || (entry && typeof entry === 'object' && (Array.isArray(entry.sequence) || Array.isArray(entry.points))));
+}
+
+function getChapter1LevelPresetBucket(map, level, isFlat, legacyLevel) {
+  if (!map || typeof map !== 'object' || Array.isArray(map)) {
+    return {};
+  }
+  if (isFlat(map)) {
+    return level === legacyLevel ? map : {};
+  }
+  const bucket = map[String(level)];
+  return bucket && typeof bucket === 'object' && !Array.isArray(bucket) ? bucket : {};
+}
+
+function writeChapter1LevelPresetBucket(storageKey, level, bucket, isFlat, legacyLevel) {
+  const stored = getUserScopedStorageValue(storageKey, {});
+  let map = stored && typeof stored === 'object' && !Array.isArray(stored) ? stored : {};
+  if (isFlat(map)) {
+    map = { [String(legacyLevel)]: map };
+  }
+  map[String(level)] = bucket;
+  setUserScopedStorageValue(storageKey, map);
 }
 
 function getUiDescriptionForSection(sectionName, key) {
@@ -188,6 +242,15 @@ function applyPanelVisibilityState(panel, visible) {
 
 function applyLevelSettingsVisibilityToPanel(panel, visible) {
   if (!(panel instanceof Element)) {
+    return;
+  }
+
+  // Exam panel: the toggle only controls the tasks section, not nav/history.
+  if (panel.classList.contains('exam-panel')) {
+    const tasksSection = panel.querySelector('.exam-tasks-section');
+    if (tasksSection) {
+      tasksSection.style.display = visible ? '' : 'none';
+    }
     return;
   }
 
@@ -1319,18 +1382,40 @@ function createFigureModePanel(initialManager, options = {}) {
     renderPresetSlots();
   });
 
-  presetResetButton.addEventListener('click', () => {
+  presetResetButton.addEventListener('click', async () => {
     if (!Number.isInteger(currentLevel)) {
       return;
     }
+    const resetLevel = currentLevel;
+    if (!confirmLevelPresetReset(3, resetLevel)) {
+      return;
+    }
 
-    delete presetData[String(currentLevel)];
-    selectedPreset = 0;
-    selectedPresetByLevel[String(currentLevel)] = 0;
+    let defaults;
+    try {
+      defaults = await fetchMotionAiDefaultsSections(['figure-presets', 'figure-selected-presets']);
+    } catch (error) {
+      alertLevelPresetResetFailed(error);
+      return;
+    }
+
+    const levelKey = String(resetLevel);
+    const defaultLevelPresets = defaults['figure-presets']?.[levelKey];
+    if (defaultLevelPresets && typeof defaultLevelPresets === 'object') {
+      presetData[levelKey] = defaultLevelPresets;
+    } else {
+      delete presetData[levelKey];
+    }
+    const defaultSlot = Number(defaults['figure-selected-presets']?.[levelKey]);
+    selectedPreset = Number.isInteger(defaultSlot) && defaultSlot >= 0 && defaultSlot < presetCount ? defaultSlot : 0;
+    selectedPresetByLevel[levelKey] = selectedPreset;
     persistPresets();
     persistSelectedPresets();
-    renderPresetSlots();
-    setSettings(getFactoryPreset(0));
+    if (currentLevel === resetLevel) {
+      applyPreset(selectedPreset);
+    } else {
+      renderPresetSlots();
+    }
   });
 
   function setLevel(level) {
@@ -1347,6 +1432,22 @@ function createFigureModePanel(initialManager, options = {}) {
     }
   }
 
+  // Re-reads preset data from storage, which may be redirected to the DozentIn bucket during the shared Prüfung.
+  function reloadPresets() {
+    try {
+      const stored = getUserScopedStorageValue(presetStorageKey, {});
+      presetData = stored && typeof stored === 'object' ? stored : {};
+    } catch (error) {
+      presetData = {};
+    }
+    try {
+      const stored = getUserScopedStorageValue(selectedPresetStorageKey, {});
+      selectedPresetByLevel = stored && typeof stored === 'object' ? stored : {};
+    } catch (error) {
+      selectedPresetByLevel = {};
+    }
+  }
+
   return {
     panel,
     setVisible,
@@ -1358,6 +1459,7 @@ function createFigureModePanel(initialManager, options = {}) {
     setLevelManager,
     setLevel,
     applyPreset,
+    reloadPresets,
     getVariant: () => selectedVariant,
     getSide: () => selectedSide,
     syncFigureDynamicsToggleFromManager,
@@ -1556,17 +1658,40 @@ function createDynamicFigureModePanel() {
     renderPresetSlots();
   });
 
-  presetResetButton.addEventListener('click', () => {
+  presetResetButton.addEventListener('click', async () => {
     if (!Number.isInteger(currentLevel)) {
       return;
     }
-    presetData = {};
-    selectedPreset = 0;
-    selectedPresetByLevel[String(currentLevel)] = 0;
+    const resetLevel = currentLevel;
+    if (!confirmLevelPresetReset(4, resetLevel)) {
+      return;
+    }
+
+    let defaults;
+    try {
+      defaults = await fetchMotionAiDefaultsSections(['dynamic-figure-presets', 'dynamic-figure-selected-presets']);
+    } catch (error) {
+      alertLevelPresetResetFailed(error);
+      return;
+    }
+
+    const levelKey = String(resetLevel);
+    const defaultLevelPresets = defaults['dynamic-figure-presets']?.[levelKey];
+    if (defaultLevelPresets && typeof defaultLevelPresets === 'object') {
+      presetData[levelKey] = defaultLevelPresets;
+    } else {
+      delete presetData[levelKey];
+    }
+    const defaultSlot = Number(defaults['dynamic-figure-selected-presets']?.[levelKey]);
+    selectedPreset = Number.isInteger(defaultSlot) && defaultSlot >= 0 && defaultSlot < presetCount ? defaultSlot : 0;
+    selectedPresetByLevel[levelKey] = selectedPreset;
     persistPresets();
     persistSelectedPresets();
-    renderPresetSlots();
-    applyPreset(0);
+    if (currentLevel === resetLevel) {
+      applyPreset(selectedPreset);
+    } else {
+      renderPresetSlots();
+    }
   });
 
   function setLevel(level, applySelectedPreset = true) {
@@ -1634,8 +1759,24 @@ function createDynamicFigureModePanel() {
     }
   }
 
+  function reloadPresets() {
+    try {
+      const stored = getUserScopedStorageValue(presetStorageKey, {});
+      presetData = stored && typeof stored === 'object' ? stored : {};
+    } catch (error) {
+      presetData = {};
+    }
+    try {
+      const stored = getUserScopedStorageValue(selectedPresetStorageKey, {});
+      selectedPresetByLevel = stored && typeof stored === 'object' ? stored : {};
+    } catch (error) {
+      selectedPresetByLevel = {};
+    }
+  }
+
   return {
     ...basePanel,
+    reloadPresets,
     setLevelManager,
     setLevel,
     applyPreset,
@@ -2025,12 +2166,7 @@ function createExerciseFieldPanel() {
   });
 
   presetResetButton.addEventListener('click', () => {
-    const exerciseLevel = Number.isInteger(Number(uiState.activeLevel)) ? Math.max(0, Math.min(2, Number(uiState.activeLevel))) : 0;
-    const presets = readPresetMap();
-    presets[String(exerciseLevel)] = { selectedSlot: 0 };
-    selectedPresetSlot = 0;
-    setUserScopedStorageValue(presetsKey, presets);
-    renderPresetSlots();
+    resetPresets();
   });
 
   const toggleInput = document.createElement('input');
@@ -2499,72 +2635,30 @@ function createExerciseFieldPanel() {
   };
 
   const resetPresets = async () => {
-    const confirmed = window.confirm('Möchtest du die Presets für das Kapitel „Einsätze geben“ wirklich auf die Werkseinstellungen zurücksetzen?');
-    if (!confirmed) {
+    const exerciseLevel = Number.isInteger(Number(uiState.activeLevel)) ? Math.max(0, Math.min(2, Number(uiState.activeLevel))) : 0;
+    if (!confirmLevelPresetReset(6, exerciseLevel)) {
       return false;
     }
 
+    let defaults;
     try {
-      const defaults = await fetchMotionAiDefaultsSnapshot();
-      const normalizedDefaults = normalizeMotionAiBucketSnapshot(defaults);
-      const nextPanelSettings = normalizedDefaults['exercise-field-panel-settings'] || {
-        enabled: true,
-        scale: 1,
-        xOffset: 0,
-        strikeCount: 2,
-        strikeRadius: 12,
-        fieldSide: 'left',
-        fieldVertical: 'top',
-        fieldBeat: 1,
-        mode: 'free',
-        tempoBpm: 60,
-        metronomeEnabled: false
-      };
-      const nextPresets = normalizedDefaults['exercise-field-presets'] || {};
-      const activeExerciseLevel = Number.isInteger(uiState?.activeLevel) && uiState.activeLevel >= 0 && uiState.activeLevel <= 2
-        ? uiState.activeLevel
-        : 0;
-      const resetBucket = { selectedSlot: 0 };
-      const defaultsBucket = nextPresets[String(activeExerciseLevel)] || { selectedSlot: 0 };
-      const activePreset = defaultsBucket[String(Number(defaultsBucket.selectedSlot ?? 0))] || defaultsBucket['0'] || nextPanelSettings || {};
-
-      setUserScopedStorageValue(storageKey, {
-        enabled: typeof nextPanelSettings.enabled === 'boolean' ? nextPanelSettings.enabled : true,
-        scale: Number.isFinite(Number(nextPanelSettings.scale)) ? Number(nextPanelSettings.scale) : 1,
-        xOffset: Number.isFinite(Number(nextPanelSettings.xOffset)) ? Number(nextPanelSettings.xOffset) : 0,
-        strikeCount: sanitizeStrikeCount(nextPanelSettings.strikeCount ?? 2),
-        strikeRadius: Number.isFinite(Number(nextPanelSettings.strikeRadius)) ? Number(nextPanelSettings.strikeRadius) : 12,
-        fieldSide: nextPanelSettings.fieldSide === 'right' ? 'right' : 'left',
-        fieldVertical: nextPanelSettings.fieldVertical === 'bottom' ? 'bottom' : 'top',
-        fieldBeat: sanitizeAssignmentBeat(nextPanelSettings.fieldBeat ?? 1, sanitizeStrikeCount(nextPanelSettings.strikeCount ?? 2)),
-        mode: nextPanelSettings.mode === 'tempo' ? 'tempo' : 'free',
-        tempoBpm: Number.isFinite(Number(nextPanelSettings.tempoBpm)) ? Math.min(180, Math.max(30, Number(nextPanelSettings.tempoBpm))) : 60
-      });
-      const nextPresetMap = readPresetMap();
-      nextPresetMap[String(activeExerciseLevel)] = { ...resetBucket, ...defaultsBucket, selectedSlot: 0 };
-      setUserScopedStorageValue(presetsKey, nextPresetMap);
-
-      setControlsFromState({
-        enabled: typeof activePreset.enabled === 'boolean' ? activePreset.enabled : true,
-        scale: Number.isFinite(Number(activePreset.scale)) ? Number(activePreset.scale) : 1,
-        xOffset: Number.isFinite(Number(activePreset.xOffset)) ? Number(activePreset.xOffset) : 0,
-        strikeCount: sanitizeStrikeCount(activePreset.strikeCount ?? 2),
-        strikeRadius: Number.isFinite(Number(activePreset.strikeRadius)) ? Number(activePreset.strikeRadius) : 12,
-        fieldSide: activePreset.fieldSide === 'right' ? 'right' : 'left',
-        fieldVertical: activePreset.fieldVertical === 'bottom' ? 'bottom' : 'top',
-        fieldBeat: sanitizeAssignmentBeat(activePreset.fieldBeat ?? 1, sanitizeStrikeCount(activePreset.strikeCount ?? 2)),
-        mode: activePreset.mode === 'tempo' ? 'tempo' : 'free',
-        tempoBpm: Number.isFinite(Number(activePreset.tempoBpm)) ? Math.min(180, Math.max(30, Number(activePreset.tempoBpm))) : 60,
-        strikePositions: sanitizeExerciseFieldStrikePositions(activePreset.strikePositions || {}, sanitizeStrikeCount(activePreset.strikeCount ?? 2))
-      });
-      applyPreset(activeExerciseLevel, 0);
-      window.alert('Die Presets für das Kapitel „Einsätze geben“ wurden auf die Werkseinstellungen zurückgesetzt.');
-      return true;
+      defaults = await fetchMotionAiDefaultsSections(['exercise-field-presets']);
     } catch (error) {
-      console.error('Failed to load exercise field defaults:', error);
-      window.alert('Die Werkseinstellungen für das Kapitel „Einsätze geben“ konnten nicht geladen werden.');
+      alertLevelPresetResetFailed(error);
       return false;
     }
+
+    const defaultBucket = defaults['exercise-field-presets']?.[String(exerciseLevel)];
+    const nextBucket = defaultBucket && typeof defaultBucket === 'object' && !Array.isArray(defaultBucket)
+      ? defaultBucket
+      : {};
+    const defaultSlot = Number(nextBucket.selectedSlot);
+    nextBucket.selectedSlot = Number.isInteger(defaultSlot) && defaultSlot >= 0 && defaultSlot <= 3 ? defaultSlot : 0;
+    const presets = readPresetMap();
+    presets[String(exerciseLevel)] = nextBucket;
+    setUserScopedStorageValue(presetsKey, presets);
+    applyPreset(exerciseLevel, nextBucket.selectedSlot);
+    return true;
   };
 
   attachPanelHoverHelp(panel);
@@ -2760,6 +2854,41 @@ function createSquareExercisePanel() {
     : true;
   let selectedAlternatingFrequencyModulation = Boolean(settings.alternatingFrequencyModulation);
   let selectedAlternatingAxisSwap = Boolean(settings.alternatingAxisSwap);
+  let selectedWalkingBassThreshold = Number.isFinite(Number(settings.walkingBassThreshold))
+    ? Math.max(0.5, Math.min(10, Number(settings.walkingBassThreshold)))
+    : 3;
+  let selectedWalkingBassSensitivity = Number.isFinite(Number(settings.walkingBassSensitivity))
+    ? Math.max(0, Math.min(1, Number(settings.walkingBassSensitivity)))
+    : 0.7;
+  let selectedWalkingBassMode = ['single', 'walking'].includes(settings.walkingBassMode) ? settings.walkingBassMode : 'single';
+  const walkingBassSoundOptions = [
+    { value: 'none', label: 'Kein Sound' },
+    { value: 'bass', label: 'Bass' },
+    { value: 'cymbal', label: 'Cymbal' },
+    { value: 'clave', label: 'Clave' }
+  ];
+  const normalizeWalkingBassSound = (value) => (walkingBassSoundOptions.some((option) => option.value === value) ? value : 'bass');
+  let selectedWalkingBassSoundLeft = normalizeWalkingBassSound(settings.walkingBassSoundLeft);
+  let selectedWalkingBassSoundRight = normalizeWalkingBassSound(settings.walkingBassSoundRight);
+  let selectedClaveToneMode = settings.claveToneMode === 'two' ? 'two' : 'continuous';
+  let selectedBubbleSoundSquare = Boolean(settings.bubbleSoundSquare);
+  let selectedBubbleSoundPoints = Boolean(settings.bubbleSoundPoints);
+  let selectedFieldMode = ['none', 'guitar', 'ensemble'].includes(settings.fieldMode)
+    ? settings.fieldMode
+    : (settings.guitarFieldVisible === false ? 'none' : 'guitar');
+  let selectedEnsembleProgression = [0, 1, 2].includes(Number(settings.ensembleProgression)) ? Number(settings.ensembleProgression) : 0;
+  let selectedEnsemblePositions = Array.isArray(settings.ensemblePositions) && settings.ensemblePositions.length === 4
+    && settings.ensemblePositions.every((position) => position && Number.isFinite(Number(position.x)) && Number.isFinite(Number(position.y)))
+    ? settings.ensemblePositions.map((position) => ({ x: Math.max(0, Math.min(1, Number(position.x))), y: Math.max(0, Math.min(1, Number(position.y))) }))
+    : [{ x: 0.125, y: 0.78 }, { x: 0.3125, y: 0.35 }, { x: 0.6875, y: 0.35 }, { x: 0.875, y: 0.78 }];
+  let selectedGuitarFieldMotion = ['right', 'left'].includes(settings.guitarFieldMotion) ? settings.guitarFieldMotion : 'fix';
+  let selectedGuitarFieldX = Number.isFinite(Number(settings.guitarFieldX)) ? Math.max(0, Math.min(1, Number(settings.guitarFieldX))) : 0.25;
+  let selectedGuitarFieldY = Number.isFinite(Number(settings.guitarFieldY)) ? Math.max(0, Math.min(1, Number(settings.guitarFieldY))) : 0.25;
+  let selectedWalkingBassMetronome = Boolean(settings.walkingBassMetronome);
+  let selectedWalkingBassAnticipation = Boolean(settings.walkingBassAnticipation);
+  let selectedWalkingBassMetronomeBpm = Number.isFinite(Number(settings.walkingBassMetronomeBpm))
+    ? Math.max(30, Math.min(180, Math.round(Number(settings.walkingBassMetronomeBpm))))
+    : 60;
   let pointEditMode = Boolean(settings.pointEditMode);
   let pointSequence = Array.isArray(settings.pointSequence) ? settings.pointSequence : [];
   let pointSequenceMode = ['independent', 'sequential', 'simultaneous'].includes(settings.pointSequenceMode)
@@ -2899,16 +3028,18 @@ function createSquareExercisePanel() {
 
   const readStoredPointSlots = () => {
     try {
-      const storedSlots = getUserScopedStorageValue(pointStorageKey, {});
-      if (storedSlots && typeof storedSlots === 'object') {
-        return Object.fromEntries(
-          Object.entries(storedSlots).map(([key, value]) => [normalizePointSlot(key), normalizePointPresetEntry(value)])
-        );
-      }
+      const storedSlots = getChapter1LevelPresetBucket(
+        getUserScopedStorageValue(pointStorageKey, {}),
+        CHAPTER1_POINT_PRESET_LEVEL,
+        isFlatPointPresetMap,
+        CHAPTER1_POINT_PRESET_LEVEL
+      );
+      return Object.fromEntries(
+        Object.entries(storedSlots).map(([key, value]) => [normalizePointSlot(key), normalizePointPresetEntry(value)])
+      );
     } catch (error) {
       return {};
     }
-    return {};
   };
 
   const readStoredPointPanelState = () => {
@@ -2954,7 +3085,7 @@ function createSquareExercisePanel() {
 
   const persistPointState = () => {
     try {
-      setUserScopedStorageValue(pointStorageKey, pointSavedSlots);
+      writeChapter1LevelPresetBucket(pointStorageKey, CHAPTER1_POINT_PRESET_LEVEL, pointSavedSlots, isFlatPointPresetMap, CHAPTER1_POINT_PRESET_LEVEL);
     } catch (error) {
       // Ignore storage failures for local settings.
     }
@@ -2987,7 +3118,24 @@ function createSquareExercisePanel() {
       alternatingVolume: selectedAlternatingVolume,
       activeTouchFadeEnabled: selectedActiveTouchFadeEnabled,
       alternatingFrequencyModulation: selectedAlternatingFrequencyModulation,
-      alternatingAxisSwap: selectedAlternatingAxisSwap
+      alternatingAxisSwap: selectedAlternatingAxisSwap,
+      walkingBassThreshold: selectedWalkingBassThreshold,
+      walkingBassSensitivity: selectedWalkingBassSensitivity,
+      walkingBassMode: selectedWalkingBassMode,
+      walkingBassSoundLeft: selectedWalkingBassSoundLeft,
+      walkingBassSoundRight: selectedWalkingBassSoundRight,
+      claveToneMode: selectedClaveToneMode,
+      bubbleSoundSquare: selectedBubbleSoundSquare,
+      bubbleSoundPoints: selectedBubbleSoundPoints,
+      fieldMode: selectedFieldMode,
+      ensembleProgression: selectedEnsembleProgression,
+      ensemblePositions: selectedEnsemblePositions,
+      guitarFieldMotion: selectedGuitarFieldMotion,
+      guitarFieldX: selectedGuitarFieldX,
+      guitarFieldY: selectedGuitarFieldY,
+      walkingBassMetronome: selectedWalkingBassMetronome,
+      walkingBassAnticipation: selectedWalkingBassAnticipation,
+      walkingBassMetronomeBpm: selectedWalkingBassMetronomeBpm
     };
     try {
       setUserScopedStorageValue(storageKey, snapshot);
@@ -3110,10 +3258,12 @@ function createSquareExercisePanel() {
 
   const readSquarePresetData = () => {
     try {
-      const stored = getUserScopedStorageValue(squarePresetStorageKey, {});
-      if (stored && typeof stored === 'object') {
-        return stored;
-      }
+      return getChapter1LevelPresetBucket(
+        getUserScopedStorageValue(squarePresetStorageKey, {}),
+        CHAPTER1_SQUARE_PRESET_LEVEL,
+        isFlatSquarePresetMap,
+        CHAPTER1_SQUARE_PRESET_LEVEL
+      );
     } catch (error) {
       // Ignore storage failures for local settings.
     }
@@ -3122,7 +3272,7 @@ function createSquareExercisePanel() {
 
   const persistSquarePresetData = () => {
     try {
-      setUserScopedStorageValue(squarePresetStorageKey, squarePresetData);
+      writeChapter1LevelPresetBucket(squarePresetStorageKey, CHAPTER1_SQUARE_PRESET_LEVEL, squarePresetData, isFlatSquarePresetMap, CHAPTER1_SQUARE_PRESET_LEVEL);
     } catch (error) {
       // Ignore storage failures for local settings.
     }
@@ -3451,10 +3601,23 @@ function createSquareExercisePanel() {
   squarePresetResetButton.type = 'button';
   squarePresetResetButton.className = 'figure-point-action';
   squarePresetResetButton.textContent = 'Zurücksetzen';
-  squarePresetResetButton.addEventListener('click', () => {
-    squarePresetData = {};
-    squarePresetData.selectedPresetSlot = 1;
-    selectedSquarePresetSlot = 1;
+  squarePresetResetButton.addEventListener('click', async () => {
+    if (!confirmLevelPresetReset(1, 0)) {
+      return;
+    }
+
+    let defaults;
+    try {
+      defaults = await fetchMotionAiDefaultsSections(['square-exercise-presets']);
+    } catch (error) {
+      alertLevelPresetResetFailed(error);
+      return;
+    }
+
+    const defaultPresets = defaults['square-exercise-presets'];
+    squarePresetData = getChapter1LevelPresetBucket(defaultPresets, CHAPTER1_SQUARE_PRESET_LEVEL, isFlatSquarePresetMap, CHAPTER1_SQUARE_PRESET_LEVEL);
+    selectedSquarePresetSlot = normalizeSquarePresetSlot(squarePresetData.selectedPresetSlot);
+    squarePresetData.selectedPresetSlot = selectedSquarePresetSlot;
     persistSquarePresetData();
     squarePresetInputs.forEach((input) => {
       input.checked = Number(input.value) === selectedSquarePresetSlot;
@@ -3660,9 +3823,7 @@ function createSquareExercisePanel() {
     pointEditMode = nextEditMode;
     writeLevelSettingsVisibilityState(nextEditMode);
     if (pointEditMode) {
-      pointSequence = [];
       renderPointList();
-      managerRef?.setPointExerciseSequence([]);
     }
     updatePointPanelVisibility();
     setChapter1ExerciseMode(squareExerciseMode);
@@ -3888,8 +4049,8 @@ function createSquareExercisePanel() {
 
   const updatePointPresetInputsState = () => {
     pointSlotLabels.forEach((input) => {
-      input.disabled = pointEditMode;
-      input.setAttribute('aria-disabled', String(pointEditMode));
+      input.disabled = false;
+      input.setAttribute('aria-disabled', 'false');
     });
   };
 
@@ -3911,7 +4072,10 @@ function createSquareExercisePanel() {
         return;
       }
       pointSelectedSlot = normalizePointSlot(slotNumber);
-      loadPointPresetIntoCurrentSequence(pointSelectedSlot);
+      const loadedPreset = loadPointPresetIntoCurrentSequence(pointSelectedSlot, { force: pointEditMode });
+      if (pointEditMode && !loadedPreset) {
+        clearTemporaryPointSequence();
+      }
       persistPointState();
       managerRef?.setPointExerciseSelectedSlot(pointSelectedSlot);
       renderPointList();
@@ -3937,9 +4101,48 @@ function createSquareExercisePanel() {
   const pointResetButton = document.createElement('button');
   pointResetButton.type = 'button';
   pointResetButton.className = 'figure-point-action';
-  pointResetButton.textContent = 'Reset';
+  pointResetButton.textContent = 'Reset Punktfolge';
   pointResetButton.addEventListener('click', () => {
     clearTemporaryPointSequence();
+  });
+
+  const pointResetRow = document.createElement('div');
+  pointResetRow.className = 'figure-point-action-row';
+  pointResetRow.hidden = !pointEditMode;
+  pointResetRow.appendChild(pointResetButton);
+
+  const pointPresetResetButton = document.createElement('button');
+  pointPresetResetButton.type = 'button';
+  pointPresetResetButton.className = 'figure-point-action';
+  pointPresetResetButton.textContent = 'Zurücksetzen';
+  pointPresetResetButton.addEventListener('click', async () => {
+    if (!confirmLevelPresetReset(1, CHAPTER1_POINT_PRESET_LEVEL)) {
+      return;
+    }
+
+    let defaults;
+    try {
+      defaults = await fetchMotionAiDefaultsSections(['point-exercise-saved-slots']);
+    } catch (error) {
+      alertLevelPresetResetFailed(error);
+      return;
+    }
+
+    const defaultSlots = getChapter1LevelPresetBucket(
+      defaults['point-exercise-saved-slots'],
+      CHAPTER1_POINT_PRESET_LEVEL,
+      isFlatPointPresetMap,
+      CHAPTER1_POINT_PRESET_LEVEL
+    );
+    pointSavedSlots = Object.fromEntries(
+      Object.entries(defaultSlots).map(([key, value]) => [normalizePointSlot(key), normalizePointPresetEntry(value)])
+    );
+    clearTemporaryPointSequence();
+    loadPointPresetIntoCurrentSequence(pointSelectedSlot, { force: true });
+    persistPointState();
+    managerRef?.setPointExerciseSavedSlots(pointSavedSlots);
+    managerRef?.setPointExerciseSelectedSlot(pointSelectedSlot);
+    renderPointList();
   });
 
   const pointSaveDialog = document.createElement('div');
@@ -4108,18 +4311,20 @@ function createSquareExercisePanel() {
   });
 
   pointActions.appendChild(pointSaveButton);
-  pointActions.appendChild(pointResetButton);
+  pointActions.appendChild(pointPresetResetButton);
   pointSection.insertBefore(pointPresetTitle, pointSequenceModeTitle);
   pointSection.insertBefore(pointSlotRow, pointSequenceModeTitle);
   pointSection.insertBefore(pointPresetInfo, pointSequenceModeTitle);
   pointSection.insertBefore(pointActions, pointSequenceModeTitle);
   bindUiGroupDescription([pointResetButton], 'Eingewöhnung', 'Reset');
+  bindUiGroupDescription([pointPresetResetButton], 'Eingewöhnung', 'PresetZurücksetzen');
   bindUiGroupDescription([pointSaveButton], 'Eingewöhnung', 'Speichern');
 
   const pointListWrap = document.createElement('div');
   pointListWrap.className = 'figure-point-list';
   pointListWrap.hidden = !pointEditMode;
   pointSection.appendChild(pointListWrap);
+  pointSection.insertBefore(pointResetRow, pointListWrap);
   bindUiGroupDescription([pointListWrap], 'Eingewöhnung', 'Liste');
 
   const updatePointPanelVisibility = () => {
@@ -4178,6 +4383,8 @@ function createSquareExercisePanel() {
 
     pointActions.hidden = !showEditActions;
     pointActions.style.display = showEditActions ? '' : 'none';
+    pointResetRow.hidden = !showEditActions;
+    pointResetRow.style.display = showEditActions ? '' : 'none';
     pointListWrap.hidden = !showEditActions;
     pointListWrap.style.display = showEditActions ? '' : 'none';
 
@@ -4273,9 +4480,7 @@ function createSquareExercisePanel() {
   pointToggleInput.addEventListener('change', () => {
     pointEditMode = pointToggleInput.checked;
     if (pointEditMode) {
-      pointSequence = [];
       renderPointList();
-      managerRef?.setPointExerciseSequence([]);
     }
     updatePointPanelVisibility();
     setChapter1ExerciseMode(squareExerciseMode);
@@ -4445,7 +4650,7 @@ function createSquareExercisePanel() {
   panel.appendChild(alternatingScaleWrap);
 
   const alternatingFmWrap = document.createElement('label');
-  alternatingFmWrap.className = 'figure-size-wrap';
+  alternatingFmWrap.className = 'figure-size-wrap exercise-toggle';
   alternatingFmWrap.hidden = true;
 
   const alternatingFmCheckbox = document.createElement('input');
@@ -4473,7 +4678,7 @@ function createSquareExercisePanel() {
   panel.appendChild(alternatingFmWrap);
 
   const alternatingAxisSwapWrap = document.createElement('label');
-  alternatingAxisSwapWrap.className = 'figure-size-wrap';
+  alternatingAxisSwapWrap.className = 'figure-size-wrap exercise-toggle';
   alternatingAxisSwapWrap.hidden = true;
 
   const alternatingAxisSwapCheckbox = document.createElement('input');
@@ -4620,7 +4825,7 @@ function createSquareExercisePanel() {
   panel.appendChild(alternatingVolumeWrap);
 
   const activeTouchFadeWrap = document.createElement('label');
-  activeTouchFadeWrap.className = 'figure-size-wrap';
+  activeTouchFadeWrap.className = 'figure-size-wrap exercise-toggle';
   activeTouchFadeWrap.hidden = true;
 
   const activeTouchFadeLabel = document.createElement('div');
@@ -4654,6 +4859,322 @@ function createSquareExercisePanel() {
   bindUiGroupDescription([activeTouchFadeLabel, activeTouchFadeCheckbox, activeTouchFadeValue], 'Eingewöhnung', 'KontaktFade');
   panel.appendChild(activeTouchFadeWrap);
 
+  const createWalkingBassSoundSelect = (labelText, initialValue, onChange) => {
+    const wrap = document.createElement('label');
+    wrap.className = 'figure-size-wrap';
+    wrap.hidden = true;
+    const label = document.createElement('div');
+    label.className = 'figure-size-label';
+    label.textContent = labelText;
+    const select = document.createElement('select');
+    select.className = 'exercise-select-input';
+    select.innerHTML = walkingBassSoundOptions.map((option) => `<option value="${option.value}">${option.label}</option>`).join('');
+    select.value = initialValue;
+    select.addEventListener('change', () => onChange(normalizeWalkingBassSound(select.value)));
+    wrap.append(label, select);
+    panel.appendChild(wrap);
+    return wrap;
+  };
+
+  const walkingBassSoundLeftWrap = createWalkingBassSoundSelect('Sound linke Hand', selectedWalkingBassSoundLeft, (value) => {
+    selectedWalkingBassSoundLeft = value;
+    persistSettings();
+    managerRef?.setWalkingBassHandSound?.('left', value);
+  });
+  const walkingBassSoundRightWrap = createWalkingBassSoundSelect('Sound rechte Hand', selectedWalkingBassSoundRight, (value) => {
+    selectedWalkingBassSoundRight = value;
+    persistSettings();
+    managerRef?.setWalkingBassHandSound?.('right', value);
+  });
+  bindUiGroupDescription([walkingBassSoundLeftWrap, walkingBassSoundRightWrap], 'Eingewöhnung', 'WalkingBassSound');
+
+  const walkingBassModeWrap = document.createElement('div');
+  walkingBassModeWrap.className = 'figure-side-group';
+  walkingBassModeWrap.hidden = true;
+  const walkingBassModeLabel = document.createElement('div');
+  walkingBassModeLabel.className = 'figure-size-label';
+  walkingBassModeLabel.textContent = 'Bass-Modus';
+  const walkingBassModeGroup = document.createElement('div');
+  walkingBassModeGroup.className = 'figure-mode-group';
+  [{ value: 'single', label: 'Single Note' }, { value: 'walking', label: 'Walking' }].forEach(({ value, label }) => {
+    const option = document.createElement('label');
+    option.className = 'figure-side-option';
+    const input = document.createElement('input');
+    input.type = 'radio';
+    input.name = 'walking-bass-mode';
+    input.value = value;
+    input.checked = selectedWalkingBassMode === value;
+    const text = document.createElement('span');
+    text.textContent = label;
+    input.addEventListener('change', () => {
+      if (!input.checked) {
+        return;
+      }
+      selectedWalkingBassMode = value;
+      persistSettings();
+      managerRef?.setWalkingBassMode?.(value);
+    });
+    option.append(input, text);
+    walkingBassModeGroup.appendChild(option);
+  });
+  walkingBassModeWrap.append(walkingBassModeLabel, walkingBassModeGroup);
+  bindUiGroupDescription([walkingBassModeLabel, ...walkingBassModeGroup.querySelectorAll('label, input')], 'Eingewöhnung', 'WalkingBassModus');
+  panel.appendChild(walkingBassModeWrap);
+
+  const claveToneModeWrap = document.createElement('div');
+  claveToneModeWrap.className = 'figure-side-group';
+  claveToneModeWrap.hidden = true;
+  const claveToneModeLabel = document.createElement('div');
+  claveToneModeLabel.className = 'figure-size-label';
+  claveToneModeLabel.textContent = 'Clave-Pitch';
+  const claveToneModeGroup = document.createElement('div');
+  claveToneModeGroup.className = 'figure-mode-group';
+  [{ value: 'continuous', label: 'Chromatisch' }, { value: 'two', label: 'Zwei Pitches' }].forEach(({ value, label }) => {
+    const option = document.createElement('label');
+    option.className = 'figure-side-option';
+    const input = document.createElement('input');
+    input.type = 'radio';
+    input.name = 'clave-tone-mode';
+    input.value = value;
+    input.checked = selectedClaveToneMode === value;
+    const text = document.createElement('span');
+    text.textContent = label;
+    input.addEventListener('change', () => {
+      if (!input.checked) {
+        return;
+      }
+      selectedClaveToneMode = value;
+      persistSettings();
+      managerRef?.setClaveToneMode?.(value);
+    });
+    option.append(input, text);
+    claveToneModeGroup.appendChild(option);
+  });
+  claveToneModeWrap.append(claveToneModeLabel, claveToneModeGroup);
+  bindUiGroupDescription([claveToneModeLabel, ...claveToneModeGroup.querySelectorAll('label, input')], 'Eingewöhnung', 'ClaveTonhoehe');
+  panel.appendChild(claveToneModeWrap);
+
+  const walkingBassThresholdWrap = document.createElement('label');
+  walkingBassThresholdWrap.className = 'figure-size-wrap';
+  walkingBassThresholdWrap.hidden = true;
+  const walkingBassThresholdLabel = document.createElement('div');
+  walkingBassThresholdLabel.className = 'figure-size-label';
+  walkingBassThresholdLabel.textContent = 'Schwellwert (Zittern)';
+  const walkingBassThresholdSlider = document.createElement('input');
+  walkingBassThresholdSlider.type = 'range';
+  walkingBassThresholdSlider.min = '0.5';
+  walkingBassThresholdSlider.max = '10';
+  walkingBassThresholdSlider.step = '0.5';
+  walkingBassThresholdSlider.value = String(selectedWalkingBassThreshold);
+  const walkingBassThresholdValue = document.createElement('div');
+  walkingBassThresholdValue.className = 'figure-size-value';
+  walkingBassThresholdValue.textContent = `${selectedWalkingBassThreshold.toFixed(1)}%`;
+  walkingBassThresholdSlider.addEventListener('input', () => {
+    const next = Math.max(0.5, Math.min(10, Number(walkingBassThresholdSlider.value)));
+    selectedWalkingBassThreshold = next;
+    walkingBassThresholdValue.textContent = `${next.toFixed(1)}%`;
+    persistSettings();
+    managerRef?.setWalkingBassThreshold?.(next);
+  });
+  walkingBassThresholdWrap.append(walkingBassThresholdLabel, walkingBassThresholdSlider, walkingBassThresholdValue);
+  bindUiGroupDescription([walkingBassThresholdLabel, walkingBassThresholdSlider, walkingBassThresholdValue], 'Eingewöhnung', 'WalkingBassSchwellwert');
+  panel.appendChild(walkingBassThresholdWrap);
+
+  const walkingBassSensitivityWrap = document.createElement('label');
+  walkingBassSensitivityWrap.className = 'figure-size-wrap';
+  walkingBassSensitivityWrap.hidden = true;
+  const walkingBassSensitivityLabel = document.createElement('div');
+  walkingBassSensitivityLabel.className = 'figure-size-label';
+  walkingBassSensitivityLabel.textContent = 'Lautstärke-Dynamik';
+  const walkingBassSensitivitySlider = document.createElement('input');
+  walkingBassSensitivitySlider.type = 'range';
+  walkingBassSensitivitySlider.min = '0';
+  walkingBassSensitivitySlider.max = '100';
+  walkingBassSensitivitySlider.step = '5';
+  walkingBassSensitivitySlider.value = String(Math.round(selectedWalkingBassSensitivity * 100));
+  const walkingBassSensitivityValue = document.createElement('div');
+  walkingBassSensitivityValue.className = 'figure-size-value';
+  walkingBassSensitivityValue.textContent = `${Math.round(selectedWalkingBassSensitivity * 100)}%`;
+  walkingBassSensitivitySlider.addEventListener('input', () => {
+    const next = Math.max(0, Math.min(100, Number(walkingBassSensitivitySlider.value))) / 100;
+    selectedWalkingBassSensitivity = next;
+    walkingBassSensitivityValue.textContent = `${Math.round(next * 100)}%`;
+    persistSettings();
+    managerRef?.setWalkingBassVelocitySensitivity?.(next);
+  });
+  walkingBassSensitivityWrap.append(walkingBassSensitivityLabel, walkingBassSensitivitySlider, walkingBassSensitivityValue);
+  bindUiGroupDescription([walkingBassSensitivityLabel, walkingBassSensitivitySlider, walkingBassSensitivityValue], 'Eingewöhnung', 'WalkingBassDynamik');
+  panel.appendChild(walkingBassSensitivityWrap);
+
+  const createWalkingBassToggle = (labelText, initialValue, onChange) => {
+    const wrap = document.createElement('label');
+    wrap.className = 'figure-size-wrap exercise-toggle';
+    wrap.hidden = true;
+    const label = document.createElement('div');
+    label.className = 'figure-size-label';
+    label.textContent = labelText;
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = initialValue;
+    const value = document.createElement('div');
+    value.className = 'figure-size-value';
+    value.textContent = initialValue ? 'An' : 'Aus';
+    checkbox.addEventListener('change', () => {
+      value.textContent = checkbox.checked ? 'An' : 'Aus';
+      onChange(checkbox.checked);
+    });
+    wrap.append(label, checkbox, value);
+    panel.appendChild(wrap);
+    return wrap;
+  };
+
+  const createWalkingBassRadioGroup = (labelText, name, options, selectedValue, onChange) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'figure-side-group';
+    wrap.hidden = true;
+    const label = document.createElement('div');
+    label.className = 'figure-size-label';
+    label.textContent = labelText;
+    const group = document.createElement('div');
+    group.className = 'figure-mode-group';
+    options.forEach(({ value, text }) => {
+      const option = document.createElement('label');
+      option.className = 'figure-side-option';
+      const input = document.createElement('input');
+      input.type = 'radio';
+      input.name = name;
+      input.value = String(value);
+      input.checked = selectedValue === value;
+      const span = document.createElement('span');
+      span.textContent = text;
+      input.addEventListener('change', () => {
+        if (input.checked) {
+          onChange(value);
+        }
+      });
+      option.append(input, span);
+      group.appendChild(option);
+    });
+    wrap.append(label, group);
+    bindUiGroupDescription([label, ...group.querySelectorAll('label, input')], 'Eingewöhnung', 'Einsatzfelder');
+    panel.appendChild(wrap);
+    return wrap;
+  };
+
+  const fieldModeWrap = createWalkingBassRadioGroup('Einsatzfelder', 'walking-bass-field-mode', [
+    { value: 'none', text: 'Keine Einsatzfelder' },
+    { value: 'guitar', text: 'Gitarrenfeld' },
+    { value: 'ensemble', text: 'Ensemble Felder' }
+  ], selectedFieldMode, (value) => {
+    selectedFieldMode = value;
+    persistSettings();
+    managerRef?.setGuitarFieldVisible?.(value === 'guitar');
+    managerRef?.setEnsembleFieldsVisible?.(value === 'ensemble');
+    setChapter1ExerciseMode(squareExerciseMode);
+  });
+
+  const ensembleProgressionWrap = createWalkingBassRadioGroup('Akkordfolge', 'ensemble-progression', [
+    { value: 0, text: 'ii–V–I–VI (Dm7 G7 Cmaj7 A7)' },
+    { value: 1, text: 'I–vi–ii–V (Cmaj7 Am7 Dm7 G7)' },
+    { value: 2, text: 'Moll ii–V–i–iv (Dm7♭5 G7♭9 Cm7 Fm7)' }
+  ], selectedEnsembleProgression, (value) => {
+    selectedEnsembleProgression = value;
+    persistSettings();
+    managerRef?.setEnsembleProgression?.(value);
+  });
+
+  const guitarFieldMotionWrap = document.createElement('div');
+  guitarFieldMotionWrap.className = 'figure-side-group';
+  guitarFieldMotionWrap.hidden = true;
+  const guitarFieldMotionLabel = document.createElement('div');
+  guitarFieldMotionLabel.className = 'figure-size-label';
+  guitarFieldMotionLabel.textContent = 'Gitarrenfeld-Bewegung';
+  const guitarFieldMotionGroup = document.createElement('div');
+  guitarFieldMotionGroup.className = 'figure-mode-group';
+  [
+    { value: 'fix', label: 'Fix' },
+    { value: 'right', label: 'Random Walk Rechts' },
+    { value: 'left', label: 'Random Walk Links' }
+  ].forEach(({ value, label }) => {
+    const option = document.createElement('label');
+    option.className = 'figure-side-option';
+    const input = document.createElement('input');
+    input.type = 'radio';
+    input.name = 'guitar-field-motion';
+    input.value = value;
+    input.checked = selectedGuitarFieldMotion === value;
+    const text = document.createElement('span');
+    text.textContent = label;
+    input.addEventListener('change', () => {
+      if (!input.checked) {
+        return;
+      }
+      selectedGuitarFieldMotion = value;
+      persistSettings();
+      managerRef?.setGuitarFieldMotion?.(value);
+    });
+    option.append(input, text);
+    guitarFieldMotionGroup.appendChild(option);
+  });
+  guitarFieldMotionWrap.append(guitarFieldMotionLabel, guitarFieldMotionGroup);
+  bindUiGroupDescription([guitarFieldMotionLabel, ...guitarFieldMotionGroup.querySelectorAll('label, input')], 'Eingewöhnung', 'GitarrenfeldBewegung');
+  panel.appendChild(guitarFieldMotionWrap);
+
+  const walkingBassMetronomeToggleWrap = createWalkingBassToggle('Metronom', selectedWalkingBassMetronome, (checked) => {
+    selectedWalkingBassMetronome = checked;
+    persistSettings();
+    managerRef?.setWalkingBassMetronomeEnabled?.(checked);
+  });
+  bindUiGroupDescription([walkingBassMetronomeToggleWrap], 'Eingewöhnung', 'WalkingBassMetronom');
+
+  const walkingBassAnticipationToggleWrap = createWalkingBassToggle('Schlag-Antizipation', selectedWalkingBassAnticipation, (checked) => {
+    selectedWalkingBassAnticipation = checked;
+    persistSettings();
+    managerRef?.setWalkingBassAnticipationEnabled?.(checked);
+  });
+  bindUiGroupDescription([walkingBassAnticipationToggleWrap], 'Eingewöhnung', 'WalkingBassAntizipation');
+
+  const bubbleSoundSquareWrap = createWalkingBassToggle('Sound', selectedBubbleSoundSquare, (checked) => {
+    selectedBubbleSoundSquare = checked;
+    persistSettings();
+    managerRef?.setBubbleSoundEnabled?.(0, checked);
+  });
+  const bubbleSoundPointsWrap = createWalkingBassToggle('Sound', selectedBubbleSoundPoints, (checked) => {
+    selectedBubbleSoundPoints = checked;
+    persistSettings();
+    managerRef?.setBubbleSoundEnabled?.(1, checked);
+  });
+  squarePresetActions.after(bubbleSoundSquareWrap);
+  pointActions.after(bubbleSoundPointsWrap);
+  [bubbleSoundSquareWrap, bubbleSoundPointsWrap].forEach((wrap) => {
+    bindUiGroupDescription([wrap], 'Eingewöhnung', 'BubbleSound');
+  });
+
+  const walkingBassMetronomeBpmWrap = document.createElement('label');
+  walkingBassMetronomeBpmWrap.className = 'figure-size-wrap';
+  walkingBassMetronomeBpmWrap.hidden = true;
+  const walkingBassMetronomeBpmLabel = document.createElement('div');
+  walkingBassMetronomeBpmLabel.className = 'figure-size-label';
+  walkingBassMetronomeBpmLabel.textContent = 'Tempo';
+  const walkingBassMetronomeBpmSlider = document.createElement('input');
+  walkingBassMetronomeBpmSlider.type = 'range';
+  walkingBassMetronomeBpmSlider.min = '30';
+  walkingBassMetronomeBpmSlider.max = '180';
+  walkingBassMetronomeBpmSlider.step = '1';
+  walkingBassMetronomeBpmSlider.value = String(selectedWalkingBassMetronomeBpm);
+  const walkingBassMetronomeBpmValue = document.createElement('div');
+  walkingBassMetronomeBpmValue.className = 'figure-size-value';
+  walkingBassMetronomeBpmValue.textContent = `${selectedWalkingBassMetronomeBpm} BPM`;
+  walkingBassMetronomeBpmSlider.addEventListener('input', () => {
+    const next = Math.max(30, Math.min(180, Math.round(Number(walkingBassMetronomeBpmSlider.value))));
+    selectedWalkingBassMetronomeBpm = next;
+    walkingBassMetronomeBpmValue.textContent = `${next} BPM`;
+    persistSettings();
+    managerRef?.setWalkingBassMetronomeBpm?.(next);
+  });
+  walkingBassMetronomeBpmWrap.append(walkingBassMetronomeBpmLabel, walkingBassMetronomeBpmSlider, walkingBassMetronomeBpmValue);
+  panel.appendChild(walkingBassMetronomeBpmWrap);
+
   pointEditSliderControls[1] = resolutionWrap;
   pointEditSliderControls[2] = gridResolutionWrap;
   pointEditSliderControls[3] = centerDistanceWrap;
@@ -4679,9 +5200,11 @@ function createSquareExercisePanel() {
     const isPoints = squareExerciseMode === 'points';
     const isSymmetric = squareExerciseMode === 'symmetric';
     const isAlternating = squareExerciseMode === 'alternating';
-    const isBlank = squareExerciseMode === 'blank';
+    const isWalkingBass = squareExerciseMode === 'walking-bass';
+    const isBlank = squareExerciseMode === 'blank' || isWalkingBass;
     const isFreeMovement = squareExerciseMode === 'free-movement';
     const activeEditMode = Boolean(pointEditMode);
+    const showSoundControls = isAlternating || (isFreeMovement && activeEditMode);
     const hideUnusedSquareControls = isSymmetric || isPoints || isAlternating || isBlank || isFreeMovement;
     const squareShowEditControls = !isPoints && !isSymmetric && !isAlternating && !isBlank && !isFreeMovement && activeEditMode;
     const squareShowPresetControls = !isPoints && !isSymmetric && !isAlternating && !isBlank && !isFreeMovement;
@@ -4702,30 +5225,46 @@ function createSquareExercisePanel() {
       centerDistanceWrap.style.display = shouldShowCenterDistance ? '' : 'none';
     }
     if (alternatingScaleWrap) {
-      alternatingScaleWrap.hidden = !isAlternating;
-      alternatingScaleWrap.style.display = isAlternating ? '' : 'none';
+      alternatingScaleWrap.hidden = !showSoundControls;
+      alternatingScaleWrap.style.display = showSoundControls ? '' : 'none';
     }
     if (alternatingFmWrap) {
-      alternatingFmWrap.hidden = !isAlternating;
-      alternatingFmWrap.style.display = isAlternating ? '' : 'none';
+      alternatingFmWrap.hidden = !showSoundControls;
+      alternatingFmWrap.style.display = showSoundControls ? '' : 'none';
     }
     if (alternatingAxisSwapWrap) {
-      alternatingAxisSwapWrap.hidden = !isAlternating;
-      alternatingAxisSwapWrap.style.display = isAlternating ? '' : 'none';
+      alternatingAxisSwapWrap.hidden = !showSoundControls;
+      alternatingAxisSwapWrap.style.display = showSoundControls ? '' : 'none';
     }
     if (alternatingStartNoteWrap) {
-      alternatingStartNoteWrap.hidden = !isAlternating;
-      alternatingStartNoteWrap.style.display = isAlternating ? '' : 'none';
+      alternatingStartNoteWrap.hidden = !showSoundControls;
+      alternatingStartNoteWrap.style.display = showSoundControls ? '' : 'none';
     }
     if (alternatingVolumeWrap) {
-      alternatingVolumeWrap.hidden = !isAlternating;
-      alternatingVolumeWrap.style.display = isAlternating ? '' : 'none';
+      alternatingVolumeWrap.hidden = !showSoundControls;
+      alternatingVolumeWrap.style.display = showSoundControls ? '' : 'none';
     }
     if (activeTouchFadeWrap) {
       const shouldShowFadeToggle = isFreeMovement && activeEditMode;
       activeTouchFadeWrap.hidden = !shouldShowFadeToggle;
       activeTouchFadeWrap.style.display = shouldShowFadeToggle ? '' : 'none';
     }
+    [walkingBassSoundLeftWrap, walkingBassSoundRightWrap, walkingBassModeWrap, claveToneModeWrap, walkingBassThresholdWrap, walkingBassSensitivityWrap, fieldModeWrap, walkingBassMetronomeToggleWrap, walkingBassAnticipationToggleWrap, walkingBassMetronomeBpmWrap].forEach((wrap) => {
+      wrap.hidden = !isWalkingBass;
+      wrap.style.display = isWalkingBass ? '' : 'none';
+    });
+    const showGuitarMotion = isWalkingBass && selectedFieldMode === 'guitar';
+    guitarFieldMotionWrap.hidden = !showGuitarMotion;
+    guitarFieldMotionWrap.style.display = showGuitarMotion ? '' : 'none';
+    const showEnsembleProgression = isWalkingBass && selectedFieldMode === 'ensemble';
+    ensembleProgressionWrap.hidden = !showEnsembleProgression;
+    ensembleProgressionWrap.style.display = showEnsembleProgression ? '' : 'none';
+    const showSquareSound = squareExerciseMode === 'square' && activeEditMode;
+    bubbleSoundSquareWrap.hidden = !showSquareSound;
+    bubbleSoundSquareWrap.style.display = showSquareSound ? '' : 'none';
+    const showPointsSound = isPoints && activeEditMode;
+    bubbleSoundPointsWrap.hidden = !showPointsSound;
+    bubbleSoundPointsWrap.style.display = showPointsSound ? '' : 'none';
     if (resolutionWrap) {
       const shouldShowResolution = !isBlank && (
         (isFreeMovement && activeEditMode) ||
@@ -4883,7 +5422,7 @@ function createSquareExercisePanel() {
     if (title) {
       title.hidden = false;
       title.style.display = '';
-      title.textContent = isFreeMovement ? 'Freie Bewegung' : isPoints ? 'Punkte' : isSymmetric ? 'Symmetrisch' : isAlternating ? 'Alternierend' : 'Ziffern';
+      title.textContent = isWalkingBass ? 'Walking Bass' : isFreeMovement ? 'Freie Bewegung' : isPoints ? 'Punkte' : isSymmetric ? 'Symmetrisch' : isAlternating ? 'Alternierend' : 'Ziffern';
     }
   };
 
@@ -4891,6 +5430,7 @@ function createSquareExercisePanel() {
   syncPointToggleButton();
   updatePointPanelVisibility();
   attachPanelHoverHelp(panel);
+  let pointPresetInitialized = false;
 
   return {
     panel,
@@ -4915,6 +5455,23 @@ function createSquareExercisePanel() {
       return applied;
     },
     renderPointList,
+    reloadPresets: () => {
+      squarePresetData = readSquarePresetData();
+      if (Number.isInteger(Number(squarePresetData.selectedPresetSlot))) {
+        selectedSquarePresetSlot = normalizeSquarePresetSlot(squarePresetData.selectedPresetSlot);
+      }
+      pointSavedSlots = readStoredPointSlots();
+      managerRef?.setPointExerciseSavedSlots?.(pointSavedSlots);
+    },
+    syncGuitarFieldPosition: (x, y) => {
+      selectedGuitarFieldX = Math.max(0, Math.min(1, Number(x)));
+      selectedGuitarFieldY = Math.max(0, Math.min(1, Number(y)));
+      persistSettings();
+    },
+    syncEnsemblePositions: (positions) => {
+      selectedEnsemblePositions = positions.map((position) => ({ x: position.x, y: position.y }));
+      persistSettings();
+    },
     restoreSelectedPreset: () => {
       if (Number.isInteger(selectedSquarePresetSlot) && selectedSquarePresetSlot >= 1 && selectedSquarePresetSlot <= squarePresetCount) {
         applySquarePreset(selectedSquarePresetSlot);
@@ -4957,6 +5514,21 @@ function createSquareExercisePanel() {
       const selectedPreset = pointSavedSlots[currentSlot] || pointSavedSlots[1] || {};
       const entry = normalizePointPresetEntry(selectedPreset);
       const hasPresetSequence = Array.isArray(entry.sequence) && entry.sequence.length > 0;
+      const isFirstInitialization = !pointPresetInitialized;
+      pointPresetInitialized = true;
+      // Grid and circle size must follow the active preset even in edit mode or for empty slots.
+      if (pointSavedSlots[currentSlot]) {
+        const activeEntry = normalizePointPresetEntry(pointSavedSlots[currentSlot]);
+        setGridResolution(activeEntry.gridResolution);
+        setResolution(activeEntry.resolution);
+        persistSettings();
+        managerRef?.setSquareExerciseGridResolution(activeEntry.gridResolution);
+        managerRef?.setSquareExerciseResolution(activeEntry.resolution);
+      }
+      // After a reload or user switch with edit mode on, the first entry must still show the active preset.
+      if (pointEditMode && isFirstInitialization && loadPointPresetIntoCurrentSequence(currentSlot, { force: true })) {
+        return true;
+      }
       if (!pointEditMode && hasPresetSequence) {
         loadPointPresetIntoCurrentSequence(currentSlot, { force: true });
         return true;
@@ -5108,6 +5680,23 @@ function createSquareExercisePanel() {
         alternatingAxisSwapCheckbox.checked = selectedAlternatingAxisSwap;
         alternatingAxisSwapValue.textContent = selectedAlternatingAxisSwap ? 'Y=Ton' : 'X=Ton';
         managerRef?.setAlternatingExerciseVolume?.(selectedAlternatingVolume);
+        managerRef?.setWalkingBassThreshold?.(selectedWalkingBassThreshold);
+        managerRef?.setWalkingBassVelocitySensitivity?.(selectedWalkingBassSensitivity);
+        managerRef?.setWalkingBassMode?.(selectedWalkingBassMode);
+        managerRef?.setClaveToneMode?.(selectedClaveToneMode);
+        managerRef?.setBubbleSoundEnabled?.(0, selectedBubbleSoundSquare);
+        managerRef?.setBubbleSoundEnabled?.(1, selectedBubbleSoundPoints);
+        managerRef?.setWalkingBassHandSound?.('left', selectedWalkingBassSoundLeft);
+        managerRef?.setWalkingBassHandSound?.('right', selectedWalkingBassSoundRight);
+        managerRef?.setGuitarFieldPosition?.(selectedGuitarFieldX, selectedGuitarFieldY);
+        managerRef?.setGuitarFieldVisible?.(selectedFieldMode === 'guitar');
+        managerRef?.setEnsemblePositions?.(selectedEnsemblePositions);
+        managerRef?.setEnsembleProgression?.(selectedEnsembleProgression);
+        managerRef?.setEnsembleFieldsVisible?.(selectedFieldMode === 'ensemble');
+        managerRef?.setGuitarFieldMotion?.(selectedGuitarFieldMotion);
+        managerRef?.setWalkingBassMetronomeBpm?.(selectedWalkingBassMetronomeBpm);
+        managerRef?.setWalkingBassMetronomeEnabled?.(selectedWalkingBassMetronome);
+        managerRef?.setWalkingBassAnticipationEnabled?.(selectedWalkingBassAnticipation);
         managerRef?.setActiveTouchFadeEnabled?.(selectedActiveTouchFadeEnabled);
         managerRef?.setAlternatingExerciseFrequencyModulation?.(selectedAlternatingFrequencyModulation);
         managerRef?.setAlternatingExerciseAxisSwap?.(selectedAlternatingAxisSwap);
@@ -5367,11 +5956,7 @@ function createHandIndependencePanel() {
   });
 
   presetResetButton.addEventListener('click', () => {
-    const figureLevel = Number.isInteger(Number(settings.figureLevel)) ? Number(settings.figureLevel) : 0;
-    presets[String(figureLevel)] = {};
-    selectedPresetSlot = 0;
-    persistPresets();
-    renderPresetSlots();
+    resetPresets();
   });
 
   const createSection = (label) => {
@@ -5740,12 +6325,35 @@ function createHandIndependencePanel() {
     renderPresetSlots();
     return slot;
   }
-  function resetPresets() {
+  async function resetPresets() {
     const figureLevel = Number.isInteger(Number(settings.figureLevel)) ? Number(settings.figureLevel) : 0;
-    presets[String(figureLevel)] = {};
-    selectedPresetSlot = 0;
+    if (!confirmLevelPresetReset(5, figureLevel)) {
+      return false;
+    }
+
+    let defaults;
+    try {
+      defaults = await fetchMotionAiDefaultsSections(['hand-independence-presets']);
+    } catch (error) {
+      alertLevelPresetResetFailed(error);
+      return false;
+    }
+
+    const defaultBucket = defaults['hand-independence-presets']?.[String(figureLevel)];
+    const nextBucket = defaultBucket && typeof defaultBucket === 'object' && !Array.isArray(defaultBucket)
+      ? defaultBucket
+      : {};
+    presets[String(figureLevel)] = nextBucket;
+    const defaultSlot = resolvePresetSlotForLevel(figureLevel, nextBucket.selectedSlot);
+    nextBucket.selectedSlot = defaultSlot;
+    selectedPresetSlot = defaultSlot;
     persistPresets();
     renderPresetSlots();
+    const activePreset = nextBucket[String(defaultSlot)];
+    if (activePreset && typeof activePreset === 'object') {
+      apply(activePreset);
+    }
+    return true;
   }
   function rebuildCornerControls(figureLevelOverride = settings.figureLevel) {
     updateFigureVariationVisibility();
@@ -5832,6 +6440,14 @@ function createHandIndependencePanel() {
     },
     savePresetFromPrompt,
     resetPresets,
+    reloadPresets: () => {
+      try {
+        const stored = getUserScopedStorageValue(presetKey, {});
+        presets = stored && typeof stored === 'object' ? stored : {};
+      } catch (error) {
+        presets = {};
+      }
+    },
     syncCurrentToggleStateForChapter
   };
 }
@@ -5923,6 +6539,7 @@ function createTrackingControls(trackingController) {
   let videoSofteningBlurPx = 5;
   let videoSofteningBrightness = 0.75;
   let poseWarningLandmarksVisible = false;
+  let videoCenterOffsetPercent = 0;
 
   const hoverHelpToggleButton = document.createElement('button');
   hoverHelpToggleButton.type = 'button';
@@ -6015,6 +6632,7 @@ function createTrackingControls(trackingController) {
         videoSofteningBlurPx,
         videoSofteningBrightness,
         poseWarningLandmarksVisible,
+        videoCenterOffsetPercent,
         createdAt: getDefaultCreatedAtValue()
       };
       setUserScopedStorageValue(settingsStorageKey, snapshot);
@@ -6111,6 +6729,9 @@ function createTrackingControls(trackingController) {
   videoSofteningBlurPx = savedVideoSofteningBlurPx;
   videoSofteningBrightness = savedVideoSofteningBrightness;
   poseWarningLandmarksVisible = savedPoseWarningLandmarksVisible;
+  videoCenterOffsetPercent = Number.isFinite(Number(savedSettings.videoCenterOffsetPercent))
+    ? Math.min(30, Math.max(-30, Number(savedSettings.videoCenterOffsetPercent)))
+    : 0;
   uiState.hoverHelpEnabled = savedHoverHelpEnabled;
   modelSelect.value = savedModel;
 
@@ -6126,10 +6747,6 @@ function createTrackingControls(trackingController) {
   calibrationStrictnessRow.className = 'tracking-controls-row';
   calibrationStrictnessRow.appendChild(calibrationStrictnessLabel);
   calibrationStrictnessRow.appendChild(calibrationStrictnessValue);
-
-  const stabilizationButton = document.createElement('button');
-  stabilizationButton.type = 'button';
-  stabilizationButton.className = 'tracking-controls-button';
 
   const landmarkDrawingButton = document.createElement('button');
   landmarkDrawingButton.type = 'button';
@@ -6311,44 +6928,10 @@ function createTrackingControls(trackingController) {
     }
   }
 
-  const modeLabel = document.createElement('div');
-  modeLabel.textContent = 'Playback';
-  modeLabel.className = 'tracking-controls-label';
-
-  const modeGroup = document.createElement('div');
-  modeGroup.className = 'tracking-controls-radio-group';
-
   let calibrationSetChangeHandler = null;
   let calibrationStrictnessChangeHandler = null;
 
   selectedPlaybackMode = savedPlaybackMode;
-
-  function createModeOption(mode) {
-    const label = document.createElement('label');
-    label.className = 'tracking-controls-radio-option';
-
-    const input = document.createElement('input');
-    input.type = 'radio';
-    input.name = 'level-playback-mode';
-    input.value = mode;
-    input.checked = mode === selectedPlaybackMode;
-
-    input.addEventListener('change', () => {
-      if (input.checked) {
-        selectedPlaybackMode = mode;
-        persistSettingsState();
-      }
-    });
-
-    const text = document.createElement('span');
-    text.textContent = mode;
-
-    label.appendChild(input);
-    label.appendChild(text);
-    modeGroup.appendChild(label);
-  }
-
-  playbackModes.forEach((mode) => createModeOption(mode));
 
   function formatCalibrationSetOption(entry, index) {
     if (!entry || !entry.timestamp) {
@@ -6561,11 +7144,6 @@ function createTrackingControls(trackingController) {
     }
   }
 
-  function updateStabilizationLabel() {
-    stabilizationButton.textContent = stabilizationEnabled ? 'Stabilization: ON' : 'Stabilization: OFF';
-    stabilizationButton.setAttribute('aria-pressed', String(stabilizationEnabled));
-  }
-
   function updateLandmarkDrawingLabel() {
     landmarkDrawingButton.textContent = landmarkDrawingVisible ? 'Landmarks: ON' : 'Landmarks: OFF';
     landmarkDrawingButton.setAttribute('aria-pressed', String(landmarkDrawingVisible));
@@ -6600,6 +7178,45 @@ function createTrackingControls(trackingController) {
     const safeNext = Number.isFinite(nextOpacity) ? Math.min(Number(silhouetteOpacitySlider.max), Math.max(Number(silhouetteOpacitySlider.min), nextOpacity)) : 0.2;
     silhouetteOpacityValue = safeNext;
     updateSilhouetteOpacityControl();
+  });
+
+  const videoCenterLabel = document.createElement('label');
+  videoCenterLabel.textContent = 'Bildmitte verschieben';
+  videoCenterLabel.className = 'tracking-controls-label';
+
+  const videoCenterValueLabel = document.createElement('div');
+  videoCenterValueLabel.className = 'tracking-controls-inline-value';
+
+  const videoCenterRow = document.createElement('div');
+  videoCenterRow.className = 'tracking-controls-row';
+  videoCenterRow.appendChild(videoCenterLabel);
+  videoCenterRow.appendChild(videoCenterValueLabel);
+
+  const videoCenterSlider = document.createElement('input');
+  videoCenterSlider.type = 'range';
+  videoCenterSlider.min = '-30';
+  videoCenterSlider.max = '30';
+  videoCenterSlider.step = '0.5';
+  videoCenterSlider.className = 'tracking-controls-range';
+  videoCenterSlider.title = 'Verschiebt Videobild und Landmarken horizontal gegenüber den Figuren (Doppelklick: zurücksetzen)';
+
+  function updateVideoCenterControl() {
+    videoCenterSlider.value = String(videoCenterOffsetPercent);
+    videoCenterValueLabel.textContent = `${videoCenterOffsetPercent > 0 ? '+' : ''}${Number(videoCenterOffsetPercent).toFixed(1)}%`;
+    setVideoCenterOffset(videoCenterOffsetPercent / 100);
+  }
+
+  videoCenterSlider.addEventListener('input', () => {
+    const next = Number(videoCenterSlider.value);
+    videoCenterOffsetPercent = Number.isFinite(next) ? next : 0;
+    updateVideoCenterControl();
+    persistSettingsState();
+  });
+
+  videoCenterSlider.addEventListener('dblclick', () => {
+    videoCenterOffsetPercent = 0;
+    updateVideoCenterControl();
+    persistSettingsState();
   });
 
   const exportDefaultsButton = document.createElement('button');
@@ -6775,13 +7392,6 @@ function createTrackingControls(trackingController) {
     persistSettingsState();
   });
 
-  stabilizationButton.addEventListener('click', () => {
-    stabilizationEnabled = !stabilizationEnabled;
-    setStabilizationEnabled(stabilizationEnabled);
-    updateStabilizationLabel();
-    persistSettingsState();
-  });
-
   landmarkDrawingButton.addEventListener('click', () => {
     landmarkDrawingVisible = !landmarkDrawingVisible;
     setLandmarkDrawingEnabled(landmarkDrawingVisible);
@@ -6878,11 +7488,11 @@ function createTrackingControls(trackingController) {
   if (levelManagerRef) {
     levelManagerRef.setPoseWarningLandmarksEnabled(poseWarningLandmarksVisible);
   }
-  updateStabilizationLabel();
   updateLandmarkDrawingLabel();
   updateSilhouetteLabel();
   updateEyesLabel();
   updateSilhouetteOpacityControl();
+  updateVideoCenterControl();
   updateVideoSofteningLabel();
   updateVideoSofteningControls();
   updatePoseWarningLandmarksLabel();
@@ -6909,12 +7519,11 @@ function createTrackingControls(trackingController) {
   bindUiGroupDescription([hoverHelpToggleButton], 'Einstellungen', 'Info Box');
   bindUiGroupDescription([calibrationSetLabel, calibrationSetSelect], 'Einstellungen', 'Calibration Sets');
   bindUiGroupDescription([calibrationStrictnessLabel, calibrationStrictnessSlider], 'Einstellungen', 'Calibration Strictness');
-  bindUiGroupDescription([modeLabel, ...modeGroup.querySelectorAll('label, input')], 'Einstellungen', 'Playback');
-  bindUiGroupDescription([stabilizationButton], 'Einstellungen', 'Stabilization');
   bindUiGroupDescription([landmarkDrawingButton], 'Einstellungen', 'Landmarks');
   bindUiGroupDescription([silhouetteButton], 'Einstellungen', 'Silhouette');
   bindUiGroupDescription([eyesButton], 'Einstellungen', 'Silhouette');
   bindUiGroupDescription([silhouetteOpacityLabel, silhouetteOpacityValueLabel, silhouetteOpacitySlider], 'Einstellungen', 'Silhouette Deckkraft');
+  bindUiGroupDescription([videoCenterLabel, videoCenterValueLabel, videoCenterSlider], 'Einstellungen', 'Bildmitte verschieben');
   bindUiGroupDescription([exportDefaultsButton], 'Einstellungen', 'Defaults exportieren');
   bindUiGroupDescription([exportExamsButton], 'Einstellungen', 'Export Exams');
   bindUiGroupDescription([restoreDefaultsButton], 'Einstellungen', 'Werkseinstellung');
@@ -6935,15 +7544,14 @@ function createTrackingControls(trackingController) {
   container.appendChild(calibrationSetSelect);
   container.appendChild(calibrationStrictnessRow);
   container.appendChild(calibrationStrictnessSlider);
-  container.appendChild(modeLabel);
-  container.appendChild(modeGroup);
-  container.appendChild(stabilizationButton);
   container.appendChild(landmarkDrawingButton);
   container.appendChild(silhouetteButton);
   container.appendChild(eyesButton);
   container.appendChild(silhouetteOpacityRow);
   container.appendChild(silhouetteOpacitySlider);
   container.appendChild(poseWarningLandmarksButton);
+  container.appendChild(videoCenterRow);
+  container.appendChild(videoCenterSlider);
   container.appendChild(exportDefaultsButton);
   container.appendChild(exportExamsButton);
   container.appendChild(restoreDefaultsButton);
@@ -7011,7 +7619,11 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
   startStopButton.textContent = 'Start';
 
   titleRow.appendChild(title);
-  titleRow.appendChild(startStopButton);
+  const examSettingsVisibility = createLevelSettingsVisibilityController(panel, {
+    chapterId: 7,
+    levelResolver: () => uiState.activeLevel
+  });
+  titleRow.appendChild(examSettingsVisibility.button);
   panel.appendChild(titleRow);
 
   const navRow = document.createElement('div');
@@ -7026,19 +7638,10 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
   nextButton.className = 'exam-mini-button';
   nextButton.textContent = '→';
   nextButton.title = 'Nächste Aufgabe';
+  navRow.appendChild(startStopButton);
   navRow.appendChild(previousButton);
   navRow.appendChild(nextButton);
   panel.appendChild(navRow);
-
-  const taskList = document.createElement('div');
-  taskList.className = 'exam-task-list';
-  panel.appendChild(taskList);
-
-  const addTaskButton = document.createElement('button');
-  addTaskButton.type = 'button';
-  addTaskButton.className = 'exam-add-button';
-  addTaskButton.textContent = '+ Aufgabe hinzufügen';
-  panel.appendChild(addTaskButton);
 
   const historyLabel = document.createElement('div');
   historyLabel.className = 'exam-history-label';
@@ -7051,10 +7654,54 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
   historySelect.disabled = true;
   panel.appendChild(historySelect);
 
+  const tasksSection = document.createElement('div');
+  tasksSection.className = 'exam-tasks-section';
+  panel.appendChild(tasksSection);
+
+  const tasksLabel = document.createElement('div');
+  tasksLabel.className = 'exam-history-label';
+  tasksLabel.textContent = 'Aufgaben';
+  tasksSection.appendChild(tasksLabel);
+
+  const taskList = document.createElement('div');
+  taskList.className = 'exam-task-list';
+  tasksSection.appendChild(taskList);
+
+  const addTaskButton = document.createElement('button');
+  addTaskButton.type = 'button';
+  addTaskButton.className = 'exam-add-button';
+  addTaskButton.textContent = '+ Aufgabe hinzufügen';
+  tasksSection.appendChild(addTaskButton);
+  examSettingsVisibility.sync();
+
   const taskStorageKey = 'motionai.exam.tasks';
   const resultsStorageKey = 'motionai.exam.results';
   const FINAL_EXAM_LEVEL = 4;
-  const FINAL_EXAM_PASSWORD = 'moki';
+
+  // The shared Prüfung runs on the DozentIn's presets; the examinee's own stored presets stay untouched.
+  const examPresetSections = [
+    'figure-presets',
+    'figure-selected-presets',
+    'dynamic-figure-presets',
+    'dynamic-figure-selected-presets',
+    'hand-independence-presets',
+    'exercise-field-presets',
+    'square-exercise-presets',
+    'point-exercise-saved-slots',
+    'consistency-presets',
+    'consistency-panel-settings'
+  ];
+  let examPresetRedirectActive = false;
+  const setExamPresetRedirect = (active) => {
+    if (examPresetRedirectActive === active) {
+      return;
+    }
+    examPresetRedirectActive = active;
+    setMotionAiPresetReadRedirect(active ? MOTIONAI_DOZENT_USER_ID : null, examPresetSections);
+    [figurePanel, dynamicFigurePanel, handIndependencePanel, squareExercisePanel].forEach((presetPanel) => {
+      presetPanel?.reloadPresets?.();
+    });
+  };
   const examChapterOptions = [
     { id: 1, label: 'Eingewöhnung' },
     { id: 2, label: 'Gleichmäßigkeit' },
@@ -7100,6 +7747,11 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
 
   const getExamStorageKey = (levelIndex) => `${taskStorageKey}.level.${normalizeExamLevel(levelIndex) ?? 0}`;
   const getExamResultsStorageKey = (levelIndex) => `${resultsStorageKey}.level.${normalizeExamLevel(levelIndex) ?? 0}`;
+
+  // Final exam tasks live only in the DozentIn bucket; results always stay in the active user's bucket.
+  const isSharedExamLevel = (levelIndex) => normalizeExamLevel(levelIndex) === FINAL_EXAM_LEVEL;
+  const getExamTasksOwnerId = (levelIndex) => (isSharedExamLevel(levelIndex) ? MOTIONAI_DOZENT_USER_ID : getMotionAiActiveUserId());
+  const isExamLevelEditable = (levelIndex) => !isSharedExamLevel(levelIndex) || getMotionAiActiveUserId() === MOTIONAI_DOZENT_USER_ID;
 
   const getExamPresetCount = (chapterId, levelIndex = 0) => {
     const safeChapterId = Number(chapterId);
@@ -7150,7 +7802,7 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
     const panelState = ensureExamPanelState(safeLevel);
     const storageKey = getExamStorageKey(safeLevel ?? 0);
     try {
-      const stored = getUserScopedStorageValue(storageKey, []);
+      const stored = getMotionAiBucketValue(storageKey, [], getExamTasksOwnerId(safeLevel));
       const nextTasks = Array.isArray(stored) && stored.length > 0
         ? stored.map((task, index) => {
             const chapterId = Number.isInteger(Number(task.chapterId)) ? Math.min(6, Math.max(1, Number(task.chapterId))) : 1;
@@ -7184,12 +7836,15 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
     if (safeLevel === null) {
       return;
     }
+    if (!isExamLevelEditable(safeLevel)) {
+      return;
+    }
     const panelState = ensureExamPanelState(safeLevel);
     if (panelState) {
       panelState.tasks = tasks;
     }
     try {
-      setUserScopedStorageValue(getExamStorageKey(safeLevel), tasks);
+      setMotionAiBucketValue(getExamStorageKey(safeLevel), tasks, getExamTasksOwnerId(safeLevel));
     } catch (error) {
       // ignore storage failures
     }
@@ -7271,11 +7926,17 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
   resultCard.appendChild(resultTotal);
   resultCard.appendChild(resultSummary);
   resultModal.appendChild(resultCard);
-  resultModal.addEventListener('click', () => {
+  const closeResultModal = () => {
     resultModal.classList.add('hidden');
-  });
-  resultCloseButton.addEventListener('click', () => {
-    resultModal.classList.add('hidden');
+    historySelect.value = '';
+  };
+  resultModal.addEventListener('click', closeResultModal);
+  resultCloseButton.addEventListener('click', closeResultModal);
+  document.addEventListener('click', (event) => {
+    if (resultModal.classList.contains('hidden') || historySelect.contains(event.target)) {
+      return;
+    }
+    closeResultModal();
   });
   stageFrame.appendChild(resultModal);
 
@@ -7301,7 +7962,7 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
       renderHistory();
       return;
     }
-    tasks = panelState?.tasks?.length ? panelState.tasks : loadExamTasks(nextLevel);
+    tasks = panelState?.tasks?.length && !isSharedExamLevel(nextLevel) ? panelState.tasks : loadExamTasks(nextLevel);
     if (panelState) {
       panelState.tasks = tasks;
     }
@@ -7422,6 +8083,7 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
   };
 
   const stopExam = () => {
+    setExamPresetRedirect(false);
     if (examState.previewTimeout) {
       clearTimeout(examState.previewTimeout);
       examState.previewTimeout = null;
@@ -7540,6 +8202,7 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
       return;
     }
 
+    setExamPresetRedirect(activeExamLevel === FINAL_EXAM_LEVEL && getMotionAiActiveUserId() !== MOTIONAI_DOZENT_USER_ID);
     applyTaskSelection(task);
     if (task.chapterId === 2 && examLevelManagerRef && typeof examLevelManagerRef.resetConsistencyTaskStrictnessHistory === 'function') {
       examLevelManagerRef.resetConsistencyTaskStrictnessHistory();
@@ -7711,6 +8374,13 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
       renderTasks();
     });
 
+    if (!isExamLevelEditable(activeExamLevel)) {
+      chapterSelect.disabled = true;
+      levelSelect.disabled = true;
+      presetSelect.disabled = true;
+      deleteButton.style.display = 'none';
+    }
+
     row.appendChild(chapterSelect);
     row.appendChild(levelSelect);
     row.appendChild(presetSelect);
@@ -7719,6 +8389,7 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
   };
 
   const renderTasks = () => {
+    addTaskButton.style.display = isExamLevelEditable(activeExamLevel) ? '' : 'none';
     taskList.innerHTML = '';
     tasks.forEach((task, index) => {
       taskList.appendChild(createTaskRow(task, index));
@@ -7726,6 +8397,9 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
   };
 
   addTaskButton.addEventListener('click', () => {
+    if (!isExamLevelEditable(activeExamLevel)) {
+      return;
+    }
     const lastTask = tasks[tasks.length - 1] || { chapterId: 1, levelIndex: 0, presetIndex: 0 };
     tasks.push({
       id: Date.now() + tasks.length,
@@ -7873,7 +8547,7 @@ function createUserStorageSelector(defaultsSnapshot = DEFAULT_MOTIONAI_STORAGE) 
   function updateToggleLabel() {
     const activeUserId = getMotionAiActiveUserId();
     if (activeUserId === 'default') {
-      toggleButton.textContent = '👤';
+      toggleButton.textContent = '👤 Anmelden';
       return;
     }
     const registry = getMotionAiUserRegistry();
@@ -7891,14 +8565,30 @@ function createUserStorageSelector(defaultsSnapshot = DEFAULT_MOTIONAI_STORAGE) 
 
     getMotionAiUserRegistry()
       .filter((entry) => entry.id !== 'default')
+      .sort((a, b) => {
+        if (a.id === MOTIONAI_DOZENT_USER_ID) {
+          return -1;
+        }
+        if (b.id === MOTIONAI_DOZENT_USER_ID) {
+          return 1;
+        }
+        return 0;
+      })
       .forEach((entry) => {
-        const optionWrap = document.createElement('label');
+        const optionWrap = document.createElement('div');
         optionWrap.style.display = 'flex';
         optionWrap.style.alignItems = 'center';
+        optionWrap.style.justifyContent = 'space-between';
         optionWrap.style.gap = '6px';
         optionWrap.style.padding = '4px 6px';
         optionWrap.style.borderRadius = '8px';
-        optionWrap.style.cursor = 'pointer';
+
+        const label = document.createElement('label');
+        label.style.display = 'flex';
+        label.style.alignItems = 'center';
+        label.style.gap = '6px';
+        label.style.cursor = 'pointer';
+        label.style.flex = '1';
 
         const input = document.createElement('input');
         input.type = 'radio';
@@ -7909,16 +8599,64 @@ function createUserStorageSelector(defaultsSnapshot = DEFAULT_MOTIONAI_STORAGE) 
         const text = document.createElement('span');
         text.textContent = entry.label;
 
-        input.addEventListener('change', () => {
+        input.addEventListener('change', async () => {
           if (!input.checked) {
             return;
           }
+
+          if (entry.id === MOTIONAI_DOZENT_USER_ID) {
+            const granted = await requestFinalExamPassword();
+            if (!granted) {
+              input.checked = false;
+              return;
+            }
+          }
+
           setMotionAiActiveUserId(entry.id);
           window.location.reload();
         });
 
-        optionWrap.appendChild(input);
-        optionWrap.appendChild(text);
+        const isPermanentUser = entry.id === MOTIONAI_DOZENT_USER_ID;
+
+        const deleteButton = document.createElement('button');
+        deleteButton.type = 'button';
+        deleteButton.textContent = 'Löschen';
+        deleteButton.style.padding = '4px 8px';
+        deleteButton.style.borderRadius = '6px';
+        deleteButton.style.border = '1px solid rgba(255,255,255,0.25)';
+        deleteButton.style.background = 'rgba(255,255,255,0.08)';
+        deleteButton.style.color = '#fff';
+        deleteButton.style.cursor = 'pointer';
+        deleteButton.disabled = isPermanentUser;
+        deleteButton.style.display = isPermanentUser ? 'none' : 'inline-block';
+        deleteButton.title = isPermanentUser ? 'Der DozentIn-Account bleibt permanent.' : 'Nutzer löschen';
+        if (!isPermanentUser) {
+          deleteButton.addEventListener('click', async () => {
+            const granted = await requestFinalExamPassword();
+            if (!granted) {
+              return;
+            }
+
+            const confirmed = window.confirm(`Möchtest du den Nutzer "${entry.label}" wirklich löschen?`);
+            if (!confirmed) {
+              return;
+            }
+
+            const deleted = deleteMotionAiUser(entry.id);
+            if (!deleted) {
+              window.alert('Der Nutzer konnte nicht gelöscht werden.');
+              return;
+            }
+
+            setMotionAiActiveUserId('default');
+            window.location.reload();
+          });
+        }
+
+        label.appendChild(input);
+        label.appendChild(text);
+        optionWrap.appendChild(label);
+        optionWrap.appendChild(deleteButton);
         userList.appendChild(optionWrap);
       });
 
@@ -7981,9 +8719,27 @@ function createUserStorageSelector(defaultsSnapshot = DEFAULT_MOTIONAI_STORAGE) 
 }
 
 export async function initApp() {
-  const defaultsSnapshot = await fetchMotionAiDefaultsSnapshot();
+  const defaultsSnapshot = await fetchMotionAiDefaultsSnapshot('default');
+  const dozentDefaultsSnapshot = await fetchMotionAiDefaultsSnapshot(MOTIONAI_DOZENT_USER_ID);
   ensureMotionAiDefaultUserStorage(defaultsSnapshot);
+  ensureMotionAiDozentUser(dozentDefaultsSnapshot);
   createUserStorageSelector(defaultsSnapshot);
+
+  const activeDefaultsUserId = getMotionAiActiveUserId();
+  const activeDefaultsSnapshot = activeDefaultsUserId === MOTIONAI_DOZENT_USER_ID ? dozentDefaultsSnapshot : defaultsSnapshot;
+  const pendingDefaultsStamp = getMotionAiPendingDefaultsStamp(activeDefaultsUserId, activeDefaultsSnapshot);
+  if (pendingDefaultsStamp && activeDefaultsUserId === 'default') {
+    resetMotionAiUserStorageToDefaults(activeDefaultsUserId, activeDefaultsSnapshot);
+  } else if (pendingDefaultsStamp) {
+    const accepted = window.confirm(
+      `Es gibt aktualisierte Werkseinstellungen (Stand: ${new Date(pendingDefaultsStamp).toLocaleString()}).\n\nJetzt übernehmen? Presets und Einstellungen werden ersetzt, Kalibrierungen und Prüfungsergebnisse bleiben erhalten.`
+    );
+    if (accepted) {
+      resetMotionAiUserStorageToDefaults(activeDefaultsUserId, activeDefaultsSnapshot);
+    } else {
+      declineMotionAiDefaultsUpdate(activeDefaultsUserId, pendingDefaultsStamp);
+    }
+  }
 
 
   const videoElement = document.getElementById('video');
@@ -8146,7 +8902,8 @@ export async function initApp() {
       && Number.isInteger(uiState.activeLevel)
       && uiState.activeLevel >= 0
       && uiState.activeLevel <= 2;
-    levelCanvas.style.pointerEvents = exerciseFieldActive ? 'auto' : 'none';
+    const guitarFieldActive = uiState.activeChapter === 1 && uiState.activeLevel === 3;
+    levelCanvas.style.pointerEvents = exerciseFieldActive || guitarFieldActive ? 'auto' : 'none';
   };
 
   const levelManager = new LevelManager(levelCanvas);
@@ -8176,6 +8933,35 @@ export async function initApp() {
   });
   window.addEventListener('pointerup', () => {
     levelManager.endExerciseFieldDrag();
+  });
+  levelCanvas.addEventListener('pointerdown', (event) => {
+    if (uiState.activeChapter !== 1 || uiState.activeLevel !== 3) {
+      return;
+    }
+    const rect = levelCanvas.getBoundingClientRect();
+    const x = (event.clientX - rect.left) * (levelCanvas.width / rect.width);
+    const y = (event.clientY - rect.top) * (levelCanvas.height / rect.height);
+    if (levelManager.beginGuitarFieldDrag(x, y) || levelManager.beginEnsembleFieldDrag(x, y)) {
+      event.preventDefault();
+    }
+  });
+  levelCanvas.addEventListener('pointermove', (event) => {
+    if (!levelManager.guitarDrag && !levelManager.ensembleDrag) {
+      return;
+    }
+    const rect = levelCanvas.getBoundingClientRect();
+    const x = (event.clientX - rect.left) * (levelCanvas.width / rect.width);
+    const y = (event.clientY - rect.top) * (levelCanvas.height / rect.height);
+    levelManager.updateGuitarFieldDrag(x, y);
+    levelManager.updateEnsembleFieldDrag(x, y);
+  });
+  window.addEventListener('pointerup', () => {
+    if (levelManager.endGuitarFieldDrag()) {
+      squareExercisePanel.syncGuitarFieldPosition?.(levelManager.guitarFieldX, levelManager.guitarFieldY);
+    }
+    if (levelManager.endEnsembleFieldDrag()) {
+      squareExercisePanel.syncEnsemblePositions?.(levelManager.ensemblePositions);
+    }
   });
   canvasElement.addEventListener('pointerdown', (event) => {
     if (uiState.activeChapter !== 1
@@ -8245,6 +9031,21 @@ export async function initApp() {
     setActiveTouchFadeEnabled: (value) => {
       levelManager.setActiveTouchFadeEnabled(value);
     },
+    setWalkingBassThreshold: (value) => levelManager.setWalkingBassThreshold(value),
+    setWalkingBassVelocitySensitivity: (value) => levelManager.setWalkingBassVelocitySensitivity(value),
+    setWalkingBassMode: (value) => levelManager.setWalkingBassMode(value),
+    setClaveToneMode: (value) => levelManager.setClaveToneMode(value),
+    setBubbleSoundEnabled: (level, value) => levelManager.setBubbleSoundEnabled(level, value),
+    setWalkingBassHandSound: (hand, value) => levelManager.setWalkingBassHandSound(hand, value),
+    setGuitarFieldVisible: (value) => levelManager.setGuitarFieldVisible(value),
+    setEnsembleFieldsVisible: (value) => levelManager.setEnsembleFieldsVisible(value),
+    setEnsemblePositions: (value) => levelManager.setEnsemblePositions(value),
+    setEnsembleProgression: (value) => levelManager.setEnsembleProgression(value),
+    setGuitarFieldMotion: (value) => levelManager.setGuitarFieldMotion(value),
+    setGuitarFieldPosition: (x, y) => levelManager.setGuitarFieldPosition(x, y),
+    setWalkingBassMetronomeBpm: (value) => levelManager.setWalkingBassMetronomeBpm(value),
+    setWalkingBassMetronomeEnabled: (value) => levelManager.setWalkingBassMetronomeEnabled(value),
+    setWalkingBassAnticipationEnabled: (value) => levelManager.setWalkingBassAnticipationEnabled(value),
     alternatingExerciseScaleMode: levelManager.alternatingScaleMode,
     alternatingExerciseStartNote: levelManager.alternatingExerciseStartNote,
     alternatingExerciseFrequencyModulation: levelManager.alternatingExerciseFrequencyModulation,
@@ -8364,7 +9165,7 @@ export async function initApp() {
 
   resizeOverlays();
 
-  const chapter1ExerciseTitles = ['Ziffern', 'Punkte', 'Alternierend', 'Parallele Linien', 'Kreis'];
+  const chapter1ExerciseTitles = ['Ziffern', 'Punkte', 'Alternierend', 'Walking Bass', 'Kreis'];
 
   const getChapter1ExercisePanelVisibility = (level) => {
     if (!Number.isInteger(level) || uiState.activeChapter !== 1) {
@@ -8502,6 +9303,10 @@ export async function initApp() {
       examPanel.setVisible(true);
       return;
     }
+    // Grid resolution and points must be set before setLevel(), so the level is built with the preset's grid.
+    if (uiState.activeChapter === 1 && getChapter1ExercisePanelVisibility(level).points) {
+      squareExercisePanel.initializeCurrentPointPreset?.();
+    }
     levelManager.setLevel(level);
     syncLevelCanvasPointerState();
     if ([3, 4, 5].includes(uiState.activeChapter) && level !== null) {
@@ -8525,6 +9330,7 @@ export async function initApp() {
     const showSymmetricExercisePanel = uiState.activeChapter === 1 && exerciseVisibility.symmetric;
     const showPointsExercisePanel = uiState.activeChapter === 1 && exerciseVisibility.points;
     const blankChapter1ExercisePanel = uiState.activeChapter === 1 && Number.isInteger(level) && [3, 4].includes(level);
+    const walkingBassExercisePanel = uiState.activeChapter === 1 && level === 3;
     const freeMovementExercisePanel = uiState.activeChapter === 1 && Number.isInteger(level) && level === 2;
     const alternatingExercisePanel = uiState.activeChapter === 1 && Number.isInteger(level) && level === 2 && false;
     const showExerciseFieldPanel = uiState.activeChapter === 6 && Number.isInteger(level) && level >= 0 && level <= 2;
@@ -8570,8 +9376,10 @@ export async function initApp() {
       handIndependencePanel.setVisible(false);
       squareExercisePanel.setVisible(showSquareExercisePanel || showSymmetricExercisePanel || showPointsExercisePanel || blankChapter1ExercisePanel || !!level);
       squareExercisePanel.setExerciseMode(
-        blankChapter1ExercisePanel
-          ? 'blank'
+        walkingBassExercisePanel
+          ? 'walking-bass'
+          : blankChapter1ExercisePanel
+            ? 'blank'
           : showPointsExercisePanel
             ? 'points'
             : showSymmetricExercisePanel
@@ -8584,9 +9392,6 @@ export async function initApp() {
       );
       if (!uiState.examSelectionInProgress && Number.isInteger(level) && level >= 0 && level <= 4 && !showPointsExercisePanel) {
         squareExercisePanel.restoreSelectedPreset?.();
-      }
-      if (showPointsExercisePanel && !uiState.examSelectionInProgress) {
-        squareExercisePanel.initializeCurrentPointPreset?.();
       }
     } else {
       figurePanel.setVisible(false);
