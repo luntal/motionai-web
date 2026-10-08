@@ -260,6 +260,28 @@ canvas {
   background: rgba(255, 255, 255, 0.14);
 }
 
+.figure-corner-reset-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.figure-corner-reset-button {
+  width: 100%;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.07);
+  color: #edf2ff;
+  font-family: var(--ui-font-family);
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
+.figure-corner-reset-button:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
 .level-row:not(.active) {
   opacity: 0.9;
 }
@@ -738,7 +760,12 @@ canvas {
 .exam-task-select-chapter { grid-area: chapter; }
 .exam-task-select-level { grid-area: level; }
 .exam-task-select-preset { grid-area: preset; }
-.exam-task-delete { grid-area: delete; }
+.exam-task-actions {
+  grid-area: delete;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.25rem;
+}
 
 .exam-task-select,
 .exam-history-select {
@@ -754,9 +781,14 @@ canvas {
 }
 
 .exam-task-row button {
-  min-width: 2.1rem;
+  min-width: 0;
   min-height: 1.9rem;
-  padding: 0.28rem 0.5rem;
+  padding: 0.28rem 0.2rem;
+}
+
+.exam-task-row button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 
 .exam-task-delete {
@@ -1054,12 +1086,14 @@ canvas {
 .hand-independence-toggle,
 .hand-independence-dynamics-toggle,
 .hand-independence-count-toggle,
+.motion-trail-toggle,
 .motion-distance-toggle,
 .dynamic-range-guide-toggle,
 .square-palindrom-toggle,
 .point-edit-toggle,
 .point-symmetry-toggle,
-.point-palindrom-toggle {
+.point-palindrom-toggle,
+.consistency-toggle-row {
   display: flex;
   align-items: center;
   gap: 0.55rem;
@@ -1112,12 +1146,14 @@ canvas {
 .hand-independence-toggle input,
 .hand-independence-dynamics-toggle input,
 .hand-independence-count-toggle input,
+.motion-trail-toggle input,
 .motion-distance-toggle input,
 .dynamic-range-guide-toggle input,
 .square-palindrom-toggle input,
 .point-edit-toggle input,
 .point-symmetry-toggle input,
-.point-palindrom-toggle input {
+.point-palindrom-toggle input,
+.consistency-toggle-row input {
   accent-color: #5bd89c;
 }
 
@@ -1348,11 +1384,30 @@ canvas {
   font-size: 0.74rem;
 }
 
-.figure-point-item.is-active {
-  background: rgba(91, 216, 156, 0.14);
-  border-color: rgba(91, 216, 156, 0.6);
-  color: #effff7;
-  box-shadow: inset 0 0 0 1px rgba(91, 216, 156, 0.2);
+.figure-point-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+}
+
+.figure-point-remove {
+  flex: none;
+  width: 1.4rem;
+  height: 1.4rem;
+  padding: 0;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(237, 247, 255, 0.85);
+  font-size: 0.9rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.figure-point-remove:hover {
+  background: rgba(255, 99, 99, 0.25);
+  border-color: rgba(255, 99, 99, 0.6);
 }
 
 .figure-point-empty {
@@ -1782,6 +1837,11 @@ video {
 .consistency-slider-row input[type='range'] {
   width: 100%;
   accent-color: #5bd89c;
+}
+
+.consistency-toggle-row[hidden],
+.consistency-hand-mode-row[hidden] {
+  display: none !important;
 }
 
 .consistency-slider-value {

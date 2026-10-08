@@ -99,6 +99,7 @@ function alertLevelPresetResetFailed(error) {
 // Chapter 1 presets are stored per level: { "<level>": slotMap }. Legacy data was a flat slotMap.
 const CHAPTER1_SQUARE_PRESET_LEVEL = 0;
 const CHAPTER1_POINT_PRESET_LEVEL = 1;
+const CHAPTER1_TRAIL_PRESET_LEVEL = 4;
 
 function isFlatSquarePresetMap(map) {
   return Object.prototype.hasOwnProperty.call(map, 'selectedPresetSlot')
@@ -360,6 +361,33 @@ function createLevelSettingsVisibilityController(panel, { chapterId = null, leve
   };
 }
 
+function sanitizeFigureCornerOffsets(values) {
+  return Array.from({ length: 8 }, (_, index) => {
+    const entry = Array.isArray(values) ? values[index] : null;
+    const x = Number(entry?.x);
+    const y = Number(entry?.y);
+    return {
+      x: Number.isFinite(x) ? Math.min(200, Math.max(-200, x)) : 0,
+      y: Number.isFinite(y) ? Math.min(200, Math.max(-200, y)) : 0
+    };
+  });
+}
+
+function createFigureCornerResetControls() {
+  const wrap = document.createElement('div');
+  wrap.className = 'figure-corner-reset-controls';
+  const title = document.createElement('div');
+  title.className = 'figure-panel-section-title';
+  title.textContent = 'Eckpunkte';
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'figure-corner-reset-button';
+  button.textContent = 'Positionen zurücksetzen';
+  button.title = 'Im Bearbeiten-Modus lassen sich die Punkte direkt in der Figur ziehen. Dieser Button stellt die Ausgangspositionen wieder her.';
+  wrap.append(title, button);
+  return { wrap, button };
+}
+
 function createFigureModePanel(initialManager, options = {}) {
   const figureSettingsStorageKey = options.settingsKey || 'motionai.figure-panel-settings';
   const initialTitle = options.initialTitle || 'Grundfigur';
@@ -441,6 +469,18 @@ function createFigureModePanel(initialManager, options = {}) {
   motionDistanceInput.type = 'checkbox';
   motionDistanceInput.checked = storedFigureSettings.motionDistanceVisible === true;
   motionDistanceToggle.append(motionDistanceInput, document.createTextNode('Distanzdiagramm'));
+  const motionTrailToggle = document.createElement('label');
+  motionTrailToggle.className = 'motion-trail-toggle';
+  const motionTrailInput = document.createElement('input');
+  motionTrailInput.type = 'checkbox';
+  motionTrailInput.checked = storedFigureSettings.motionTrailVisible === true;
+  motionTrailToggle.append(motionTrailInput, document.createTextNode('Schweif'));
+  const motionTrailSmoothToggle = document.createElement('label');
+  motionTrailSmoothToggle.className = 'motion-trail-toggle';
+  const motionTrailSmoothInput = document.createElement('input');
+  motionTrailSmoothInput.type = 'checkbox';
+  motionTrailSmoothInput.checked = storedFigureSettings.motionTrailSmoothing !== false;
+  motionTrailSmoothToggle.append(motionTrailSmoothInput, document.createTextNode('Schweif glätten'));
   const motionDistanceStrictnessWrap = document.createElement('label');
   motionDistanceStrictnessWrap.className = 'figure-size-wrap';
   const motionDistanceStrictnessLabel = document.createElement('div');
@@ -616,6 +656,14 @@ function createFigureModePanel(initialManager, options = {}) {
     }
     persistFigureSettings();
   });
+  motionTrailInput.addEventListener('change', () => {
+    managerRef?.setMotionTrailVisible?.(motionTrailInput.checked, chapterId);
+    persistFigureSettings();
+  });
+  motionTrailSmoothInput.addEventListener('change', () => {
+    managerRef?.setMotionTrailSmoothing?.(motionTrailSmoothInput.checked, chapterId);
+    persistFigureSettings();
+  });
 
   const movementTitle = document.createElement('div');
   movementTitle.className = 'figure-panel-section-title';
@@ -746,7 +794,7 @@ function createFigureModePanel(initialManager, options = {}) {
 
   const tempoSlider = document.createElement('input');
   tempoSlider.type = 'range';
-  tempoSlider.min = '30';
+  tempoSlider.min = '10';
   tempoSlider.max = '120';
   tempoSlider.step = '1';
   tempoSlider.value = String(storedFigureSettings.figureTempoBpm ?? initialManager?.figureTempoBpm ?? 60);
@@ -920,6 +968,8 @@ function createFigureModePanel(initialManager, options = {}) {
         figureDynamicsVisible: dynamicsToggle.checked,
         figureCountTimesVisible: countTimesToggle.checked,
         motionDistanceVisible: motionDistanceInput.checked,
+        motionTrailVisible: motionTrailInput.checked,
+        motionTrailSmoothing: motionTrailSmoothInput.checked,
         motionDistanceStrictness: Number(motionDistanceStrictnessSlider.value),
         motionDistanceScoreWeights: {
           path: Number(weightControls.path?.slider.value ?? 45),
@@ -1014,6 +1064,8 @@ function createFigureModePanel(initialManager, options = {}) {
   panel.appendChild(presetDivider);
   panel.appendChild(presetPanel);
   panel.appendChild(createPanelDivider());
+  panel.appendChild(motionTrailToggle);
+  panel.appendChild(motionTrailSmoothToggle);
   panel.appendChild(motionDistanceToggle);
   panel.appendChild(motionDistanceStrictnessWrap);
   panel.appendChild(motionMetricsPanel);
@@ -1046,6 +1098,8 @@ function createFigureModePanel(initialManager, options = {}) {
   bindUiGroupDescription(variantOptions, 'Grundfiguren', 'weichHart');
   const sideOptions = [...sideGroup.querySelectorAll('label, input')];
   bindUiGroupDescription(sideOptions, 'Grundfiguren', 'Hand');
+  bindUiDescription(motionTrailToggle, 'Grundfiguren', 'Schweif');
+  bindUiDescription(motionTrailSmoothToggle, 'Grundfiguren', 'Schweifglättung');
   bindUiDescription(motionDistanceToggle, 'Grundfiguren', 'Distanzdiagramm');
   bindUiDescription(motionDistanceStrictnessWrap, 'Grundfiguren', 'DistanzStrenge');
   bindUiDescription(motionMetricsPanel, 'Grundfiguren', 'Bewertungsmetriken');
@@ -1114,6 +1168,8 @@ function createFigureModePanel(initialManager, options = {}) {
       managerRef.setFigureDynamicsVisible(dynamicsToggle.checked);
       managerRef.setFigureCountTimesVisible(countTimesToggle.checked);
       managerRef.setMotionDistanceVisible(motionDistanceInput.checked);
+      managerRef.setMotionTrailVisible?.(motionTrailInput.checked, chapterId);
+      managerRef.setMotionTrailSmoothing?.(motionTrailSmoothInput.checked, chapterId);
       managerRef.setMotionDistanceStrictness(Number(motionDistanceStrictnessSlider.value));
       updateMotionMetrics();
       if (!motionMetricsInterval) motionMetricsInterval = window.setInterval(updateMotionMetrics, 100);
@@ -1173,6 +1229,8 @@ function createFigureModePanel(initialManager, options = {}) {
       figureDynamicsVisible: dynamicsToggle.checked,
       figureCountTimesVisible: countTimesToggle.checked,
       motionDistanceVisible: motionDistanceInput.checked,
+      motionTrailVisible: motionTrailInput.checked,
+      motionTrailSmoothing: motionTrailSmoothInput.checked,
       motionDistanceStrictness: Number(motionDistanceStrictnessSlider.value),
       motionDistanceScoreWeights: {
         path: Number(weightControls.path?.slider.value ?? 45),
@@ -1207,6 +1265,12 @@ function createFigureModePanel(initialManager, options = {}) {
     }
     if (typeof settings.motionDistanceVisible === 'boolean') {
       motionDistanceInput.checked = settings.motionDistanceVisible;
+    }
+    if (typeof settings.motionTrailVisible === 'boolean') {
+      motionTrailInput.checked = settings.motionTrailVisible;
+    }
+    if (typeof settings.motionTrailSmoothing === 'boolean') {
+      motionTrailSmoothInput.checked = settings.motionTrailSmoothing;
     }
     if (Number.isFinite(Number(settings.motionDistanceStrictness))) {
       motionDistanceStrictnessSlider.value = String(Math.min(100, Math.max(0, Number(settings.motionDistanceStrictness))));
@@ -1243,6 +1307,8 @@ function createFigureModePanel(initialManager, options = {}) {
       managerRef.setFigureDynamicsVisible(dynamicsToggle.checked);
       managerRef.setFigureCountTimesVisible(countTimesToggle.checked);
       managerRef.setMotionDistanceVisible(motionDistanceInput.checked);
+      managerRef.setMotionTrailVisible?.(motionTrailInput.checked, chapterId);
+      managerRef.setMotionTrailSmoothing?.(motionTrailSmoothInput.checked, chapterId);
       managerRef.setMotionDistanceStrictness(Number(motionDistanceStrictnessSlider.value));
     }
     persistFigureSettings();
@@ -1546,11 +1612,13 @@ function createDynamicFigureModePanel() {
 
   const pointPanel = document.createElement('div');
   pointPanel.className = 'dynamic-figure-point-controls';
-  const pointTitle = document.createElement('div');
-  pointTitle.className = 'figure-panel-section-title';
-  pointTitle.textContent = 'Eck. Höhen (Dynamikebenen)';
-  pointPanel.appendChild(pointTitle);
+  const cornerReset = createFigureCornerResetControls();
+  pointPanel.appendChild(cornerReset.wrap);
   basePanel.panel.appendChild(pointPanel);
+  cornerReset.button.addEventListener('click', () => {
+    managerRef?.setDynamicFigureCornerHeights([]);
+    managerRef?.setDynamicFigureCornerOffsets([]);
+  });
 
   function persistPresets() {
     try {
@@ -1609,6 +1677,7 @@ function createDynamicFigureModePanel() {
     basePanel.setSettings(preset);
     basePanel.setVariant(variant);
     managerRef?.setDynamicFigureCornerHeights(preset.dynamicFigureCornerHeights || []);
+    managerRef?.setDynamicFigureCornerOffsets(preset.dynamicFigureCornerOffsets || []);
     setLevel(currentLevel, false);
   }
 
@@ -1649,7 +1718,8 @@ function createDynamicFigureModePanel() {
     presetData[String(currentLevel)][String(slot)] = {
       ...panelSettings,
       figureVariant: panelSettings.figureVariant === 'soft' ? 'soft' : 'hard',
-      dynamicFigureCornerHeights: managerRef?.dynamicFigureCornerHeights?.slice(0, getPointCount()) || []
+      dynamicFigureCornerHeights: managerRef?.dynamicFigureCornerHeights?.slice(0, getPointCount()) || [],
+      dynamicFigureCornerOffsets: sanitizeFigureCornerOffsets(managerRef?.dynamicFigureCornerOffsets).slice(0, getPointCount())
     };
     selectedPreset = slot;
     selectedPresetByLevel[String(currentLevel)] = slot;
@@ -1695,47 +1765,12 @@ function createDynamicFigureModePanel() {
   });
 
   function setLevel(level, applySelectedPreset = true) {
-    pointPanel.querySelectorAll('.dynamic-figure-point-wrap').forEach((element) => element.remove());
     currentLevel = level;
     if (Number.isInteger(level)) {
       const storedSlot = Number(selectedPresetByLevel[String(level)]);
       selectedPreset = Number.isInteger(storedSlot) && storedSlot >= 0 && storedSlot < presetCount
         ? storedSlot
         : 0;
-    }
-    const pointCount = getPointCount(level);
-    for (let index = 0; index < pointCount; index += 1) {
-      const wrap = document.createElement('label');
-      wrap.className = 'figure-size-wrap dynamic-figure-point-wrap';
-
-      const label = document.createElement('div');
-      label.className = 'figure-size-label';
-      const isBeatPoint = index % 2 === 0;
-      label.textContent = `${isBeatPoint ? 'Zählzeit' : 'Zwischenpunkt'} ${Math.floor(index / 2) + 1}`;
-      label.classList.add(isBeatPoint ? 'dynamic-figure-beat-label' : 'dynamic-figure-between-label');
-      wrap.classList.add(isBeatPoint ? 'dynamic-figure-beat-point' : 'dynamic-figure-between-point');
-
-      const slider = document.createElement('input');
-      slider.type = 'range';
-      slider.min = '-25';
-      slider.max = '25';
-      slider.step = '0.1';
-      slider.value = String(managerRef?.dynamicFigureCornerHeights?.[index] ?? 0);
-
-      const value = document.createElement('div');
-      value.className = 'figure-size-value';
-      value.textContent = `${Number(slider.value).toFixed(1)}`;
-
-      slider.addEventListener('input', () => {
-        const next = Number(slider.value);
-        value.textContent = next.toFixed(1);
-        managerRef?.setDynamicFigureCornerHeight(index, next);
-      });
-
-      wrap.appendChild(label);
-      wrap.appendChild(slider);
-      wrap.appendChild(value);
-      pointPanel.appendChild(wrap);
     }
     if (applySelectedPreset && Number.isInteger(level)) {
       applyPreset(selectedPreset);
@@ -2889,6 +2924,27 @@ function createSquareExercisePanel() {
   let selectedWalkingBassMetronomeBpm = Number.isFinite(Number(settings.walkingBassMetronomeBpm))
     ? Math.max(30, Math.min(180, Math.round(Number(settings.walkingBassMetronomeBpm))))
     : 60;
+  let selectedTrailSeconds = Number.isFinite(Number(settings.trailSeconds))
+    ? Math.max(1, Math.min(10, Number(settings.trailSeconds)))
+    : 3;
+  let selectedTrailSmoothing = settings.trailSmoothing !== false;
+  let selectedOrientationCount = Number.isInteger(Number(settings.orientationCount))
+    ? Math.max(0, Math.min(5, Number(settings.orientationCount)))
+    : 0;
+  let selectedOrientationPositions = Array.isArray(settings.orientationPositions) ? settings.orientationPositions : [];
+  let selectedTrailFocusPoint = Number.isInteger(Number(settings.trailFocusPoint))
+    ? Math.max(0, Math.min(5, Number(settings.trailFocusPoint)))
+    : 0;
+  const trailFocusSoundOptions = [
+    ...walkingBassSoundOptions,
+    { value: 'walking-bass', label: 'Walking Bass' }
+  ];
+  const normalizeTrailFocusSound = (value) => (trailFocusSoundOptions.some((option) => option.value === value) ? value : 'bass');
+  let selectedTrailFocusSound = normalizeTrailFocusSound(settings.trailFocusSound);
+  let selectedTrailFocusAnticipation = Boolean(settings.trailFocusAnticipation);
+  let selectedTrailSpeedWidth = Number.isFinite(Number(settings.trailSpeedWidth))
+    ? Math.max(0, Math.min(100, Number(settings.trailSpeedWidth)))
+    : 0;
   let pointEditMode = Boolean(settings.pointEditMode);
   let pointSequence = Array.isArray(settings.pointSequence) ? settings.pointSequence : [];
   let pointSequenceMode = ['independent', 'sequential', 'simultaneous'].includes(settings.pointSequenceMode)
@@ -2932,12 +2988,15 @@ function createSquareExercisePanel() {
     console.log(`[Point Preset Debug] ${label}`, JSON.parse(JSON.stringify(payload)));
   };
 
+  const createPointEntry = (row, col, hand, pairId) => (
+    typeof pairId === 'string' && pairId ? { row, col, hand, pairId } : { row, col, hand }
+  );
+
   const sanitizePointSequence = (value) => {
     if (!Array.isArray(value)) {
       return [];
     }
     const normalized = [];
-    const seen = new Set();
     value.forEach((point) => {
       if (!point || !Number.isFinite(Number(point.row)) || !Number.isFinite(Number(point.col))) {
         return;
@@ -2945,12 +3004,7 @@ function createSquareExercisePanel() {
       const row = Number(point.row);
       const col = Number(point.col);
       const hand = ['left', 'right'].includes(point.hand) ? point.hand : (pointSelectedHand === 'auto' ? 'right' : pointSelectedHand);
-      const key = `${row}:${col}:${hand}`;
-      if (seen.has(key)) {
-        return;
-      }
-      seen.add(key);
-      normalized.push({ row, col, hand });
+      normalized.push(createPointEntry(row, col, hand, point.pairId));
     });
     return normalized;
   };
@@ -2960,7 +3014,6 @@ function createSquareExercisePanel() {
       return [];
     }
     const restored = [];
-    const seen = new Set();
     value.forEach((point) => {
       if (!point || !Number.isFinite(Number(point.row)) || !Number.isFinite(Number(point.col))) {
         return;
@@ -2968,12 +3021,7 @@ function createSquareExercisePanel() {
       const row = Number(point.row);
       const col = Number(point.col);
       const hand = ['left', 'right', 'auto'].includes(point.hand) ? point.hand : pointSelectedHand;
-      const key = `${row}:${col}:${hand}`;
-      if (seen.has(key)) {
-        return;
-      }
-      seen.add(key);
-      restored.push({ row, col, hand });
+      restored.push(createPointEntry(row, col, hand, point.pairId));
     });
     return restored;
   };
@@ -3135,7 +3183,15 @@ function createSquareExercisePanel() {
       guitarFieldY: selectedGuitarFieldY,
       walkingBassMetronome: selectedWalkingBassMetronome,
       walkingBassAnticipation: selectedWalkingBassAnticipation,
-      walkingBassMetronomeBpm: selectedWalkingBassMetronomeBpm
+      walkingBassMetronomeBpm: selectedWalkingBassMetronomeBpm,
+      trailSeconds: selectedTrailSeconds,
+      trailSmoothing: selectedTrailSmoothing,
+      trailSpeedWidth: selectedTrailSpeedWidth,
+      orientationCount: selectedOrientationCount,
+      orientationPositions: selectedOrientationPositions,
+      trailFocusPoint: selectedTrailFocusPoint,
+      trailFocusSound: selectedTrailFocusSound,
+      trailFocusAnticipation: selectedTrailFocusAnticipation
     };
     try {
       setUserScopedStorageValue(storageKey, snapshot);
@@ -4017,11 +4073,12 @@ function createSquareExercisePanel() {
     });
     if ((force || !pointEditMode) && savedPattern.length > 0) {
       pointSelectedHand = ['left', 'right', 'auto'].includes(presetEntry.hand) ? presetEntry.hand : pointSelectedHand;
-      pointSequence = savedPattern.map((item) => ({
-        row: Number(item.row),
-        col: Number(item.col),
-        hand: ['left', 'right', 'auto'].includes(item.hand) ? item.hand : pointSelectedHand
-      }));
+      pointSequence = savedPattern.map((item) => createPointEntry(
+        Number(item.row),
+        Number(item.col),
+        ['left', 'right', 'auto'].includes(item.hand) ? item.hand : pointSelectedHand,
+        item.pairId
+      ));
       pointSequenceMode = normalizePointSequenceMode(presetEntry.sequentialMode);
       pointPalindromMode = Boolean(presetEntry.palindromMode ?? false);
       pointHandOptions.forEach((radio) => {
@@ -4461,20 +4518,37 @@ function createSquareExercisePanel() {
       return;
     }
 
-    const activeIndex = Number.isInteger(managerRef?.pointExerciseCurrentIndex)
-      ? Math.max(0, Math.min(pointSequence.length - 1, managerRef.pointExerciseCurrentIndex))
-      : 0;
-
     pointSequence.forEach((point, index) => {
       const item = document.createElement('div');
       item.className = 'figure-point-item';
-      if (index === activeIndex) {
-        item.classList.add('is-active');
-      }
       const sideLabel = point.hand === 'left' ? 'Links' : 'Rechts';
-      item.textContent = `${index + 1}. ${sideLabel} · Zeile ${point.row + 1}, Spalte ${point.col + 1}`;
+      const label = document.createElement('span');
+      label.className = 'figure-point-label';
+      label.textContent = `${index + 1}. ${sideLabel} · (${point.row + 1}|${point.col + 1})`;
+      const removeButton = document.createElement('button');
+      removeButton.type = 'button';
+      removeButton.className = 'figure-point-remove';
+      removeButton.textContent = '×';
+      const isPaired = pointSymmetryMode && Boolean(point.pairId);
+      removeButton.title = isPaired ? 'Punkt und symmetrisches Gegenstück entfernen' : 'Punkt entfernen';
+      removeButton.setAttribute('aria-label', removeButton.title);
+      removeButton.addEventListener('click', () => removePointAt(index));
+      item.append(label, removeButton);
       pointListWrap.appendChild(item);
     });
+  };
+
+  const removePointAt = (index) => {
+    const removed = pointSequence[index];
+    if (!removed) {
+      return;
+    }
+    pointSequence = pointSequence.filter((point, pointIndex) => (
+      pointIndex !== index && !(pointSymmetryMode && removed.pairId && point.pairId === removed.pairId)
+    ));
+    renderPointList();
+    persistPointState();
+    managerRef?.setPointExerciseSequence(pointSequence);
   };
 
   pointToggleInput.addEventListener('change', () => {
@@ -4859,7 +4933,7 @@ function createSquareExercisePanel() {
   bindUiGroupDescription([activeTouchFadeLabel, activeTouchFadeCheckbox, activeTouchFadeValue], 'Eingewöhnung', 'KontaktFade');
   panel.appendChild(activeTouchFadeWrap);
 
-  const createWalkingBassSoundSelect = (labelText, initialValue, onChange) => {
+  const createWalkingBassSoundSelect = (labelText, initialValue, onChange, options = walkingBassSoundOptions, normalize = normalizeWalkingBassSound) => {
     const wrap = document.createElement('label');
     wrap.className = 'figure-size-wrap';
     wrap.hidden = true;
@@ -4868,9 +4942,9 @@ function createSquareExercisePanel() {
     label.textContent = labelText;
     const select = document.createElement('select');
     select.className = 'exercise-select-input';
-    select.innerHTML = walkingBassSoundOptions.map((option) => `<option value="${option.value}">${option.label}</option>`).join('');
+    select.innerHTML = options.map((option) => `<option value="${option.value}">${option.label}</option>`).join('');
     select.value = initialValue;
-    select.addEventListener('change', () => onChange(normalizeWalkingBassSound(select.value)));
+    select.addEventListener('change', () => onChange(normalize(select.value)));
     wrap.append(label, select);
     panel.appendChild(wrap);
     return wrap;
@@ -5175,6 +5249,401 @@ function createSquareExercisePanel() {
   walkingBassMetronomeBpmWrap.append(walkingBassMetronomeBpmLabel, walkingBassMetronomeBpmSlider, walkingBassMetronomeBpmValue);
   panel.appendChild(walkingBassMetronomeBpmWrap);
 
+  const trailLengthWrap = document.createElement('label');
+  trailLengthWrap.className = 'figure-size-wrap';
+  trailLengthWrap.hidden = true;
+  const trailLengthLabel = document.createElement('div');
+  trailLengthLabel.className = 'figure-size-label';
+  trailLengthLabel.textContent = 'Schweiflänge';
+  const trailLengthSlider = document.createElement('input');
+  trailLengthSlider.type = 'range';
+  trailLengthSlider.min = '1';
+  trailLengthSlider.max = '10';
+  trailLengthSlider.step = '0.5';
+  trailLengthSlider.value = String(selectedTrailSeconds);
+  const trailLengthValue = document.createElement('div');
+  trailLengthValue.className = 'figure-size-value';
+  trailLengthValue.textContent = `${selectedTrailSeconds.toFixed(1)} s`;
+  trailLengthSlider.addEventListener('input', () => {
+    const next = Math.max(1, Math.min(10, Number(trailLengthSlider.value)));
+    selectedTrailSeconds = next;
+    trailLengthValue.textContent = `${next.toFixed(1)} s`;
+    persistSettings();
+    managerRef?.setChapter1TrailSeconds?.(next);
+  });
+  trailLengthWrap.append(trailLengthLabel, trailLengthSlider, trailLengthValue);
+  panel.appendChild(trailLengthWrap);
+  bindUiGroupDescription([trailLengthWrap], 'Eingewöhnung', 'Schweiflänge');
+
+  const trailSpeedWidthWrap = document.createElement('label');
+  trailSpeedWidthWrap.className = 'figure-size-wrap';
+  trailSpeedWidthWrap.hidden = true;
+  const trailSpeedWidthLabel = document.createElement('div');
+  trailSpeedWidthLabel.className = 'figure-size-label';
+  trailSpeedWidthLabel.textContent = 'Geschwindigkeit → Strichstärke';
+  const trailSpeedWidthSlider = document.createElement('input');
+  trailSpeedWidthSlider.type = 'range';
+  trailSpeedWidthSlider.min = '0';
+  trailSpeedWidthSlider.max = '100';
+  trailSpeedWidthSlider.step = '1';
+  trailSpeedWidthSlider.value = String(selectedTrailSpeedWidth);
+  const trailSpeedWidthValue = document.createElement('div');
+  trailSpeedWidthValue.className = 'figure-size-value';
+  trailSpeedWidthValue.textContent = `${Math.round(selectedTrailSpeedWidth)}%`;
+  trailSpeedWidthSlider.addEventListener('input', () => {
+    const next = Math.max(0, Math.min(100, Number(trailSpeedWidthSlider.value)));
+    selectedTrailSpeedWidth = next;
+    trailSpeedWidthValue.textContent = `${Math.round(next)}%`;
+    persistSettings();
+    managerRef?.setChapter1TrailSpeedWidth?.(next);
+  });
+  trailSpeedWidthWrap.append(trailSpeedWidthLabel, trailSpeedWidthSlider, trailSpeedWidthValue);
+  panel.appendChild(trailSpeedWidthWrap);
+  bindUiGroupDescription([trailSpeedWidthWrap], 'Eingewöhnung', 'SchweifGeschwindigkeit');
+
+  const orientationCountWrap = document.createElement('div');
+  orientationCountWrap.className = 'figure-side-group orientation-count-wrap';
+  orientationCountWrap.hidden = true;
+  const orientationCountLabel = document.createElement('div');
+  orientationCountLabel.className = 'figure-size-label';
+  orientationCountLabel.textContent = 'Orientierungspunkte';
+  const orientationCountGroup = document.createElement('div');
+  orientationCountGroup.className = 'dynamic-figure-preset-slots orientation-count-slots';
+  orientationCountGroup.style.gridTemplateColumns = 'repeat(6, minmax(0, 1fr))';
+  orientationCountGroup.style.marginTop = '0.45rem';
+  for (let count = 0; count <= 5; count += 1) {
+    const option = document.createElement('label');
+    option.className = 'dynamic-figure-preset-option';
+    const input = document.createElement('input');
+    input.type = 'radio';
+    input.name = 'orientation-count';
+    input.value = String(count);
+    input.checked = count === selectedOrientationCount;
+    const caption = document.createElement('span');
+    caption.textContent = String(count);
+    input.addEventListener('change', () => {
+      if (!input.checked) {
+        return;
+      }
+      selectedOrientationCount = count;
+      syncTrailFocusOptions();
+      persistSettings();
+      managerRef?.setChapter1OrientationCount?.(count);
+      managerRef?.setChapter1FocusPoint?.(selectedTrailFocusPoint);
+      setChapter1ExerciseMode(squareExerciseMode);
+    });
+    option.append(input, caption);
+    orientationCountGroup.appendChild(option);
+  }
+  orientationCountWrap.append(orientationCountLabel, orientationCountGroup);
+  panel.appendChild(orientationCountWrap);
+  bindUiGroupDescription([orientationCountWrap], 'Eingewöhnung', 'Orientierungspunkte');
+
+  const trailSmoothingWrap = createWalkingBassToggle('Schweif glätten', selectedTrailSmoothing, (checked) => {
+    selectedTrailSmoothing = checked;
+    persistSettings();
+    managerRef?.setChapter1TrailSmoothing?.(checked);
+  });
+  bindUiGroupDescription([trailSmoothingWrap], 'Eingewöhnung', 'Schweifglättung');
+
+
+
+
+  const trailFocusWrap = document.createElement('label');
+  trailFocusWrap.className = 'figure-size-wrap';
+  trailFocusWrap.hidden = true;
+  const trailFocusLabel = document.createElement('div');
+  trailFocusLabel.className = 'figure-size-label';
+  trailFocusLabel.textContent = 'Schwerpunkt';
+  const trailFocusSelect = document.createElement('select');
+  trailFocusSelect.className = 'exercise-select-input';
+  // The focus point can only be one of the orientation points that are currently shown.
+  const syncTrailFocusOptions = () => {
+    selectedTrailFocusPoint = Math.min(selectedTrailFocusPoint, selectedOrientationCount);
+    trailFocusSelect.innerHTML = ['<option value="0">Kein Schwerpunkt</option>']
+      .concat(Array.from({ length: selectedOrientationCount }, (_, index) => `<option value="${index + 1}">Punkt ${index + 1}</option>`))
+      .join('');
+    trailFocusSelect.value = String(selectedTrailFocusPoint);
+  };
+  trailFocusSelect.addEventListener('change', () => {
+    selectedTrailFocusPoint = Math.max(0, Math.min(selectedOrientationCount, Number(trailFocusSelect.value) || 0));
+    persistSettings();
+    managerRef?.setChapter1FocusPoint?.(selectedTrailFocusPoint);
+  });
+  trailFocusWrap.append(trailFocusLabel, trailFocusSelect);
+  panel.appendChild(trailFocusWrap);
+  bindUiGroupDescription([trailFocusWrap], 'Eingewöhnung', 'Schwerpunkt');
+
+  const trailFocusSoundWrap = createWalkingBassSoundSelect('Sound', selectedTrailFocusSound, (value) => {
+    selectedTrailFocusSound = value;
+    persistSettings();
+    managerRef?.setChapter1FocusSound?.(value);
+  }, trailFocusSoundOptions, normalizeTrailFocusSound);
+  bindUiGroupDescription([trailFocusSoundWrap], 'Eingewöhnung', 'SchwerpunktSound');
+  const trailFocusAnticipationWrap = createWalkingBassToggle('Schlag-Antizipation', selectedTrailFocusAnticipation, (checked) => {
+    selectedTrailFocusAnticipation = checked;
+    persistSettings();
+    managerRef?.setChapter1FocusAnticipation?.(checked);
+  });
+  bindUiGroupDescription([trailFocusAnticipationWrap], 'Eingewöhnung', 'WalkingBassAntizipation');
+  orientationCountWrap.after(trailFocusWrap, trailFocusSoundWrap, trailFocusAnticipationWrap);
+  syncTrailFocusOptions();
+
+  // ---- Schweif presets (4 slots, stored in the chapter 1 square preset map under the level key) ----
+  const trailPresetCount = 4;
+  let selectedTrailPresetSlot = 1;
+  let trailPresetData = {};
+  const trailSmoothingInput = trailSmoothingWrap.querySelector('input');
+  const trailSmoothingValue = trailSmoothingWrap.querySelector('.figure-size-value');
+  const orientationInputs = [...orientationCountGroup.querySelectorAll('input')];
+  const defaultOrientationPositions = [
+    { x: 0.5, y: 0.25 },
+    { x: 0.3, y: 0.5 },
+    { x: 0.7, y: 0.5 },
+    { x: 0.4, y: 0.75 },
+    { x: 0.6, y: 0.75 }
+  ];
+
+  const normalizeTrailPresetSlot = (value) => {
+    const next = Number(value);
+    return Number.isInteger(next) && next >= 1 && next <= trailPresetCount ? next : 1;
+  };
+
+  const getDefaultTrailPreset = (slot = 1) => {
+    const defaults = [
+      { trailSeconds: 3, trailSmoothing: true, trailSpeedWidth: 0, orientationCount: 0, trailFocusPoint: 0, trailFocusSound: 'bass' },
+      { trailSeconds: 5, trailSmoothing: true, trailSpeedWidth: 50, orientationCount: 0, trailFocusPoint: 0, trailFocusSound: 'bass' },
+      { trailSeconds: 8, trailSmoothing: true, trailSpeedWidth: 100, orientationCount: 3, trailFocusPoint: 0, trailFocusSound: 'bass' },
+      { trailSeconds: 2, trailSmoothing: false, trailSpeedWidth: 0, orientationCount: 5, trailFocusPoint: 0, trailFocusSound: 'bass' }
+    ];
+    return {
+      slot: normalizeTrailPresetSlot(slot),
+      ...defaults[normalizeTrailPresetSlot(slot) - 1],
+      orientationPositions: defaultOrientationPositions.map((position) => ({ ...position }))
+    };
+  };
+
+  const readTrailPresetData = () => {
+    try {
+      return getChapter1LevelPresetBucket(
+        getUserScopedStorageValue(squarePresetStorageKey, {}),
+        CHAPTER1_TRAIL_PRESET_LEVEL,
+        isFlatSquarePresetMap,
+        CHAPTER1_SQUARE_PRESET_LEVEL
+      );
+    } catch (error) {
+      return {};
+    }
+  };
+
+  const persistTrailPresetData = () => {
+    try {
+      writeChapter1LevelPresetBucket(squarePresetStorageKey, CHAPTER1_TRAIL_PRESET_LEVEL, trailPresetData, isFlatSquarePresetMap, CHAPTER1_SQUARE_PRESET_LEVEL);
+    } catch (error) {
+      // Ignore storage failures for local settings.
+    }
+  };
+
+  // Seeds the factory presets so they are part of the stored data (and therefore of the settings export).
+  const ensureTrailPresetData = ({ persist = true } = {}) => {
+    let changed = false;
+    for (let slot = 1; slot <= trailPresetCount; slot += 1) {
+      if (!trailPresetData[String(slot)] || typeof trailPresetData[String(slot)] !== 'object') {
+        trailPresetData[String(slot)] = getDefaultTrailPreset(slot);
+        changed = true;
+      }
+    }
+    if (!Number.isInteger(Number(trailPresetData.selectedPresetSlot))) {
+      trailPresetData.selectedPresetSlot = 1;
+      changed = true;
+    }
+    selectedTrailPresetSlot = normalizeTrailPresetSlot(trailPresetData.selectedPresetSlot);
+    if (changed && persist) {
+      persistTrailPresetData();
+    }
+  };
+  trailPresetData = readTrailPresetData();
+  ensureTrailPresetData();
+
+  const trailPresetInputs = [];
+  const syncTrailPresetSelectionUI = () => {
+    trailPresetInputs.forEach((input) => {
+      input.checked = Number(input.value) === selectedTrailPresetSlot;
+    });
+  };
+
+  const syncTrailControlsUi = () => {
+    trailLengthSlider.value = String(selectedTrailSeconds);
+    trailLengthValue.textContent = `${selectedTrailSeconds.toFixed(1)} s`;
+    trailSpeedWidthSlider.value = String(selectedTrailSpeedWidth);
+    trailSpeedWidthValue.textContent = `${Math.round(selectedTrailSpeedWidth)}%`;
+    if (trailSmoothingInput) {
+      trailSmoothingInput.checked = selectedTrailSmoothing;
+    }
+    if (trailSmoothingValue) {
+      trailSmoothingValue.textContent = selectedTrailSmoothing ? 'An' : 'Aus';
+    }
+    orientationInputs.forEach((input) => {
+      input.checked = Number(input.value) === selectedOrientationCount;
+    });
+    syncTrailFocusOptions();
+    const focusSoundSelect = trailFocusSoundWrap.querySelector('select');
+    if (focusSoundSelect) {
+      focusSoundSelect.value = selectedTrailFocusSound;
+    }
+    const focusAnticipationInput = trailFocusAnticipationWrap.querySelector('input');
+    if (focusAnticipationInput) {
+      focusAnticipationInput.checked = selectedTrailFocusAnticipation;
+      trailFocusAnticipationWrap.querySelector('.figure-size-value').textContent = selectedTrailFocusAnticipation ? 'An' : 'Aus';
+    }
+  };
+
+  const applyTrailPreset = (slotNumber, { silent = false, preserveSelectionState = false } = {}) => {
+    const normalizedSlot = normalizeTrailPresetSlot(slotNumber);
+    const preset = trailPresetData[String(normalizedSlot)] || getDefaultTrailPreset(normalizedSlot);
+    if (!preserveSelectionState) {
+      selectedTrailPresetSlot = normalizedSlot;
+      trailPresetData.selectedPresetSlot = normalizedSlot;
+      if (!silent) {
+        persistTrailPresetData();
+      }
+      syncTrailPresetSelectionUI();
+    }
+
+    selectedTrailSeconds = Number.isFinite(Number(preset.trailSeconds))
+      ? Math.max(1, Math.min(10, Number(preset.trailSeconds)))
+      : selectedTrailSeconds;
+    selectedTrailSmoothing = typeof preset.trailSmoothing === 'boolean' ? preset.trailSmoothing : selectedTrailSmoothing;
+    selectedTrailSpeedWidth = Number.isFinite(Number(preset.trailSpeedWidth))
+      ? Math.max(0, Math.min(100, Number(preset.trailSpeedWidth)))
+      : selectedTrailSpeedWidth;
+    selectedOrientationCount = Number.isInteger(Number(preset.orientationCount))
+      ? Math.max(0, Math.min(5, Number(preset.orientationCount)))
+      : selectedOrientationCount;
+    if (Array.isArray(preset.orientationPositions)) {
+      selectedOrientationPositions = preset.orientationPositions.map((position) => ({ x: position?.x, y: position?.y }));
+    }
+    selectedTrailFocusPoint = Number.isInteger(Number(preset.trailFocusPoint))
+      ? Math.max(0, Math.min(5, Number(preset.trailFocusPoint)))
+      : 0;
+    selectedTrailFocusSound = normalizeTrailFocusSound(preset.trailFocusSound);
+    selectedTrailFocusAnticipation = Boolean(preset.trailFocusAnticipation);
+    syncTrailControlsUi();
+    managerRef?.setChapter1TrailSeconds?.(selectedTrailSeconds);
+    managerRef?.setChapter1TrailSmoothing?.(selectedTrailSmoothing);
+    managerRef?.setChapter1TrailSpeedWidth?.(selectedTrailSpeedWidth);
+    managerRef?.setChapter1OrientationPositions?.(selectedOrientationPositions);
+    managerRef?.setChapter1OrientationCount?.(selectedOrientationCount);
+    managerRef?.setChapter1FocusPoint?.(selectedTrailFocusPoint);
+    managerRef?.setChapter1FocusSound?.(selectedTrailFocusSound);
+    managerRef?.setChapter1FocusAnticipation?.(selectedTrailFocusAnticipation);
+    setChapter1ExerciseMode(squareExerciseMode);
+    if (!silent) {
+      persistSettings();
+    }
+  };
+
+  const saveTrailPreset = (slotNumber) => {
+    const normalizedSlot = normalizeTrailPresetSlot(slotNumber);
+    trailPresetData[String(normalizedSlot)] = {
+      slot: normalizedSlot,
+      trailSeconds: selectedTrailSeconds,
+      trailSmoothing: selectedTrailSmoothing,
+      trailSpeedWidth: selectedTrailSpeedWidth,
+      orientationCount: selectedOrientationCount,
+      trailFocusPoint: selectedTrailFocusPoint,
+      trailFocusSound: selectedTrailFocusSound,
+      trailFocusAnticipation: selectedTrailFocusAnticipation,
+      orientationPositions: defaultOrientationPositions.map((fallback, index) => ({
+        x: Number.isFinite(Number(selectedOrientationPositions[index]?.x)) ? Number(selectedOrientationPositions[index].x) : fallback.x,
+        y: Number.isFinite(Number(selectedOrientationPositions[index]?.y)) ? Number(selectedOrientationPositions[index].y) : fallback.y
+      }))
+    };
+    trailPresetData.selectedPresetSlot = normalizedSlot;
+    selectedTrailPresetSlot = normalizedSlot;
+    persistTrailPresetData();
+    syncTrailPresetSelectionUI();
+  };
+
+  const trailPresetTitle = document.createElement('div');
+  trailPresetTitle.className = 'figure-panel-section-title';
+  trailPresetTitle.textContent = 'Presets';
+  trailPresetTitle.hidden = true;
+  const trailPresetRow = document.createElement('div');
+  trailPresetRow.className = 'figure-point-slot-grid';
+  trailPresetRow.hidden = true;
+  for (let slotIndex = 1; slotIndex <= trailPresetCount; slotIndex += 1) {
+    const option = document.createElement('label');
+    option.className = 'figure-point-slot-option';
+    const input = document.createElement('input');
+    input.type = 'radio';
+    input.name = 'trail-exercise-preset-slot';
+    input.value = String(slotIndex);
+    input.checked = slotIndex === selectedTrailPresetSlot;
+    input.addEventListener('change', () => {
+      if (input.checked) {
+        applyTrailPreset(slotIndex);
+      }
+    });
+    const caption = document.createElement('span');
+    caption.textContent = String(slotIndex);
+    option.append(input, caption);
+    trailPresetRow.appendChild(option);
+    trailPresetInputs.push(input);
+  }
+
+  const trailPresetActions = document.createElement('div');
+  trailPresetActions.className = 'figure-point-action-row';
+  trailPresetActions.hidden = true;
+  const trailPresetSaveButton = document.createElement('button');
+  trailPresetSaveButton.type = 'button';
+  trailPresetSaveButton.className = 'figure-point-action primary';
+  trailPresetSaveButton.textContent = 'Speichern';
+  trailPresetSaveButton.addEventListener('click', () => {
+    const requestedSlot = window.prompt(`In welchen Preset-Slot möchten Sie die aktuelle Konfiguration speichern? (1-${trailPresetCount})`, String(selectedTrailPresetSlot));
+    const slotNumber = Number.parseInt(requestedSlot, 10);
+    if (!Number.isInteger(slotNumber) || slotNumber < 1 || slotNumber > trailPresetCount) {
+      return;
+    }
+    saveTrailPreset(slotNumber);
+  });
+  const trailPresetResetButton = document.createElement('button');
+  trailPresetResetButton.type = 'button';
+  trailPresetResetButton.className = 'figure-point-action';
+  trailPresetResetButton.textContent = 'Zurücksetzen';
+  trailPresetResetButton.addEventListener('click', async () => {
+    if (!confirmLevelPresetReset(1, CHAPTER1_TRAIL_PRESET_LEVEL)) {
+      return;
+    }
+
+    let defaults;
+    try {
+      defaults = await fetchMotionAiDefaultsSections(['square-exercise-presets']);
+    } catch (error) {
+      alertLevelPresetResetFailed(error);
+      return;
+    }
+
+    const defaultBucket = getChapter1LevelPresetBucket(
+      defaults['square-exercise-presets'],
+      CHAPTER1_TRAIL_PRESET_LEVEL,
+      isFlatSquarePresetMap,
+      CHAPTER1_SQUARE_PRESET_LEVEL
+    );
+    trailPresetData = JSON.parse(JSON.stringify(defaultBucket));
+    ensureTrailPresetData();
+    persistTrailPresetData();
+    applyTrailPreset(selectedTrailPresetSlot);
+  });
+  trailPresetActions.append(trailPresetSaveButton, trailPresetResetButton);
+  panel.insertBefore(trailPresetTitle, shapeTitle);
+  panel.insertBefore(trailPresetRow, shapeTitle);
+  panel.insertBefore(trailPresetActions, shapeTitle);
+  bindUiGroupDescription([trailPresetTitle], 'Eingewöhnung', 'Presets');
+  bindUiGroupDescription([...trailPresetRow.querySelectorAll('label, input')], 'Eingewöhnung', 'PresetSlots');
+  bindUiGroupDescription([trailPresetSaveButton], 'Eingewöhnung', 'PresetSpeichern');
+  bindUiGroupDescription([trailPresetResetButton], 'Eingewöhnung', 'PresetZurücksetzen');
+
   pointEditSliderControls[1] = resolutionWrap;
   pointEditSliderControls[2] = gridResolutionWrap;
   pointEditSliderControls[3] = centerDistanceWrap;
@@ -5201,7 +5670,8 @@ function createSquareExercisePanel() {
     const isSymmetric = squareExerciseMode === 'symmetric';
     const isAlternating = squareExerciseMode === 'alternating';
     const isWalkingBass = squareExerciseMode === 'walking-bass';
-    const isBlank = squareExerciseMode === 'blank' || isWalkingBass;
+    const isTrail = squareExerciseMode === 'trail';
+    const isBlank = squareExerciseMode === 'blank' || isWalkingBass || isTrail;
     const isFreeMovement = squareExerciseMode === 'free-movement';
     const activeEditMode = Boolean(pointEditMode);
     const showSoundControls = isAlternating || (isFreeMovement && activeEditMode);
@@ -5252,6 +5722,21 @@ function createSquareExercisePanel() {
     [walkingBassSoundLeftWrap, walkingBassSoundRightWrap, walkingBassModeWrap, claveToneModeWrap, walkingBassThresholdWrap, walkingBassSensitivityWrap, fieldModeWrap, walkingBassMetronomeToggleWrap, walkingBassAnticipationToggleWrap, walkingBassMetronomeBpmWrap].forEach((wrap) => {
       wrap.hidden = !isWalkingBass;
       wrap.style.display = isWalkingBass ? '' : 'none';
+    });
+    // Schweif: with edit mode off only the presets are shown; edit mode adds the preset actions and all settings.
+    [trailPresetTitle, trailPresetRow].forEach((element) => {
+      element.hidden = !isTrail;
+      element.style.display = isTrail ? '' : 'none';
+    });
+    const showTrailEditControls = isTrail && activeEditMode;
+    [trailPresetActions, trailLengthWrap, trailSpeedWidthWrap, trailSmoothingWrap, orientationCountWrap].forEach((element) => {
+      element.hidden = !showTrailEditControls;
+      element.style.display = showTrailEditControls ? '' : 'none';
+    });
+    const showTrailFocusControls = showTrailEditControls && selectedOrientationCount > 0;
+    [trailFocusWrap, trailFocusSoundWrap, trailFocusAnticipationWrap].forEach((element) => {
+      element.hidden = !showTrailFocusControls;
+      element.style.display = showTrailFocusControls ? '' : 'none';
     });
     const showGuitarMotion = isWalkingBass && selectedFieldMode === 'guitar';
     guitarFieldMotionWrap.hidden = !showGuitarMotion;
@@ -5422,7 +5907,7 @@ function createSquareExercisePanel() {
     if (title) {
       title.hidden = false;
       title.style.display = '';
-      title.textContent = isWalkingBass ? 'Walking Bass' : isFreeMovement ? 'Freie Bewegung' : isPoints ? 'Punkte' : isSymmetric ? 'Symmetrisch' : isAlternating ? 'Alternierend' : 'Ziffern';
+      title.textContent = isWalkingBass ? 'Walking Bass' : isTrail ? 'Schweif' : isFreeMovement ? 'Freie Bewegung' : isPoints ? 'Punkte' : isSymmetric ? 'Symmetrisch' : isAlternating ? 'Alternierend' : 'Ziffern';
     }
   };
 
@@ -5438,6 +5923,7 @@ function createSquareExercisePanel() {
     setResolution,
     setGridResolution,
     applyPreset: applySquarePreset,
+    applyTrailPreset,
     applyPointPreset: (slotNumber, { force = true } = {}) => {
       const normalizedSlot = normalizePointSlot(slotNumber);
       const slot = Number.isInteger(normalizedSlot) && normalizedSlot >= 1 && normalizedSlot <= 8
@@ -5456,6 +5942,10 @@ function createSquareExercisePanel() {
     },
     renderPointList,
     reloadPresets: () => {
+      // Read-only here: while an exam reads the DozentIn's presets, nothing may be written back.
+      trailPresetData = readTrailPresetData();
+      ensureTrailPresetData({ persist: false });
+      syncTrailPresetSelectionUI();
       squarePresetData = readSquarePresetData();
       if (Number.isInteger(Number(squarePresetData.selectedPresetSlot))) {
         selectedSquarePresetSlot = normalizeSquarePresetSlot(squarePresetData.selectedPresetSlot);
@@ -5468,11 +5958,19 @@ function createSquareExercisePanel() {
       selectedGuitarFieldY = Math.max(0, Math.min(1, Number(y)));
       persistSettings();
     },
+    syncOrientationPositions: (positions) => {
+      selectedOrientationPositions = positions.map((position) => ({ x: position.x, y: position.y }));
+      persistSettings();
+    },
     syncEnsemblePositions: (positions) => {
       selectedEnsemblePositions = positions.map((position) => ({ x: position.x, y: position.y }));
       persistSettings();
     },
     restoreSelectedPreset: () => {
+      if (squareExerciseMode === 'trail') {
+        applyTrailPreset(selectedTrailPresetSlot);
+        return;
+      }
       if (Number.isInteger(selectedSquarePresetSlot) && selectedSquarePresetSlot >= 1 && selectedSquarePresetSlot <= squarePresetCount) {
         applySquarePreset(selectedSquarePresetSlot);
       }
@@ -5695,6 +6193,14 @@ function createSquareExercisePanel() {
         managerRef?.setEnsembleFieldsVisible?.(selectedFieldMode === 'ensemble');
         managerRef?.setGuitarFieldMotion?.(selectedGuitarFieldMotion);
         managerRef?.setWalkingBassMetronomeBpm?.(selectedWalkingBassMetronomeBpm);
+        managerRef?.setChapter1TrailSeconds?.(selectedTrailSeconds);
+        managerRef?.setChapter1TrailSmoothing?.(selectedTrailSmoothing);
+        managerRef?.setChapter1TrailSpeedWidth?.(selectedTrailSpeedWidth);
+        managerRef?.setChapter1OrientationPositions?.(selectedOrientationPositions);
+        managerRef?.setChapter1OrientationCount?.(selectedOrientationCount);
+        managerRef?.setChapter1FocusPoint?.(selectedTrailFocusPoint);
+        managerRef?.setChapter1FocusSound?.(selectedTrailFocusSound);
+        managerRef?.setChapter1FocusAnticipation?.(selectedTrailFocusAnticipation);
         managerRef?.setWalkingBassMetronomeEnabled?.(selectedWalkingBassMetronome);
         managerRef?.setWalkingBassAnticipationEnabled?.(selectedWalkingBassAnticipation);
         managerRef?.setActiveTouchFadeEnabled?.(selectedActiveTouchFadeEnabled);
@@ -5821,6 +6327,18 @@ function createHandIndependencePanel() {
   motionDistanceInput.type = 'checkbox';
   motionDistanceInput.checked = settings.motionDistanceVisible;
   motionDistanceToggle.append(motionDistanceInput, document.createTextNode('Distanzdiagramm'));
+  const motionTrailToggle = document.createElement('label');
+  motionTrailToggle.className = 'motion-trail-toggle';
+  const motionTrailInput = document.createElement('input');
+  motionTrailInput.type = 'checkbox';
+  motionTrailInput.checked = settings.motionTrailVisible === true;
+  motionTrailToggle.append(motionTrailInput, document.createTextNode('Schweif'));
+  const motionTrailSmoothToggle = document.createElement('label');
+  motionTrailSmoothToggle.className = 'motion-trail-toggle';
+  const motionTrailSmoothInput = document.createElement('input');
+  motionTrailSmoothInput.type = 'checkbox';
+  motionTrailSmoothInput.checked = settings.motionTrailSmoothing !== false;
+  motionTrailSmoothToggle.append(motionTrailSmoothInput, document.createTextNode('Schweif glätten'));
   const motionDistanceStrictnessWrap = document.createElement('label');
   motionDistanceStrictnessWrap.className = 'figure-size-wrap';
   const motionDistanceStrictnessLabel = document.createElement('div');
@@ -5883,7 +6401,17 @@ function createHandIndependencePanel() {
     managerRef?.setMotionDistanceVisible(motionDistanceInput.checked);
     persist();
   });
-  panel.append(motionDistanceDivider, motionDistanceToggle, motionDistanceStrictnessWrap, motionMetricsPanel);
+  motionTrailInput.addEventListener('change', () => {
+    settings.motionTrailVisible = motionTrailInput.checked;
+    managerRef?.setMotionTrailVisible(motionTrailInput.checked);
+    persist();
+  });
+  motionTrailSmoothInput.addEventListener('change', () => {
+    settings.motionTrailSmoothing = motionTrailSmoothInput.checked;
+    managerRef?.setMotionTrailSmoothing(motionTrailSmoothInput.checked);
+    persist();
+  });
+  panel.append(motionDistanceDivider, motionTrailToggle, motionTrailSmoothToggle, motionDistanceToggle, motionDistanceStrictnessWrap, motionMetricsPanel);
 
   let selectedPresetSlot = 0;
 
@@ -5972,6 +6500,8 @@ function createHandIndependencePanel() {
   };
   const controls = {};
   const controlWraps = {};
+  controls.motionTrailVisible = motionTrailInput;
+  controls.motionTrailSmoothing = motionTrailSmoothInput;
   const addRange = (key, label, min, max, step, group, target = panel) => {
     const wrap = document.createElement('label');
     wrap.className = 'figure-size-wrap';
@@ -6004,6 +6534,8 @@ function createHandIndependencePanel() {
       dynamicsVisible: Boolean(dynamicsInput.checked),
       countTimesVisible: Boolean(countInput.checked),
       motionDistanceVisible: Boolean(motionDistanceInput.checked),
+      motionTrailVisible: Boolean(motionTrailInput.checked),
+      motionTrailSmoothing: Boolean(motionTrailSmoothInput.checked),
       motionDistanceStrictness: Number(motionDistanceStrictnessSlider.value ?? settings.motionDistanceStrictness ?? 100),
       tempoRatio: ratioSelect.value || settings.tempoRatio || '1:1',
       shape: select.value || settings.shape || 'line',
@@ -6018,7 +6550,8 @@ function createHandIndependencePanel() {
       width: Number(controls.width?.value ?? settings.width ?? managerRef?.handIndependenceShapeWidth ?? 8),
       height: Number(controls.height?.value ?? settings.height ?? managerRef?.handIndependenceShapeHeight ?? 8),
       rotation: Number(controls.rotation?.value ?? settings.rotation ?? managerRef?.handIndependenceShapeRotation ?? 0),
-      cornerHeights: Array.from({ length: 8 }, (_, index) => Number(managerRef?.handIndependenceFigureCornerHeights?.[index] ?? settings[`corner${index}`] ?? 0))
+      cornerHeights: Array.from({ length: 8 }, (_, index) => Number(managerRef?.handIndependenceFigureCornerHeights?.[index] ?? settings[`corner${index}`] ?? 0)),
+      cornerOffsets: sanitizeFigureCornerOffsets(settings.cornerOffsets)
     };
 
     Object.assign(settings, presetSnapshot);
@@ -6058,7 +6591,7 @@ function createHandIndependencePanel() {
   tempoRatioTitle.className = 'figure-panel-section-title';
   tempoRatioTitle.textContent = 'Tempo';
   panel.appendChild(tempoRatioTitle);
-  addRange('sharedTempoBpm', 'BPM', 30, 120, 1);
+  addRange('sharedTempoBpm', 'BPM', 10, 120, 1);
   bindUiGroupDescription([controlWraps.sharedTempoBpm], 'Handunabhängigkeit', 'BPMSlider');
   const ratioSelect = document.createElement('select');
   ratioSelect.className = 'hand-independence-tempo-ratio';
@@ -6171,7 +6704,10 @@ function createHandIndependencePanel() {
   });
   const cornerPanel = document.createElement('div');
   cornerPanel.className = 'dynamic-figure-point-controls';
+  const cornerReset = createFigureCornerResetControls();
+  cornerPanel.appendChild(cornerReset.wrap);
   panel.appendChild(cornerPanel);
+  cornerReset.button.addEventListener('click', () => resetCornerPositions());
   updateFigureMotionControlVisibility();
 
   addDivider();
@@ -6217,6 +6753,8 @@ function createHandIndependencePanel() {
   bindUiGroupDescription([title], 'Handunabhängigkeit', 'Taktgebung');
   bindUiGroupDescription([tempoRatioTitle], 'Handunabhängigkeit', 'Geschwindigkeitsverhältnis');
   bindUiGroupDescription([ratioSelect], 'Handunabhängigkeit', 'Geschwindigkeitsverhältnis');
+  bindUiDescription(motionTrailToggle, 'Handunabhängigkeit', 'Schweif');
+  bindUiDescription(motionTrailSmoothToggle, 'Handunabhängigkeit', 'Schweifglättung');
   bindUiDescription(motionDistanceToggle, 'Handunabhängigkeit', 'Distanzdiagramm');
   bindUiDescription(motionDistanceStrictnessWrap, 'Handunabhängigkeit', 'DistanzStrenge');
   bindUiDescription(motionMetricsPanel, 'Handunabhängigkeit', 'Bewertungsmetriken');
@@ -6276,6 +6814,14 @@ function createHandIndependencePanel() {
     if (typeof safeNext.dynamicsVisible === 'boolean') managerRef?.setHandIndependenceDynamicsVisible(safeNext.dynamicsVisible);
     if (typeof safeNext.countTimesVisible === 'boolean') managerRef?.setHandIndependenceCountTimesVisible(safeNext.countTimesVisible);
     if (typeof safeNext.motionDistanceVisible === 'boolean') managerRef?.setMotionDistanceVisible(safeNext.motionDistanceVisible);
+    if (typeof safeNext.motionTrailVisible === 'boolean') {
+      motionTrailInput.checked = safeNext.motionTrailVisible;
+      managerRef?.setMotionTrailVisible(safeNext.motionTrailVisible);
+    }
+    if (typeof safeNext.motionTrailSmoothing === 'boolean') {
+      motionTrailSmoothInput.checked = safeNext.motionTrailSmoothing;
+      managerRef?.setMotionTrailSmoothing(safeNext.motionTrailSmoothing);
+    }
     if (Number.isFinite(Number(safeNext.motionDistanceStrictness))) {
       settings.motionDistanceStrictness = Math.min(100, Math.max(0, Number(safeNext.motionDistanceStrictness)));
       motionDistanceStrictnessSlider.value = String(settings.motionDistanceStrictness);
@@ -6296,8 +6842,13 @@ function createHandIndependencePanel() {
         }
       });
     }
+    // A preset or level switch always brings its own offsets; presets saved without any reset them to zero.
+    if (Array.isArray(safeNext.cornerOffsets) || Number.isInteger(Number(safeNext.figureLevel))) {
+      settings.cornerOffsets = sanitizeFigureCornerOffsets(safeNext.cornerOffsets);
+      managerRef?.setHandIndependenceFigureCornerOffsets(settings.cornerOffsets);
+    }
     Object.entries(safeNext).forEach(([key, value]) => {
-      if (key !== 'variant' && key !== 'reverse' && key !== 'cornerHeights') {
+      if (key !== 'variant' && key !== 'reverse' && key !== 'cornerHeights' && key !== 'cornerOffsets') {
         managerRef?.setHandIndependenceFigureParameter(key, value);
         managerRef?.setHandIndependenceShapeParameter(key, value);
       }
@@ -6355,40 +6906,24 @@ function createHandIndependencePanel() {
     }
     return true;
   }
-  function rebuildCornerControls(figureLevelOverride = settings.figureLevel) {
+  function rebuildCornerControls() {
     updateFigureVariationVisibility();
-    cornerPanel.replaceChildren();
-    Object.keys(controls)
-      .filter((key) => key.startsWith('corner'))
-      .forEach((key) => delete controls[key]);
+  }
 
-    const figureLevel = Number.isInteger(Number(figureLevelOverride))
-      ? Math.max(0, Math.min(3, Number(figureLevelOverride)))
-      : 0;
-    const handIndependenceBeatCounts = [1, 2, 3, 4];
-    const beatCount = handIndependenceBeatCounts[figureLevel] || 1;
-    const count = beatCount * 2;
-    for (let displayIndex = 0; displayIndex < count; displayIndex += 1) {
-      const isBeat = displayIndex < beatCount;
-      const pointIndex = isBeat
-        ? displayIndex * 2
-        : (displayIndex - beatCount) * 2 + 1;
-      addRange(
-        `corner${pointIndex}`,
-        `${isBeat ? 'Zählzeit' : 'Zwischenpunkt'} ${isBeat ? displayIndex + 1 : displayIndex - beatCount + 1}`,
-        -25,
-        25,
-        0.1,
-        null,
-        cornerPanel
-      );
-      const input = controls[`corner${pointIndex}`];
-      input.addEventListener('input', () => {
-        const nextValue = Number(input.value);
-        settings[`corner${pointIndex}`] = nextValue;
-        managerRef?.setHandIndependenceFigureCornerHeight(pointIndex, nextValue);
-      });
+  function syncCornerOffsets(offsets) {
+    settings.cornerOffsets = sanitizeFigureCornerOffsets(offsets);
+    persist();
+  }
+
+  function resetCornerPositions() {
+    for (let index = 0; index < 8; index += 1) {
+      settings[`corner${index}`] = 0;
+      managerRef?.setHandIndependenceFigureCornerHeight(index, 0);
     }
+    settings.cornerHeights = Array(8).fill(0);
+    settings.cornerOffsets = sanitizeFigureCornerOffsets([]);
+    managerRef?.setHandIndependenceFigureCornerOffsets(settings.cornerOffsets);
+    persist();
   }
 
   function syncCurrentToggleStateForChapter() {
@@ -6412,6 +6947,8 @@ function createHandIndependencePanel() {
       renderPresetSlots();
       syncCountTimesState();
       managerRef?.setMotionDistanceVisible(motionDistanceInput.checked);
+      managerRef?.setMotionTrailVisible(motionTrailInput.checked);
+      managerRef?.setMotionTrailSmoothing(motionTrailSmoothInput.checked);
       managerRef?.setMotionDistanceStrictness(Number(motionDistanceStrictnessSlider.value));
       updateMotionMetrics();
       if (!motionMetricsInterval) motionMetricsInterval = window.setInterval(updateMotionMetrics, 100);
@@ -6420,6 +6957,7 @@ function createHandIndependencePanel() {
       updateFigureVariationVisibility();
       rebuildCornerControls();
     },
+    syncCornerOffsets,
     applyPreset: (level, slotOverride = null) => {
       const figureLevel = Number.isInteger(Number(level)) ? Math.max(0, Math.min(3, Number(level))) : Number(settings.figureLevel ?? 0);
       const presetBucket = getPresetBucketForLevel(figureLevel);
@@ -7222,7 +7760,7 @@ function createTrackingControls(trackingController) {
   const exportDefaultsButton = document.createElement('button');
   exportDefaultsButton.type = 'button';
   exportDefaultsButton.className = 'tracking-controls-button';
-  exportDefaultsButton.textContent = 'Defaults exportieren';
+  exportDefaultsButton.textContent = 'Einstellungen exportieren';
   exportDefaultsButton.addEventListener('click', () => {
     try {
       if (typeof window.exportDefaults === 'function') {
@@ -7237,7 +7775,7 @@ function createTrackingControls(trackingController) {
   const exportExamsButton = document.createElement('button');
   exportExamsButton.type = 'button';
   exportExamsButton.className = 'tracking-controls-button';
-  exportExamsButton.textContent = 'export exams';
+  exportExamsButton.textContent = 'Prüfungsergebnisse exportieren';
   exportExamsButton.addEventListener('click', async () => {
     try {
       const grantedAccess = await requestFinalExamPassword();
@@ -7258,7 +7796,7 @@ function createTrackingControls(trackingController) {
   const restoreDefaultsButton = document.createElement('button');
   restoreDefaultsButton.type = 'button';
   restoreDefaultsButton.className = 'tracking-controls-button';
-  restoreDefaultsButton.textContent = 'Werkseinstellung';
+  restoreDefaultsButton.textContent = 'Werkseinstellungen';
   restoreDefaultsButton.addEventListener('click', async () => {
     const confirmed = window.confirm('Möchtest du wirklich alle Parameter und Presets auf die Werkseinstellung zurücksetzen?');
     if (!confirmed) {
@@ -7757,7 +8295,7 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
     const safeChapterId = Number(chapterId);
     const safeLevel = Number.isInteger(levelIndex) && levelIndex >= 0 ? Number(levelIndex) : 0;
     const levelCounts = {
-      1: [8, 8, 8, 8, 8],
+      1: [8, 8, 8, 8, 4],
       2: [8, 8, 8, 8, 8],
       3: [8, 8, 8, 8, 8, 8],
       4: [8, 8, 8, 8],
@@ -7771,7 +8309,7 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
   const getExamLevelOptions = (chapterId) => {
     const safeChapterId = Number(chapterId);
     if (safeChapterId === 1) {
-      return [0, 1].map((index) => ({
+      return [0, 1, 4].map((index) => ({
         value: index,
         label: levelTitles[safeChapterId]?.[index] || `Level ${index + 1}`
       }));
@@ -7787,7 +8325,7 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
     const safeChapterId = Number(chapterId);
     const safeLevel = Number.isInteger(levelIndex) && levelIndex >= 0 ? Number(levelIndex) : 0;
     if (safeChapterId === 1) {
-      return [0, 1].includes(safeLevel) ? (levelTitles[safeChapterId]?.[safeLevel] || `Level ${safeLevel + 1}`) : 'Ziffern';
+      return [0, 1, 4].includes(safeLevel) ? (levelTitles[safeChapterId]?.[safeLevel] || `Level ${safeLevel + 1}`) : 'Ziffern';
     }
     return levelTitles[safeChapterId]?.[safeLevel] || `Level ${safeLevel + 1}`;
   };
@@ -7808,7 +8346,7 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
             const chapterId = Number.isInteger(Number(task.chapterId)) ? Math.min(6, Math.max(1, Number(task.chapterId))) : 1;
             const rawLevelIndex = Number.isInteger(Number(task.levelIndex)) ? Number(task.levelIndex) : 0;
             const levelIndex = chapterId === 1
-              ? (rawLevelIndex === 1 ? 1 : 0)
+              ? ([1, 4].includes(rawLevelIndex) ? rawLevelIndex : 0)
               : Math.max(0, rawLevelIndex);
             return {
               id: Number(task.id) || Date.now() + index,
@@ -8000,6 +8538,9 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
           : (Number.isInteger(selectedSquarePresetSlot) ? selectedSquarePresetSlot : 1);
         squareExercisePanel.setExerciseMode('points');
         squareExercisePanel.applyPointPreset(selectedPreset + 1, { force: true });
+      } else if (chapterId === 1 && levelIndex === 4 && typeof squareExercisePanel?.applyTrailPreset === 'function') {
+        squareExercisePanel.setExerciseMode('trail');
+        squareExercisePanel.applyTrailPreset(selectedPreset + 1, { silent: true, preserveSelectionState: true });
       } else if (chapterId === 1 && typeof squareExercisePanel?.applyPreset === 'function') {
         examLevelPresetSnapshot = Number.isInteger(squareExercisePanel.getSelectedPresetSlot?.())
           ? squareExercisePanel.getSelectedPresetSlot()
@@ -8374,17 +8915,49 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
       renderTasks();
     });
 
+    const moveTask = (direction) => {
+      const targetIndex = index + direction;
+      if (targetIndex < 0 || targetIndex >= tasks.length) {
+        return;
+      }
+      [tasks[index], tasks[targetIndex]] = [tasks[targetIndex], tasks[index]];
+      if (examState.currentIndex === index) {
+        examState.currentIndex = targetIndex;
+      } else if (examState.currentIndex === targetIndex) {
+        examState.currentIndex = index;
+      }
+      saveExamTasks();
+      renderTasks();
+    };
+
+    const createMoveButton = (label, title, direction, disabled) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'exam-task-move';
+      button.textContent = label;
+      button.title = title;
+      button.disabled = disabled;
+      button.addEventListener('click', () => moveTask(direction));
+      return button;
+    };
+    const upButton = createMoveButton('▲', 'Aufgabe nach oben', -1, index === 0);
+    const downButton = createMoveButton('▼', 'Aufgabe nach unten', 1, index === tasks.length - 1);
+
+    const actions = document.createElement('div');
+    actions.className = 'exam-task-actions';
+    actions.append(upButton, downButton, deleteButton);
+
     if (!isExamLevelEditable(activeExamLevel)) {
       chapterSelect.disabled = true;
       levelSelect.disabled = true;
       presetSelect.disabled = true;
-      deleteButton.style.display = 'none';
+      actions.style.display = 'none';
     }
 
     row.appendChild(chapterSelect);
     row.appendChild(levelSelect);
     row.appendChild(presetSelect);
-    row.appendChild(deleteButton);
+    row.appendChild(actions);
     return row;
   };
 
@@ -8897,7 +9470,9 @@ export async function initApp() {
   levelCanvas.style.height = '100%';
   stageFrame.appendChild(levelCanvas);
 
+  let syncFigureCornerEditState = () => {};
   const syncLevelCanvasPointerState = () => {
+    syncFigureCornerEditState();
     const exerciseFieldActive = uiState.activeChapter === 6
       && Number.isInteger(uiState.activeLevel)
       && uiState.activeLevel >= 0
@@ -8985,6 +9560,157 @@ export async function initApp() {
     }
   });
 
+  // Corner dragging for the Dynamikebenen and Handunabhängigkeit figures is tied to the settings (Bearbeiten) toggle.
+  let figureCornerEditEnabled = readLevelSettingsVisibilityState();
+  const isFigureCornerEditActive = () => figureCornerEditEnabled && !examPanel.isRunning();
+  const isFigureCornerChapterActive = () => isFigureCornerEditActive()
+    && (uiState.activeChapter === 4 || uiState.activeChapter === 5);
+  levelManager.setFigureCornerEditGate(isFigureCornerEditActive);
+  // Eingewöhnung > Schweif: the orientation points can be dragged with the mouse (not during exams).
+  const isOrientationDragActive = () => uiState.activeChapter === 1
+    && uiState.activeLevel === 4
+    && levelManager.pointExerciseEditMode
+    && !examPanel.isRunning();
+  // Gleichmäßigkeit: the guide lines can be dragged with the mouse (not during exams).
+  const isConsistencyLineDragActive = () => uiState.activeChapter === 2 && !examPanel.isRunning();
+  const applyFigureCornerEditState = () => {
+    const active = isFigureCornerChapterActive() || isConsistencyLineDragActive() || isOrientationDragActive();
+    stageFrame.style.touchAction = active ? 'none' : '';
+    if (!active) {
+      stageFrame.style.cursor = '';
+    }
+    levelManager.requestRender();
+  };
+  syncFigureCornerEditState = () => {
+    figureCornerEditEnabled = readLevelSettingsVisibilityState();
+    applyFigureCornerEditState();
+  };
+  window.addEventListener('motionai:levelSettingsVisibilityChanged', (event) => {
+    figureCornerEditEnabled = Boolean(event.detail?.visible);
+    applyFigureCornerEditState();
+  });
+  const getLevelCanvasPoint = (event) => {
+    const rect = levelCanvas.getBoundingClientRect();
+    return {
+      x: (event.clientX - rect.left) * (levelCanvas.width / rect.width),
+      y: (event.clientY - rect.top) * (levelCanvas.height / rect.height)
+    };
+  };
+  stageFrame.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0 || !isFigureCornerChapterActive()) {
+      return;
+    }
+    if (event.target instanceof Element && event.target.closest('button, input, select, textarea, a, label')) {
+      return;
+    }
+    const point = getLevelCanvasPoint(event);
+    if (levelManager.beginFigureCornerDrag(point.x, point.y)) {
+      event.preventDefault();
+      stageFrame.style.cursor = 'grabbing';
+    }
+  });
+  stageFrame.addEventListener('pointermove', (event) => {
+    if (levelManager.figureCornerDrag || !isFigureCornerChapterActive()) {
+      return;
+    }
+    const point = getLevelCanvasPoint(event);
+    stageFrame.style.cursor = levelManager.updateFigureCornerHover(point.x, point.y) ? 'grab' : '';
+  });
+  stageFrame.addEventListener('pointerleave', () => {
+    if (!levelManager.figureCornerDrag) {
+      levelManager.updateFigureCornerHover(-1e6, -1e6);
+      stageFrame.style.cursor = '';
+    }
+  });
+  window.addEventListener('pointermove', (event) => {
+    if (!levelManager.figureCornerDrag) {
+      return;
+    }
+    const point = getLevelCanvasPoint(event);
+    levelManager.updateFigureCornerDrag(point.x, point.y);
+  });
+  stageFrame.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0 || !isConsistencyLineDragActive()) {
+      return;
+    }
+    if (event.target instanceof Element && event.target.closest('button, input, select, textarea, a, label')) {
+      return;
+    }
+    const point = getLevelCanvasPoint(event);
+    if (levelManager.beginConsistencyLineDrag(point.x, point.y)) {
+      event.preventDefault();
+      stageFrame.style.cursor = levelManager.consistencyLineDrag?.axis === 'x' ? 'ew-resize' : 'ns-resize';
+    }
+  });
+  stageFrame.addEventListener('pointermove', (event) => {
+    if (levelManager.consistencyLineDrag || !isConsistencyLineDragActive()) {
+      return;
+    }
+    const point = getLevelCanvasPoint(event);
+    stageFrame.style.cursor = levelManager.getConsistencyLineCursorAt(point.x, point.y);
+  });
+  window.addEventListener('pointermove', (event) => {
+    if (!levelManager.consistencyLineDrag) {
+      return;
+    }
+    const point = getLevelCanvasPoint(event);
+    levelManager.updateConsistencyLineDrag(point.x, point.y);
+  });
+  stageFrame.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0 || !isOrientationDragActive()) {
+      return;
+    }
+    if (event.target instanceof Element && event.target.closest('button, input, select, textarea, a, label')) {
+      return;
+    }
+    const point = getLevelCanvasPoint(event);
+    if (levelManager.beginChapter1OrientationDrag(point.x, point.y)) {
+      event.preventDefault();
+      stageFrame.style.cursor = 'grabbing';
+    }
+  });
+  stageFrame.addEventListener('pointermove', (event) => {
+    if (levelManager.chapter1OrientationDrag || !isOrientationDragActive()) {
+      return;
+    }
+    const point = getLevelCanvasPoint(event);
+    stageFrame.style.cursor = levelManager.findChapter1OrientationPointAt(point.x, point.y) >= 0 ? 'grab' : '';
+  });
+  window.addEventListener('pointermove', (event) => {
+    if (!levelManager.chapter1OrientationDrag) {
+      return;
+    }
+    const point = getLevelCanvasPoint(event);
+    levelManager.updateChapter1OrientationDrag(point.x, point.y);
+  });
+  const finishOrientationDrag = () => {
+    if (levelManager.endChapter1OrientationDrag()) {
+      stageFrame.style.cursor = '';
+      squareExercisePanel.syncOrientationPositions?.(levelManager.chapter1OrientationPositions);
+    }
+  };
+  window.addEventListener('pointerup', finishOrientationDrag);
+  window.addEventListener('pointercancel', finishOrientationDrag);
+  const finishConsistencyLineDrag = () => {
+    if (levelManager.endConsistencyLineDrag()) {
+      stageFrame.style.cursor = '';
+    }
+  };
+  window.addEventListener('pointerup', finishConsistencyLineDrag);
+  window.addEventListener('pointercancel', finishConsistencyLineDrag);
+  const finishFigureCornerDrag = () => {
+    const drag = levelManager.endFigureCornerDrag();
+    if (!drag) {
+      return;
+    }
+    stageFrame.style.cursor = '';
+    if (drag.kind === 'hand') {
+      handIndependencePanel.syncCornerOffsets(levelManager.handIndependenceFigureCornerOffsets);
+    }
+  };
+  window.addEventListener('pointerup', finishFigureCornerDrag);
+  window.addEventListener('pointercancel', finishFigureCornerDrag);
+
   const syncChapter1GridResolution = (value) => {
     const next = Math.max(8, Math.min(24, Math.round(Number(value) / 2) * 2));
     squareExercisePanel.setGridResolution(next);
@@ -9044,6 +9770,14 @@ export async function initApp() {
     setGuitarFieldMotion: (value) => levelManager.setGuitarFieldMotion(value),
     setGuitarFieldPosition: (x, y) => levelManager.setGuitarFieldPosition(x, y),
     setWalkingBassMetronomeBpm: (value) => levelManager.setWalkingBassMetronomeBpm(value),
+    setChapter1TrailSeconds: (value) => levelManager.setChapter1TrailSeconds(value),
+    setChapter1TrailSmoothing: (value) => levelManager.setChapter1TrailSmoothing(value),
+    setChapter1TrailSpeedWidth: (value) => levelManager.setChapter1TrailSpeedWidth(value),
+    setChapter1OrientationCount: (value) => levelManager.setChapter1OrientationCount(value),
+    setChapter1FocusPoint: (value) => levelManager.setChapter1FocusPoint(value),
+    setChapter1FocusSound: (value) => levelManager.setChapter1FocusSound(value),
+    setChapter1FocusAnticipation: (value) => levelManager.setChapter1FocusAnticipation(value),
+    setChapter1OrientationPositions: (value) => levelManager.setChapter1OrientationPositions(value),
     setWalkingBassMetronomeEnabled: (value) => levelManager.setWalkingBassMetronomeEnabled(value),
     setWalkingBassAnticipationEnabled: (value) => levelManager.setWalkingBassAnticipationEnabled(value),
     alternatingExerciseScaleMode: levelManager.alternatingScaleMode,
@@ -9106,6 +9840,8 @@ export async function initApp() {
     setFigureDynamicsVisible: (value) => levelManager.setDynamicFigureDynamicsVisible(value),
     setFigureCountTimesVisible: (value) => levelManager.setDynamicFigureCountTimesVisible(value),
     setMotionDistanceVisible: (value) => levelManager.setMotionDistanceVisible(value),
+    setMotionTrailVisible: (value) => levelManager.setMotionTrailVisible(value, 4),
+    setMotionTrailSmoothing: (value) => levelManager.setMotionTrailSmoothing(value, 4),
     setMotionDistanceStrictness: (value) => levelManager.setMotionDistanceStrictness(value),
     setMotionDistanceScoreWeights: (weights) => levelManager.setMotionDistanceScoreWeights(weights),
     getMotionDistanceScoreWeights: () => levelManager.getMotionDistanceScoreWeights(),
@@ -9114,7 +9850,9 @@ export async function initApp() {
     setFigureSide: (value) => levelManager.setDynamicFigureSide(value),
     setDynamicFigureCornerHeight: (index, value) => levelManager.setDynamicFigureCornerHeight(index, value),
     setDynamicFigureCornerHeights: (values) => levelManager.setDynamicFigureCornerHeights(values),
-    get dynamicFigureCornerHeights() { return levelManager.dynamicFigureCornerHeights; }
+    setDynamicFigureCornerOffsets: (values) => levelManager.setDynamicFigureCornerOffsets(values),
+    get dynamicFigureCornerHeights() { return levelManager.dynamicFigureCornerHeights; },
+    get dynamicFigureCornerOffsets() { return levelManager.dynamicFigureCornerOffsets; }
   };
   dynamicFigurePanel.setLevelManager(dynamicFigureManager);
   handIndependencePanel.setLevelManager({
@@ -9125,6 +9863,8 @@ export async function initApp() {
     setHandIndependenceDynamicsVisible: (value) => levelManager.setHandIndependenceDynamicsVisible(value),
     setHandIndependenceCountTimesVisible: (value) => levelManager.setHandIndependenceCountTimesVisible(value),
     setMotionDistanceVisible: (value) => levelManager.setMotionDistanceVisible(value),
+    setMotionTrailVisible: (value) => levelManager.setMotionTrailVisible(value, 5),
+    setMotionTrailSmoothing: (value) => levelManager.setMotionTrailSmoothing(value, 5),
     setMotionDistanceStrictness: (value) => levelManager.setMotionDistanceStrictness(value),
     setMotionDistanceScoreWeights: (weights) => levelManager.setMotionDistanceScoreWeights(weights),
     getMotionDistanceScoreWeights: () => levelManager.getMotionDistanceScoreWeights(),
@@ -9132,6 +9872,7 @@ export async function initApp() {
     setHandIndependenceTempoRatio: (value) => levelManager.setHandIndependenceTempoRatio(value),
     setHandIndependenceFigureParameter: (name, value) => levelManager.setHandIndependenceFigureParameter(name, value),
     setHandIndependenceFigureCornerHeight: (index, value) => levelManager.setHandIndependenceFigureCornerHeight(index, value),
+    setHandIndependenceFigureCornerOffsets: (values) => levelManager.setHandIndependenceFigureCornerOffsets(values),
     setHandIndependenceShapeParameter: (name, value) => levelManager.setHandIndependenceShapeParameter(name, value)
   });
   controls.setLevelManager(levelManager);
@@ -9165,7 +9906,7 @@ export async function initApp() {
 
   resizeOverlays();
 
-  const chapter1ExerciseTitles = ['Ziffern', 'Punkte', 'Alternierend', 'Walking Bass', 'Kreis'];
+  const chapter1ExerciseTitles = ['Ziffern', 'Punkte', 'Alternierend', 'Walking Bass', 'Schweif'];
 
   const getChapter1ExercisePanelVisibility = (level) => {
     if (!Number.isInteger(level) || uiState.activeChapter !== 1) {
@@ -9331,6 +10072,7 @@ export async function initApp() {
     const showPointsExercisePanel = uiState.activeChapter === 1 && exerciseVisibility.points;
     const blankChapter1ExercisePanel = uiState.activeChapter === 1 && Number.isInteger(level) && [3, 4].includes(level);
     const walkingBassExercisePanel = uiState.activeChapter === 1 && level === 3;
+    const trailExercisePanel = uiState.activeChapter === 1 && level === 4;
     const freeMovementExercisePanel = uiState.activeChapter === 1 && Number.isInteger(level) && level === 2;
     const alternatingExercisePanel = uiState.activeChapter === 1 && Number.isInteger(level) && level === 2 && false;
     const showExerciseFieldPanel = uiState.activeChapter === 6 && Number.isInteger(level) && level >= 0 && level <= 2;
@@ -9378,6 +10120,8 @@ export async function initApp() {
       squareExercisePanel.setExerciseMode(
         walkingBassExercisePanel
           ? 'walking-bass'
+          : trailExercisePanel
+            ? 'trail'
           : blankChapter1ExercisePanel
             ? 'blank'
           : showPointsExercisePanel
