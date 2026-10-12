@@ -18,9 +18,9 @@
         "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
         "motionDistanceScoreWeights": {
-          "path": 84,
-          "timing": 9,
-          "direction": 7
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         },
         "dynamicFigureCornerHeights": [
           -25,
@@ -54,9 +54,9 @@
         "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
         "motionDistanceScoreWeights": {
-          "path": 45,
-          "timing": 30,
-          "direction": 25
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         },
         "dynamicFigureCornerHeights": [
           -17.857142857142858,
@@ -90,9 +90,9 @@
         "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
         "motionDistanceScoreWeights": {
-          "path": 82,
-          "timing": 10,
-          "direction": 8
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         },
         "dynamicFigureCornerHeights": [
           0,
@@ -126,9 +126,9 @@
         "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
         "motionDistanceScoreWeights": {
-          "path": 82,
-          "timing": 10,
-          "direction": 8
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         },
         "dynamicFigureCornerHeights": [
           -17.857142857142858,
@@ -162,9 +162,9 @@
         "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
         "motionDistanceScoreWeights": {
-          "path": 83,
-          "timing": 9,
-          "direction": 8
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         },
         "dynamicFigureCornerHeights": [
           -25,
@@ -198,9 +198,9 @@
         "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
         "motionDistanceScoreWeights": {
-          "path": 82,
-          "timing": 10,
-          "direction": 8
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         },
         "dynamicFigureCornerHeights": [
           -25,
@@ -234,9 +234,9 @@
         "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
         "motionDistanceScoreWeights": {
-          "path": 83,
-          "timing": 9,
-          "direction": 8
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         },
         "dynamicFigureCornerHeights": [
           -25,
@@ -270,9 +270,9 @@
         "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
         "motionDistanceScoreWeights": {
-          "path": 82,
-          "timing": 10,
-          "direction": 8
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         },
         "dynamicFigureCornerHeights": [
           -25,
@@ -308,9 +308,9 @@
         "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
         "motionDistanceScoreWeights": {
-          "path": 45,
-          "timing": 30,
-          "direction": 25
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         },
         "dynamicFigureCornerHeights": [
           -6.5,
@@ -354,9 +354,9 @@
         "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
         "motionDistanceScoreWeights": {
-          "path": 45,
-          "timing": 30,
-          "direction": 25
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         },
         "dynamicFigureCornerHeights": [
           -6.5,
@@ -400,9 +400,9 @@
         "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
         "motionDistanceScoreWeights": {
-          "path": 45,
-          "timing": 30,
-          "direction": 25
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         },
         "dynamicFigureCornerHeights": [
           -6.5,
@@ -446,9 +446,9 @@
         "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
         "motionDistanceScoreWeights": {
-          "path": 45,
-          "timing": 30,
-          "direction": 25
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         },
         "dynamicFigureCornerHeights": [
           -6.5,
@@ -492,9 +492,9 @@
         "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
         "motionDistanceScoreWeights": {
-          "path": 45,
-          "timing": 30,
-          "direction": 25
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         },
         "dynamicFigureCornerHeights": [
           -6.5,
@@ -538,9 +538,9 @@
         "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
         "motionDistanceScoreWeights": {
-          "path": 45,
-          "timing": 30,
-          "direction": 25
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         },
         "dynamicFigureCornerHeights": [
           -20.5,
@@ -584,9 +584,9 @@
         "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
         "motionDistanceScoreWeights": {
-          "path": 85,
-          "timing": 8,
-          "direction": 7
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         },
         "dynamicFigureCornerHeights": [
           0,
@@ -630,9 +630,9 @@
         "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
         "motionDistanceScoreWeights": {
-          "path": 85,
-          "timing": 8,
-          "direction": 7
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         },
         "dynamicFigureCornerHeights": [
           0,
@@ -678,9 +678,9 @@
         "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
         "motionDistanceScoreWeights": {
-          "path": 84,
-          "timing": 9,
-          "direction": 7
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         },
         "dynamicFigureCornerHeights": [
           -13.7,
@@ -734,9 +734,9 @@
         "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
         "motionDistanceScoreWeights": {
-          "path": 84,
-          "timing": 9,
-          "direction": 7
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         },
         "dynamicFigureCornerHeights": [
           -13.7,
@@ -790,9 +790,9 @@
         "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
         "motionDistanceScoreWeights": {
-          "path": 84,
-          "timing": 9,
-          "direction": 7
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         },
         "dynamicFigureCornerHeights": [
           -13.7,
@@ -846,9 +846,9 @@
         "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
         "motionDistanceScoreWeights": {
-          "path": 84,
-          "timing": 9,
-          "direction": 7
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         },
         "dynamicFigureCornerHeights": [
           -13.7,
@@ -902,9 +902,9 @@
         "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
         "motionDistanceScoreWeights": {
-          "path": 84,
-          "timing": 9,
-          "direction": 7
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         },
         "dynamicFigureCornerHeights": [
           -13.7,
@@ -958,9 +958,9 @@
         "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
         "motionDistanceScoreWeights": {
-          "path": 84,
-          "timing": 9,
-          "direction": 7
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         },
         "dynamicFigureCornerHeights": [
           -0.3,
@@ -1014,9 +1014,9 @@
         "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
         "motionDistanceScoreWeights": {
-          "path": 86,
-          "timing": 8,
-          "direction": 6
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         },
         "dynamicFigureCornerHeights": [
           0,
@@ -1070,9 +1070,9 @@
         "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
         "motionDistanceScoreWeights": {
-          "path": 45,
-          "timing": 30,
-          "direction": 25
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         },
         "dynamicFigureCornerHeights": [
           -3.571428571428573,
@@ -1128,9 +1128,9 @@
         "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
         "motionDistanceScoreWeights": {
-          "path": 45,
-          "timing": 30,
-          "direction": 25
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         },
         "dynamicFigureCornerHeights": [
           -7.2,
@@ -1194,9 +1194,9 @@
         "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
         "motionDistanceScoreWeights": {
-          "path": 45,
-          "timing": 30,
-          "direction": 25
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         },
         "dynamicFigureCornerHeights": [
           -17.857142857142858,
@@ -1260,9 +1260,9 @@
         "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
         "motionDistanceScoreWeights": {
-          "path": 45,
-          "timing": 30,
-          "direction": 25
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         },
         "dynamicFigureCornerHeights": [
           -4.8,
@@ -1326,9 +1326,9 @@
         "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
         "motionDistanceScoreWeights": {
-          "path": 45,
-          "timing": 30,
-          "direction": 25
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         },
         "dynamicFigureCornerHeights": [
           -3.571428571428573,
@@ -1392,9 +1392,9 @@
         "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
         "motionDistanceScoreWeights": {
-          "path": 87,
-          "timing": 10,
-          "direction": 3
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         },
         "dynamicFigureCornerHeights": [
           3.5714285714285694,
@@ -1458,9 +1458,9 @@
         "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
         "motionDistanceScoreWeights": {
-          "path": 87,
-          "timing": 10,
-          "direction": 3
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         },
         "dynamicFigureCornerHeights": [
           3.5714285714285694,
@@ -1524,9 +1524,9 @@
         "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
         "motionDistanceScoreWeights": {
-          "path": 87,
-          "timing": 10,
-          "direction": 3
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         },
         "dynamicFigureCornerHeights": [
           3.5714285714285694,
@@ -1590,9 +1590,9 @@
         "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
         "motionDistanceScoreWeights": {
-          "path": 87,
-          "timing": 10,
-          "direction": 3
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         },
         "dynamicFigureCornerHeights": [
           3.5714285714285694,
@@ -2352,9 +2352,9 @@
     "motionTrailSmoothing": true,
     "motionDistanceStrictness": 78,
     "motionDistanceScoreWeights": {
-      "path": 45,
-      "timing": 30,
-      "direction": 25
+      "path": 90,
+      "timing": 5,
+      "direction": 5
     }
   },
   "motionai.db": {
@@ -2394,9 +2394,9 @@
             "motionDistanceVisible": false,
             "motionDistanceStrictness": 100,
             "motionDistanceScoreWeights": {
-              "path": 45,
-              "timing": 30,
-              "direction": 25
+              "path": 90,
+              "timing": 5,
+              "direction": 5
             }
           },
           "motionai.square-exercise-panel-settings": {
@@ -2464,9 +2464,9 @@
             "motionDistanceVisible": false,
             "motionDistanceStrictness": 100,
             "motionDistanceScoreWeights": {
-              "path": 45,
-              "timing": 30,
-              "direction": 25
+              "path": 90,
+              "timing": 5,
+              "direction": 5
             }
           },
           "motionai.hand-independence-panel-settings": {
@@ -2727,7 +2727,7 @@
                 "figureSoftTransitionPercent": 0,
                 "figureDynamicsVisible": false,
                 "figureCountTimesVisible": true,
-                "motionDistanceVisible": true,
+                "motionDistanceVisible": false,
                 "motionDistanceStrictness": 78,
                 "dynamicFigureCornerHeights": [
                   -6.5,
@@ -2748,7 +2748,7 @@
                 "figureSoftTransitionPercent": 14,
                 "figureDynamicsVisible": false,
                 "figureCountTimesVisible": false,
-                "motionDistanceVisible": true,
+                "motionDistanceVisible": false,
                 "motionDistanceStrictness": 78,
                 "dynamicFigureCornerHeights": [
                   0.6,
@@ -2771,7 +2771,7 @@
                 "figureSoftTransitionPercent": 7,
                 "figureDynamicsVisible": false,
                 "figureCountTimesVisible": false,
-                "motionDistanceVisible": true,
+                "motionDistanceVisible": false,
                 "motionDistanceStrictness": 78,
                 "dynamicFigureCornerHeights": [
                   -13.7,
@@ -2794,7 +2794,7 @@
                 "figureSoftTransitionPercent": 7,
                 "figureDynamicsVisible": false,
                 "figureCountTimesVisible": false,
-                "motionDistanceVisible": true,
+                "motionDistanceVisible": false,
                 "motionDistanceStrictness": 78,
                 "dynamicFigureCornerHeights": [
                   -13.3,
@@ -2817,7 +2817,7 @@
                 "figureSoftTransitionPercent": 14,
                 "figureDynamicsVisible": false,
                 "figureCountTimesVisible": true,
-                "motionDistanceVisible": true,
+                "motionDistanceVisible": false,
                 "motionDistanceStrictness": 78,
                 "dynamicFigureCornerHeights": [
                   0.1,
@@ -2840,7 +2840,7 @@
                 "figureSoftTransitionPercent": 21,
                 "figureDynamicsVisible": false,
                 "figureCountTimesVisible": false,
-                "motionDistanceVisible": true,
+                "motionDistanceVisible": false,
                 "motionDistanceStrictness": 78,
                 "dynamicFigureCornerHeights": [
                   -3.571428571428573,
@@ -2865,7 +2865,7 @@
                 "figureSoftTransitionPercent": 7,
                 "figureDynamicsVisible": false,
                 "figureCountTimesVisible": true,
-                "motionDistanceVisible": true,
+                "motionDistanceVisible": false,
                 "motionDistanceStrictness": 78,
                 "dynamicFigureCornerHeights": [
                   -7.2,
@@ -2890,7 +2890,7 @@
                 "figureSoftTransitionPercent": 7,
                 "figureDynamicsVisible": false,
                 "figureCountTimesVisible": false,
-                "motionDistanceVisible": true,
+                "motionDistanceVisible": false,
                 "motionDistanceStrictness": 78,
                 "dynamicFigureCornerHeights": [
                   -17.857142857142858,
@@ -2915,7 +2915,7 @@
                 "figureSoftTransitionPercent": 14,
                 "figureDynamicsVisible": false,
                 "figureCountTimesVisible": true,
-                "motionDistanceVisible": true,
+                "motionDistanceVisible": false,
                 "motionDistanceStrictness": 78,
                 "dynamicFigureCornerHeights": [
                   -4.8,
@@ -2955,7 +2955,7 @@
             "countVisible": true,
             "shape": "line",
             "width": 16.8,
-            "motionDistanceVisible": true,
+            "motionDistanceVisible": false,
             "height": 17.8,
             "motionDistanceStrictness": 100,
             "figureVariation": 1,
@@ -3675,12 +3675,12 @@
             "figureSoftTransitionPercent": 7,
             "figureDynamicsVisible": false,
             "figureCountTimesVisible": false,
-            "motionDistanceVisible": true,
+            "motionDistanceVisible": false,
             "motionDistanceStrictness": 78,
             "motionDistanceScoreWeights": {
-              "path": 45,
-              "timing": 30,
-              "direction": 25
+              "path": 90,
+              "timing": 5,
+              "direction": 5
             }
           },
           "motionai.consistency-panel-settings": {
@@ -11448,12 +11448,12 @@
             "figureSoftTransitionPercent": 15,
             "figureDynamicsVisible": false,
             "figureCountTimesVisible": true,
-            "motionDistanceVisible": true,
+            "motionDistanceVisible": false,
             "motionDistanceStrictness": 29,
             "motionDistanceScoreWeights": {
-              "path": 45,
-              "timing": 30,
-              "direction": 25
+              "path": 90,
+              "timing": 5,
+              "direction": 5
             }
           },
           "motionai.video-softening-settings": {
@@ -12802,7 +12802,7 @@
                 "countVisible": true,
                 "shape": "line",
                 "width": 16.8,
-                "motionDistanceVisible": true,
+                "motionDistanceVisible": false,
                 "height": 17.8,
                 "motionDistanceStrictness": 100
               },
@@ -12837,7 +12837,7 @@
                 "reverse": true,
                 "dynamicsVisible": false,
                 "countTimesVisible": true,
-                "motionDistanceVisible": true,
+                "motionDistanceVisible": false,
                 "motionDistanceStrictness": 100,
                 "tempoRatio": "1:1",
                 "shape": "line",
@@ -12870,7 +12870,7 @@
                 "reverse": true,
                 "dynamicsVisible": false,
                 "countTimesVisible": true,
-                "motionDistanceVisible": true,
+                "motionDistanceVisible": false,
                 "motionDistanceStrictness": 100,
                 "tempoRatio": "1:1",
                 "shape": "line",
@@ -12903,7 +12903,7 @@
                 "reverse": true,
                 "dynamicsVisible": false,
                 "countTimesVisible": true,
-                "motionDistanceVisible": true,
+                "motionDistanceVisible": false,
                 "motionDistanceStrictness": 100,
                 "tempoRatio": "1:1",
                 "shape": "line",
@@ -12939,7 +12939,7 @@
                 "reverse": true,
                 "dynamicsVisible": false,
                 "countTimesVisible": true,
-                "motionDistanceVisible": true,
+                "motionDistanceVisible": false,
                 "motionDistanceStrictness": 100,
                 "tempoRatio": "1:1",
                 "shape": "line",
@@ -12972,7 +12972,7 @@
                 "reverse": true,
                 "dynamicsVisible": false,
                 "countTimesVisible": true,
-                "motionDistanceVisible": true,
+                "motionDistanceVisible": false,
                 "motionDistanceStrictness": 100,
                 "tempoRatio": "1:1",
                 "shape": "line",
@@ -13005,7 +13005,7 @@
                 "reverse": true,
                 "dynamicsVisible": false,
                 "countTimesVisible": true,
-                "motionDistanceVisible": true,
+                "motionDistanceVisible": false,
                 "motionDistanceStrictness": 100,
                 "tempoRatio": "1:1",
                 "shape": "line",
@@ -13038,7 +13038,7 @@
                 "reverse": true,
                 "dynamicsVisible": false,
                 "countTimesVisible": true,
-                "motionDistanceVisible": true,
+                "motionDistanceVisible": false,
                 "motionDistanceStrictness": 100,
                 "tempoRatio": "1:1",
                 "shape": "line",
@@ -13096,7 +13096,7 @@
                 "reverse": true,
                 "dynamicsVisible": false,
                 "countTimesVisible": true,
-                "motionDistanceVisible": true,
+                "motionDistanceVisible": false,
                 "motionDistanceStrictness": 100,
                 "tempoRatio": "1:1",
                 "shape": "line",
@@ -13129,7 +13129,7 @@
                 "reverse": true,
                 "dynamicsVisible": false,
                 "countTimesVisible": true,
-                "motionDistanceVisible": true,
+                "motionDistanceVisible": false,
                 "motionDistanceStrictness": 100,
                 "tempoRatio": "1:1",
                 "shape": "line",
@@ -13194,7 +13194,7 @@
                 "figureSoftTransitionPercent": 42,
                 "figureDynamicsVisible": false,
                 "figureCountTimesVisible": true,
-                "motionDistanceVisible": true,
+                "motionDistanceVisible": false,
                 "motionDistanceStrictness": 29
               },
               "1": {
@@ -13482,7 +13482,7 @@
                 "figureSoftTransitionPercent": 0,
                 "figureDynamicsVisible": false,
                 "figureCountTimesVisible": true,
-                "motionDistanceVisible": true,
+                "motionDistanceVisible": false,
                 "motionDistanceStrictness": 78,
                 "dynamicFigureCornerHeights": [
                   -6.5,
@@ -13503,7 +13503,7 @@
                 "figureSoftTransitionPercent": 14,
                 "figureDynamicsVisible": false,
                 "figureCountTimesVisible": false,
-                "motionDistanceVisible": true,
+                "motionDistanceVisible": false,
                 "motionDistanceStrictness": 78,
                 "dynamicFigureCornerHeights": [
                   0.6,
@@ -13526,7 +13526,7 @@
                 "figureSoftTransitionPercent": 7,
                 "figureDynamicsVisible": false,
                 "figureCountTimesVisible": false,
-                "motionDistanceVisible": true,
+                "motionDistanceVisible": false,
                 "motionDistanceStrictness": 78,
                 "dynamicFigureCornerHeights": [
                   -13.7,
@@ -13549,7 +13549,7 @@
                 "figureSoftTransitionPercent": 7,
                 "figureDynamicsVisible": false,
                 "figureCountTimesVisible": false,
-                "motionDistanceVisible": true,
+                "motionDistanceVisible": false,
                 "motionDistanceStrictness": 78,
                 "dynamicFigureCornerHeights": [
                   -13.3,
@@ -13572,7 +13572,7 @@
                 "figureSoftTransitionPercent": 14,
                 "figureDynamicsVisible": false,
                 "figureCountTimesVisible": true,
-                "motionDistanceVisible": true,
+                "motionDistanceVisible": false,
                 "motionDistanceStrictness": 78,
                 "dynamicFigureCornerHeights": [
                   0.1,
@@ -13595,7 +13595,7 @@
                 "figureSoftTransitionPercent": 21,
                 "figureDynamicsVisible": false,
                 "figureCountTimesVisible": false,
-                "motionDistanceVisible": true,
+                "motionDistanceVisible": false,
                 "motionDistanceStrictness": 78,
                 "dynamicFigureCornerHeights": [
                   -3.571428571428573,
@@ -13620,7 +13620,7 @@
                 "figureSoftTransitionPercent": 7,
                 "figureDynamicsVisible": false,
                 "figureCountTimesVisible": true,
-                "motionDistanceVisible": true,
+                "motionDistanceVisible": false,
                 "motionDistanceStrictness": 78,
                 "dynamicFigureCornerHeights": [
                   -7.2,
@@ -13645,7 +13645,7 @@
                 "figureSoftTransitionPercent": 7,
                 "figureDynamicsVisible": false,
                 "figureCountTimesVisible": false,
-                "motionDistanceVisible": true,
+                "motionDistanceVisible": false,
                 "motionDistanceStrictness": 78,
                 "dynamicFigureCornerHeights": [
                   -17.857142857142858,
@@ -13670,7 +13670,7 @@
                 "figureSoftTransitionPercent": 14,
                 "figureDynamicsVisible": false,
                 "figureCountTimesVisible": true,
-                "motionDistanceVisible": true,
+                "motionDistanceVisible": false,
                 "motionDistanceStrictness": 78,
                 "dynamicFigureCornerHeights": [
                   -4.8,
@@ -13710,7 +13710,7 @@
             "countVisible": true,
             "shape": "line",
             "width": 16.8,
-            "motionDistanceVisible": true,
+            "motionDistanceVisible": false,
             "height": 17.8,
             "motionDistanceStrictness": 100,
             "figureVariation": 1,
@@ -14430,12 +14430,12 @@
             "figureSoftTransitionPercent": 7,
             "figureDynamicsVisible": false,
             "figureCountTimesVisible": false,
-            "motionDistanceVisible": true,
+            "motionDistanceVisible": false,
             "motionDistanceStrictness": 78,
             "motionDistanceScoreWeights": {
-              "path": 45,
-              "timing": 30,
-              "direction": 25
+              "path": 90,
+              "timing": 5,
+              "direction": 5
             }
           },
           "motionai.consistency-panel-settings": {
@@ -22203,12 +22203,12 @@
             "figureSoftTransitionPercent": 15,
             "figureDynamicsVisible": false,
             "figureCountTimesVisible": true,
-            "motionDistanceVisible": true,
+            "motionDistanceVisible": false,
             "motionDistanceStrictness": 29,
             "motionDistanceScoreWeights": {
-              "path": 45,
-              "timing": 30,
-              "direction": 25
+              "path": 90,
+              "timing": 5,
+              "direction": 5
             }
           },
           "motionai.video-softening-settings": {
@@ -23557,7 +23557,7 @@
                 "countVisible": true,
                 "shape": "line",
                 "width": 16.8,
-                "motionDistanceVisible": true,
+                "motionDistanceVisible": false,
                 "height": 17.8,
                 "motionDistanceStrictness": 100
               },
@@ -23592,7 +23592,7 @@
                 "reverse": true,
                 "dynamicsVisible": false,
                 "countTimesVisible": true,
-                "motionDistanceVisible": true,
+                "motionDistanceVisible": false,
                 "motionDistanceStrictness": 100,
                 "tempoRatio": "1:1",
                 "shape": "line",
@@ -23625,7 +23625,7 @@
                 "reverse": true,
                 "dynamicsVisible": false,
                 "countTimesVisible": true,
-                "motionDistanceVisible": true,
+                "motionDistanceVisible": false,
                 "motionDistanceStrictness": 100,
                 "tempoRatio": "1:1",
                 "shape": "line",
@@ -23658,7 +23658,7 @@
                 "reverse": true,
                 "dynamicsVisible": false,
                 "countTimesVisible": true,
-                "motionDistanceVisible": true,
+                "motionDistanceVisible": false,
                 "motionDistanceStrictness": 100,
                 "tempoRatio": "1:1",
                 "shape": "line",
@@ -23694,7 +23694,7 @@
                 "reverse": true,
                 "dynamicsVisible": false,
                 "countTimesVisible": true,
-                "motionDistanceVisible": true,
+                "motionDistanceVisible": false,
                 "motionDistanceStrictness": 100,
                 "tempoRatio": "1:1",
                 "shape": "line",
@@ -23727,7 +23727,7 @@
                 "reverse": true,
                 "dynamicsVisible": false,
                 "countTimesVisible": true,
-                "motionDistanceVisible": true,
+                "motionDistanceVisible": false,
                 "motionDistanceStrictness": 100,
                 "tempoRatio": "1:1",
                 "shape": "line",
@@ -23760,7 +23760,7 @@
                 "reverse": true,
                 "dynamicsVisible": false,
                 "countTimesVisible": true,
-                "motionDistanceVisible": true,
+                "motionDistanceVisible": false,
                 "motionDistanceStrictness": 100,
                 "tempoRatio": "1:1",
                 "shape": "line",
@@ -23793,7 +23793,7 @@
                 "reverse": true,
                 "dynamicsVisible": false,
                 "countTimesVisible": true,
-                "motionDistanceVisible": true,
+                "motionDistanceVisible": false,
                 "motionDistanceStrictness": 100,
                 "tempoRatio": "1:1",
                 "shape": "line",
@@ -23851,7 +23851,7 @@
                 "reverse": true,
                 "dynamicsVisible": false,
                 "countTimesVisible": true,
-                "motionDistanceVisible": true,
+                "motionDistanceVisible": false,
                 "motionDistanceStrictness": 100,
                 "tempoRatio": "1:1",
                 "shape": "line",
@@ -23884,7 +23884,7 @@
                 "reverse": true,
                 "dynamicsVisible": false,
                 "countTimesVisible": true,
-                "motionDistanceVisible": true,
+                "motionDistanceVisible": false,
                 "motionDistanceStrictness": 100,
                 "tempoRatio": "1:1",
                 "shape": "line",
@@ -23949,7 +23949,7 @@
                 "figureSoftTransitionPercent": 42,
                 "figureDynamicsVisible": false,
                 "figureCountTimesVisible": true,
-                "motionDistanceVisible": true,
+                "motionDistanceVisible": false,
                 "motionDistanceStrictness": 29
               },
               "1": {
@@ -31849,14 +31849,14 @@
     "figureSoftTransitionPercent": 0,
     "figureDynamicsVisible": false,
     "figureCountTimesVisible": true,
-    "motionDistanceVisible": true,
-    "motionTrailVisible": false,
+    "motionDistanceVisible": false,
+    "motionTrailVisible": true,
     "motionTrailSmoothing": true,
     "motionDistanceStrictness": 51,
     "motionDistanceScoreWeights": {
-      "path": 85,
-      "timing": 8,
-      "direction": 7
+      "path": 90,
+      "timing": 5,
+      "direction": 5
     }
   },
   "motionai.dynamic-figure-corner-heights": {
@@ -34521,7 +34521,7 @@
         "reverse": true,
         "dynamicsVisible": false,
         "countTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 100,
         "tempoRatio": "1:1",
         "shape": "line",
@@ -34692,7 +34692,7 @@
         "reverse": true,
         "dynamicsVisible": false,
         "countTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 100,
         "tempoRatio": "1:1",
         "shape": "line",
@@ -34750,7 +34750,7 @@
         "reverse": true,
         "dynamicsVisible": false,
         "countTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 100,
         "tempoRatio": "1:1",
         "shape": "line",
@@ -34783,7 +34783,7 @@
         "reverse": true,
         "dynamicsVisible": false,
         "countTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 100,
         "tempoRatio": "1:1",
         "shape": "line",
@@ -34848,12 +34848,12 @@
         "figureSoftTransitionPercent": 0,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 29,
         "motionDistanceScoreWeights": {
-          "path": 81,
-          "timing": 10,
-          "direction": 9
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         }
       },
       "1": {
@@ -34868,12 +34868,12 @@
         "figureSoftTransitionPercent": 0,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 29,
         "motionDistanceScoreWeights": {
-          "path": 81,
-          "timing": 10,
-          "direction": 9
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         }
       },
       "2": {
@@ -34888,12 +34888,12 @@
         "figureSoftTransitionPercent": 0,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 29,
         "motionDistanceScoreWeights": {
-          "path": 81,
-          "timing": 10,
-          "direction": 9
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         }
       },
       "3": {
@@ -34908,12 +34908,12 @@
         "figureSoftTransitionPercent": 0,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 29,
         "motionDistanceScoreWeights": {
-          "path": 81,
-          "timing": 10,
-          "direction": 9
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         }
       },
       "4": {
@@ -34928,12 +34928,12 @@
         "figureSoftTransitionPercent": 0,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 29,
         "motionDistanceScoreWeights": {
-          "path": 81,
-          "timing": 10,
-          "direction": 9
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         }
       },
       "5": {
@@ -34948,12 +34948,12 @@
         "figureSoftTransitionPercent": 0,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 29,
         "motionDistanceScoreWeights": {
-          "path": 81,
-          "timing": 10,
-          "direction": 9
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         }
       },
       "6": {
@@ -34968,12 +34968,12 @@
         "figureSoftTransitionPercent": 0,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 29,
         "motionDistanceScoreWeights": {
-          "path": 81,
-          "timing": 10,
-          "direction": 9
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         }
       },
       "7": {
@@ -34988,12 +34988,12 @@
         "figureSoftTransitionPercent": 0,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 29,
         "motionDistanceScoreWeights": {
-          "path": 81,
-          "timing": 10,
-          "direction": 9
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         }
       }
     },
@@ -35010,12 +35010,12 @@
         "figureSoftTransitionPercent": 0,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 29,
         "motionDistanceScoreWeights": {
-          "path": 45,
-          "timing": 30,
-          "direction": 25
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         }
       },
       "1": {
@@ -35030,12 +35030,12 @@
         "figureSoftTransitionPercent": 0,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 29,
         "motionDistanceScoreWeights": {
-          "path": 45,
-          "timing": 30,
-          "direction": 25
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         }
       },
       "2": {
@@ -35050,12 +35050,12 @@
         "figureSoftTransitionPercent": 0,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 29,
         "motionDistanceScoreWeights": {
-          "path": 45,
-          "timing": 30,
-          "direction": 25
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         }
       },
       "3": {
@@ -35070,12 +35070,12 @@
         "figureSoftTransitionPercent": 0,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 29,
         "motionDistanceScoreWeights": {
-          "path": 45,
-          "timing": 30,
-          "direction": 25
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         }
       },
       "4": {
@@ -35090,12 +35090,12 @@
         "figureSoftTransitionPercent": 50,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 29,
         "motionDistanceScoreWeights": {
-          "path": 45,
-          "timing": 30,
-          "direction": 25
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         }
       },
       "5": {
@@ -35110,12 +35110,12 @@
         "figureSoftTransitionPercent": 50,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 29,
         "motionDistanceScoreWeights": {
-          "path": 45,
-          "timing": 30,
-          "direction": 25
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         }
       },
       "6": {
@@ -35130,12 +35130,12 @@
         "figureSoftTransitionPercent": 50,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 29,
         "motionDistanceScoreWeights": {
-          "path": 45,
-          "timing": 30,
-          "direction": 25
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         }
       },
       "7": {
@@ -35150,12 +35150,12 @@
         "figureSoftTransitionPercent": 50,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 29,
         "motionDistanceScoreWeights": {
-          "path": 45,
-          "timing": 30,
-          "direction": 25
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         }
       }
     },
@@ -35172,12 +35172,12 @@
         "figureSoftTransitionPercent": 0,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 29,
         "motionDistanceScoreWeights": {
-          "path": 45,
-          "timing": 30,
-          "direction": 25
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         }
       },
       "1": {
@@ -35192,12 +35192,12 @@
         "figureSoftTransitionPercent": 0,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 29,
         "motionDistanceScoreWeights": {
-          "path": 45,
-          "timing": 30,
-          "direction": 25
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         }
       },
       "2": {
@@ -35212,12 +35212,12 @@
         "figureSoftTransitionPercent": 0,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 29,
         "motionDistanceScoreWeights": {
-          "path": 45,
-          "timing": 30,
-          "direction": 25
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         }
       },
       "3": {
@@ -35232,12 +35232,12 @@
         "figureSoftTransitionPercent": 0,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 29,
         "motionDistanceScoreWeights": {
-          "path": 45,
-          "timing": 30,
-          "direction": 25
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         }
       },
       "4": {
@@ -35252,12 +35252,12 @@
         "figureSoftTransitionPercent": 0,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 29,
         "motionDistanceScoreWeights": {
-          "path": 45,
-          "timing": 30,
-          "direction": 25
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         }
       },
       "5": {
@@ -35272,12 +35272,12 @@
         "figureSoftTransitionPercent": 38,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 29,
         "motionDistanceScoreWeights": {
-          "path": 45,
-          "timing": 30,
-          "direction": 25
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         }
       },
       "6": {
@@ -35292,12 +35292,12 @@
         "figureSoftTransitionPercent": 38,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 29,
         "motionDistanceScoreWeights": {
-          "path": 45,
-          "timing": 30,
-          "direction": 25
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         }
       },
       "7": {
@@ -35312,12 +35312,12 @@
         "figureSoftTransitionPercent": 38,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 29,
         "motionDistanceScoreWeights": {
-          "path": 45,
-          "timing": 30,
-          "direction": 25
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         }
       }
     },
@@ -35334,12 +35334,12 @@
         "figureSoftTransitionPercent": 0,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 29,
         "motionDistanceScoreWeights": {
-          "path": 82,
-          "timing": 10,
-          "direction": 8
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         }
       },
       "1": {
@@ -35354,12 +35354,12 @@
         "figureSoftTransitionPercent": 0,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 29,
         "motionDistanceScoreWeights": {
-          "path": 84,
-          "timing": 9,
-          "direction": 7
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         }
       },
       "2": {
@@ -35374,12 +35374,12 @@
         "figureSoftTransitionPercent": 0,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 29,
         "motionDistanceScoreWeights": {
-          "path": 83,
-          "timing": 9,
-          "direction": 8
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         }
       },
       "3": {
@@ -35394,12 +35394,12 @@
         "figureSoftTransitionPercent": 0,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 29,
         "motionDistanceScoreWeights": {
-          "path": 86,
-          "timing": 8,
-          "direction": 6
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         }
       },
       "4": {
@@ -35414,12 +35414,12 @@
         "figureSoftTransitionPercent": 0,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 29,
         "motionDistanceScoreWeights": {
-          "path": 86,
-          "timing": 8,
-          "direction": 6
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         }
       },
       "5": {
@@ -35434,12 +35434,12 @@
         "figureSoftTransitionPercent": 0,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 29,
         "motionDistanceScoreWeights": {
-          "path": 82,
-          "timing": 10,
-          "direction": 8
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         }
       },
       "6": {
@@ -35454,12 +35454,12 @@
         "figureSoftTransitionPercent": 0,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 29,
         "motionDistanceScoreWeights": {
-          "path": 82,
-          "timing": 10,
-          "direction": 8
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         }
       },
       "7": {
@@ -35474,12 +35474,12 @@
         "figureSoftTransitionPercent": 25,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 29,
         "motionDistanceScoreWeights": {
-          "path": 82,
-          "timing": 10,
-          "direction": 8
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         }
       }
     },
@@ -35496,12 +35496,12 @@
         "figureSoftTransitionPercent": 0,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 66,
         "motionDistanceScoreWeights": {
-          "path": 85,
-          "timing": 8,
-          "direction": 7
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         }
       },
       "1": {
@@ -35516,12 +35516,12 @@
         "figureSoftTransitionPercent": 0,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 66,
         "motionDistanceScoreWeights": {
-          "path": 85,
-          "timing": 8,
-          "direction": 7
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         }
       },
       "2": {
@@ -35536,12 +35536,12 @@
         "figureSoftTransitionPercent": 0,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 66,
         "motionDistanceScoreWeights": {
-          "path": 85,
-          "timing": 8,
-          "direction": 7
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         }
       },
       "3": {
@@ -35556,12 +35556,12 @@
         "figureSoftTransitionPercent": 0,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 66,
         "motionDistanceScoreWeights": {
-          "path": 85,
-          "timing": 8,
-          "direction": 7
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         }
       },
       "4": {
@@ -35576,12 +35576,12 @@
         "figureSoftTransitionPercent": 0,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 66,
         "motionDistanceScoreWeights": {
-          "path": 85,
-          "timing": 8,
-          "direction": 7
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         }
       },
       "5": {
@@ -35596,12 +35596,12 @@
         "figureSoftTransitionPercent": 39,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 66,
         "motionDistanceScoreWeights": {
-          "path": 85,
-          "timing": 8,
-          "direction": 7
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         }
       },
       "6": {
@@ -35616,12 +35616,12 @@
         "figureSoftTransitionPercent": 39,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 66,
         "motionDistanceScoreWeights": {
-          "path": 85,
-          "timing": 8,
-          "direction": 7
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         }
       },
       "7": {
@@ -35636,12 +35636,12 @@
         "figureSoftTransitionPercent": 39,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 51,
         "motionDistanceScoreWeights": {
-          "path": 85,
-          "timing": 8,
-          "direction": 7
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         }
       }
     },
@@ -35658,12 +35658,12 @@
         "figureSoftTransitionPercent": 45,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 51,
         "motionDistanceScoreWeights": {
-          "path": 45,
-          "timing": 30,
-          "direction": 25
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         }
       },
       "1": {
@@ -35678,12 +35678,12 @@
         "figureSoftTransitionPercent": 45,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 51,
         "motionDistanceScoreWeights": {
-          "path": 45,
-          "timing": 30,
-          "direction": 25
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         }
       },
       "2": {
@@ -35698,12 +35698,12 @@
         "figureSoftTransitionPercent": 45,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 51,
         "motionDistanceScoreWeights": {
-          "path": 45,
-          "timing": 30,
-          "direction": 25
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         }
       },
       "3": {
@@ -35718,12 +35718,12 @@
         "figureSoftTransitionPercent": 45,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 51,
         "motionDistanceScoreWeights": {
-          "path": 45,
-          "timing": 30,
-          "direction": 25
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         }
       },
       "4": {
@@ -35738,12 +35738,12 @@
         "figureSoftTransitionPercent": 45,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 51,
         "motionDistanceScoreWeights": {
-          "path": 45,
-          "timing": 30,
-          "direction": 25
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         }
       },
       "5": {
@@ -35758,12 +35758,12 @@
         "figureSoftTransitionPercent": 45,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 51,
         "motionDistanceScoreWeights": {
-          "path": 45,
-          "timing": 30,
-          "direction": 25
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         }
       },
       "6": {
@@ -35778,12 +35778,12 @@
         "figureSoftTransitionPercent": 45,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 51,
         "motionDistanceScoreWeights": {
-          "path": 45,
-          "timing": 30,
-          "direction": 25
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         }
       },
       "7": {
@@ -35798,12 +35798,12 @@
         "figureSoftTransitionPercent": 45,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 51,
         "motionDistanceScoreWeights": {
-          "path": 45,
-          "timing": 30,
-          "direction": 25
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         }
       }
     },
@@ -35820,12 +35820,12 @@
         "figureSoftTransitionPercent": 0,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 51,
         "motionDistanceScoreWeights": {
-          "path": 85,
-          "timing": 8,
-          "direction": 7
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         }
       },
       "1": {
@@ -35840,12 +35840,12 @@
         "figureSoftTransitionPercent": 0,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 51,
         "motionDistanceScoreWeights": {
-          "path": 85,
-          "timing": 8,
-          "direction": 7
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         }
       },
       "2": {
@@ -35860,12 +35860,12 @@
         "figureSoftTransitionPercent": 0,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 51,
         "motionDistanceScoreWeights": {
-          "path": 85,
-          "timing": 8,
-          "direction": 7
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         }
       },
       "3": {
@@ -35880,12 +35880,12 @@
         "figureSoftTransitionPercent": 0,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 51,
         "motionDistanceScoreWeights": {
-          "path": 85,
-          "timing": 8,
-          "direction": 7
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         }
       },
       "4": {
@@ -35900,12 +35900,12 @@
         "figureSoftTransitionPercent": 0,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 51,
         "motionDistanceScoreWeights": {
-          "path": 85,
-          "timing": 8,
-          "direction": 7
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         }
       },
       "5": {
@@ -35920,12 +35920,12 @@
         "figureSoftTransitionPercent": 0,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 51,
         "motionDistanceScoreWeights": {
-          "path": 85,
-          "timing": 8,
-          "direction": 7
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         }
       },
       "6": {
@@ -35940,12 +35940,12 @@
         "figureSoftTransitionPercent": 0,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 51,
         "motionDistanceScoreWeights": {
-          "path": 85,
-          "timing": 8,
-          "direction": 7
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         }
       },
       "7": {
@@ -35960,12 +35960,12 @@
         "figureSoftTransitionPercent": 45,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
         "motionDistanceStrictness": 51,
         "motionDistanceScoreWeights": {
-          "path": 69,
-          "timing": 17,
-          "direction": 14
+          "path": 90,
+          "timing": 5,
+          "direction": 5
         }
       }
     }
