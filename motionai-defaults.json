@@ -1642,13 +1642,13 @@
     }
   },
   "motionai.square-exercise-panel-settings": {
-    "shape": "3",
-    "handMode": "both",
-    "syncMode": "synchronous",
-    "squarePalindromMode": true,
+    "shape": "1",
+    "handMode": "right",
+    "syncMode": "asynchronous",
+    "squarePalindromMode": false,
     "resolution": 1,
-    "gridResolution": 12,
-    "centerDistance": 0.3,
+    "gridResolution": 22,
+    "centerDistance": 0.25,
     "alternatingScale": "chromatic",
     "alternatingStartNote": 36,
     "alternatingVolume": 0,
@@ -1689,26 +1689,26 @@
     "walkingBassMetronome": false,
     "walkingBassAnticipation": false,
     "walkingBassMetronomeBpm": 60,
-    "trailSeconds": 2,
+    "trailSeconds": 4,
     "trailSmoothing": true,
-    "trailSpeedWidth": 0,
-    "orientationCount": 4,
+    "trailSpeedWidth": 100,
+    "orientationCount": 3,
     "orientationPositions": [
       {
         "x": 0.5,
         "y": 0.25
       },
       {
-        "x": 0.5005611359126985,
-        "y": 0.6945216049382716
+        "x": 0.4992931547619047,
+        "y": 0.6730930335097002
       },
       {
-        "x": 0.6683934771825397,
-        "y": 0.4880787037037037
+        "x": 0.6214006696428572,
+        "y": 0.4944775132275132
       },
       {
-        "x": 0.3327039930555556,
-        "y": 0.4878472222222222
+        "x": 0.4,
+        "y": 0.75
       },
       {
         "x": 0.6,
@@ -1716,14 +1716,14 @@
       }
     ],
     "trailFocusPoint": 2,
-    "trailFocusSound": "clave",
+    "trailFocusSound": "walking-bass",
     "trailFocusAnticipation": true
   },
   "motionai.dynamic-figure-selected-presets": {
-    "0": 7,
-    "1": 7,
-    "2": 7,
-    "3": 7
+    "0": 0,
+    "1": 0,
+    "2": 0,
+    "3": 0
   },
   "motionai.exercise-field-presets": {
     "0": {
@@ -2338,13 +2338,13 @@
   "motionai.dynamic-figure-panel-settings": {
     "figureVariant": "hard",
     "figureSide": "both",
-    "figureScale": 0.4,
+    "figureScale": 0.31,
     "figureStrokeWidth": 0.08,
-    "figureHorizontalOffset": 0.31,
-    "figureYPosition": 0.8,
-    "figureTempoBpm": 21,
-    "figureHardLinearity": 100,
-    "figureSoftTransitionPercent": 29,
+    "figureHorizontalOffset": 0.29,
+    "figureYPosition": 0.83,
+    "figureTempoBpm": 43,
+    "figureHardLinearity": 14,
+    "figureSoftTransitionPercent": 7,
     "figureDynamicsVisible": false,
     "figureCountTimesVisible": true,
     "motionDistanceVisible": false,
@@ -2352,9 +2352,9 @@
     "motionTrailSmoothing": true,
     "motionDistanceStrictness": 78,
     "motionDistanceScoreWeights": {
-      "path": 87,
-      "timing": 10,
-      "direction": 3
+      "path": 45,
+      "timing": 30,
+      "direction": 25
     }
   },
   "motionai.db": {
@@ -31840,10 +31840,10 @@
   "motionai.figure-panel-settings": {
     "figureVariant": "hard",
     "figureSide": "right",
-    "figureScale": 0.51,
+    "figureScale": 0.6,
     "figureStrokeWidth": 0.11,
-    "figureHorizontalOffset": 0.23,
-    "figureYPosition": 0.82,
+    "figureHorizontalOffset": 0.29,
+    "figureYPosition": 0.83,
     "figureTempoBpm": 30,
     "figureHardLinearity": 100,
     "figureSoftTransitionPercent": 0,
@@ -31852,11 +31852,11 @@
     "motionDistanceVisible": true,
     "motionTrailVisible": false,
     "motionTrailSmoothing": true,
-    "motionDistanceStrictness": 29,
+    "motionDistanceStrictness": 51,
     "motionDistanceScoreWeights": {
-      "path": 82,
-      "timing": 10,
-      "direction": 8
+      "path": 85,
+      "timing": 8,
+      "direction": 7
     }
   },
   "motionai.dynamic-figure-corner-heights": {
@@ -31871,34 +31871,34 @@
       0
     ],
     "1": [
-      0,
-      4.8,
-      8.4,
-      -0.5,
+      -6.5,
+      -25,
+      1.7,
+      -25,
       0,
       0,
       0,
       0
     ],
     "2": [
-      -3.571428571428573,
-      -9.8,
-      -9.2,
-      -6.8,
-      -3.571428571428573,
-      -3.571428571428573,
+      -13.7,
+      -11.6,
+      -8.9,
+      -7.9,
+      -3.2,
+      -17.857142857142858,
       0,
       0
     ],
     "3": [
-      3.5714285714285694,
-      3.5714285714285694,
-      3.5714285714285694,
-      3.5714285714285694,
-      3.5714285714285694,
-      3.5714285714285694,
-      3.5714285714285694,
-      3.5714285714285694
+      -7.2,
+      -12.1,
+      -3.7,
+      -8.1,
+      0.4,
+      -3.5,
+      4.5,
+      -17.857142857142858
     ]
   },
   "motionai.dynamic-range-panel-settings": {
@@ -31980,44 +31980,44 @@
     "videoSofteningBrightness": 0.25,
     "poseWarningLandmarksVisible": true,
     "videoCenterOffsetPercent": 0,
-    "createdAt": "2026-10-12T14:06:17.753Z"
+    "createdAt": "2026-10-12T15:19:00.956Z"
   },
   "motionai.hand-independence-panel-settings": {
-    "variant": "hard",
+    "variant": "soft",
     "reverse": true,
-    "strokeWidth": 0.05,
-    "scale": 0.53,
+    "strokeWidth": 0.06,
+    "scale": 0.42,
     "figureSoftTransitionPercent": 41,
-    "sharedX": 0.51,
+    "sharedX": 0.26,
     "dynamicsVisible": false,
     "sharedTempoBpm": 32,
-    "sharedY": 0.71,
+    "sharedY": 0.79,
     "corner0": 0,
-    "length": 26.5,
-    "rotation": 0,
-    "figureLevel": 3,
-    "tempoRatio": "1:1",
+    "length": 24.8,
+    "rotation": -90,
+    "figureLevel": 1,
+    "tempoRatio": "0.25:1",
     "figureHardLinearity": 57,
     "countTimesVisible": true,
-    "corner2": -0.1,
-    "corner1": 0.1,
-    "corner4": 0,
-    "corner5": 0.1,
-    "corner3": 0,
+    "corner2": 0.7,
+    "corner1": 0.7,
+    "corner4": 11.3,
+    "corner5": -1,
+    "corner3": -11.3,
     "countVisible": true,
     "shape": "line",
     "width": 16.8,
-    "motionDistanceVisible": true,
+    "motionDistanceVisible": false,
     "height": 17.8,
     "motionDistanceStrictness": 100,
-    "figureVariation": 2,
+    "figureVariation": 1,
     "cornerHeights": [
       0,
-      0.1,
-      -0.1,
-      0,
-      0,
-      0.1,
+      0.7,
+      0.7,
+      -11.3,
+      11.3,
+      -1,
       0,
       0
     ],
@@ -32029,16 +32029,16 @@
         "y": 0
       },
       {
-        "x": 0,
-        "y": 0
+        "x": 0.33446712018140534,
+        "y": 4.866071428571431
       },
       {
-        "x": 0,
-        "y": 0
+        "x": 0.1325113378684799,
+        "y": 7.514172335600908
       },
       {
-        "x": 0,
-        "y": 0
+        "x": -0.32714474678760475,
+        "y": 9.826861300075585
       },
       {
         "x": 0,
@@ -32063,7 +32063,7 @@
   "motionai.calibration-pose-sets": [],
   "motionai.figure-selected-presets": {
     "0": 0,
-    "1": 5,
+    "1": 0,
     "2": 0,
     "3": 0,
     "4": 0,
@@ -32152,7 +32152,7 @@
         "gridResolution": 22,
         "centerDistance": 0.3
       },
-      "selectedPresetSlot": 8
+      "selectedPresetSlot": 1
     },
     "4": {
       "1": {
@@ -32281,34 +32281,60 @@
           }
         ]
       },
-      "selectedPresetSlot": 4
+      "selectedPresetSlot": 1
     }
   },
   "motionai.video-softening-enabled": true,
-  "motionai.levelSettingsVisibility": true,
+  "motionai.levelSettingsVisibility": false,
   "motionai.exam.tasks": [],
   "motionai.consistency-panel-settings": {
     "0": {
-      "tempoBpm": 25,
-      "strictnessPercent": 100,
-      "motionBlendPercent": 100,
+      "tempoBpm": 10,
+      "strictnessPercent": 70,
+      "motionBlendPercent": 0,
       "swapOrientation": false,
       "reverseDirection": false,
       "lineDistance": 0.12751116071428567,
       "horizontalLineY": 0.53,
+      "lineEnds": {
+        "vertical": {
+          "left": null,
+          "right": [
+            0.36880511463844795,
+            0.86
+          ]
+        },
+        "horizontal": {
+          "left": null,
+          "right": null
+        }
+      },
       "handMode": "both",
       "trailEnabled": true,
       "trailSmoothing": true,
       "trailSeconds": 2
     },
     "1": {
-      "tempoBpm": 35,
-      "strictnessPercent": 140,
-      "motionBlendPercent": 100,
+      "tempoBpm": 10,
+      "strictnessPercent": 70,
+      "motionBlendPercent": 0,
       "swapOrientation": false,
       "reverseDirection": false,
-      "lineDistance": 0.13780071924603177,
+      "lineDistance": 0.11066778273809526,
       "horizontalLineY": 0.53,
+      "lineEnds": {
+        "vertical": {
+          "left": [
+            0.4099647266313932,
+            0.86
+          ],
+          "right": null
+        },
+        "horizontal": {
+          "left": null,
+          "right": null
+        }
+      },
       "handMode": "both",
       "trailEnabled": true,
       "trailSmoothing": true,
@@ -32322,19 +32348,51 @@
       "reverseDirection": false,
       "lineDistance": 0.1337952628968254,
       "horizontalLineY": 0.53,
+      "lineEnds": {
+        "vertical": {
+          "left": [
+            0.30217151675485004,
+            0.86
+          ],
+          "right": [
+            0.30217151675485004,
+            0.86
+          ]
+        },
+        "horizontal": {
+          "left": null,
+          "right": null
+        }
+      },
       "handMode": "both",
       "trailEnabled": true,
       "trailSmoothing": true,
       "trailSeconds": 2
     },
     "3": {
-      "tempoBpm": 25,
-      "strictnessPercent": 105,
+      "tempoBpm": 10,
+      "strictnessPercent": 70,
       "motionBlendPercent": 0,
       "swapOrientation": false,
       "reverseDirection": false,
       "lineDistance": 0.1445374503968254,
       "horizontalLineY": 0.53,
+      "lineEnds": {
+        "vertical": {
+          "left": [
+            0.3028880070546737,
+            0.8503273809523809
+          ],
+          "right": [
+            0.3028880070546737,
+            0.8503273809523809
+          ]
+        },
+        "horizontal": {
+          "left": null,
+          "right": null
+        }
+      },
       "handMode": "both",
       "trailEnabled": true,
       "trailSmoothing": true,
@@ -32346,8 +32404,24 @@
       "motionBlendPercent": 0,
       "swapOrientation": false,
       "reverseDirection": false,
-      "lineDistance": 0.16179315476190484,
+      "lineDistance": 0.12003038194444456,
       "horizontalLineY": 0.53,
+      "lineEnds": {
+        "vertical": {
+          "left": [
+            0.34489638447971777,
+            0.86
+          ],
+          "right": [
+            0.34402006172839505,
+            0.86
+          ]
+        },
+        "horizontal": {
+          "left": null,
+          "right": null
+        }
+      },
       "handMode": "both",
       "trailEnabled": true,
       "trailSmoothing": true,
@@ -32372,22 +32446,48 @@
       "motionBlendPercent": 0,
       "swapOrientation": false,
       "reverseDirection": false,
-      "lineDistance": 0.14146205357142855,
-      "horizontalLineY": 0.7702006172839506,
+      "lineDistance": 0.11118861607142856,
+      "horizontalLineY": 0.803693783068783,
+      "lineEnds": {
+        "vertical": {
+          "left": [
+            0.3082671957671958,
+            0.7989880952380953
+          ],
+          "right": null
+        },
+        "horizontal": {
+          "left": null,
+          "right": [
+            0.5643750000000001,
+            0.7701295882936507
+          ]
+        }
+      },
       "handMode": "both",
       "trailEnabled": true,
       "trailSmoothing": true,
       "trailSeconds": 2
     },
     "7": {
-      "tempoBpm": 30,
+      "tempoBpm": 10,
       "strictnessPercent": 70,
       "motionBlendPercent": 0,
       "swapOrientation": false,
       "reverseDirection": false,
-      "lineDistance": 0.25,
+      "lineDistance": 0.16,
       "horizontalLineY": 0.53,
-      "handMode": "both",
+      "lineEnds": {
+        "vertical": {
+          "left": null,
+          "right": null
+        },
+        "horizontal": {
+          "left": null,
+          "right": null
+        }
+      },
+      "handMode": "right",
       "trailEnabled": true,
       "trailSmoothing": true,
       "trailSeconds": 2
@@ -32474,7 +32574,7 @@
         "trailSmoothing": true,
         "trailSeconds": 2
       },
-      "selectedSlot": 2
+      "selectedSlot": 0
     },
     "1": {
       "0": {
@@ -32516,7 +32616,7 @@
         "trailSmoothing": true,
         "trailSeconds": 2
       },
-      "selectedSlot": 2
+      "selectedSlot": 0
     },
     "2": {
       "0": {
@@ -32540,12 +32640,28 @@
         "reverseDirection": false,
         "lineDistance": 0.1337952628968254,
         "horizontalLineY": 0.53,
+        "lineEnds": {
+          "vertical": {
+            "left": [
+              0.30217151675485004,
+              0.86
+            ],
+            "right": [
+              0.30217151675485004,
+              0.86
+            ]
+          },
+          "horizontal": {
+            "left": null,
+            "right": null
+          }
+        },
         "handMode": "both",
         "trailEnabled": true,
         "trailSmoothing": true,
         "trailSeconds": 2
       },
-      "selectedSlot": 1
+      "selectedSlot": 0
     },
     "3": {
       "0": {
@@ -32556,6 +32672,22 @@
         "reverseDirection": false,
         "lineDistance": 0.1445374503968254,
         "horizontalLineY": 0.53,
+        "lineEnds": {
+          "vertical": {
+            "left": [
+              0.3028880070546737,
+              0.8503273809523809
+            ],
+            "right": [
+              0.3028880070546737,
+              0.8503273809523809
+            ]
+          },
+          "horizontal": {
+            "left": null,
+            "right": null
+          }
+        },
         "handMode": "both",
         "trailEnabled": true,
         "trailSmoothing": true,
@@ -32567,14 +32699,30 @@
         "motionBlendPercent": 0,
         "swapOrientation": false,
         "reverseDirection": false,
-        "lineDistance": 0.1445374503968254,
+        "lineDistance": 0.1366133432539683,
         "horizontalLineY": 0.53,
+        "lineEnds": {
+          "vertical": {
+            "left": [
+              0.2924823633156966,
+              0.86
+            ],
+            "right": [
+              0.2924823633156966,
+              0.86
+            ]
+          },
+          "horizontal": {
+            "left": null,
+            "right": null
+          }
+        },
         "handMode": "both",
         "trailEnabled": true,
         "trailSmoothing": true,
         "trailSeconds": 2
       },
-      "selectedSlot": 1
+      "selectedSlot": 0
     },
     "4": {
       "0": {
@@ -32628,8 +32776,79 @@
         "motionBlendPercent": 0,
         "swapOrientation": false,
         "reverseDirection": false,
-        "lineDistance": 0.14146205357142855,
-        "horizontalLineY": 0.7702006172839506,
+        "lineDistance": 0.11118861607142856,
+        "horizontalLineY": 0.803693783068783,
+        "lineEnds": {
+          "vertical": {
+            "left": [
+              0.3082671957671958,
+              0.7989880952380953
+            ],
+            "right": null
+          },
+          "horizontal": {
+            "left": null,
+            "right": [
+              0.5643750000000001,
+              0.7701295882936507
+            ]
+          }
+        },
+        "handMode": "both",
+        "trailEnabled": true,
+        "trailSmoothing": true,
+        "trailSeconds": 2
+      },
+      "1": {
+        "tempoBpm": 10,
+        "strictnessPercent": 100,
+        "motionBlendPercent": 0,
+        "swapOrientation": false,
+        "reverseDirection": false,
+        "lineDistance": 0.10237785218253967,
+        "horizontalLineY": 0.42666005291005293,
+        "lineEnds": {
+          "vertical": {
+            "left": [
+              0.4359016754850088,
+              0.8245833333333334
+            ],
+            "right": null
+          },
+          "horizontal": {
+            "left": null,
+            "right": [
+              0.5643750000000001,
+              0.7634083581349207
+            ]
+          }
+        },
+        "handMode": "both",
+        "trailEnabled": true,
+        "trailSmoothing": true,
+        "trailSeconds": 2
+      },
+      "2": {
+        "tempoBpm": 20,
+        "strictnessPercent": 125,
+        "motionBlendPercent": 0,
+        "swapOrientation": true,
+        "reverseDirection": false,
+        "lineDistance": 0.10237785218253967,
+        "horizontalLineY": 0.8456856261022927,
+        "lineEnds": {
+          "vertical": {
+            "left": [
+              0.29946538800705463,
+              0.8467008377425044
+            ],
+            "right": null
+          },
+          "horizontal": {
+            "left": null,
+            "right": null
+          }
+        },
         "handMode": "both",
         "trailEnabled": true,
         "trailSmoothing": true,
@@ -32644,7 +32863,7 @@
         "motionBlendPercent": 0,
         "swapOrientation": false,
         "reverseDirection": false,
-        "lineDistance": 0.25,
+        "lineDistance": 0.16,
         "horizontalLineY": 0.53,
         "handMode": "right",
         "trailEnabled": true,
@@ -32657,7 +32876,7 @@
         "motionBlendPercent": 0,
         "swapOrientation": false,
         "reverseDirection": false,
-        "lineDistance": 0.25,
+        "lineDistance": 0.16,
         "horizontalLineY": 0.53,
         "handMode": "left",
         "trailEnabled": true,
@@ -32670,7 +32889,7 @@
         "motionBlendPercent": 0,
         "swapOrientation": false,
         "reverseDirection": false,
-        "lineDistance": 0.25,
+        "lineDistance": 0.1772848462301587,
         "horizontalLineY": 0.53,
         "handMode": "both",
         "trailEnabled": true,
@@ -32683,14 +32902,14 @@
         "motionBlendPercent": 0,
         "swapOrientation": false,
         "reverseDirection": false,
-        "lineDistance": 0.25,
+        "lineDistance": 0.173508804563492,
         "horizontalLineY": 0.53,
         "handMode": "both",
         "trailEnabled": true,
         "trailSmoothing": true,
         "trailSeconds": 2
       },
-      "selectedSlot": 3
+      "selectedSlot": 0
     }
   },
   "motionai.silhouette-enabled": true,
@@ -32699,244 +32918,52 @@
       "1": {
         "sequence": [
           {
-            "row": 15,
-            "col": 7,
-            "hand": "right"
-          },
-          {
-            "row": 15,
-            "col": 22,
-            "hand": "left"
-          },
-          {
-            "row": 15,
-            "col": 8,
-            "hand": "right"
-          },
-          {
-            "row": 15,
-            "col": 21,
-            "hand": "left"
-          },
-          {
-            "row": 15,
-            "col": 9,
-            "hand": "right"
-          },
-          {
-            "row": 15,
-            "col": 20,
-            "hand": "left"
-          },
-          {
-            "row": 15,
-            "col": 10,
-            "hand": "right"
-          },
-          {
-            "row": 15,
-            "col": 19,
-            "hand": "left"
-          },
-          {
-            "row": 15,
-            "col": 11,
-            "hand": "right"
-          },
-          {
-            "row": 15,
-            "col": 18,
-            "hand": "left"
-          },
-          {
-            "row": 15,
-            "col": 12,
-            "hand": "right"
-          },
-          {
-            "row": 15,
-            "col": 17,
-            "hand": "left"
-          },
-          {
-            "row": 14,
-            "col": 12,
-            "hand": "right"
-          },
-          {
-            "row": 14,
-            "col": 17,
-            "hand": "left"
-          },
-          {
-            "row": 14,
-            "col": 11,
-            "hand": "right"
-          },
-          {
-            "row": 14,
-            "col": 18,
-            "hand": "left"
-          },
-          {
-            "row": 14,
-            "col": 10,
-            "hand": "right"
-          },
-          {
-            "row": 14,
-            "col": 19,
-            "hand": "left"
-          },
-          {
-            "row": 14,
-            "col": 9,
-            "hand": "right"
-          },
-          {
-            "row": 14,
-            "col": 20,
-            "hand": "left"
-          },
-          {
-            "row": 14,
-            "col": 8,
-            "hand": "right"
-          },
-          {
-            "row": 14,
-            "col": 21,
-            "hand": "left"
-          },
-          {
-            "row": 14,
-            "col": 7,
-            "hand": "right"
-          },
-          {
-            "row": 14,
-            "col": 22,
-            "hand": "left"
-          },
-          {
-            "row": 13,
-            "col": 7,
-            "hand": "right"
-          },
-          {
-            "row": 13,
-            "col": 22,
-            "hand": "left"
-          },
-          {
-            "row": 13,
-            "col": 8,
-            "hand": "right"
-          },
-          {
-            "row": 13,
-            "col": 21,
-            "hand": "left"
-          },
-          {
-            "row": 13,
-            "col": 9,
-            "hand": "right"
-          },
-          {
-            "row": 13,
-            "col": 20,
-            "hand": "left"
-          },
-          {
-            "row": 13,
-            "col": 10,
-            "hand": "right"
-          },
-          {
-            "row": 13,
-            "col": 19,
-            "hand": "left"
-          },
-          {
-            "row": 13,
-            "col": 11,
-            "hand": "right"
-          },
-          {
-            "row": 13,
-            "col": 18,
-            "hand": "left"
-          },
-          {
-            "row": 13,
-            "col": 12,
-            "hand": "right"
-          },
-          {
-            "row": 13,
-            "col": 17,
-            "hand": "left"
-          },
-          {
-            "row": 12,
-            "col": 12,
-            "hand": "right"
-          },
-          {
-            "row": 12,
-            "col": 17,
-            "hand": "left"
-          },
-          {
-            "row": 11,
-            "col": 12,
-            "hand": "right"
-          },
-          {
-            "row": 11,
-            "col": 17,
-            "hand": "left"
-          },
-          {
-            "row": 10,
-            "col": 12,
-            "hand": "right"
-          },
-          {
-            "row": 10,
-            "col": 17,
-            "hand": "left"
-          },
-          {
-            "row": 9,
-            "col": 12,
-            "hand": "right"
-          },
-          {
-            "row": 9,
-            "col": 17,
-            "hand": "left"
-          },
-          {
-            "row": 8,
-            "col": 12,
-            "hand": "right"
-          },
-          {
-            "row": 8,
-            "col": 17,
-            "hand": "left"
-          },
-          {
             "row": 7,
             "col": 12,
-            "hand": "right"
+            "hand": "right",
+            "pairId": "pmv5cvm01208mw"
           },
           {
             "row": 7,
             "col": 17,
-            "hand": "left"
+            "hand": "left",
+            "pairId": "pmv5cvm01208mw"
+          },
+          {
+            "row": 16,
+            "col": 12,
+            "hand": "right",
+            "pairId": "pmv5cvo8bo5cff"
+          },
+          {
+            "row": 16,
+            "col": 17,
+            "hand": "left",
+            "pairId": "pmv5cvo8bo5cff"
+          },
+          {
+            "row": 16,
+            "col": 8,
+            "hand": "right",
+            "pairId": "pmv5cvp326iewc"
+          },
+          {
+            "row": 16,
+            "col": 21,
+            "hand": "left",
+            "pairId": "pmv5cvp326iewc"
+          },
+          {
+            "row": 7,
+            "col": 8,
+            "hand": "right",
+            "pairId": "pmv5cvs2nv8x49"
+          },
+          {
+            "row": 7,
+            "col": 21,
+            "hand": "left",
+            "pairId": "pmv5cvs2nv8x49"
           }
         ],
         "gridResolution": 22,
@@ -32950,163 +32977,51 @@
         "sequence": [
           {
             "row": 6,
-            "col": 11,
-            "hand": "right"
+            "col": 17,
+            "hand": "left",
+            "pairId": "pmv5cw7f3v100l"
           },
           {
             "row": 6,
-            "col": 18,
-            "hand": "left"
+            "col": 12,
+            "hand": "right",
+            "pairId": "pmv5cw7f3v100l"
           },
           {
-            "row": 7,
-            "col": 11,
-            "hand": "right"
+            "row": 14,
+            "col": 17,
+            "hand": "left",
+            "pairId": "pmv5cw8wd3fgyh"
           },
           {
-            "row": 7,
-            "col": 18,
-            "hand": "left"
-          },
-          {
-            "row": 8,
-            "col": 11,
-            "hand": "right"
-          },
-          {
-            "row": 8,
-            "col": 18,
-            "hand": "left"
-          },
-          {
-            "row": 9,
-            "col": 11,
-            "hand": "right"
-          },
-          {
-            "row": 9,
-            "col": 18,
-            "hand": "left"
-          },
-          {
-            "row": 10,
-            "col": 11,
-            "hand": "right"
-          },
-          {
-            "row": 10,
-            "col": 18,
-            "hand": "left"
-          },
-          {
-            "row": 11,
-            "col": 11,
-            "hand": "right"
-          },
-          {
-            "row": 11,
-            "col": 18,
-            "hand": "left"
-          },
-          {
-            "row": 12,
-            "col": 11,
-            "hand": "right"
-          },
-          {
-            "row": 12,
-            "col": 18,
-            "hand": "left"
-          },
-          {
-            "row": 12,
-            "col": 10,
-            "hand": "right"
-          },
-          {
-            "row": 12,
-            "col": 19,
-            "hand": "left"
-          },
-          {
-            "row": 12,
-            "col": 9,
-            "hand": "right"
-          },
-          {
-            "row": 12,
-            "col": 20,
-            "hand": "left"
-          },
-          {
-            "row": 12,
-            "col": 8,
-            "hand": "right"
-          },
-          {
-            "row": 12,
-            "col": 21,
-            "hand": "left"
-          },
-          {
-            "row": 11,
-            "col": 8,
-            "hand": "right"
-          },
-          {
-            "row": 11,
-            "col": 21,
-            "hand": "left"
-          },
-          {
-            "row": 10,
-            "col": 8,
-            "hand": "right"
-          },
-          {
-            "row": 10,
-            "col": 21,
-            "hand": "left"
-          },
-          {
-            "row": 9,
-            "col": 8,
-            "hand": "right"
-          },
-          {
-            "row": 9,
-            "col": 21,
-            "hand": "left"
-          },
-          {
-            "row": 8,
-            "col": 8,
-            "hand": "right"
-          },
-          {
-            "row": 8,
-            "col": 21,
-            "hand": "left"
-          },
-          {
-            "row": 7,
-            "col": 8,
-            "hand": "right"
+            "row": 14,
+            "col": 12,
+            "hand": "right",
+            "pairId": "pmv5cw8wd3fgyh"
           },
           {
             "row": 7,
             "col": 21,
-            "hand": "left"
+            "hand": "left",
+            "pairId": "pmv5cw9nhaz02t"
           },
           {
-            "row": 6,
+            "row": 7,
             "col": 8,
-            "hand": "right"
+            "hand": "right",
+            "pairId": "pmv5cw9nhaz02t"
           },
           {
-            "row": 6,
-            "col": 21,
-            "hand": "left"
+            "row": 14,
+            "col": 17,
+            "hand": "left",
+            "pairId": "pmv5cwabr6qak7"
+          },
+          {
+            "row": 14,
+            "col": 12,
+            "hand": "right",
+            "pairId": "pmv5cwabr6qak7"
           }
         ],
         "gridResolution": 22,
@@ -33121,70 +33036,70 @@
           {
             "row": 3,
             "col": 5,
-            "hand": "right"
+            "hand": "right",
+            "pairId": "pmv5czvgb7g3b1"
           },
           {
             "row": 3,
             "col": 10,
-            "hand": "left"
+            "hand": "left",
+            "pairId": "pmv5czvgb7g3b1"
           },
           {
-            "row": 4,
+            "row": 9,
             "col": 5,
-            "hand": "right"
+            "hand": "right",
+            "pairId": "pmv5czw5a7nbb2"
           },
           {
-            "row": 4,
+            "row": 9,
             "col": 10,
-            "hand": "left"
-          },
-          {
-            "row": 5,
-            "col": 5,
-            "hand": "right"
-          },
-          {
-            "row": 5,
-            "col": 10,
-            "hand": "left"
-          },
-          {
-            "row": 6,
-            "col": 5,
-            "hand": "right"
-          },
-          {
-            "row": 6,
-            "col": 10,
-            "hand": "left"
+            "hand": "left",
+            "pairId": "pmv5czw5a7nbb2"
           },
           {
             "row": 7,
-            "col": 5,
-            "hand": "right"
+            "col": 3,
+            "hand": "right",
+            "pairId": "pmv5czx7av8gvp"
           },
           {
             "row": 7,
-            "col": 10,
-            "hand": "left"
+            "col": 12,
+            "hand": "left",
+            "pairId": "pmv5czx7av8gvp"
           },
           {
-            "row": 8,
-            "col": 5,
-            "hand": "right"
+            "row": 5,
+            "col": 6,
+            "hand": "right",
+            "pairId": "pmv5czyg6fzy9n"
           },
           {
-            "row": 8,
-            "col": 10,
-            "hand": "left"
+            "row": 5,
+            "col": 9,
+            "hand": "left",
+            "pairId": "pmv5czyg6fzy9n"
+          },
+          {
+            "row": 3,
+            "col": 3,
+            "hand": "right",
+            "pairId": "pmv5czyyqbjniu"
+          },
+          {
+            "row": 3,
+            "col": 12,
+            "hand": "left",
+            "pairId": "pmv5czyyqbjniu"
           }
         ],
         "gridResolution": 12,
         "resolution": 1,
-        "hand": "left",
+        "hand": "auto",
         "sequentialMode": "independent",
         "symmetryMode": true,
-        "palindromMode": true
+        "palindromMode": false
       },
       "4": {
         "sequence": [
@@ -34317,7 +34232,7 @@
       "corner4": 11.3,
       "corner5": -1,
       "corner3": -11.3,
-      "selectedSlot": 3
+      "selectedSlot": 0
     },
     "1": {
       "0": {
@@ -34596,7 +34511,7 @@
           }
         ]
       },
-      "selectedSlot": 3
+      "selectedSlot": 0
     },
     "2": {
       "0": {
@@ -34825,7 +34740,7 @@
       "corner5": -1,
       "corner3": -11.3,
       "countVisible": false,
-      "selectedSlot": 3
+      "selectedSlot": 0
     },
     "3": {
       "0": {
@@ -34916,7 +34831,7 @@
       "corner5": -1,
       "corner3": -11.3,
       "countVisible": true,
-      "selectedSlot": 2
+      "selectedSlot": 0
     }
   },
   "motionai.figure-presets": {
@@ -36056,122 +35971,60 @@
     }
   },
   "motionai.square-exercise-panel-settings-points": {
-    "pointEditMode": true,
-    "pointSelectedSlot": 4,
+    "pointEditMode": false,
+    "pointSelectedSlot": 1,
     "pointSelectedHand": "auto",
-    "pointSequenceMode": "simultaneous",
+    "pointSequenceMode": "independent",
     "pointSymmetryMode": true,
     "pointPalindromMode": true,
     "pointSequence": [
       {
-        "row": 3,
-        "col": 6,
-        "hand": "right"
-      },
-      {
-        "row": 3,
-        "col": 9,
-        "hand": "left"
-      },
-      {
-        "row": 4,
-        "col": 6,
-        "hand": "right"
-      },
-      {
-        "row": 4,
-        "col": 9,
-        "hand": "left"
-      },
-      {
-        "row": 5,
-        "col": 6,
-        "hand": "right"
-      },
-      {
-        "row": 5,
-        "col": 9,
-        "hand": "left"
-      },
-      {
-        "row": 6,
-        "col": 6,
-        "hand": "right"
-      },
-      {
-        "row": 6,
-        "col": 9,
-        "hand": "left"
+        "row": 7,
+        "col": 12,
+        "hand": "right",
+        "pairId": "pmv5cvm01208mw"
       },
       {
         "row": 7,
-        "col": 6,
-        "hand": "right"
+        "col": 17,
+        "hand": "left",
+        "pairId": "pmv5cvm01208mw"
+      },
+      {
+        "row": 16,
+        "col": 12,
+        "hand": "right",
+        "pairId": "pmv5cvo8bo5cff"
+      },
+      {
+        "row": 16,
+        "col": 17,
+        "hand": "left",
+        "pairId": "pmv5cvo8bo5cff"
+      },
+      {
+        "row": 16,
+        "col": 8,
+        "hand": "right",
+        "pairId": "pmv5cvp326iewc"
+      },
+      {
+        "row": 16,
+        "col": 21,
+        "hand": "left",
+        "pairId": "pmv5cvp326iewc"
       },
       {
         "row": 7,
-        "col": 9,
-        "hand": "left"
+        "col": 8,
+        "hand": "right",
+        "pairId": "pmv5cvs2nv8x49"
       },
       {
         "row": 7,
-        "col": 5,
-        "hand": "right"
-      },
-      {
-        "row": 7,
-        "col": 10,
-        "hand": "left"
-      },
-      {
-        "row": 7,
-        "col": 4,
-        "hand": "right"
-      },
-      {
-        "row": 7,
-        "col": 11,
-        "hand": "left"
-      },
-      {
-        "row": 6,
-        "col": 4,
-        "hand": "right"
-      },
-      {
-        "row": 6,
-        "col": 11,
-        "hand": "left"
-      },
-      {
-        "row": 5,
-        "col": 4,
-        "hand": "right"
-      },
-      {
-        "row": 5,
-        "col": 11,
-        "hand": "left"
-      },
-      {
-        "row": 4,
-        "col": 4,
-        "hand": "right"
-      },
-      {
-        "row": 4,
-        "col": 11,
-        "hand": "left"
-      },
-      {
-        "row": 3,
-        "col": 4,
-        "hand": "right"
-      },
-      {
-        "row": 3,
-        "col": 11,
-        "hand": "left"
+        "col": 21,
+        "hand": "left",
+        "pairId": "pmv5cvs2nv8x49"
       }
     ]
   },
@@ -36571,28 +36424,28 @@
         "y": 0
       },
       {
-        "x": 2.7643999518999554,
-        "y": 0.407046657046656
+        "x": 0,
+        "y": 0
       },
       {
-        "x": -1.9382816257816264,
-        "y": -0.03938191438191352
+        "x": -0.06432411674347094,
+        "y": 0.2041730670762938
       },
       {
-        "x": -2.601010101010104,
-        "y": -0.02961159211159181
+        "x": 0,
+        "y": 0
       },
       {
-        "x": 2.871873496873498,
-        "y": -0.02029220779220786
+        "x": 0,
+        "y": 0
       },
       {
-        "x": 3.414201539201538,
-        "y": 0.29791967291967403
+        "x": 0,
+        "y": 0
       },
       {
-        "x": 1.2034030784030827,
-        "y": 0.0706469456469474
+        "x": 0,
+        "y": 0
       },
       {
         "x": 0,

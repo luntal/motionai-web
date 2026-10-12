@@ -7801,7 +7801,7 @@ function createTrackingControls(trackingController) {
   const restoreDefaultsButton = document.createElement('button');
   restoreDefaultsButton.type = 'button';
   restoreDefaultsButton.className = 'tracking-controls-button';
-  restoreDefaultsButton.textContent = 'Werkseinstellungen';
+  restoreDefaultsButton.textContent = 'Werkseinstellungen laden';
   restoreDefaultsButton.addEventListener('click', async () => {
     const confirmed = window.confirm('Möchtest du wirklich alle Parameter und Presets auf die Werkseinstellung zurücksetzen?');
     if (!confirmed) {
@@ -9628,8 +9628,8 @@ export async function initApp() {
     && uiState.activeLevel === 4
     && levelManager.pointExerciseEditMode
     && !examPanel.isRunning();
-  // Gleichmäßigkeit: the guide lines can be dragged with the mouse (not during exams).
-  const isConsistencyLineDragActive = () => uiState.activeChapter === 2 && !examPanel.isRunning();
+  // Gleichmäßigkeit: the guide lines and their end points can be dragged only while the Bearbeiten toggle is on (not during exams).
+  const isConsistencyLineDragActive = () => uiState.activeChapter === 2 && isFigureCornerEditActive();
   const applyFigureCornerEditState = () => {
     const active = isFigureCornerChapterActive() || isConsistencyLineDragActive() || isOrientationDragActive();
     stageFrame.style.touchAction = active ? 'none' : '';

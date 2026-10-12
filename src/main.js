@@ -10,11 +10,72 @@ import {
   resetMotionAiUserStorageToDefaults
 } from './defaultSettings.js';
 
+// Exported defaults always start with preset slot 1 selected (0-based except the square-exercise slots, which are 1-based) and Bearbeiten switched off.
+function resetSelectedPresetSlots(snapshot) {
+  const isObject = (value) => value && typeof value === 'object' && !Array.isArray(value);
+
+  ['motionai.figure-selected-presets', 'motionai.dynamic-figure-selected-presets'].forEach((key) => {
+    if (isObject(snapshot[key])) {
+      Object.keys(snapshot[key]).forEach((levelKey) => {
+        snapshot[key][levelKey] = 0;
+      });
+    }
+  });
+
+  [
+    ['motionai.exercise-field-presets', 'selectedSlot', 0],
+    ['motionai.hand-independence-presets', 'selectedSlot', 0],
+    ['motionai.consistency-presets', 'selectedSlot', 0],
+    ['motionai.square-exercise-presets', 'selectedPresetSlot', 1]
+  ].forEach(([key, slotField, firstSlot]) => {
+    if (!isObject(snapshot[key])) {
+      return;
+    }
+    Object.values(snapshot[key]).forEach((levelBucket) => {
+      if (isObject(levelBucket) && Object.prototype.hasOwnProperty.call(levelBucket, slotField)) {
+        levelBucket[slotField] = firstSlot;
+      }
+    });
+  });
+
+  // Bearbeiten mode: the global toggle and every stored point edit flag start switched off.
+  const visibility = snapshot['motionai.levelSettingsVisibility'];
+  if (isObject(visibility)) {
+    ['visible', 'value'].forEach((field) => {
+      if (Object.prototype.hasOwnProperty.call(visibility, field)) {
+        visibility[field] = false;
+      }
+    });
+  } else if (Object.prototype.hasOwnProperty.call(snapshot, 'motionai.levelSettingsVisibility')) {
+    snapshot['motionai.levelSettingsVisibility'] = false;
+  }
+  const disablePointEditMode = (node) => {
+    if (Array.isArray(node)) {
+      node.forEach(disablePointEditMode);
+    } else if (isObject(node)) {
+      Object.keys(node).forEach((key) => {
+        if (key === 'pointEditMode') {
+          node[key] = false;
+        } else {
+          disablePointEditMode(node[key]);
+        }
+      });
+    }
+  };
+  disablePointEditMode(snapshot);
+
+  const pointSettings = snapshot['motionai.square-exercise-panel-settings-points'];
+  if (isObject(pointSettings) && Object.prototype.hasOwnProperty.call(pointSettings, 'pointSelectedSlot')) {
+    pointSettings.pointSelectedSlot = 1;
+  }
+}
+
 if (typeof window !== 'undefined') {
   installMotionAiStorageBridge();
 
   window.exportDefaults = () => {
-    const snapshot = getMotionAiUserStorageSnapshot(getMotionAiActiveUserId());
+    const snapshot = JSON.parse(JSON.stringify(getMotionAiUserStorageSnapshot(getMotionAiActiveUserId())));
+    resetSelectedPresetSlots(snapshot);
     const settingsState = snapshot['motionai.settings-panel-state'];
     const exportedAt = new Date().toISOString();
 

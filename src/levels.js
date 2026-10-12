@@ -216,6 +216,7 @@ export class LevelManager {
     this.consistencyReverseDirection = false;
     this.consistencyLineDistance = 0.25;
     this.consistencyHorizontalLineY = 0.53;
+    this.consistencyLineEnds = { vertical: { left: null, right: null }, horizontal: { left: null, right: null } };
     this.consistencyHandMode = 'both';
     this.chapter1TrailSeconds = 3;
     this.chapter1TrailSmoothing = true;
@@ -2639,6 +2640,7 @@ export class LevelManager {
       reverseDirection: false,
       lineDistance: 0.25,
       horizontalLineY: 0.53,
+      lineEnds: this.sanitizeConsistencyLineEnds(null),
       handMode: 'both',
       trailEnabled: true,
       trailSmoothing: true,
@@ -2681,7 +2683,62 @@ export class LevelManager {
     return Number.isFinite(next) ? Math.min(0.9, Math.max(0.1, next)) : 0.53;
   }
 
+  // Line end points are stored as fractions of the canvas height (vertical lines) or width (horizontal lines); null means default.
+  sanitizeConsistencyLineEnds(value) {
+    const sanitizePair = (pair, minGap) => {
+      if (!Array.isArray(pair)) {
+        return null;
+      }
+      const a = Number(pair[0]);
+      const b = Number(pair[1]);
+      if (!Number.isFinite(a) || !Number.isFinite(b)) {
+        return null;
+      }
+      const low = Math.max(0.02, Math.min(a, b));
+      const high = Math.min(0.98, Math.max(a, b));
+      return high - low >= minGap ? [low, high] : null;
+    };
+    const readGroup = (group, minGap) => ({
+      left: sanitizePair(group?.left, minGap),
+      right: sanitizePair(group?.right, minGap)
+    });
+    return {
+      vertical: readGroup(value?.vertical, 0.1),
+      horizontal: readGroup(value?.horizontal, 0.05)
+    };
+  }
+
+  cloneConsistencyLineEnds() {
+    return this.sanitizeConsistencyLineEnds(this.consistencyLineEnds);
+  }
+
+  // Levels with two mirrored vertical lines share one pair of end points.
+  isConsistencyLineEndsCoupled(orientation) {
+    return orientation === 'vertical' && [2, 3, 4].includes(this.level);
+  }
+
+  getConsistencyLineEnds(orientation, side) {
+    if (this.isConsistencyLineEndsCoupled(orientation)) {
+      side = 'left';
+    }
+    const stored = this.consistencyLineEnds?.[orientation]?.[side];
+    if (Array.isArray(stored)) {
+      return stored;
+    }
+    if (orientation === 'vertical') {
+      return [0.2, 0.86];
+    }
+    const w = this.canvas.width || 1;
+    const h = this.canvas.height || 1;
+    const halfLength = Math.min((0.86 - 0.2) * h / 2, w * 0.2);
+    const center = side === 'right' ? 0.75 : 0.25;
+    return side === 'right'
+      ? [center - halfLength / w, center]
+      : [center, center + halfLength / w];
+  }
+
   applyConsistencyLinePositions(source) {
+    this.consistencyLineEnds = this.sanitizeConsistencyLineEnds(source?.lineEnds);
     this.consistencyLineDistance = this.sanitizeConsistencyLineDistance(source?.lineDistance);
     this.consistencyHorizontalLineY = this.sanitizeConsistencyHorizontalLineY(source?.horizontalLineY);
     this.consistencyHandMode = ['left', 'right', 'both'].includes(source?.handMode) ? source.handMode : 'both';
@@ -2722,6 +2779,7 @@ export class LevelManager {
       reverseDirection: this.consistencyReverseDirection,
       lineDistance: this.consistencyLineDistance,
       horizontalLineY: this.consistencyHorizontalLineY,
+      lineEnds: this.cloneConsistencyLineEnds(),
       handMode: this.consistencyHandMode,
       trailEnabled: this.consistencyTrailEnabled,
       trailSmoothing: this.consistencyTrailSmoothing,
@@ -2795,6 +2853,7 @@ export class LevelManager {
       if (Number.isFinite(Number(preset.horizontalLineY))) {
         this.consistencyHorizontalLineY = this.sanitizeConsistencyHorizontalLineY(preset.horizontalLineY);
       }
+      this.consistencyLineEnds = this.sanitizeConsistencyLineEnds(preset.lineEnds);
       if (['left', 'right', 'both'].includes(preset.handMode)) {
         this.consistencyHandMode = preset.handMode;
       }
@@ -2835,6 +2894,7 @@ export class LevelManager {
       reverseDirection: this.consistencyReverseDirection,
       lineDistance: this.consistencyLineDistance,
       horizontalLineY: this.consistencyHorizontalLineY,
+      lineEnds: this.cloneConsistencyLineEnds(),
       handMode: this.consistencyHandMode,
       trailEnabled: this.consistencyTrailEnabled,
       trailSmoothing: this.consistencyTrailSmoothing,
@@ -11456,89 +11516,81 @@ export class LevelManager {
       const sine = 0.5 - 0.5 * Math.cos(t * Math.PI * 2);
       return triangle + (sine - triangle) * motionBlend;
     };
-    const yAt = (phase = 0, speedMultiplier = 1) => topY + progressAt(phase, speedMultiplier) * (bottomY - topY);
+
+    const lineGuide = (side) => {
+      const [startFraction, endFraction] = this.getConsistencyLineEnds('vertical', side);
+      return {
+        type: 'line',
+        axis: 'x',
+        side,
+        x: side === 'left' ? leftX : rightX,
+        topY: startFraction * h,
+        bottomY: endFraction * h
+      };
+    };
+    const targetOnLine = (guide, phase = 0, speedMultiplier = 1) => ({
+      hand: guide.side,
+      x: guide.x,
+      y: guide.topY + progressAt(phase, speedMultiplier) * (guide.bottomY - guide.topY),
+      color: guide.side === 'left' ? 'rgba(96, 160, 255, 0.98)' : 'rgba(255, 148, 84, 0.98)'
+    });
 
     if (this.level === 0) {
-      return {
-        guides: [{ type: 'line', axis: 'x', side: 'right', x: rightX, topY, bottomY }],
-        movingTargets: [{ hand: 'right', x: rightX, y: yAt(0), color: 'rgba(255, 148, 84, 0.98)' }]
-      };
+      const right = lineGuide('right');
+      return { guides: [right], movingTargets: [targetOnLine(right)] };
     }
 
     if (this.level === 1) {
-      return {
-        guides: [{ type: 'line', axis: 'x', side: 'left', x: leftX, topY, bottomY }],
-        movingTargets: [{ hand: 'left', x: leftX, y: yAt(0), color: 'rgba(96, 160, 255, 0.98)' }]
-      };
+      const left = lineGuide('left');
+      return { guides: [left], movingTargets: [targetOnLine(left)] };
     }
 
     if (this.level === 2) {
-      const y = yAt(0);
-      return {
-        guides: [
-          { type: 'line', axis: 'x', side: 'left', x: leftX, topY, bottomY },
-          { type: 'line', axis: 'x', side: 'right', x: rightX, topY, bottomY }
-        ],
-        movingTargets: [
-          { hand: 'left', x: leftX, y, color: 'rgba(96, 160, 255, 0.98)' },
-          { hand: 'right', x: rightX, y, color: 'rgba(255, 148, 84, 0.98)' }
-        ]
-      };
+      const left = lineGuide('left');
+      const right = lineGuide('right');
+      return { guides: [left, right], movingTargets: [targetOnLine(left), targetOnLine(right)] };
     }
 
     if (this.level === 3) {
-      return {
-        guides: [
-          { type: 'line', axis: 'x', side: 'left', x: leftX, topY, bottomY },
-          { type: 'line', axis: 'x', side: 'right', x: rightX, topY, bottomY }
-        ],
-        movingTargets: [
-          { hand: 'left', x: leftX, y: yAt(0), color: 'rgba(96, 160, 255, 0.98)' },
-          { hand: 'right', x: rightX, y: yAt(0.5), color: 'rgba(255, 148, 84, 0.98)' }
-        ]
-      };
+      const left = lineGuide('left');
+      const right = lineGuide('right');
+      return { guides: [left, right], movingTargets: [targetOnLine(left), targetOnLine(right, 0.5)] };
     }
 
     if (this.level === 4) {
-      return {
-        guides: [
-          { type: 'line', axis: 'x', side: 'left', x: leftX, topY, bottomY },
-          { type: 'line', axis: 'x', side: 'right', x: rightX, topY, bottomY }
-        ],
-        movingTargets: [
-          { hand: 'left', x: leftX, y: yAt(0.5, 2), color: 'rgba(96, 160, 255, 0.98)' },
-          { hand: 'right', x: rightX, y: yAt(0, 1), color: 'rgba(255, 148, 84, 0.98)' }
-        ]
-      };
+      const left = lineGuide('left');
+      const right = lineGuide('right');
+      return { guides: [left, right], movingTargets: [targetOnLine(left, 0.5, 2), targetOnLine(right, 0, 1)] };
     }
 
     if (this.level === 6) {
       // Both hands move in sync; one follows a vertical and the other a horizontal line.
       const verticalHand = this.consistencySwapOrientation ? 'right' : 'left';
-      const lineCenterX = { left: leftX, right: rightX };
-      const horizontalCenterX = { left: centerX - w * 0.25, right: centerX + w * 0.25 };
       const handColor = { left: 'rgba(96, 160, 255, 0.98)', right: 'rgba(255, 148, 84, 0.98)' };
       const horizontalHand = verticalHand === 'left' ? 'right' : 'left';
       const lineY = h * this.consistencyHorizontalLineY;
-      const halfLength = Math.min((bottomY - topY) / 2, w * 0.2);
       const progress = progressAt(0);
+      const [hStart, hEnd] = this.getConsistencyLineEnds('horizontal', horizontalHand);
+      const hLeftX = hStart * w;
+      const hRightX = hEnd * w;
+      const verticalGuide = lineGuide(verticalHand);
       return {
         guides: [
-          { type: 'line', axis: 'x', side: verticalHand, x: lineCenterX[verticalHand], topY, bottomY },
+          verticalGuide,
           {
             type: 'hline',
             axis: 'y',
             side: horizontalHand,
             y: lineY,
-            leftX: horizontalCenterX[horizontalHand] - halfLength,
-            rightX: horizontalCenterX[horizontalHand] + halfLength
+            leftX: hLeftX,
+            rightX: hRightX
           }
         ],
         movingTargets: [
-          { hand: verticalHand, x: lineCenterX[verticalHand], y: topY + progress * (bottomY - topY), color: handColor[verticalHand] },
+          { hand: verticalHand, x: verticalGuide.x, y: verticalGuide.topY + progress * (verticalGuide.bottomY - verticalGuide.topY), color: handColor[verticalHand] },
           {
             hand: horizontalHand,
-            x: horizontalCenterX[horizontalHand] - halfLength + progress * 2 * halfLength,
+            x: hLeftX + progress * (hRightX - hLeftX),
             y: lineY,
             color: handColor[horizontalHand]
           }
@@ -12111,7 +12163,10 @@ export class LevelManager {
   }
 
   isConsistencyLineDragLevel() {
-    return this.chapter === 2 && this.consistencyActive && [0, 1, 2, 3, 4, 5, 6, 7].includes(this.level);
+    return this.chapter === 2
+      && this.consistencyActive
+      && [0, 1, 2, 3, 4, 5, 6, 7].includes(this.level)
+      && this.isFigureCornerEditAllowed();
   }
 
   findConsistencyLineAt(x, y) {
@@ -12147,7 +12202,71 @@ export class LevelManager {
     return best ? best.guide : null;
   }
 
+  areConsistencyLineEndHandlesVisible() {
+    return this.chapter === 2
+      && this.consistencyActive
+      && [0, 1, 2, 3, 4, 6].includes(this.level)
+      && this.isFigureCornerEditAllowed();
+  }
+
+  // Handles sit on both ends of each straight guide; they only slide along the line.
+  getConsistencyLineEndHandles() {
+    if (!this.areConsistencyLineEndHandlesVisible()) {
+      return [];
+    }
+    const handles = [];
+    this.getConsistencyScene().guides.forEach((guide) => {
+      if (guide.type === 'line') {
+        handles.push({ orientation: 'vertical', side: guide.side, end: 0, x: guide.x, y: guide.topY });
+        handles.push({ orientation: 'vertical', side: guide.side, end: 1, x: guide.x, y: guide.bottomY });
+      } else if (guide.type === 'hline') {
+        handles.push({ orientation: 'horizontal', side: guide.side, end: 0, x: guide.leftX, y: guide.y });
+        handles.push({ orientation: 'horizontal', side: guide.side, end: 1, x: guide.rightX, y: guide.y });
+      }
+    });
+    return handles;
+  }
+
+  findConsistencyLineEndHandleAt(x, y) {
+    const hitRadius = Math.max(16, Math.min(this.canvas.width, this.canvas.height) * 0.035);
+    let best = null;
+    this.getConsistencyLineEndHandles().forEach((handle) => {
+      const distance = Math.hypot(x - handle.x, y - handle.y);
+      if (distance <= hitRadius && (!best || distance < best.distance)) {
+        best = { handle, distance };
+      }
+    });
+    return best ? best.handle : null;
+  }
+
+  drawConsistencyLineEndHandles() {
+    const handles = this.getConsistencyLineEndHandles();
+    if (handles.length === 0) {
+      return;
+    }
+    const radius = Math.max(7, Math.min(this.canvas.width, this.canvas.height) * 0.016);
+    this.ctx.save();
+    handles.forEach((handle) => {
+      const isActive = this.consistencyLineDrag?.kind === 'end'
+        && this.consistencyLineDrag.orientation === handle.orientation
+        && this.consistencyLineDrag.side === handle.side
+        && this.consistencyLineDrag.end === handle.end;
+      this.ctx.beginPath();
+      this.ctx.arc(handle.x, handle.y, isActive ? radius * 1.25 : radius, 0, Math.PI * 2);
+      this.ctx.fillStyle = 'rgba(255, 206, 112, 1)';
+      this.ctx.fill();
+      this.ctx.lineWidth = 2;
+      this.ctx.strokeStyle = '#ffffff';
+      this.ctx.stroke();
+    });
+    this.ctx.restore();
+  }
+
   getConsistencyLineCursorAt(x, y) {
+    const handle = this.findConsistencyLineEndHandleAt(x, y);
+    if (handle) {
+      return handle.orientation === 'vertical' ? 'ns-resize' : 'ew-resize';
+    }
     const guide = this.findConsistencyLineAt(x, y);
     if (!guide) {
       return '';
@@ -12156,6 +12275,19 @@ export class LevelManager {
   }
 
   beginConsistencyLineDrag(x, y) {
+    const handle = this.findConsistencyLineEndHandleAt(x, y);
+    if (handle) {
+      this.consistencyLineDrag = {
+        kind: 'end',
+        orientation: handle.orientation,
+        side: handle.side,
+        end: handle.end,
+        axis: handle.orientation === 'vertical' ? 'y' : 'x',
+        grab: handle.orientation === 'vertical' ? handle.y - y : handle.x - x
+      };
+      return true;
+    }
+
     const guide = this.findConsistencyLineAt(x, y);
     if (!guide) {
       return false;
@@ -12175,6 +12307,38 @@ export class LevelManager {
     const drag = this.consistencyLineDrag;
     if (!drag || !this.canvas.width || !this.canvas.height) {
       return false;
+    }
+
+    if (drag.kind === 'end') {
+      const isVertical = drag.orientation === 'vertical';
+      const fraction = isVertical
+        ? (y + drag.grab) / this.canvas.height
+        : (x + drag.grab) / this.canvas.width;
+      const [start, end] = this.getConsistencyLineEnds(drag.orientation, drag.side);
+      const minGap = isVertical ? 0.1 : 0.05;
+      // Horizontal lines must stay on their own canvas half.
+      let lowerBound = 0.02;
+      let upperBound = 0.98;
+      if (!isVertical) {
+        if (drag.side === 'left') {
+          upperBound = 0.48;
+        } else {
+          lowerBound = 0.52;
+        }
+      }
+      const next = [start, end];
+      if (drag.end === 0) {
+        next[0] = Math.min(end - minGap, Math.max(lowerBound, fraction));
+      } else {
+        next[1] = Math.max(start + minGap, Math.min(upperBound, fraction));
+      }
+      this.consistencyLineEnds[drag.orientation][drag.side] = next;
+      if (this.isConsistencyLineEndsCoupled(drag.orientation)) {
+        this.consistencyLineEnds[drag.orientation].left = [...next];
+        this.consistencyLineEnds[drag.orientation].right = [...next];
+      }
+      this.requestRender();
+      return true;
     }
 
     if (drag.axis === 'x') {
@@ -12357,6 +12521,8 @@ export class LevelManager {
       this.ctx.stroke();
     });
     this.ctx.restore();
+
+    this.drawConsistencyLineEndHandles();
 
     this.updateConsistencyTrail(nowMs, scene, threshold);
     this.drawConsistencyTrail(nowMs, scene);
