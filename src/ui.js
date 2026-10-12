@@ -305,7 +305,13 @@ function renderLevelButtons(levelRow) {
     levelRow.classList.add('active');
     const title = document.createElement('div');
     title.className = 'level-section-title';
-    title.textContent = uiState.activeChapter === 0 ? 'Bereiche' : 'Übungen';
+    if (uiState.activeChapter === 0) {
+      title.textContent = 'Bereiche';
+    } else if (uiState.activeChapter === 7) {
+      title.textContent = 'Tests & Prüfung';
+    } else {
+      title.textContent = 'Übungen';
+    }
     levelRow.appendChild(title);
   } else {
     levelRow.classList.remove('active');
