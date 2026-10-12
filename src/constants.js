@@ -28,7 +28,7 @@ export const chapterDescriptions = [
   'Dynamikebenen: Hier können die Grundfiguren mit verschiedenen Dynamikstufen für einzelne Zählzeiten geübt werden.',
   'Handunabhängigkeit: Übe die Unabhängigkeit deiner Hände durch unterschiedliche Bewegungsmuster in der linken und rechten Hand.',
   'Einsätze geben: Übe mit einer Hand eine Grundfigur und mit der anderen Hand das Geben von Einsätzen. Die nummerierten Kreise stellen die Zählzeiten dar. Berühre sie im richtigen Moment, beim Ausführen der Grundfigur. Die vier Quadrate sind die Einsatzfelder, die du mit der Hand berühren musst, um den Einsatz zu geben.',
-  'Prüfungen: Hier werden deine Fortschritte geprüft und bewertet.'
+  'Prüfungen: Hier werden deine Fortschritte geprüft und bewertet. Eine Prüfung / Ein Test besteht aus mehreren Aufgaben, die nacheinander absolviert werden müssen. Jede Aufgabe geht 20s lang. Der Zeitverlauf wird durch einen grünen Fortschrittsbalken am unteren Bildschirmrand angezeigt.'
 ];
 
 export const levelTitles = [
@@ -294,4 +294,13 @@ export const uiElementDescriptions = {
     'Einsatz': 'Stellt die Zählzeit ein, auf der der Einsatz gegeben werden soll.'
   }
 
+}
+
+
+export const examExerciseDescriptions = {
+  'Eingewöhnung': 'Berühre die farblich hervorgehobenen Kreise mit deinen Händen. Orangene Kreise mit rechts, blaue Kreise mit links. Wenn zwei Kreise gleichzeitig hervorgehoben sind, müssen sie gleichzeitig berührt werden.',
+  'Gleichmäßigkeit': 'Führe die angezeigte Bewegung so präzise wie möglich aus. Folge dabei dem Bewegungspunkt mit deiner Hand.',
+  'Grundfiguren': 'Führe die angezeigte Bewegung so präzise wie möglich aus. Folge dabei dem Bewegungspunkt mit deiner Hand.',
+  'Dynamikebenen': 'Führe die angezeigte Bewegung so präzise wie möglich aus. Folge dabei dem Bewegungspunkt mit deiner Hand.',
+  'Handunabhängigkeit': 'Führe die angezeigte Bewegung so präzise wie möglich aus. Folge dabei dem Bewegungspunkt mit deiner Hand.'
 }

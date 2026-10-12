@@ -51,7 +51,7 @@ import {
   declineMotionAiDefaultsUpdate,
   resetMotionAiUserStorageToDefaults
 } from './defaultSettings.js';
-import { getLevelCountForChapter, levelTitles, uiElementDescriptions } from './constants.js';
+import { examExerciseDescriptions, getLevelCountForChapter, levelTitles, uiElementDescriptions } from './constants.js';
 
 function normalizeHelpKey(value) {
   return String(value ?? '')
@@ -5545,6 +5545,11 @@ function createSquareExercisePanel() {
 
   const saveTrailPreset = (slotNumber) => {
     const normalizedSlot = normalizeTrailPresetSlot(slotNumber);
+    // Take the positions straight from the canvas state, so a drag that has not been synced yet is still saved.
+    if (Array.isArray(managerRef?.chapter1OrientationPositions)) {
+      selectedOrientationPositions = managerRef.chapter1OrientationPositions.map((position) => ({ x: position.x, y: position.y }));
+      persistSettings();
+    }
     trailPresetData[String(normalizedSlot)] = {
       slot: normalizedSlot,
       trailSeconds: selectedTrailSeconds,
@@ -8436,7 +8441,15 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
   overlaySubtitle.className = 'exam-overlay-subtitle';
   overlayCard.appendChild(overlayKicker);
   overlayCard.appendChild(overlayTitle);
+  const overlayDescription = document.createElement('div');
+  overlayDescription.className = 'exam-overlay-description';
+  const overlayPauseButton = document.createElement('button');
+  overlayPauseButton.type = 'button';
+  overlayPauseButton.className = 'exam-overlay-pause';
+  overlayPauseButton.textContent = 'Countdown pausieren';
   overlayCard.appendChild(overlaySubtitle);
+  overlayCard.appendChild(overlayDescription);
+  overlayCard.appendChild(overlayPauseButton);
   examOverlay.appendChild(overlayCard);
   stageFrame.appendChild(examOverlay);
 
@@ -8651,6 +8664,7 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
     examCandidateName = '';
     uiState.finalExamCandidateName = '';
     examState.running = false;
+    examLevelManagerRef?.setConsistencyPanelSuppressed?.(false);
     examState.taskResults = [];
     startStopButton.classList.remove('active');
     startStopButton.textContent = 'Start';
@@ -8696,11 +8710,9 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
     if (chapterId === 1 && examLevelManagerRef && typeof examLevelManagerRef.getChapter1TouchScorePercent === 'function') {
       taskScore = examLevelManagerRef.getChapter1TouchScorePercent();
     } else if (chapterId === 2 && examLevelManagerRef) {
-      const averageAccuracy = Number(examLevelManagerRef.consistencyAccuracy) || 0;
-      const averageStrictness = Number(examLevelManagerRef.getAverageConsistencyTaskStrictnessPercent?.() ?? examLevelManagerRef.consistencyStrictnessPercent ?? 100);
-      const weightedStrictness = Math.max(1, averageStrictness);
-      const percent = (averageAccuracy * 100 * (100 / weightedStrictness));
-      taskScore = Math.max(0, Math.min(100, Math.round(percent)));
+      taskScore = typeof examLevelManagerRef.getConsistencyTaskScorePercent === 'function'
+        ? examLevelManagerRef.getConsistencyTaskScorePercent()
+        : Math.round(Math.max(0, Math.min(1, Number(examLevelManagerRef.consistencyAccuracy) || 0)) * 100);
     } else if ((chapterId === 3 || chapterId === 4 || chapterId === 5) && examLevelManagerRef && typeof examLevelManagerRef.getAverageMotionDistanceScorePercent === 'function') {
       taskScore = examLevelManagerRef.getAverageMotionDistanceScorePercent();
     } else if (chapterId === 6 && examLevelManagerRef && typeof examLevelManagerRef.getAverageExerciseFieldTaskScorePercent === 'function') {
@@ -8764,8 +8776,45 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
     examOverlay.classList.add('visible');
     progressShell.classList.add('hidden');
 
-    const countdownSequence = [3, 2, 1];
+    overlayDescription.textContent = examExerciseDescriptions[chapterLabel] || '';
+    overlayDescription.classList.toggle('hidden', !overlayDescription.textContent);
+    overlayPauseButton.classList.remove('hidden');
+    overlayPauseButton.textContent = 'Countdown pausieren';
+    overlayCard.classList.remove('is-paused');
+
+    const countdownSequence = [5, 4, 3, 2, 1];
+    const stepDurationMs = 1000;
     let stepIndex = 0;
+    let paused = false;
+    let stepStartedAt = 0;
+    let remainingMs = stepDurationMs;
+
+    const scheduleNextStep = (delayMs) => {
+      remainingMs = delayMs;
+      stepStartedAt = performance.now();
+      examState.previewTimeout = window.setTimeout(runCountdownStep, delayMs);
+    };
+
+    overlayPauseButton.onclick = () => {
+      if (!examState.running) {
+        return;
+      }
+      if (!paused) {
+        paused = true;
+        window.clearTimeout(examState.previewTimeout);
+        examState.previewTimeout = null;
+        remainingMs = Math.max(0, remainingMs - (performance.now() - stepStartedAt));
+        overlayPauseButton.textContent = 'Countdown fortsetzen';
+        overlayCard.classList.add('is-paused');
+        overlayKicker.textContent = `Aufgabe ${examState.currentIndex + 1} · PAUSIERT`;
+      } else {
+        paused = false;
+        overlayPauseButton.textContent = 'Countdown pausieren';
+        overlayCard.classList.remove('is-paused');
+        overlayKicker.textContent = `Aufgabe ${examState.currentIndex + 1}`;
+        scheduleNextStep(remainingMs);
+      }
+    };
 
     const runCountdownStep = () => {
       if (!examState.running) {
@@ -8776,16 +8825,22 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
         overlayTitle.textContent = `Startet in ${currentCountdownValue}`;
         overlaySubtitle.textContent = `${chapterLabel} · ${levelLabel} · Preset ${Number(task.presetIndex || 0) + 1}`;
         stepIndex += 1;
-        examState.previewTimeout = window.setTimeout(runCountdownStep, 1000);
+        scheduleNextStep(stepDurationMs);
         return;
       }
 
+      overlayCard.classList.remove('is-paused');
+      overlayPauseButton.classList.add('hidden');
+      overlayDescription.classList.add('hidden');
       examOverlay.classList.add('hidden');
       if (examLevelManagerRef && typeof examLevelManagerRef.setChapter1ExamTouchCounterEnabled === 'function') {
         examLevelManagerRef.setChapter1ExamTouchCounterEnabled(true);
       }
       if (examLevelManagerRef && typeof examLevelManagerRef.setChapter1ExamTouchInputEnabled === 'function') {
         examLevelManagerRef.setChapter1ExamTouchInputEnabled(true);
+      }
+      if (task.chapterId === 2 && examLevelManagerRef && typeof examLevelManagerRef.setConsistencyTaskScoringEnabled === 'function') {
+        examLevelManagerRef.setConsistencyTaskScoringEnabled(true);
       }
       examState.startTime = performance.now();
       progressShell.classList.remove('hidden');
@@ -8834,6 +8889,7 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
     setActiveLevel(activeExamLevel, { skipHandlers: true });
     uiState.examSelectionInProgress = false;
     examState.running = true;
+    examLevelManagerRef?.setConsistencyPanelSuppressed?.(true);
     examState.currentIndex = 0;
     examState.taskResults = [];
     startStopButton.classList.add('active');
@@ -8851,6 +8907,7 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
     const nextIndex = (examState.currentIndex + direction + tasks.length) % tasks.length;
     examState.currentIndex = nextIndex;
     examState.running = true;
+    examLevelManagerRef?.setConsistencyPanelSuppressed?.(true);
     startStopButton.classList.add('active');
     startStopButton.textContent = 'Stop';
     startTaskSequence();
@@ -9778,6 +9835,7 @@ export async function initApp() {
     setChapter1FocusSound: (value) => levelManager.setChapter1FocusSound(value),
     setChapter1FocusAnticipation: (value) => levelManager.setChapter1FocusAnticipation(value),
     setChapter1OrientationPositions: (value) => levelManager.setChapter1OrientationPositions(value),
+    get chapter1OrientationPositions() { return levelManager.chapter1OrientationPositions; },
     setWalkingBassMetronomeEnabled: (value) => levelManager.setWalkingBassMetronomeEnabled(value),
     setWalkingBassAnticipationEnabled: (value) => levelManager.setWalkingBassAnticipationEnabled(value),
     alternatingExerciseScaleMode: levelManager.alternatingScaleMode,
@@ -10037,7 +10095,7 @@ export async function initApp() {
       exerciseFieldPanel.setVisible(false);
       levelManager.setExerciseFieldVisible(false);
       examPanel.setActiveLevel(level);
-      examPanel.setVisible(Number.isInteger(level) && level >= 0 && level <= 4);
+      examPanel.setVisible((Number.isInteger(level) && level >= 0 && level <= 4) || examPanel.isRunning());
       return;
     }
     if (examPanel.isRunning() && !uiState.examSelectionInProgress) {

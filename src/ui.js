@@ -278,6 +278,7 @@ function renderChapterButtons(chapterRow, levelRow) {
         uiState.activeLevel = null;
         renderChapterButtons(chapterRow, levelRow);
         renderLevelButtons(levelRow);
+        playLevelRowAnimation(levelRow);
         emitChapterChange(index);
         emitLevelChange(uiState.activeLevel);
       },
@@ -285,6 +286,14 @@ function renderChapterButtons(chapterRow, levelRow) {
     );
     chapterRow.appendChild(button);
   }
+}
+
+function playLevelRowAnimation(levelRow) {
+  Array.from(levelRow.children).forEach((child, i) => {
+    child.style.setProperty('--enter-delay', `${i * 40}ms`);
+    child.classList.add('level-enter');
+    child.addEventListener('animationend', () => child.classList.remove('level-enter'), { once: true });
+  });
 }
 
 function renderLevelButtons(levelRow) {

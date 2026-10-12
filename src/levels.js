@@ -198,8 +198,13 @@ export class LevelManager {
     this.dynamicRangeGuideVisible = false;
     this.consistencyActive = false;
     this.consistencyInfoEl = null;
+    this.consistencyPanelSuppressed = false;
     this.consistencyScoreHistory = [];
     this.consistencyTaskStrictnessHistory = [];
+    this.consistencyTaskScoreSum = 0;
+    this.consistencyTaskScoreDuration = 0;
+    this.consistencyTaskLastSample = null;
+    this.consistencyTaskScoringEnabled = false;
     this.consistencyAccuracy = 0;
     this.consistencyAnimationStart = performance.now();
     this.consistencyPhase = 0;
@@ -2504,7 +2509,7 @@ export class LevelManager {
 
       this.calibrationInfoEl.innerHTML = `
         <h3>Kallibrierung - Oberkörper</h3>
-        <p>Bitte circa 1 m von der Kamera entfernt stehen, die Kamera auf Brusthöhe und gerade ausgerichtet positionieren. Am besten eignet sich eine feste Laptop- oder Webcam-Position.</p>
+        <p>Bitte circa 1 m von der Kamera entfernt stehen (beim iPad: 0,5 m–1 m, Laptop: 1 m–1,5 m), die Kamera auf Brusthöhe und gerade ausgerichtet positionieren.</p>
         <h4>Neukalibrierung:</h4>
         <ol>
           <li>Stelle dein Gesicht in das rote Augen-Rechteck.</li>
@@ -2889,12 +2894,19 @@ export class LevelManager {
     this.consistencyInfoEl = panel;
   }
 
+  setConsistencyPanelSuppressed(suppressed) {
+    this.consistencyPanelSuppressed = Boolean(suppressed);
+    if (this.consistencyPanelSuppressed) {
+      this.setConsistencyPanelVisible(false);
+    }
+  }
+
   setConsistencyPanelVisible(visible) {
     if (!this.consistencyInfoEl) {
       return;
     }
 
-    const shouldShow = Boolean(visible);
+    const shouldShow = Boolean(visible) && !this.consistencyPanelSuppressed;
     this.consistencyInfoEl.style.display = shouldShow ? 'block' : 'none';
 
     if (shouldShow) {
@@ -12208,6 +12220,23 @@ export class LevelManager {
 
   resetConsistencyTaskStrictnessHistory() {
     this.consistencyTaskStrictnessHistory = [];
+    this.consistencyTaskScoreSum = 0;
+    this.consistencyTaskScoreDuration = 0;
+    this.consistencyTaskLastSample = null;
+    this.consistencyTaskScoringEnabled = false;
+  }
+
+  setConsistencyTaskScoringEnabled(enabled) {
+    this.consistencyTaskScoringEnabled = Boolean(enabled);
+    this.consistencyTaskLastSample = null;
+  }
+
+  getConsistencyTaskScorePercent() {
+    if (!(this.consistencyTaskScoreDuration > 0)) {
+      return Math.round(Math.max(0, Math.min(1, this.consistencyAccuracy || 0)) * 100);
+    }
+    const avg = this.consistencyTaskScoreSum / this.consistencyTaskScoreDuration;
+    return Math.round(Math.max(0, Math.min(1, avg)) * 100);
   }
 
   getAverageConsistencyTaskStrictnessPercent() {
@@ -12236,46 +12265,37 @@ export class LevelManager {
     const score = this.calculateConsistencyScore(scene, threshold);
     this.consistencyScoreHistory.push({ ts: nowMs, score });
 
+    if (this.consistencyTaskScoringEnabled) {
+      const last = this.consistencyTaskLastSample;
+      if (last) {
+        const dt = Math.max(0, nowMs - last.ts);
+        this.consistencyTaskScoreSum += score * dt;
+        this.consistencyTaskScoreDuration += dt;
+      }
+      this.consistencyTaskLastSample = { ts: nowMs, score };
+    }
+
+    // Keep one sample at/before the cutoff so the window start is covered.
     const cutoff = nowMs - 3000;
-    while (this.consistencyScoreHistory.length > 0 && this.consistencyScoreHistory[0].ts < cutoff) {
-      this.consistencyScoreHistory.shift();
+    const history = this.consistencyScoreHistory;
+    while (history.length > 1 && history[1].ts <= cutoff) {
+      history.shift();
     }
 
-    if (this.consistencyScoreHistory.length === 0) {
-      this.consistencyAccuracy = 0;
-      return;
-    }
-
-    if (this.consistencyScoreHistory.length === 1) {
-      this.consistencyAccuracy = Math.max(0, Math.min(1, this.consistencyScoreHistory[0].score));
-      return;
-    }
-
+    // Each sample's score applies to the interval ending at that sample,
+    // so a fresh sample moves the 3s average immediately.
     let weightedSum = 0;
     let totalDuration = 0;
-
-    for (let i = 0; i < this.consistencyScoreHistory.length - 1; i += 1) {
-      const current = this.consistencyScoreHistory[i];
-      const next = this.consistencyScoreHistory[i + 1];
-      const segmentStart = Math.max(current.ts, cutoff);
-      const segmentEnd = Math.min(next.ts, nowMs);
-      const dt = Math.max(0, segmentEnd - segmentStart);
-      if (dt <= 0) {
-        continue;
+    for (let i = 1; i < history.length; i += 1) {
+      const segmentStart = Math.max(history[i - 1].ts, cutoff);
+      const dt = history[i].ts - segmentStart;
+      if (dt > 0) {
+        weightedSum += history[i].score * dt;
+        totalDuration += dt;
       }
-
-      // Piecewise-constant integration: score stays valid until next sample.
-      weightedSum += current.score * dt;
-      totalDuration += dt;
     }
 
-    if (totalDuration <= 0) {
-      const lastScore = this.consistencyScoreHistory[this.consistencyScoreHistory.length - 1].score;
-      this.consistencyAccuracy = Math.max(0, Math.min(1, lastScore));
-      return;
-    }
-
-    const avg = weightedSum / totalDuration;
+    const avg = totalDuration > 0 ? weightedSum / totalDuration : score;
     this.consistencyAccuracy = Math.max(0, Math.min(1, avg));
   }
 
@@ -12412,7 +12432,7 @@ export class LevelManager {
       this.ctx.fill();
       this.ctx.restore();
 
-      if (isActiveTouch) {
+      if (isActiveTouch && !this.consistencyPanelSuppressed) {
         this.ctx.save();
         this.ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
         this.ctx.font = '700 16px Arial';
