@@ -1,6 +1,6 @@
 export const CHAPTER_COUNT = 8;
 export const LEVEL_COUNT = 5;
-export const chapterLevelCounts = [4, 5, 6, 7, 4, 4, 3, 5];
+export const chapterLevelCounts = [4, 5, 8, 7, 4, 4, 3, 5];
 
 export function getLevelCountForChapter(chapter) {
   if (!Number.isInteger(chapter) || chapter < 0 || chapter >= chapterLevelCounts.length) {
@@ -28,13 +28,13 @@ export const chapterDescriptions = [
   'Dynamikebenen: Hier können die Grundfiguren mit verschiedenen Dynamikstufen für einzelne Zählzeiten geübt werden.',
   'Handunabhängigkeit: Übe die Unabhängigkeit deiner Hände durch unterschiedliche Bewegungsmuster in der linken und rechten Hand.',
   'Einsätze geben: Übe mit einer Hand eine Grundfigur und mit der anderen Hand das Geben von Einsätzen. Die nummerierten Kreise stellen die Zählzeiten dar. Berühre sie im richtigen Moment, beim Ausführen der Grundfigur. Die vier Quadrate sind die Einsatzfelder, die du mit der Hand berühren musst, um den Einsatz zu geben.',
-  'Prüfungen: Hier werden deine Fortschritte geprüft und bewertet.'
+  'Prüfungen: Hier werden deine Fortschritte geprüft und bewertet. Eine Prüfung / Ein Test besteht aus mehreren Aufgaben, die nacheinander absolviert werden müssen. Jede Aufgabe geht 20s lang. Der Zeitverlauf wird durch einen grünen Fortschrittsbalken am unteren Bildschirmrand angezeigt.'
 ];
 
 export const levelTitles = [
   ['Oberkörper', 'Maximum', 'Minimum', 'Dynamikbereich'],
-  ['Ziffern', 'Punkte', 'Freie Bewegung', 'Walking Bass', 'Leer 2'],
-  ['Rechte Linie', 'Linke Linie', 'Synchron', 'Versetzt', '2:1 Tempo', 'Ellipsen'],
+  ['Ziffern', 'Punkte', 'Freie Bewegung', 'Walking Bass', 'Schweif'],
+  ['Rechte Linie', 'Linke Linie', 'Synchron', 'Versetzt', '2:1 Tempo', 'Ellipsen', 'Horizontal', 'Liegende Acht'],
   ['Einserfigur', 'Zweierfigur', 'Dreierfigur', 'Viererfigur', 'Fünferfigur', 'Sechserfigur', 'Siebenerfigur'],
   ['Einsertakt', 'Zweiertakt', 'Dreiertakt', 'Vierertakt'],
   ['Einserfigur', 'Zweierfigur', 'Dreierfigur', 'Viererfigur'],
@@ -54,7 +54,7 @@ export const levelDescriptions = [
     'Punkte: Berühre den aktiven Punkt. Die aktiven Punkte erscheinen nacheinander und müssen in der richtigen Reihenfolge berührt werden. Außerdem können in dieser Übung eigene Formen und Abläufe erstellt werden, die dann in den Presets gespeichert werden können.',
     'Freie Bewegung: Führe freie Bewegungen mit beiden Händen aus. Tipp: Durch das langsame Ausblenden der Kreise nach dem Berühren kann die Bewegung besser nachvollzogen werden. Versuche beipielsweise eine gerade Linie zu zeichnen und verfolge live die Bewegungsgenauigkeit mit.',
     'Walking Bass: Bewege die Hand nach unten und wieder nach oben. Beim Richtungswechsel am unteren Umkehrpunkt erklingt ein Basston. Je schneller die Abwärtsbewegung, desto lauter der Anschlag. Jede Hand spielt für sich.',
-    'Leer 2: Berühre den aktiven Punkt.'
+    'Schweif: Bewege die Hand frei. Der Handtip zeichnet Frame für Frame einen Schweif, der in der eingestellten Zeit langsam verblasst.'
   ],
   [
     'Rechte Linie: Folge mit der rechten Hand einem Punkt auf einer vertikalen Linie von oben nach unten.',
@@ -62,7 +62,9 @@ export const levelDescriptions = [
     'Synchron: Beide Hände folgen gleichzeitig zwei synchronen vertikalen Linien von oben nach unten.',
     'Versetzt: Beide Hände folgen zwei vertikalen Linien mit zeitlich versetzten Punkten.',
     '2:1 Tempo: Zwei vertikale Linien, wobei die linke Hand doppelt so schnell wie die rechte geführt wird.',
-    'Ellipsen: Beide Hände folgen zwei Punkten auf elliptischen Kreisbahnen in einer Dauerschleife.'
+    'Ellipsen: Beide Hände folgen zwei Punkten auf elliptischen Kreisbahnen in einer Dauerschleife.',
+    'Horizontal: Beide Hände folgen synchron je einem Punkt, eine Hand auf einer vertikalen und die andere auf einer horizontalen Linie. Die Zuordnung der Hände lässt sich tauschen.',
+    'Liegende Acht: Folge einem Punkt auf einer liegenden Acht in einer Dauerschleife, mit der linken, der rechten oder beiden Händen.'
   ],
   [
     'Einserfigur: Zwei Segmente, weich/hart interpoliert am zentralen Fixpunkt.',
@@ -198,6 +200,12 @@ export const uiElementDescriptions = {
     Gitarrenfeld: 'Blendet das Gitarrenfeld ein oder aus. Das Feld lässt sich mit der Maus an eine beliebige Stelle ziehen. Jede Berührung mit einer Hand spielt den nächsten der vier Gitarrenakkorde im Loop.',
     Einsatzfelder: 'Keine Einsatzfelder: Es gibt keine Felder auf dem Canvas. Gitarrenfeld: Ein Feld spielt bei jeder Berührung den nächsten Gitarrenakkord. Ensemble Felder: Vier Felder für Flöte, Klarinette, Brass und Streicher, die per Maus verschoben werden können. Jede Berührung spielt den nächsten Jazzakkord der gewählten Akkordfolge auf dem Instrument des Feldes.',
     GitarrenfeldBewegung: 'Fix: Das Feld bleibt, wo du es mit der Maus hinziehst. Random Walk Rechts/Links: Das Feld wandert in einem scheinbar zufälligen, aber sich wiederholenden Muster nur auf der rechten bzw. linken Hälfte des Canvas.',
+    Schweiflänge: 'Stellt ein, wie lange der Schweif sichtbar bleibt, bevor er vollständig verblasst (1–10 s).',
+    SchweifGeschwindigkeit: 'Passt die Strichstärke des Schweifs an die Bewegungsgeschwindigkeit an. Bei 0 % bleibt sie immer gleich; je höher der Wert, desto dicker wird der Strich bei schnellen und desto dünner bei langsamen Bewegungen.',
+    Schwerpunkt: 'Wählt einen der Orientierungspunkte als Schwerpunkt. Wendet die Hand in der Nähe dieses Punktes von einer Abwärts- in eine Aufwärtsbewegung, erklingt ein Sound.',
+    SchwerpunktSound: 'Wählt den Sound, der beim Richtungswechsel am Schwerpunkt für beide Hände erklingt.',
+    Orientierungspunkte: 'Blendet 0 bis 5 Orientierungspunkte im Canvas ein. Die Punkte lassen sich mit der Maus an die gewünschte Stelle ziehen.',
+    Schweifglättung: 'Glättet nur die Darstellung des Schweifs, damit Zittern durch ungenaues Tracking die Linie nicht verformt. Die Position des Handtips bleibt unverändert.',
     WalkingBassMetronom: 'Schaltet den Metronom-Klick ein oder aus. Das Tempo wird mit dem Regler darunter eingestellt.',
     WalkingBassSchwellwert: 'Mindestbewegung auf der senkrechten Achse, ab der ein Richtungswechsel erkannt wird. Höhere Werte unterdrücken Zittern durch die Posenerkennung, niedrigere Werte reagieren empfindlicher.',
     WalkingBassDynamik: 'Bestimmt, wie stark die Geschwindigkeit der Abwärtsbewegung die Lautstärke des Anschlags beeinflusst. Bei 0 % klingt jeder Anschlag gleich laut.',
@@ -220,6 +228,8 @@ export const uiElementDescriptions = {
     Linearität: 'Stellt die Linearität der Bewegung ein. Linearität = 100 hält das Bewegungsgeschwindigkeit konstant, während Linearität = 0 die Geschwindigkeit an den Zählzeit-Eckpunkten der Bewegung beschleunigt, um ein abfedern der Bewegung zu erzeugen.',
     Übergangslänge: 'Stellt die Übergangslänge für die Bewegungsgeschwindigkeit zwischen den farblich markierten Segmanten ein. Da jedes Segment unterschiedlich lang ist, aber die Zeit, in der es durchlaufen wird, gleich bleibt, braucht jedes Segment eine eigene Bewegungsgeschwindigkeit. Damit es keine Geschwindigkeitssprünge gibt, kann mit der Übergangslänge die Geschwindigkeit sanft von einem Segment auf das nächste abgeändert/angepasst werden. Die Übergangslänge bestimmt, wie lange es dauert, bis die Bewegungsgeschwindigkeit von einem Segment auf das nächste übergeht.',
     Stroke: 'Bestimmmt die Strichstärke der Grundfigur.',
+    Schweif: 'Zeichnet die Bewegungslinie der Hand als verblassenden Schweif. Je näher die Hand am Bewegungspunkt ist, desto deutlicher ist er sichtbar; je höher die Strenge, desto schneller verschwindet er.',
+    Schweifglättung: 'Glättet nur die Darstellung des Schweifs, damit Zittern durch ungenaues Tracking die Linie nicht verformt. Die Position des Handtips bleibt unverändert.',
     Distanzdiagramm: 'Blendet die normierte Bewertungsanzeige und den Verlauf der letzten vier Takte ein oder aus.',
     DistanzStrenge: 'Bestimmt die Toleranz der weichen Score-Kurve. Niedrigere Werte führen bei größeren Abweichungen zu höheren Scores.',
     Bewertungsmetriken: 'Zeigt je Hand den aktuellen Wert und den Durchschnitt der Gesamtbewertung, des Bahnabstands, des Timings und der Bewegungsrichtung.',
@@ -241,6 +251,8 @@ export const uiElementDescriptions = {
     Presets: 'Wählt ein vorgegebenes Preset aus.',
     Speichern: 'Speichert die aktuelle Konfiguration.',
     Zurücksetzen: 'Setzt die Konfiguration auf den Standard zurück.',
+    Schweif: 'Zeichnet die Bewegungslinie der Hand als verblassenden Schweif. Je näher die Hand am Bewegungspunkt ist, desto deutlicher ist er sichtbar; je höher die Strenge, desto schneller verschwindet er.',
+    Schweifglättung: 'Glättet nur die Darstellung des Schweifs, damit Zittern durch ungenaues Tracking die Linie nicht verformt. Die Position des Handtips bleibt unverändert.',
     Distanzdiagramm: 'Blendet die normierte Bewertungsanzeige und den Verlauf der letzten vier Takte ein oder aus.',
     DistanzStrenge: 'Bestimmt die Toleranz der weichen Score-Kurve. Niedrigere Werte führen bei größeren Abweichungen zu höheren Scores.',
     Bewertungsmetriken: 'Zeigt je Hand den aktuellen Wert und den Durchschnitt der Gesamtbewertung, des Bahnabstands, des Timings und der Bewegungsrichtung.',
@@ -264,6 +276,8 @@ export const uiElementDescriptions = {
     Gegensatz: 'Stellt die Form für die zweite Hand ein, die eine gegensätzliche Form zur ersten Hand darstellt. Die erste Hand ist die Taktgebung, die zweite Hand ist die Handunabhängigkeit.',
     Länge: 'Stellt die Länge der Gegensatzfigur ein.',
     Rotation: 'Stellt die Rotation der Gegensatzfigur ein.',
+    Schweif: 'Zeichnet die Bewegungslinie der Hand als verblassenden Schweif. Je näher die Hand am Bewegungspunkt ist, desto deutlicher ist er sichtbar; je höher die Strenge, desto schneller verschwindet er.',
+    Schweifglättung: 'Glättet nur die Darstellung des Schweifs, damit Zittern durch ungenaues Tracking die Linie nicht verformt. Die Position des Handtips bleibt unverändert.',
     Distanzdiagramm: 'Blendet die normierte Bewertungsanzeige und den Verlauf der letzten vier Takte ein oder aus.',
     DistanzStrenge: 'Bestimmt die Toleranz der weichen Score-Kurve. Niedrigere Werte führen bei größeren Abweichungen zu höheren Scores.',
     Bewertungsmetriken: 'Zeigt je Hand den aktuellen Wert und den Durchschnitt der Gesamtbewertung, des Bahnabstands, des Timings und der Bewegungsrichtung.',
@@ -280,4 +294,13 @@ export const uiElementDescriptions = {
     'Einsatz': 'Stellt die Zählzeit ein, auf der der Einsatz gegeben werden soll.'
   }
 
+}
+
+
+export const examExerciseDescriptions = {
+  'Eingewöhnung': 'Berühre die farblich hervorgehobenen Kreise mit deinen Händen. Orangene Kreise mit rechts, blaue Kreise mit links. Wenn zwei Kreise gleichzeitig hervorgehoben sind, müssen sie gleichzeitig berührt werden.',
+  'Gleichmäßigkeit': 'Führe die angezeigte Bewegung so präzise wie möglich aus. Folge dabei dem Bewegungspunkt mit deiner Hand.',
+  'Grundfiguren': 'Führe die angezeigte Bewegung so präzise wie möglich aus. Folge dabei dem Bewegungspunkt mit deiner Hand.',
+  'Dynamikebenen': 'Führe die angezeigte Bewegung so präzise wie möglich aus. Folge dabei dem Bewegungspunkt mit deiner Hand.',
+  'Handunabhängigkeit': 'Führe die angezeigte Bewegung so präzise wie möglich aus. Folge dabei dem Bewegungspunkt mit deiner Hand.'
 }

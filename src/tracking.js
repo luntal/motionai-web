@@ -139,6 +139,21 @@ export function startTracking(videoElement, canvasElement, options = {}) {
     canvasElement.parentNode.insertBefore(activeOverlayCanvas, canvasElement.nextSibling);
   }
 
+  // Hand tip markers live on their own layer above the level overlay (z-index 18).
+  const triggerCanvas = document.createElement('canvas');
+  const triggerCtx = triggerCanvas.getContext('2d');
+  if (canvasElement.parentNode) {
+    triggerCanvas.className = 'tracking-trigger-layer';
+    triggerCanvas.style.position = 'absolute';
+    triggerCanvas.style.left = '0';
+    triggerCanvas.style.top = '0';
+    triggerCanvas.style.width = '100%';
+    triggerCanvas.style.height = '100%';
+    triggerCanvas.style.pointerEvents = 'none';
+    triggerCanvas.style.zIndex = '19';
+    canvasElement.parentNode.appendChild(triggerCanvas);
+  }
+
   const VIDEO_RESOLUTION_PRESETS = {
     high: { width: 1280, height: 720 },
     low: { width: 640, height: 360 }
@@ -213,6 +228,8 @@ export function startTracking(videoElement, canvasElement, options = {}) {
     if (canvasElement.width !== width || canvasElement.height !== height) {
       canvasElement.width = width;
       canvasElement.height = height;
+      triggerCanvas.width = width;
+      triggerCanvas.height = height;
       if (safariOverlayCanvas) {
         safariOverlayCanvas.width = width;
         safariOverlayCanvas.height = height;
@@ -741,6 +758,7 @@ export function startTracking(videoElement, canvasElement, options = {}) {
 
   function drawMirroredFrame(image) {
     resizeCanvasIfNeeded();
+    triggerCtx.clearRect(0, 0, triggerCanvas.width, triggerCanvas.height);
 
     if (isSafariBrowser()) {
       applySafariCanvasSoftening(canvasElement);
@@ -777,7 +795,7 @@ export function startTracking(videoElement, canvasElement, options = {}) {
       return;
     }
 
-    const drawContext = activeOverlayCtx || ctx;
+    const drawContext = triggerCtx;
     const x = toMirroredCanvasX(normalizedPoint.x);
     const y = normalizedPoint.y * canvasElement.height;
     const radius = triggerStyle.radius;
@@ -788,6 +806,9 @@ export function startTracking(videoElement, canvasElement, options = {}) {
     drawContext.arc(x, y, radius, 0, Math.PI * 2);
     drawContext.fillStyle = colors.fill;
     drawContext.fill();
+    drawContext.lineWidth = 1.5;
+    drawContext.strokeStyle = '#ffffff';
+    drawContext.stroke();
 
     if (label) {
       drawContext.save();

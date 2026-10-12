@@ -198,8 +198,13 @@ export class LevelManager {
     this.dynamicRangeGuideVisible = false;
     this.consistencyActive = false;
     this.consistencyInfoEl = null;
+    this.consistencyPanelSuppressed = false;
     this.consistencyScoreHistory = [];
     this.consistencyTaskStrictnessHistory = [];
+    this.consistencyTaskScoreSum = 0;
+    this.consistencyTaskScoreDuration = 0;
+    this.consistencyTaskLastSample = null;
+    this.consistencyTaskScoringEnabled = false;
     this.consistencyAccuracy = 0;
     this.consistencyAnimationStart = performance.now();
     this.consistencyPhase = 0;
@@ -207,6 +212,37 @@ export class LevelManager {
     this.consistencyTempoBpm = 100;
     this.consistencyStrictnessPercent = 100;
     this.consistencyMotionBlendPercent = 0;
+    this.consistencySwapOrientation = false;
+    this.consistencyReverseDirection = false;
+    this.consistencyLineDistance = 0.25;
+    this.consistencyHorizontalLineY = 0.53;
+    this.consistencyLineEnds = { vertical: { left: null, right: null }, horizontal: { left: null, right: null } };
+    this.consistencyHandMode = 'both';
+    this.chapter1TrailSeconds = 3;
+    this.chapter1TrailSmoothing = true;
+    this.chapter1TrailSpeedWidth = 0;
+    this.chapter1OrientationCount = 0;
+    this.chapter1OrientationPositions = [
+      { x: 0.5, y: 0.25 },
+      { x: 0.3, y: 0.5 },
+      { x: 0.7, y: 0.5 },
+      { x: 0.4, y: 0.75 },
+      { x: 0.6, y: 0.75 }
+    ];
+    this.chapter1OrientationDrag = null;
+    this.chapter1FocusPoint = 0;
+    this.chapter1FocusSound = 'bass';
+    this.chapter1FocusStateByHand = { left: null, right: null };
+    this.chapter1FocusAnticipation = false;
+    this.chapter1FocusStepByHand = { left: 0, right: 0 };
+    this.chapter1FocusPulses = [];
+    this.chapter1TrailByHand = { left: [], right: [] };
+    this.consistencyTrailEnabled = true;
+    this.consistencyTrailSmoothing = true;
+    this.consistencyTrailSeconds = 2;
+    this.consistencyTrailByHand = { left: [], right: [] };
+    this.consistencyTrailInsideByHand = { left: false, right: false };
+    this.consistencyLineDrag = null;
     this.consistencySettingsStorageKey = 'motionai.consistency-panel-settings';
     this.consistencyPresetStorageKey = 'motionai.consistency-presets';
     this.consistencyTouchStateByHand = {
@@ -234,6 +270,7 @@ export class LevelManager {
     this.chapter1TouchCount = 0;
     this.chapter1LastCountedCircleByHand = { left: null, right: null };
     this.chapter1TouchActiveByHand = { left: false, right: false };
+    this.pointExerciseRequireLeave = { left: null, right: null };
     this.chapter1TouchGoalCount = 100;
     this.chapter1ExamTouchCounterEnabled = false;
     this.chapter1ExamTouchInputEnabled = true;
@@ -314,6 +351,11 @@ export class LevelManager {
     this.dynamicFigureSoftTransitionPercent = 0;
     this.dynamicFigureCornerHeights = Array(8).fill(0);
     this.dynamicFigureCornerHeightsByLevel = this.loadDynamicFigureCornerHeights();
+    this.dynamicFigureCornerOffsets = this.createEmptyFigureCornerOffsets();
+    this.dynamicFigureCornerOffsetsByLevel = this.loadDynamicFigureCornerOffsets();
+    this.figureCornerEditGate = () => false;
+    this.figureCornerDrag = null;
+    this.figureCornerHover = null;
     this.dynamicFigureAnimationStart = performance.now();
     this.dynamicFigureActive = false;
     this.handIndependenceActive = false;
@@ -333,6 +375,7 @@ export class LevelManager {
     this.handIndependenceFigureY = 0.5;
     this.handIndependenceFigureLevel = 0;
     this.handIndependenceFigureCornerHeights = Array(8).fill(0);
+    this.handIndependenceFigureCornerOffsets = this.createEmptyFigureCornerOffsets();
     this.handIndependenceShape = 'line';
     this.handIndependenceShapeLength = 12;
     this.handIndependenceShapeWidth = 8;
@@ -345,6 +388,11 @@ export class LevelManager {
     this.handIndependenceAnimationStart = performance.now();
     this.motionDistanceVisible = false;
     this.motionDistanceStrictness = 100;
+    this.motionTrailEnabledByChapter = { 3: false, 4: false, 5: false };
+    this.motionTrailSmoothingByChapter = { 3: true, 4: true, 5: true };
+    this.motionTrailByHand = { left: [], right: [] };
+    this.motionTrailLifetimeMsByHand = { left: 0, right: 0 };
+    this.motionTrailLastValidByHand = { left: false, right: false };
     this.motionDistanceScoreWeights = { path: 45, timing: 30, direction: 25 };
     this.motionDistanceHistory = { left: [], right: [] };
     this.motionDistanceFrameTargets = [];
@@ -2462,7 +2510,7 @@ export class LevelManager {
 
       this.calibrationInfoEl.innerHTML = `
         <h3>Kallibrierung - Oberkörper</h3>
-        <p>Bitte circa 1 m von der Kamera entfernt stehen, die Kamera auf Brusthöhe und gerade ausgerichtet positionieren. Am besten eignet sich eine feste Laptop- oder Webcam-Position.</p>
+        <p>Bitte circa 1 m von der Kamera entfernt stehen (beim iPad: 0,5 m–1 m, Laptop: 1 m–1,5 m), die Kamera auf Brusthöhe und gerade ausgerichtet positionieren.</p>
         <h4>Neukalibrierung:</h4>
         <ol>
           <li>Stelle dein Gesicht in das rote Augen-Rechteck.</li>
@@ -2575,7 +2623,7 @@ export class LevelManager {
   }
 
   getConsistencySettingsBucket(levelIndex) {
-    const safeLevel = Number.isInteger(levelIndex) ? Math.max(0, Math.min(5, levelIndex)) : 0;
+    const safeLevel = Number.isInteger(levelIndex) ? Math.max(0, Math.min(7, levelIndex)) : 0;
     const settings = this.readConsistencySettingsMap();
     const levelKey = String(safeLevel);
     const bucket = settings[levelKey];
@@ -2587,7 +2635,16 @@ export class LevelManager {
     const nextBucket = {
       tempoBpm: 100,
       strictnessPercent: 100,
-      motionBlendPercent: 0
+      motionBlendPercent: 0,
+      swapOrientation: false,
+      reverseDirection: false,
+      lineDistance: 0.25,
+      horizontalLineY: 0.53,
+      lineEnds: this.sanitizeConsistencyLineEnds(null),
+      handMode: 'both',
+      trailEnabled: true,
+      trailSmoothing: true,
+      trailSeconds: 2
     };
     settings[levelKey] = nextBucket;
     this.writeConsistencySettingsMap(settings);
@@ -2595,7 +2652,7 @@ export class LevelManager {
   }
 
   loadConsistencySettings(levelIndex = this.level) {
-    const safeLevel = Number.isInteger(levelIndex) ? Math.max(0, Math.min(5, levelIndex)) : 0;
+    const safeLevel = Number.isInteger(levelIndex) ? Math.max(0, Math.min(7, levelIndex)) : 0;
     const bucket = this.getConsistencySettingsBucket(safeLevel);
 
     const nextTempo = Number(bucket.tempoBpm);
@@ -2603,7 +2660,7 @@ export class LevelManager {
     const nextMotion = Number(bucket.motionBlendPercent);
 
     if (Number.isFinite(nextTempo)) {
-      this.consistencyTempoBpm = Math.min(170, Math.max(30, nextTempo));
+      this.consistencyTempoBpm = Math.min(170, Math.max(10, nextTempo));
     }
     if (Number.isFinite(nextStrictness)) {
       this.consistencyStrictnessPercent = Math.min(160, Math.max(70, nextStrictness));
@@ -2611,15 +2668,122 @@ export class LevelManager {
     if (Number.isFinite(nextMotion)) {
       this.consistencyMotionBlendPercent = Math.min(100, Math.max(0, nextMotion));
     }
+    this.consistencySwapOrientation = Boolean(bucket.swapOrientation);
+    this.consistencyReverseDirection = Boolean(bucket.reverseDirection);
+    this.applyConsistencyLinePositions(bucket);
+  }
+
+  sanitizeConsistencyLineDistance(value) {
+    const next = Number(value);
+    return Number.isFinite(next) ? Math.min(0.46, Math.max(0.05, next)) : 0.25;
+  }
+
+  sanitizeConsistencyHorizontalLineY(value) {
+    const next = Number(value);
+    return Number.isFinite(next) ? Math.min(0.9, Math.max(0.1, next)) : 0.53;
+  }
+
+  // Line end points are stored as fractions of the canvas height (vertical lines) or width (horizontal lines); null means default.
+  sanitizeConsistencyLineEnds(value) {
+    const sanitizePair = (pair, minGap) => {
+      if (!Array.isArray(pair)) {
+        return null;
+      }
+      const a = Number(pair[0]);
+      const b = Number(pair[1]);
+      if (!Number.isFinite(a) || !Number.isFinite(b)) {
+        return null;
+      }
+      const low = Math.max(0.02, Math.min(a, b));
+      const high = Math.min(0.98, Math.max(a, b));
+      return high - low >= minGap ? [low, high] : null;
+    };
+    const readGroup = (group, minGap) => ({
+      left: sanitizePair(group?.left, minGap),
+      right: sanitizePair(group?.right, minGap)
+    });
+    return {
+      vertical: readGroup(value?.vertical, 0.1),
+      horizontal: readGroup(value?.horizontal, 0.05)
+    };
+  }
+
+  cloneConsistencyLineEnds() {
+    return this.sanitizeConsistencyLineEnds(this.consistencyLineEnds);
+  }
+
+  // Levels with two mirrored vertical lines share one pair of end points.
+  isConsistencyLineEndsCoupled(orientation) {
+    return orientation === 'vertical' && [2, 3, 4].includes(this.level);
+  }
+
+  getConsistencyLineEnds(orientation, side) {
+    if (this.isConsistencyLineEndsCoupled(orientation)) {
+      side = 'left';
+    }
+    const stored = this.consistencyLineEnds?.[orientation]?.[side];
+    if (Array.isArray(stored)) {
+      return stored;
+    }
+    if (orientation === 'vertical') {
+      return [0.2, 0.86];
+    }
+    const w = this.canvas.width || 1;
+    const h = this.canvas.height || 1;
+    const halfLength = Math.min((0.86 - 0.2) * h / 2, w * 0.2);
+    const center = side === 'right' ? 0.75 : 0.25;
+    return side === 'right'
+      ? [center - halfLength / w, center]
+      : [center, center + halfLength / w];
+  }
+
+  applyConsistencyLinePositions(source) {
+    this.consistencyLineEnds = this.sanitizeConsistencyLineEnds(source?.lineEnds);
+    this.consistencyLineDistance = this.sanitizeConsistencyLineDistance(source?.lineDistance);
+    this.consistencyHorizontalLineY = this.sanitizeConsistencyHorizontalLineY(source?.horizontalLineY);
+    this.consistencyHandMode = ['left', 'right', 'both'].includes(source?.handMode) ? source.handMode : 'both';
+    this.consistencyTrailEnabled = typeof source?.trailEnabled === 'boolean' ? source.trailEnabled : true;
+    this.consistencyTrailSmoothing = typeof source?.trailSmoothing === 'boolean' ? source.trailSmoothing : true;
+    this.consistencyTrailSeconds = this.sanitizeConsistencyTrailSeconds(source?.trailSeconds);
+  }
+
+  sanitizeConsistencyTrailSeconds(value) {
+    const next = Number(value);
+    return Number.isFinite(next) ? Math.min(10, Math.max(0.5, next)) : 2;
+  }
+
+  // Ellipses and figure eights must stay completely on their own side of the center axis.
+  getConsistencyLineDistanceRange() {
+    if (this.level === 5) {
+      return { min: 0.13, max: 0.37 };
+    }
+    if (this.level === 7) {
+      return { min: 0.16, max: 0.34 };
+    }
+    return { min: 0.05, max: 0.46 };
+  }
+
+  getConsistencyEffectiveLineDistance() {
+    const { min, max } = this.getConsistencyLineDistanceRange();
+    return Math.min(max, Math.max(min, this.consistencyLineDistance));
   }
 
   persistConsistencySettings(levelIndex = this.level) {
-    const safeLevel = Number.isInteger(levelIndex) ? Math.max(0, Math.min(5, levelIndex)) : 0;
+    const safeLevel = Number.isInteger(levelIndex) ? Math.max(0, Math.min(7, levelIndex)) : 0;
     const settings = this.readConsistencySettingsMap();
     settings[String(safeLevel)] = {
       tempoBpm: this.consistencyTempoBpm,
       strictnessPercent: this.consistencyStrictnessPercent,
-      motionBlendPercent: this.consistencyMotionBlendPercent
+      motionBlendPercent: this.consistencyMotionBlendPercent,
+      swapOrientation: this.consistencySwapOrientation,
+      reverseDirection: this.consistencyReverseDirection,
+      lineDistance: this.consistencyLineDistance,
+      horizontalLineY: this.consistencyHorizontalLineY,
+      lineEnds: this.cloneConsistencyLineEnds(),
+      handMode: this.consistencyHandMode,
+      trailEnabled: this.consistencyTrailEnabled,
+      trailSmoothing: this.consistencyTrailSmoothing,
+      trailSeconds: this.consistencyTrailSeconds
     };
     this.writeConsistencySettingsMap(settings);
   }
@@ -2647,7 +2811,7 @@ export class LevelManager {
   }
 
   getConsistencyPresetBucket(levelIndex) {
-    const safeLevel = Number.isInteger(levelIndex) ? Math.max(0, Math.min(5, levelIndex)) : 0;
+    const safeLevel = Number.isInteger(levelIndex) ? Math.max(0, Math.min(7, levelIndex)) : 0;
     const presets = this.readConsistencyPresetMap();
     const levelKey = String(safeLevel);
     const bucket = presets[levelKey];
@@ -2662,20 +2826,45 @@ export class LevelManager {
   }
 
   applyConsistencyPreset(levelIndex, slotIndex) {
-    const safeLevel = Number.isInteger(levelIndex) ? Math.max(0, Math.min(5, levelIndex)) : 0;
+    const safeLevel = Number.isInteger(levelIndex) ? Math.max(0, Math.min(7, levelIndex)) : 0;
     const safeSlot = Number.isInteger(Number(slotIndex)) ? Math.max(0, Math.min(3, Number(slotIndex))) : 0;
     const bucket = this.getConsistencyPresetBucket(safeLevel);
     const preset = bucket[String(safeSlot)] || {};
 
     if (preset && typeof preset === 'object') {
       if (Number.isFinite(Number(preset.tempoBpm))) {
-        this.consistencyTempoBpm = Math.min(170, Math.max(30, Number(preset.tempoBpm)));
+        this.consistencyTempoBpm = Math.min(170, Math.max(10, Number(preset.tempoBpm)));
       }
       if (Number.isFinite(Number(preset.strictnessPercent))) {
         this.consistencyStrictnessPercent = Math.min(160, Math.max(70, Number(preset.strictnessPercent)));
       }
       if (Number.isFinite(Number(preset.motionBlendPercent))) {
         this.consistencyMotionBlendPercent = Math.min(100, Math.max(0, Number(preset.motionBlendPercent)));
+      }
+      if (typeof preset.swapOrientation === 'boolean') {
+        this.consistencySwapOrientation = preset.swapOrientation;
+      }
+      if (typeof preset.reverseDirection === 'boolean') {
+        this.consistencyReverseDirection = preset.reverseDirection;
+      }
+      if (Number.isFinite(Number(preset.lineDistance))) {
+        this.consistencyLineDistance = this.sanitizeConsistencyLineDistance(preset.lineDistance);
+      }
+      if (Number.isFinite(Number(preset.horizontalLineY))) {
+        this.consistencyHorizontalLineY = this.sanitizeConsistencyHorizontalLineY(preset.horizontalLineY);
+      }
+      this.consistencyLineEnds = this.sanitizeConsistencyLineEnds(preset.lineEnds);
+      if (['left', 'right', 'both'].includes(preset.handMode)) {
+        this.consistencyHandMode = preset.handMode;
+      }
+      if (typeof preset.trailEnabled === 'boolean') {
+        this.consistencyTrailEnabled = preset.trailEnabled;
+      }
+      if (typeof preset.trailSmoothing === 'boolean') {
+        this.consistencyTrailSmoothing = preset.trailSmoothing;
+      }
+      if (Number.isFinite(Number(preset.trailSeconds))) {
+        this.consistencyTrailSeconds = this.sanitizeConsistencyTrailSeconds(preset.trailSeconds);
       }
     }
 
@@ -2688,7 +2877,7 @@ export class LevelManager {
   }
 
   saveConsistencyPreset() {
-    const safeLevel = Number.isInteger(this.level) ? Math.max(0, Math.min(5, this.level)) : 0;
+    const safeLevel = Number.isInteger(this.level) ? Math.max(0, Math.min(7, this.level)) : 0;
     const bucket = this.getConsistencyPresetBucket(safeLevel);
     const requestedSlot = window.prompt('In welchen Preset-Slot möchten Sie die aktuellen Einstellungen speichern? (1-4)', String((Number(bucket.selectedSlot) || 0) + 1));
     const slot = Number(requestedSlot);
@@ -2700,7 +2889,16 @@ export class LevelManager {
     bucket[String(presetIndex)] = {
       tempoBpm: this.consistencyTempoBpm,
       strictnessPercent: this.consistencyStrictnessPercent,
-      motionBlendPercent: this.consistencyMotionBlendPercent
+      motionBlendPercent: this.consistencyMotionBlendPercent,
+      swapOrientation: this.consistencySwapOrientation,
+      reverseDirection: this.consistencyReverseDirection,
+      lineDistance: this.consistencyLineDistance,
+      horizontalLineY: this.consistencyHorizontalLineY,
+      lineEnds: this.cloneConsistencyLineEnds(),
+      handMode: this.consistencyHandMode,
+      trailEnabled: this.consistencyTrailEnabled,
+      trailSmoothing: this.consistencyTrailSmoothing,
+      trailSeconds: this.consistencyTrailSeconds
     };
     bucket.selectedSlot = presetIndex;
     const presets = this.readConsistencyPresetMap();
@@ -2710,7 +2908,7 @@ export class LevelManager {
   }
 
   async resetConsistencyPreset() {
-    const safeLevel = Number.isInteger(this.level) ? Math.max(0, Math.min(5, this.level)) : 0;
+    const safeLevel = Number.isInteger(this.level) ? Math.max(0, Math.min(7, this.level)) : 0;
     const levelLabel = levelTitles[2]?.[safeLevel] || `Level ${safeLevel + 1}`;
     const confirmed = window.confirm(`Soll „${levelLabel}“ wirklich auf die Werkseinstellungen zurückgesetzt werden?\nNur die Presets dieses Levels werden zurückgesetzt, alle anderen Bereiche bleiben unverändert.`);
     if (!confirmed) {
@@ -2738,9 +2936,12 @@ export class LevelManager {
     this.writeConsistencyPresetMap(buckets);
 
     const defaultSettings = defaults['consistency-panel-settings']?.[levelKey] || {};
-    this.consistencyTempoBpm = Number.isFinite(Number(defaultSettings.tempoBpm)) ? Math.min(170, Math.max(30, Number(defaultSettings.tempoBpm))) : 100;
+    this.consistencyTempoBpm = Number.isFinite(Number(defaultSettings.tempoBpm)) ? Math.min(170, Math.max(10, Number(defaultSettings.tempoBpm))) : 100;
     this.consistencyStrictnessPercent = Number.isFinite(Number(defaultSettings.strictnessPercent)) ? Math.min(160, Math.max(70, Number(defaultSettings.strictnessPercent))) : 100;
     this.consistencyMotionBlendPercent = Number.isFinite(Number(defaultSettings.motionBlendPercent)) ? Math.min(100, Math.max(0, Number(defaultSettings.motionBlendPercent))) : 0;
+    this.consistencySwapOrientation = Boolean(defaultSettings.swapOrientation);
+    this.consistencyReverseDirection = Boolean(defaultSettings.reverseDirection);
+    this.applyConsistencyLinePositions(defaultSettings);
     this.applyConsistencyPreset(safeLevel, nextBucket.selectedSlot);
   }
 
@@ -2753,12 +2954,19 @@ export class LevelManager {
     this.consistencyInfoEl = panel;
   }
 
+  setConsistencyPanelSuppressed(suppressed) {
+    this.consistencyPanelSuppressed = Boolean(suppressed);
+    if (this.consistencyPanelSuppressed) {
+      this.setConsistencyPanelVisible(false);
+    }
+  }
+
   setConsistencyPanelVisible(visible) {
     if (!this.consistencyInfoEl) {
       return;
     }
 
-    const shouldShow = Boolean(visible);
+    const shouldShow = Boolean(visible) && !this.consistencyPanelSuppressed;
     this.consistencyInfoEl.style.display = shouldShow ? 'block' : 'none';
 
     if (shouldShow) {
@@ -2791,13 +2999,20 @@ export class LevelManager {
       'Synchron',
       'Versetzt',
       '2:1 Tempo',
-      'Ellipsen'
+      'Ellipsen',
+      'Horizontal',
+      'Liegende Acht'
     ];
-    const safeLevel = Number.isInteger(this.level) ? Math.max(0, Math.min(5, this.level)) : 0;
+    const safeLevel = Number.isInteger(this.level) ? Math.max(0, Math.min(7, this.level)) : 0;
     const levelSettings = this.getConsistencySettingsBucket(safeLevel);
-    this.consistencyTempoBpm = Number.isFinite(Number(levelSettings.tempoBpm)) ? Math.min(170, Math.max(30, Number(levelSettings.tempoBpm))) : this.consistencyTempoBpm;
+    this.consistencyTempoBpm = Number.isFinite(Number(levelSettings.tempoBpm)) ? Math.min(170, Math.max(10, Number(levelSettings.tempoBpm))) : this.consistencyTempoBpm;
     this.consistencyStrictnessPercent = Number.isFinite(Number(levelSettings.strictnessPercent)) ? Math.min(160, Math.max(70, Number(levelSettings.strictnessPercent))) : this.consistencyStrictnessPercent;
     this.consistencyMotionBlendPercent = Number.isFinite(Number(levelSettings.motionBlendPercent)) ? Math.min(100, Math.max(0, Number(levelSettings.motionBlendPercent))) : this.consistencyMotionBlendPercent;
+    this.consistencySwapOrientation = Boolean(levelSettings.swapOrientation);
+    this.consistencyReverseDirection = Boolean(levelSettings.reverseDirection);
+    if (!this.consistencyLineDrag) {
+      this.applyConsistencyLinePositions(levelSettings);
+    }
     const levelName = levelNames[safeLevel] || `Level ${safeLevel + 1}`;
     const scorePercent = Math.round(this.consistencyAccuracy * 100);
 
@@ -2824,7 +3039,7 @@ export class LevelManager {
             <label for="consistency-speed-slider">Tempo</label>
             <span class="consistency-slider-value consistency-speed-value">100 bpm</span>
           </div>
-          <input id="consistency-speed-slider" type="range" min="30" max="170" step="5" value="100" />
+          <input id="consistency-speed-slider" type="range" min="10" max="170" step="5" value="100" />
         </div>
         <div class="consistency-slider-row">
           <div class="consistency-slider-meta">
@@ -2840,8 +3055,90 @@ export class LevelManager {
           </div>
           <input id="consistency-motion-slider" type="range" min="0" max="100" step="5" value="0" />
         </div>
+        <label class="consistency-toggle-row consistency-trail-row">
+          <input type="checkbox" class="consistency-trail-toggle" />
+          <span>Schweif</span>
+        </label>
+        <label class="consistency-toggle-row consistency-trail-smooth-row">
+          <input type="checkbox" class="consistency-trail-smooth-toggle" />
+          <span>Schweif glätten</span>
+        </label>
+        <div class="consistency-slider-row consistency-trail-length-row">
+          <div class="consistency-slider-meta">
+            <label for="consistency-trail-slider">Schweif-Länge</label>
+            <span class="consistency-slider-value consistency-trail-value">2.0 s</span>
+          </div>
+          <input id="consistency-trail-slider" type="range" min="0.5" max="10" step="0.1" value="2" />
+        </div>
+        <label class="consistency-toggle-row consistency-swap-row" hidden>
+          <input type="checkbox" class="consistency-swap-toggle" />
+          <span>Horizontal/Vertikal tauschen</span>
+        </label>
+        <label class="consistency-toggle-row consistency-reverse-row" hidden>
+          <input type="checkbox" class="consistency-reverse-toggle" />
+          <span>Richtung umkehren</span>
+        </label>
+        <div class="figure-side-group consistency-hand-mode-row" hidden>
+          <label class="figure-side-option"><input type="radio" name="consistency-hand-mode" value="left" /><span>Linke Hand</span></label>
+          <label class="figure-side-option"><input type="radio" name="consistency-hand-mode" value="right" /><span>Rechte Hand</span></label>
+          <label class="figure-side-option"><input type="radio" name="consistency-hand-mode" value="both" /><span>Beidhändig</span></label>
+        </div>
         <p class="consistency-status">Die Bewertung aktualisiert sich fortlaufend.</p>
       `;
+
+      this.consistencyInfoEl.querySelectorAll('input[name="consistency-hand-mode"]').forEach((radio) => {
+        radio.addEventListener('change', () => {
+          if (radio.checked) {
+            this.consistencyHandMode = radio.value;
+            this.persistConsistencySettings();
+          }
+        });
+      });
+
+      const trailToggle = this.consistencyInfoEl.querySelector('.consistency-trail-toggle');
+      const trailSlider = this.consistencyInfoEl.querySelector('#consistency-trail-slider');
+      const trailSmoothToggle = this.consistencyInfoEl.querySelector('.consistency-trail-smooth-toggle');
+      if (trailSmoothToggle) {
+        trailSmoothToggle.addEventListener('change', () => {
+          this.consistencyTrailSmoothing = trailSmoothToggle.checked;
+          this.persistConsistencySettings();
+        });
+        registerHoverHelp(trailSmoothToggle.parentElement, 'Glättet nur die Darstellung des Schweifs, damit Zittern durch ungenaues Tracking die Linie nicht verformt. Die Position des Handtips bleibt unverändert.');
+      }
+      if (trailToggle) {
+        trailToggle.addEventListener('change', () => {
+          this.consistencyTrailEnabled = trailToggle.checked;
+          if (!trailToggle.checked) {
+            this.clearConsistencyTrail();
+          }
+          this.persistConsistencySettings();
+          this.updateConsistencyPanelContent();
+        });
+        registerHoverHelp(trailToggle.parentElement, 'Zeichnet die Bewegungslinie der Hand als verblassenden Schweif, solange sie sich im richtigen Bereich befindet.');
+      }
+      if (trailSlider) {
+        trailSlider.addEventListener('input', () => {
+          this.consistencyTrailSeconds = this.sanitizeConsistencyTrailSeconds(trailSlider.value);
+          this.persistConsistencySettings();
+        });
+        registerHoverHelp(trailSlider.closest('.consistency-slider-row'), 'Stellt ein, wie lange der Schweif sichtbar bleibt, bevor er vollständig verblasst (max. 10 s).');
+      }
+      const swapToggle = this.consistencyInfoEl.querySelector('.consistency-swap-toggle');
+      const reverseToggle = this.consistencyInfoEl.querySelector('.consistency-reverse-toggle');
+      if (swapToggle) {
+        swapToggle.addEventListener('change', () => {
+          this.consistencySwapOrientation = swapToggle.checked;
+          this.persistConsistencySettings();
+        });
+        registerHoverHelp(swapToggle.parentElement, 'Tauscht, welche Hand der horizontalen und welche der vertikalen Linie folgt.');
+      }
+      if (reverseToggle) {
+        reverseToggle.addEventListener('change', () => {
+          this.consistencyReverseDirection = reverseToggle.checked;
+          this.persistConsistencySettings();
+        });
+        registerHoverHelp(reverseToggle.parentElement, 'Kehrt die Bewegungsrichtung um.');
+      }
 
       const speedSlider = this.consistencyInfoEl.querySelector('#consistency-speed-slider');
       const strictnessSlider = this.consistencyInfoEl.querySelector('#consistency-strictness-slider');
@@ -2866,7 +3163,7 @@ export class LevelManager {
         speedSlider.value = String(this.consistencyTempoBpm);
         speedSlider.addEventListener('input', (event) => {
           const next = Number(event.target.value);
-          this.consistencyTempoBpm = Number.isFinite(next) ? Math.min(170, Math.max(30, next)) : 100;
+          this.consistencyTempoBpm = Number.isFinite(next) ? Math.min(170, Math.max(10, next)) : 100;
           this.persistConsistencySettings();
         });
       }
@@ -2931,6 +3228,41 @@ export class LevelManager {
     }
     if (motionSliderEl) {
       motionSliderEl.value = String(this.consistencyMotionBlendPercent);
+    }
+    const trailToggleEl = this.consistencyInfoEl.querySelector('.consistency-trail-toggle');
+    const trailSliderEl = this.consistencyInfoEl.querySelector('#consistency-trail-slider');
+    const trailValueEl = this.consistencyInfoEl.querySelector('.consistency-trail-value');
+    if (trailToggleEl) {
+      trailToggleEl.checked = this.consistencyTrailEnabled;
+    }
+    const trailSmoothToggleEl = this.consistencyInfoEl.querySelector('.consistency-trail-smooth-toggle');
+    if (trailSmoothToggleEl) {
+      trailSmoothToggleEl.checked = this.consistencyTrailSmoothing;
+      trailSmoothToggleEl.disabled = !this.consistencyTrailEnabled;
+    }
+    if (trailSliderEl) {
+      trailSliderEl.value = String(this.consistencyTrailSeconds);
+      trailSliderEl.disabled = !this.consistencyTrailEnabled;
+    }
+    if (trailValueEl) {
+      trailValueEl.textContent = `${this.consistencyTrailSeconds.toFixed(1)} s`;
+    }
+    const swapRow = this.consistencyInfoEl.querySelector('.consistency-swap-row');
+    const reverseRow = this.consistencyInfoEl.querySelector('.consistency-reverse-row');
+    if (swapRow) {
+      swapRow.hidden = safeLevel !== 6;
+      swapRow.querySelector('input').checked = this.consistencySwapOrientation;
+    }
+    if (reverseRow) {
+      reverseRow.hidden = safeLevel !== 5 && safeLevel !== 7;
+      reverseRow.querySelector('input').checked = this.consistencyReverseDirection;
+    }
+    const handModeRow = this.consistencyInfoEl.querySelector('.consistency-hand-mode-row');
+    if (handModeRow) {
+      handModeRow.hidden = safeLevel !== 7;
+      handModeRow.querySelectorAll('input').forEach((radio) => {
+        radio.checked = radio.value === this.consistencyHandMode;
+      });
     }
     if (presetSlots) {
       const presetBucket = this.getConsistencyPresetBucket(safeLevel);
@@ -3424,7 +3756,29 @@ export class LevelManager {
     return sequence.length > 0 ? sequence : [0];
   }
 
+  // A circle that was just counted must be left before the same circle can count again (repeated points).
+  isPointTouchBlocked(hand, circleIndex) {
+    return this.pointExerciseRequireLeave?.[hand] === circleIndex;
+  }
+
+  releasePointTouchBlocks() {
+    if (!this.pointExerciseRequireLeave) {
+      this.pointExerciseRequireLeave = { left: null, right: null };
+    }
+    ['left', 'right'].forEach((hand) => {
+      const blockedCircle = this.pointExerciseRequireLeave[hand];
+      if (blockedCircle === null) {
+        return;
+      }
+      const tip = hand === 'left' ? this.leftTip : this.rightTip;
+      if (!tip || this.getCircleIndex(tip) !== blockedCircle) {
+        this.pointExerciseRequireLeave[hand] = null;
+      }
+    });
+  }
+
   resetPointExerciseTraversalState() {
+    this.pointExerciseRequireLeave = { left: null, right: null };
     this.nextTargetByHand = { left: 0, right: 0 };
     const targetCount = Math.max(
       1,
@@ -3503,13 +3857,44 @@ export class LevelManager {
     this.requestRender();
   }
 
+  createPointEntry(row, col, hand, pairId) {
+    const entry = { row, col, hand };
+    if (typeof pairId === 'string' && pairId) {
+      entry.pairId = pairId;
+    }
+    return entry;
+  }
+
+  createPointPairId() {
+    return `p${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
+  }
+
+  removePointFromSequenceAt(index) {
+    const position = Number(index);
+    if (!Number.isInteger(position) || position < 0 || position >= this.pointExerciseSequence.length) {
+      return false;
+    }
+    const removed = this.pointExerciseSequence[position];
+    this.pointExerciseSequence = this.pointExerciseSequence.filter((point, pointIndex) => {
+      if (pointIndex === position) {
+        return false;
+      }
+      return !(this.pointExerciseSymmetryMode && removed.pairId && point.pairId === removed.pairId);
+    });
+    this.resetPointExerciseTraversalState();
+    if (this.chapter === 1 && Number.isInteger(this.level) && this.level === 1) {
+      this.setupLevel();
+    }
+    this.requestRender();
+    return true;
+  }
+
   sanitizePointSequence(sequence) {
     if (!Array.isArray(sequence)) {
       return [];
     }
 
     const normalized = [];
-    const seen = new Set();
     const maxRow = Math.max(1, this.gridRows || 12) - 1;
     const maxCol = Math.max(1, this.gridCols || 16) - 1;
 
@@ -3522,12 +3907,7 @@ export class LevelManager {
       const hand = ['left', 'right'].includes(point.hand)
         ? point.hand
         : this.resolvePointHandForColumn(col, this.pointExerciseHand);
-      const key = `${row}:${col}:${hand}`;
-      if (seen.has(key)) {
-        return;
-      }
-      seen.add(key);
-      normalized.push({ row, col, hand });
+      normalized.push(this.createPointEntry(row, col, hand, point.pairId));
     });
 
     return normalized;
@@ -3560,21 +3940,14 @@ export class LevelManager {
 
   setPointExerciseSequence(value) {
     const restored = Array.isArray(value)
-      ? value.reduce((sequence, point) => {
+      ? value.reduce((items, point) => {
           if (!point || !Number.isFinite(Number(point.row)) || !Number.isFinite(Number(point.col))) {
-            return sequence;
+            return items;
           }
-          const row = Number(point.row);
-          const col = Number(point.col);
           const hand = ['left', 'right', 'auto'].includes(point.hand) ? point.hand : this.pointExerciseHand;
-          const key = `${row}:${col}:${hand}`;
-          if (sequence.seen.has(key)) {
-            return sequence;
-          }
-          sequence.seen.add(key);
-          sequence.items.push({ row, col, hand });
-          return sequence;
-        }, { items: [], seen: new Set() }).items
+          items.push(this.createPointEntry(Number(point.row), Number(point.col), hand, point.pairId));
+          return items;
+        }, [])
       : [];
     this.pointExerciseSequence = restored;
     this.resetPointExerciseTraversalState();
@@ -3618,17 +3991,10 @@ export class LevelManager {
               if (!point || !Number.isFinite(Number(point.row)) || !Number.isFinite(Number(point.col))) {
                 return items;
               }
-              const row = Number(point.row);
-              const col = Number(point.col);
               const hand = ['left', 'right', 'auto'].includes(point.hand) ? point.hand : this.pointExerciseHand;
-              const key = `${row}:${col}:${hand}`;
-              if (items.seen.has(key)) {
-                return items;
-              }
-              items.seen.add(key);
-              items.list.push({ row, col, hand });
+              items.push(this.createPointEntry(Number(point.row), Number(point.col), hand, point.pairId));
               return items;
-            }, { list: [], seen: new Set() }).list
+            }, [])
           : [];
         const gridResolution = Number.isFinite(Number(slot.gridResolution))
           ? Math.max(8, Math.min(24, Math.round(Number(slot.gridResolution) / 2) * 2))
@@ -3663,41 +4029,23 @@ export class LevelManager {
     const row = Math.max(0, Math.min(this.gridRows - 1, Math.round((canvasY / this.canvas.height) * this.gridRows - 0.5)));
     const baseCol = this.getGridColumnForX(canvasX);
     const resolvedHand = this.resolvePointHandForColumn(baseCol, this.pointExerciseHand);
-    const addPoint = (hand, col) => {
-      const point = { row, col, hand };
-      const existing = this.pointExerciseSequence.some((candidate) => candidate.row === point.row && candidate.col === point.col && candidate.hand === point.hand);
-      if (!existing) {
-        this.pointExerciseSequence.push(point);
-        this.registerPointExerciseFlash(point);
-      }
-      return !existing;
-    };
+    const mirrors = this.pointExerciseSymmetryMode && ['left', 'right'].includes(resolvedHand);
+    const pairId = mirrors ? this.createPointPairId() : undefined;
+    const point = this.createPointEntry(row, baseCol, resolvedHand, pairId);
+    this.pointExerciseSequence.push(point);
+    this.registerPointExerciseFlash(point);
 
-    const addMirroredPoint = (sourceHand, sourceCol) => {
-      if (!['left', 'right'].includes(sourceHand)) {
-        return false;
-      }
-      const mirroredCol = Math.max(0, Math.min(this.gridCols - 1, this.gridCols - 1 - sourceCol));
-      const mirroredHand = sourceHand === 'left' ? 'right' : 'left';
-      const mirrorPoint = { row, col: mirroredCol, hand: mirroredHand };
-      const existingMirror = this.pointExerciseSequence.some((candidate) => candidate.row === mirrorPoint.row && candidate.col === mirrorPoint.col && candidate.hand === mirrorPoint.hand);
-      if (!existingMirror) {
-        this.pointExerciseSequence.push(mirrorPoint);
-        this.registerPointExerciseFlash(mirrorPoint);
-        return true;
-      }
-      return false;
-    };
-
-    const addedFirst = addPoint(resolvedHand, baseCol);
-    let addedMirror = false;
-    if (this.pointExerciseSymmetryMode && ['left', 'right'].includes(resolvedHand)) {
-      addedMirror = addMirroredPoint(resolvedHand, baseCol);
+    if (mirrors) {
+      const mirrorPoint = this.createPointEntry(
+        row,
+        Math.max(0, Math.min(this.gridCols - 1, this.gridCols - 1 - baseCol)),
+        resolvedHand === 'left' ? 'right' : 'left',
+        pairId
+      );
+      this.pointExerciseSequence.push(mirrorPoint);
+      this.registerPointExerciseFlash(mirrorPoint);
     }
 
-    if (!addedFirst && !addedMirror) {
-      return false;
-    }
     if (this.chapter === 1 && Number.isInteger(this.level) && this.level === 1) {
       this.setupLevel();
     }
@@ -4185,7 +4533,7 @@ export class LevelManager {
     return rootShift + tones[step];
   }
 
-  playWalkingBass(hand, gainValue) {
+  playWalkingBass(hand, gainValue, { plain = false, semitones = null } = {}) {
     const ctx = this.ensureAudioEngine();
     if (!ctx || !this.walkingBassBuffer) {
       return;
@@ -4206,10 +4554,12 @@ export class LevelManager {
 
     const source = ctx.createBufferSource();
     source.buffer = this.walkingBassBuffer;
-    const ensembleSemitones = this.getEnsembleBassSemitones(hand);
-    if (ensembleSemitones !== null) {
+    const ensembleSemitones = plain ? null : this.getEnsembleBassSemitones(hand);
+    if (Number.isFinite(semitones)) {
+      source.playbackRate.value = Math.pow(2, semitones / 12);
+    } else if (ensembleSemitones !== null) {
       source.playbackRate.value = Math.pow(2, ensembleSemitones / 12);
-    } else if (this.walkingBassMode === 'walking') {
+    } else if (!plain && this.walkingBassMode === 'walking') {
       const steps = this.walkingBassPitchSteps;
       const step = this.walkingBassStepByHand[hand] % steps.length;
       source.playbackRate.value = Math.pow(2, steps[step] / 12);
@@ -4520,14 +4870,14 @@ export class LevelManager {
     };
   }
 
-  playWalkingBassClave(gain, shape) {
+  playWalkingBassClave(gain, shape, { twoTone = false } = {}) {
     const ctx = this.ensureAudioEngine();
     if (!ctx) {
       return;
     }
 
     const startAt = ctx.currentTime;
-    const frequency = this.claveToneMode === 'two'
+    const frequency = twoTone || this.claveToneMode === 'two'
       ? (shape >= 0.5 ? 3200 : 1800)
       : 1800 + 1400 * shape;
     const duration = 0.14;
@@ -5927,16 +6277,51 @@ export class LevelManager {
     }
   }
 
+  createEmptyFigureCornerOffsets() {
+    return Array.from({ length: 8 }, () => ({ x: 0, y: 0 }));
+  }
+
+  sanitizeFigureCornerOffsets(values) {
+    return Array.from({ length: 8 }, (_, index) => {
+      const entry = Array.isArray(values) ? values[index] : null;
+      const x = Number(entry?.x);
+      const y = Number(entry?.y);
+      return {
+        x: Number.isFinite(x) ? Math.min(200, Math.max(-200, x)) : 0,
+        y: Number.isFinite(y) ? Math.min(200, Math.max(-200, y)) : 0
+      };
+    });
+  }
+
+  loadDynamicFigureCornerOffsets() {
+    try {
+      const userId = getMotionAiActiveUserId();
+      const bucket = getMotionAiUserStorageBucket(userId);
+      const parsed = bucket && typeof bucket === 'object' ? bucket['dynamic-figure-corner-offsets'] : null;
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch (error) {
+      return {};
+    }
+  }
+
+  getDynamicFigureCornerOffsetsForLevel(level) {
+    const count = Number.isInteger(level) ? (level + 1) * 2 : 0;
+    return this.sanitizeFigureCornerOffsets(this.dynamicFigureCornerOffsetsByLevel[level])
+      .map((offset, index) => (index < count ? offset : { x: 0, y: 0 }));
+  }
+
   persistDynamicFigureCornerHeights() {
     if (this.chapter !== 4 || !Number.isInteger(this.level) || this.level < 0 || this.level > 3) {
       return;
     }
 
     this.dynamicFigureCornerHeightsByLevel[this.level] = this.dynamicFigureCornerHeights.slice();
+    this.dynamicFigureCornerOffsetsByLevel[this.level] = this.dynamicFigureCornerOffsets.map((offset) => ({ ...offset }));
     try {
       const userId = getMotionAiActiveUserId();
       const bucket = getMotionAiUserStorageBucket(userId);
       bucket['dynamic-figure-corner-heights'] = this.dynamicFigureCornerHeightsByLevel;
+      bucket['dynamic-figure-corner-offsets'] = this.dynamicFigureCornerOffsetsByLevel;
       setMotionAiUserStorageBucket(userId, bucket);
     } catch (error) {
       return;
@@ -6138,7 +6523,7 @@ export class LevelManager {
       return;
     }
 
-    const clamped = Math.min(120, Math.max(30, next));
+    const clamped = Math.min(120, Math.max(10, next));
     if (this.figureTempoBpm === clamped) {
       return;
     }
@@ -6333,8 +6718,8 @@ export class LevelManager {
       strokeWidth: (next) => { this.handIndependenceFigureStrokeWidth = Math.min(0.5, Math.max(0.01, next)); },
       figureHardLinearity: (next) => { this.handIndependenceFigureHardLinearity = Math.min(100, Math.max(0, next)); },
       figureSoftTransitionPercent: (next) => { this.handIndependenceFigureSoftTransitionPercent = Math.min(50, Math.max(0, next)); },
-      tempoBpm: (next) => { this.handIndependenceSharedTempoBpm = Math.min(120, Math.max(30, next)); },
-      sharedTempoBpm: (next) => { this.handIndependenceSharedTempoBpm = Math.min(120, Math.max(30, next)); },
+      tempoBpm: (next) => { this.handIndependenceSharedTempoBpm = Math.min(120, Math.max(10, next)); },
+      sharedTempoBpm: (next) => { this.handIndependenceSharedTempoBpm = Math.min(120, Math.max(10, next)); },
       figureX: (next) => { this.handIndependenceFigureX = this.normalizeHandIndependenceHorizontalPosition(next, this.handIndependenceFigureX ?? 0); },
       figureY: (next) => { this.handIndependenceFigureY = this.normalizeCanvasVerticalPosition(next, this.handIndependenceFigureY ?? 0.5); },
       sharedX: (next) => { this.handIndependenceFigureX = this.normalizeHandIndependenceHorizontalPosition(next, this.handIndependenceFigureX ?? 0); },
@@ -6350,7 +6735,7 @@ export class LevelManager {
       this.preserveMotionPhaseOnTempoChange(
         'handIndependenceAnimationStart',
         this.handIndependenceSharedTempoBpm,
-        Math.min(120, Math.max(30, next)),
+        Math.min(120, Math.max(10, next)),
         renderState?.renderSegments || []
       );
     }
@@ -6439,7 +6824,8 @@ export class LevelManager {
     const originalSegments = this.buildPlannedFigureSegments(pathData, numberPlannedSegments);
     const renderSegments = this.applyDynamicFigureCornerHeights(
       originalSegments,
-      this.handIndependenceFigureCornerHeights.slice(0, numberPlannedSegments)
+      this.handIndependenceFigureCornerHeights.slice(0, numberPlannedSegments),
+      this.handIndependenceFigureCornerOffsets.slice(0, numberPlannedSegments)
     );
     const baseScale = Math.min(this.canvas.width, this.canvas.height) / 18;
     const halfWidth = this.canvas.width / 2;
@@ -6470,14 +6856,18 @@ export class LevelManager {
     const width = this.handIndependenceShapeWidth;
     const height = this.handIndependenceShapeHeight;
     let pathData = `M 0 0 L ${length} 0 L 0 0 Z`;
+    let plannedSegmentCount = 2;
     if (this.handIndependenceShape === 'circle') {
       pathData = `M 0 0 C ${width} 0 ${width} ${height} 0 ${height} C -${width} ${height} -${width} 0 0 0 Z`;
     } else if (this.handIndependenceShape === 'square') {
-      pathData = `M 0 0 L ${width} 0 L ${width} ${height} L 0 ${height} L 0 0 Z`;
+      pathData = `M 0 0 L ${width} 0 L ${width} ${height} L 0 ${height} L 0 0`;
+      plannedSegmentCount = 4;
     } else if (this.handIndependenceShape === 'L') {
-      pathData = `M 0 0 L 0 -${height} L ${width} -${height} L ${width} -${height - 2} L 2 -${height - 2} L 2 0 Z`;
+      // Two legs, traversed out and back along the same lines (no closed outline).
+      pathData = `M 0 0 L 0 -${height} L ${width} -${height} L 0 -${height} L 0 0`;
+      plannedSegmentCount = 4;
     }
-    const renderSegments = this.buildPlannedFigureSegments(pathData, 2);
+    const renderSegments = this.buildPlannedFigureSegments(pathData, plannedSegmentCount);
     const baseScale = Math.min(this.canvas.width, this.canvas.height) / 18;
     const scale = baseScale * 0.25;
     const halfWidth = this.canvas.width / 2;
@@ -6502,15 +6892,8 @@ export class LevelManager {
   }
 
   setMotionDistanceVisible(visible) {
+    // Only the chart depends on this flag; scoring and the score in the motion point always run.
     this.motionDistanceVisible = Boolean(visible);
-    if (!this.motionDistanceVisible) {
-      this.motionDistanceFrameTargets = [];
-      this.motionDistanceHistory = { left: [], right: [] };
-      this.motionDistanceCurrent = { left: null, right: null };
-      this.motionDistancePrevious = { left: null, right: null };
-      this.motionDistanceKinematicsPrevious = { left: null, right: null };
-      this.motionDistanceFrameMetrics = { left: null, right: null };
-    }
     this.requestRender();
   }
 
@@ -6617,18 +7000,111 @@ export class LevelManager {
     return Math.min(1, Math.hypot(normalizedX, normalizedY) / Math.SQRT2);
   }
 
+  getMotionDistanceTolerance() {
+    const strictness = Math.min(100, Math.max(0, Number(this.motionDistanceStrictness) || 0));
+    const strictnessRatio = Math.min(1, Math.max(0, strictness / 100));
+    // Stronger contrast between low and high strictness: low values are much more forgiving,
+    // while very high values remain sharply precise.
+    const lowEndForgiveness = Math.pow(1 - strictnessRatio, 3.2);
+    return 0.04 + lowEndForgiveness * 3.5 + Math.pow(1 - strictnessRatio, 7) * 1.1;
+  }
+
+  setMotionTrailVisible(visible, chapter = 3) {
+    this.motionTrailEnabledByChapter[chapter] = Boolean(visible);
+    if (!visible) {
+      this.clearMotionTrail();
+    }
+    this.requestRender();
+  }
+
+  setMotionTrailSmoothing(enabled, chapter = 3) {
+    this.motionTrailSmoothingByChapter[chapter] = Boolean(enabled);
+    this.requestRender();
+  }
+
+  clearMotionTrail() {
+    this.motionTrailByHand = { left: [], right: [] };
+    this.motionTrailLastValidByHand = { left: false, right: false };
+  }
+
+  // Trail visibility falls off with the tip's distance to the motion point; the cutoff shrinks as the strictness rises.
+  getMotionTrailProximity(distance) {
+    if (distance === null || !Number.isFinite(distance)) {
+      return 0;
+    }
+    const cutoff = this.getMotionDistanceTolerance() * 2.5;
+    return Math.max(0, 1 - distance / cutoff) ** 2;
+  }
+
+  // The trail lasts about two loops of the figure, so consecutive loops overlap visibly.
+  updateMotionTrail(hand, targetPoint, pathDurationMs, nowMs = performance.now()) {
+    if (!this.motionTrailEnabledByChapter[this.chapter]) {
+      return false;
+    }
+
+    const trail = this.motionTrailByHand[hand];
+    const tip = hand === 'left' ? this.leftTip : this.rightTip;
+    const distance = tip ? this.getHandTipDistance(hand, targetPoint) : null;
+    if (distance !== null) {
+      trail.push({
+        x: tip.x,
+        y: tip.y,
+        ts: nowMs,
+        distance,
+        startsNewLine: !this.motionTrailLastValidByHand[hand]
+      });
+    }
+    this.motionTrailLastValidByHand[hand] = distance !== null;
+
+    const lifetimeMs = Math.min(40000, Math.max(1500, (Number(pathDurationMs) || 0) * 2));
+    this.motionTrailLifetimeMsByHand[hand] = lifetimeMs;
+    while (trail.length > 0 && nowMs - trail[0].ts > lifetimeMs) {
+      trail.shift();
+    }
+    return true;
+  }
+
+  drawMotionTrail(hand, nowMs = performance.now()) {
+    if (!this.motionTrailEnabledByChapter[this.chapter]) {
+      return;
+    }
+
+    // Smoothing only affects the drawn line; the recorded tip positions stay untouched.
+    const trail = this.getSmoothedChapter1TrailPoints(this.motionTrailByHand[hand], this.motionTrailSmoothingByChapter[this.chapter]);
+    const lifetimeMs = Math.max(1, this.motionTrailLifetimeMsByHand[hand]);
+    const tipColor = hand === 'left' ? '82, 156, 255' : '255, 163, 92';
+    this.ctx.save();
+    this.ctx.lineCap = 'round';
+    this.ctx.lineJoin = 'round';
+    this.ctx.shadowBlur = 0;
+    this.ctx.lineWidth = Math.max(3.5, Math.min(this.canvas.width, this.canvas.height) * 0.007);
+    for (let index = 1; index < trail.length; index += 1) {
+      const point = trail[index];
+      if (point.startsNewLine) {
+        continue;
+      }
+      const previous = trail[index - 1];
+      const alpha = Math.max(0, 1 - (nowMs - point.ts) / lifetimeMs)
+        * this.getMotionTrailProximity((point.distance + previous.distance) / 2);
+      if (alpha < 0.015) {
+        continue;
+      }
+      this.ctx.strokeStyle = `rgba(${tipColor}, ${(alpha * 0.9).toFixed(3)})`;
+      this.ctx.beginPath();
+      this.ctx.moveTo(previous.x, previous.y);
+      this.ctx.lineTo(point.x, point.y);
+      this.ctx.stroke();
+    }
+    this.ctx.restore();
+  }
+
   getMotionDistanceFeedback(hand, targetPoint) {
     const distance = this.getHandTipDistance(hand, targetPoint);
     if (distance === null) {
       return { distance: null, pathScore: null, color: 'rgba(255, 255, 255, 0.96)' };
     }
 
-    const strictness = Math.min(100, Math.max(0, Number(this.motionDistanceStrictness) || 0));
-    const strictnessRatio = Math.min(1, Math.max(0, strictness / 100));
-    // Stronger contrast between low and high strictness: low values are much more forgiving,
-    // while very high values remain sharply precise.
-    const lowEndForgiveness = Math.pow(1 - strictnessRatio, 3.2);
-    const tolerance = 0.04 + lowEndForgiveness * 3.5 + Math.pow(1 - strictnessRatio, 7) * 1.1;
+    const tolerance = this.getMotionDistanceTolerance();
     const pathScore = Math.max(0, Math.min(100, 100 * Math.exp(-distance / tolerance)));
     const tipColor = hand === 'left' ? [82, 156, 255] : [255, 163, 92];
     const mix = pathScore / 100;
@@ -6715,7 +7191,7 @@ export class LevelManager {
   }
 
   recordMotionDistanceTarget(hand, point) {
-    if (this.motionDistanceVisible && (hand === 'left' || hand === 'right') && point) {
+    if ((hand === 'left' || hand === 'right') && point) {
       this.motionDistanceFrameTargets.push({ hand, point });
     }
   }
@@ -6738,10 +7214,6 @@ export class LevelManager {
   }
 
   finishMotionDistanceFrame() {
-    if (!this.motionDistanceVisible) {
-      return;
-    }
-
     const nowMs = performance.now();
     const latestByHand = new Map();
     this.motionDistanceFrameTargets.forEach(({ hand, point }) => latestByHand.set(hand, point));
@@ -6859,16 +7331,19 @@ export class LevelManager {
         + this.getCanvasVerticalOffsetFromNormalized(offsetY)
         + (rotatedLocalY - rotatedAnchorY) * state.scaleY;
       const hand = mirrorX ? 'right' : 'left';
+      if (this.updateMotionTrail(hand, { x, y }, motionState.pathDurationMs)) {
+        this.drawMotionTrail(hand);
+      }
       const feedback = this.getMotionDistanceMetrics(hand, { x, y });
       this.recordMotionDistanceTarget(hand, { x, y });
       this.ctx.save();
-      this.ctx.fillStyle = this.motionDistanceVisible && feedback ? feedback.color : 'rgba(255, 255, 255, 0.96)';
-      this.ctx.shadowColor = this.motionDistanceVisible && feedback ? feedback.color : 'rgba(255, 255, 255, 0.9)';
+      this.ctx.fillStyle = feedback ? feedback.color : 'rgba(255, 255, 255, 0.96)';
+      this.ctx.shadowColor = feedback ? feedback.color : 'rgba(255, 255, 255, 0.9)';
       this.ctx.shadowBlur = 14;
       this.ctx.beginPath();
       this.ctx.arc(x, y, Math.max(6, Math.min(this.canvas.width, this.canvas.height) * 0.016), 0, Math.PI * 2);
       this.ctx.fill();
-      if (this.motionDistanceVisible && feedback) {
+      if (feedback) {
         this.ctx.shadowBlur = 0;
         this.ctx.fillStyle = '#101820';
         this.ctx.font = '700 11px sans-serif';
@@ -6928,7 +7403,7 @@ export class LevelManager {
       return;
     }
 
-    const clamped = Math.min(120, Math.max(30, next));
+    const clamped = Math.min(120, Math.max(10, next));
     if (this.dynamicFigureTempoBpm === clamped) {
       return;
     }
@@ -6994,7 +7469,72 @@ export class LevelManager {
     this.requestRender();
   }
 
-  applyDynamicFigureCornerHeights(renderSegments, cornerHeights) {
+  setDynamicFigureCornerOffsets(values) {
+    this.dynamicFigureCornerOffsets = this.sanitizeFigureCornerOffsets(values);
+    this.persistDynamicFigureCornerHeights();
+    this.requestRender();
+  }
+
+  setHandIndependenceFigureCornerOffsets(values) {
+    this.handIndependenceFigureCornerOffsets = this.sanitizeFigureCornerOffsets(values);
+    this.requestRender();
+  }
+
+  // Moves the corner nodes by their (x, y) offsets. Every node takes its adjacent Bézier handles along
+  // rigidly, so a segment between a moved and a fixed node becomes B(t) + d * t²(3 - 2t): the tangent
+  // direction and handle length at both nodes stay unchanged and curves remain smooth at every join.
+  applyFigureCornerOffsets(segments, offsets) {
+    const count = Math.min(segments.length, Array.isArray(offsets) ? offsets.length : 0);
+    let hasOffset = false;
+    for (let index = 0; index < count; index += 1) {
+      if (offsets[index] && (offsets[index].x || offsets[index].y)) {
+        hasOffset = true;
+        break;
+      }
+    }
+    if (!hasOffset) {
+      return;
+    }
+
+    const anchors = segments.map((segment) => {
+      const first = segment.type === 'combined' && Array.isArray(segment.segments) ? segment.segments[0] : segment;
+      return first?.start ? { x: first.start.x, y: first.start.y } : null;
+    });
+    // Nodes that are not the start of a planned segment (e.g. the closing point) belong to the corner they coincide with.
+    const findCornerAt = (point) => {
+      if (!point) {
+        return -1;
+      }
+      return anchors.findIndex((anchor, index) => index < count
+        && anchor
+        && Math.abs(anchor.x - point.x) < 1e-6
+        && Math.abs(anchor.y - point.y) < 1e-6);
+    };
+    const shiftPoint = (point, offset) => {
+      if (point && offset) {
+        point.x += offset.x;
+        point.y += offset.y;
+      }
+    };
+
+    segments.forEach((segment, plannedIndex) => {
+      const leaves = segment.type === 'combined' && Array.isArray(segment.segments) ? segment.segments : [segment];
+      leaves.forEach((leaf, leafIndex) => {
+        const startCorner = leafIndex === 0 ? plannedIndex : findCornerAt(leaf.start);
+        const endCorner = leafIndex === leaves.length - 1 && plannedIndex < segments.length - 1
+          ? plannedIndex + 1
+          : findCornerAt(leaf.end);
+        const startOffset = startCorner >= 0 && startCorner < count ? offsets[startCorner] : null;
+        const endOffset = endCorner >= 0 && endCorner < count ? offsets[endCorner] : null;
+        shiftPoint(leaf.start, startOffset);
+        shiftPoint(leaf.control1, startOffset);
+        shiftPoint(leaf.control2, endOffset);
+        shiftPoint(leaf.end, endOffset);
+      });
+    });
+  }
+
+  applyDynamicFigureCornerHeights(renderSegments, cornerHeights, cornerOffsets = null) {
     const cloneSegment = (segment) => ({
       ...segment,
       start: segment.start ? { ...segment.start } : segment.start,
@@ -7069,6 +7609,14 @@ export class LevelManager {
       }
     }
 
+    if (Array.isArray(cornerOffsets)) {
+      // The figure stays placed by its height-adjusted first point, so dragging a corner never shifts the whole figure.
+      const anchorBeforeOffsets = this.getPathAnchorPoint(adjustedSegments);
+      const pathAnchor = { x: anchorBeforeOffsets.x, y: anchorBeforeOffsets.y };
+      this.applyFigureCornerOffsets(adjustedSegments, cornerOffsets);
+      adjustedSegments.pathAnchor = pathAnchor;
+    }
+
     return adjustedSegments;
   }
 
@@ -7088,7 +7636,8 @@ export class LevelManager {
     );
     const renderSegments = this.applyDynamicFigureCornerHeights(
       originalSegments,
-      this.dynamicFigureCornerHeights.slice(0, (this.level + 1) * 2)
+      this.dynamicFigureCornerHeights.slice(0, (this.level + 1) * 2),
+      this.dynamicFigureCornerOffsets.slice(0, (this.level + 1) * 2)
     );
     const centerX = this.canvas.width / 2;
     const centerY = this.canvas.height / 2;
@@ -7303,6 +7852,10 @@ export class LevelManager {
       return { x: 0, y: 0 };
     }
 
+    if (renderSegments.pathAnchor) {
+      return renderSegments.pathAnchor;
+    }
+
     const firstSegment = renderSegments[0];
     if (firstSegment?.type === 'combined' && Array.isArray(firstSegment.segments) && firstSegment.segments.length > 0) {
       return firstSegment.segments[0]?.start || { x: 0, y: 0 };
@@ -7436,6 +7989,234 @@ export class LevelManager {
     figureConfigs.forEach((config) => {
       renderSingleFigure(config);
     });
+  }
+
+  setFigureCornerEditGate(gate) {
+    this.figureCornerEditGate = typeof gate === 'function' ? gate : () => false;
+    if (!this.isFigureCornerEditAllowed()) {
+      this.figureCornerDrag = null;
+      this.figureCornerHover = null;
+    }
+    this.requestRender();
+  }
+
+  isFigureCornerEditAllowed() {
+    try {
+      return Boolean(this.figureCornerEditGate());
+    } catch (error) {
+      return false;
+    }
+  }
+
+  getFigureCornerEditContext() {
+    if (!this.canvas || !this.canvas.width || !this.canvas.height || !this.isFigureCornerEditAllowed()) {
+      return null;
+    }
+
+    if (this.chapter === 4 && Number.isInteger(this.level) && this.level >= 0 && this.level <= 3) {
+      const state = this.getCurrentDynamicFigureRenderState();
+      return state
+        ? { kind: 'dynamic', state, settings: { yPosition: this.dynamicFigureYPosition } }
+        : null;
+    }
+
+    if (this.chapter === 5 && Number.isInteger(this.level) && this.level >= 0 && this.level <= 7) {
+      const state = this.getHandIndependenceDynamicState();
+      return state ? { kind: 'hand', state, settings: state.handIndependenceSettings } : null;
+    }
+
+    return null;
+  }
+
+  // Mirrors the transform that drawFigurePath applies to the figure path.
+  getFigureCanvasTransform(state, settings, config) {
+    const anchor = this.getPathAnchorPoint(state.renderSegments);
+    const mirror = Boolean(config.mirrorX);
+    const xPosition = settings.xPosition ?? 0;
+    const targetX = state.centerX + config.offsetX + (mirror ? -xPosition : xPosition);
+    const targetY = state.centerY + this.getCanvasVerticalOffsetFromNormalized(settings.yPosition ?? this.figureYPosition);
+    const rotation = settings.rotation
+      ? (Number(settings.rotation) * Math.PI / 180) * (mirror ? -1 : 1)
+      : 0;
+    return {
+      tx: targetX - (mirror ? -anchor.x : anchor.x) * state.scaleX,
+      ty: targetY - anchor.y * state.scaleY,
+      cos: Math.cos(rotation),
+      sin: Math.sin(rotation),
+      scaleX: state.scaleX,
+      scaleY: state.scaleY,
+      mirror
+    };
+  }
+
+  figurePointToCanvas(transform, point) {
+    const localX = (transform.mirror ? -point.x : point.x) * transform.scaleX;
+    const localY = point.y * transform.scaleY;
+    return {
+      x: transform.tx + localX * transform.cos - localY * transform.sin,
+      y: transform.ty + localX * transform.sin + localY * transform.cos
+    };
+  }
+
+  canvasPointToFigure(transform, point) {
+    const dx = point.x - transform.tx;
+    const dy = point.y - transform.ty;
+    const localX = dx * transform.cos + dy * transform.sin;
+    const localY = -dx * transform.sin + dy * transform.cos;
+    const figureX = localX / transform.scaleX;
+    return { x: transform.mirror ? -figureX : figureX, y: localY / transform.scaleY };
+  }
+
+  getFigureCornerHandleGroups(context) {
+    const { state, settings } = context;
+    return state.figureConfigs.map((config) => {
+      const transform = this.getFigureCanvasTransform(state, settings, config);
+      const points = [];
+      for (let index = 0; index < state.renderSegments.length; index += 1) {
+        const corner = this.getFigureAnchorPoint(state.renderSegments, index);
+        if (corner) {
+          points.push({ index, ...this.figurePointToCanvas(transform, corner) });
+        }
+      }
+      return { transform, points };
+    });
+  }
+
+  findFigureCornerHandleAt(groups, x, y) {
+    const hitRadius = Math.max(10, Math.min(this.canvas.width, this.canvas.height) * 0.024);
+    let best = null;
+    groups.forEach((group, groupIndex) => {
+      group.points.forEach((point) => {
+        const distance = Math.hypot(point.x - x, point.y - y);
+        if (distance <= hitRadius && (!best || distance < best.distance)) {
+          best = { index: point.index, groupIndex, distance };
+        }
+      });
+    });
+    return best;
+  }
+
+  drawFigureCornerHandles() {
+    const context = this.getFigureCornerEditContext();
+    if (!context) {
+      return;
+    }
+
+    const baseRadius = Math.max(4, Math.min(this.canvas.width, this.canvas.height) * 0.009);
+    this.ctx.save();
+    this.ctx.shadowBlur = 0;
+    this.getFigureCornerHandleGroups(context).forEach((group) => {
+      group.points.forEach((point) => {
+        const isActive = this.figureCornerDrag?.index === point.index || this.figureCornerHover === point.index;
+        const isBeat = point.index % 2 === 0;
+        this.ctx.beginPath();
+        this.ctx.arc(point.x, point.y, isActive ? baseRadius * 1.4 : baseRadius, 0, Math.PI * 2);
+        this.ctx.fillStyle = isActive
+          ? 'rgba(255, 255, 255, 0.9)'
+          : (isBeat ? 'rgba(255, 255, 255, 0.5)' : 'rgba(255, 255, 255, 0.16)');
+        this.ctx.fill();
+        this.ctx.lineWidth = 1.5;
+        this.ctx.strokeStyle = isActive ? 'rgba(20, 28, 38, 0.8)' : 'rgba(255, 255, 255, 0.75)';
+        this.ctx.stroke();
+      });
+    });
+    this.ctx.restore();
+  }
+
+  updateFigureCornerHover(x, y) {
+    const context = this.getFigureCornerEditContext();
+    const hit = context ? this.findFigureCornerHandleAt(this.getFigureCornerHandleGroups(context), x, y) : null;
+    const nextHover = hit ? hit.index : null;
+    if (nextHover !== this.figureCornerHover) {
+      this.figureCornerHover = nextHover;
+      this.requestRender();
+    }
+    return nextHover !== null;
+  }
+
+  beginFigureCornerDrag(x, y) {
+    const context = this.getFigureCornerEditContext();
+    if (!context) {
+      return false;
+    }
+
+    const groups = this.getFigureCornerHandleGroups(context);
+    const hit = this.findFigureCornerHandleAt(groups, x, y);
+    if (!hit) {
+      return false;
+    }
+
+    const corner = this.getFigureAnchorPoint(context.state.renderSegments, hit.index);
+    const pointer = this.canvasPointToFigure(groups[hit.groupIndex].transform, { x, y });
+    this.figureCornerDrag = {
+      kind: context.kind,
+      index: hit.index,
+      groupIndex: hit.groupIndex,
+      grab: { x: corner.x - pointer.x, y: corner.y - pointer.y }
+    };
+    this.figureCornerHover = hit.index;
+    this.requestRender();
+    return true;
+  }
+
+  updateFigureCornerDrag(x, y) {
+    const drag = this.figureCornerDrag;
+    if (!drag) {
+      return false;
+    }
+
+    const context = this.getFigureCornerEditContext();
+    if (!context || context.kind !== drag.kind) {
+      this.figureCornerDrag = null;
+      return false;
+    }
+
+    const groups = this.getFigureCornerHandleGroups(context);
+    const group = groups[drag.groupIndex];
+    const corner = this.getFigureAnchorPoint(context.state.renderSegments, drag.index);
+    if (!group || !corner) {
+      return false;
+    }
+
+    // The corner follows the pointer but stays on the canvas half of its hand (left figure: left half, right figure: right half).
+    const pointer = this.canvasPointToFigure(group.transform, { x, y });
+    const target = this.figurePointToCanvas(group.transform, {
+      x: pointer.x + drag.grab.x,
+      y: pointer.y + drag.grab.y
+    });
+    const centerX = this.canvas.width / 2;
+    const isRightHand = Boolean(context.state.figureConfigs[drag.groupIndex]?.mirrorX);
+    const clampedTarget = {
+      x: isRightHand
+        ? Math.min(this.canvas.width, Math.max(centerX, target.x))
+        : Math.min(centerX, Math.max(0, target.x)),
+      y: Math.min(this.canvas.height, Math.max(0, target.y))
+    };
+    const nextCorner = this.canvasPointToFigure(group.transform, clampedTarget);
+    const offsets = drag.kind === 'dynamic'
+      ? this.dynamicFigureCornerOffsets
+      : this.handIndependenceFigureCornerOffsets;
+    const current = offsets[drag.index] || { x: 0, y: 0 };
+    offsets[drag.index] = {
+      x: Math.min(200, Math.max(-200, current.x + (nextCorner.x - corner.x))),
+      y: Math.min(200, Math.max(-200, current.y + (nextCorner.y - corner.y)))
+    };
+    this.requestRender();
+    return true;
+  }
+
+  endFigureCornerDrag() {
+    const drag = this.figureCornerDrag;
+    if (!drag) {
+      return null;
+    }
+
+    this.figureCornerDrag = null;
+    if (drag.kind === 'dynamic') {
+      this.persistDynamicFigureCornerHeights();
+    }
+    this.requestRender();
+    return drag;
   }
 
   getLinePoint(start, end, t) {
@@ -7790,7 +8571,8 @@ export class LevelManager {
         ? Math.max(0, speedPathUnitsPerSecond * scale)
         : Math.max(0, currentState.velocity * scale / (segmentDurationMs / 1000)),
       segmentIndex: currentState.segmentIndex,
-      segmentProgress: currentState.segmentProgress
+      segmentProgress: currentState.segmentProgress,
+      pathDurationMs
     };
   }
 
@@ -7825,11 +8607,14 @@ export class LevelManager {
       const x = state.centerX + offsetX + (localMotionX - anchorX) * state.scaleX;
       const y = state.centerY + this.getCanvasVerticalOffsetFromNormalized(this.dynamicFigureYPosition) + (motionPoint.y - anchorY) * state.scaleY;
       const hand = mirrorX ? 'right' : 'left';
+      if (this.updateMotionTrail(hand, { x, y }, motionState.pathDurationMs)) {
+        this.drawMotionTrail(hand);
+      }
       const feedback = this.getMotionDistanceMetrics(hand, { x, y });
       this.recordMotionDistanceTarget(hand, { x, y });
 
       this.ctx.save();
-      this.ctx.fillStyle = this.motionDistanceVisible && feedback ? feedback.color : 'rgba(255, 255, 255, 0.96)';
+      this.ctx.fillStyle = feedback ? feedback.color : 'rgba(255, 255, 255, 0.96)';
       this.ctx.strokeStyle = 'rgba(20, 28, 38, 0.55)';
       this.ctx.lineWidth = 2;
       this.ctx.shadowColor = 'rgba(255, 255, 255, 0.9)';
@@ -7837,7 +8622,7 @@ export class LevelManager {
       this.ctx.beginPath();
       this.ctx.arc(x, y, pointRadius, 0, Math.PI * 2);
       this.ctx.fill();
-      if (this.motionDistanceVisible && feedback) {
+      if (feedback) {
         this.ctx.shadowBlur = 0;
         this.ctx.fillStyle = '#101820';
         this.ctx.font = '700 11px sans-serif';
@@ -7904,11 +8689,14 @@ export class LevelManager {
       const x = state.centerX + offsetX + (localMotionX - anchorX) * state.scaleX;
       const y = state.centerY + this.getCanvasVerticalOffsetFromNormalized(this.figureYPosition) + (motionPoint.y - anchor.y) * state.scaleY;
       const hand = mirrorX ? 'right' : 'left';
+      if (this.updateMotionTrail(hand, { x, y }, motionState.pathDurationMs)) {
+        this.drawMotionTrail(hand);
+      }
       const feedback = this.getMotionDistanceMetrics(hand, { x, y });
       this.recordMotionDistanceTarget(hand, { x, y });
 
       this.ctx.save();
-      this.ctx.fillStyle = this.motionDistanceVisible && feedback ? feedback.color : 'rgba(255, 255, 255, 0.96)';
+      this.ctx.fillStyle = feedback ? feedback.color : 'rgba(255, 255, 255, 0.96)';
       this.ctx.strokeStyle = 'rgba(20, 28, 38, 0.55)';
       this.ctx.lineWidth = 2;
       this.ctx.shadowColor = 'rgba(255, 255, 255, 0.9)';
@@ -7916,7 +8704,7 @@ export class LevelManager {
       this.ctx.beginPath();
       this.ctx.arc(x, y, pointRadius, 0, Math.PI * 2);
       this.ctx.fill();
-      if (this.motionDistanceVisible && feedback) {
+      if (feedback) {
         this.ctx.shadowBlur = 0;
         this.ctx.fillStyle = '#101820';
         this.ctx.font = '700 11px sans-serif';
@@ -8131,6 +8919,7 @@ export class LevelManager {
   }
 
   setupLevel() {
+    this.clearMotionTrail();
     this.syncDynamicGuideVisibilityFromStorage();
     this.motionDistanceHistory = { left: [], right: [] };
     this.motionDistanceFrameTargets = [];
@@ -8145,6 +8934,7 @@ export class LevelManager {
     this.chapter1TouchCount = 0;
     this.chapter1LastCountedCircleByHand = { left: null, right: null };
     this.chapter1TouchActiveByHand = { left: false, right: false };
+    this.pointExerciseRequireLeave = { left: null, right: null };
     this.chapter1TouchGoalCount = this.getChapter1TouchGoalCount();
     this.completed = false;
 
@@ -8171,13 +8961,14 @@ export class LevelManager {
       this.active = false;
       this.calibrationActive = false;
       this.setCalibrationPanelVisible(false);
-      this.consistencyActive = this.level !== null && this.level >= 0 && this.level <= 5;
+      this.consistencyActive = this.level !== null && this.level >= 0 && this.level <= 7;
       this.consistencyScoreHistory = [];
       this.consistencyTaskStrictnessHistory = [];
       this.consistencyAccuracy = 0;
       this.consistencyAnimationStart = performance.now();
       this.consistencyPhase = 0;
       this.consistencyLastTickMs = performance.now();
+      this.clearConsistencyTrail();
       this.setConsistencyPanelVisible(this.consistencyActive);
       this.render();
       return;
@@ -8198,6 +8989,7 @@ export class LevelManager {
     if (this.chapter === 4) {
       this.dynamicFigureActive = Number.isInteger(this.level) && this.level >= 0 && this.level <= 3;
       this.dynamicFigureCornerHeights = this.getDynamicFigureCornerHeightsForLevel(this.level);
+      this.dynamicFigureCornerOffsets = this.getDynamicFigureCornerOffsetsForLevel(this.level);
       this.dynamicFigureAnimationStart = performance.now();
       this.active = false;
       this.figureActive = false;
@@ -8254,7 +9046,8 @@ export class LevelManager {
       return;
     }
 
-    if ([3, 4].includes(this.level)) {
+    // Level 4 (trail) is handled further below; it needs an active level to receive the hand tips.
+    if (this.level === 3) {
       if (this.level === 3) {
         this.walkingBassStateByHand = { left: null, right: null };
         this.walkingBassHits = [];
@@ -8309,6 +9102,23 @@ export class LevelManager {
     const cols = this.gridCols;
     const startRow = Math.max(2, Math.floor(rows * 0.16)) + 2;
     const { outerRightCol, outerLeftCol, innerRightCol, innerLeftCol } = this.getEingewoehnungColumns();
+
+    if (this.chapter === 1 && this.level === 4) {
+      // Trail level: an empty canvas on which only the hand tips leave a fading trail.
+      this.active = true;
+      this.targets = [];
+      this.nextTarget = 0;
+      this.completed = false;
+      this.targetIndexByCircle.clear();
+      this.clearChapter1Trail();
+      this.chapter1FocusStateByHand = { left: null, right: null };
+      this.chapter1FocusStepByHand = { left: 0, right: 0 };
+      this.chapter1FocusPulses = [];
+      this.loadWalkingBassSample();
+      this.rebuildTargetIndexLookup();
+      this.render();
+      return;
+    }
 
     if (this.level === 1) {
       this.active = true;
@@ -9149,6 +9959,7 @@ export class LevelManager {
         yPosition: this.dynamicFigureYPosition
       });
       this.drawDynamicFigureCountTimes(dynamicFigureState);
+      this.drawFigureCornerHandles();
       this.drawDynamicFigureMotionPoints(dynamicFigureState);
       this.finishMotionDistanceFrame();
       this.drawMotionDistanceChart();
@@ -9167,6 +9978,7 @@ export class LevelManager {
         }
         this.drawFigurePath(dynamicState, dynamicState.handIndependenceSettings);
         this.drawHandIndependenceCountTimes(dynamicState);
+        this.drawFigureCornerHandles();
         this.drawHandIndependenceMotionPoint(dynamicState, {
           variant: this.handIndependenceVariant,
           tempoBpm: tempoPair.figure,
@@ -9195,6 +10007,14 @@ export class LevelManager {
     if (this.chapter === 6 && Number.isInteger(this.level) && this.level >= 0 && this.level <= 2) {
       this.drawExerciseFieldZones();
       this.drawExerciseFieldTimingOverlay();
+      this.renderPoseAlignmentFeedback();
+      this.requestRender();
+      return;
+    }
+
+    if (this.isChapter1TrailLevel() && this.active) {
+      this.drawChapter1OrientationPoints();
+      this.drawChapter1Trail();
       this.renderPoseAlignmentFeedback();
       this.requestRender();
       return;
@@ -10652,7 +11472,7 @@ export class LevelManager {
   advanceConsistencyPhase(nowMs) {
     const dtMs = Math.max(0, nowMs - this.consistencyLastTickMs);
     this.consistencyLastTickMs = nowMs;
-    const bpm = Math.max(30, this.consistencyTempoBpm);
+    const bpm = Math.max(10, this.consistencyTempoBpm);
     // Turning point every beat: full top->bottom->top cycle spans two beats.
     const deltaPhase = dtMs * bpm / 120000;
     this.consistencyPhase = (this.consistencyPhase + deltaPhase) % 1;
@@ -10682,85 +11502,134 @@ export class LevelManager {
     const w = this.canvas.width;
     const h = this.canvas.height;
     const centerX = w * 0.5;
-    const wristOffset = w * 0.25;
+    // All levels share the draggable distance to the center axis, so both-handed levels stay mirrored.
+    const wristOffset = w * this.getConsistencyEffectiveLineDistance();
     const leftX = centerX - wristOffset;
     const rightX = centerX + wristOffset;
     const topY = h * 0.2;
     const bottomY = h * 0.86;
     const baseT = this.consistencyPhase;
     const motionBlend = Math.max(0, Math.min(1, this.consistencyMotionBlendPercent / 100));
-    const yAt = (phase = 0, speedMultiplier = 1) => {
+    const progressAt = (phase = 0, speedMultiplier = 1) => {
       const t = (baseT * speedMultiplier + phase) % 1;
       const triangle = t < 0.5 ? t * 2 : (1 - t) * 2;
       const sine = 0.5 - 0.5 * Math.cos(t * Math.PI * 2);
-      const blended = triangle + (sine - triangle) * motionBlend;
-      return topY + blended * (bottomY - topY);
+      return triangle + (sine - triangle) * motionBlend;
     };
 
-    if (this.level === 0) {
+    const lineGuide = (side) => {
+      const [startFraction, endFraction] = this.getConsistencyLineEnds('vertical', side);
       return {
-        guides: [{ type: 'line', x: rightX, topY, bottomY }],
-        movingTargets: [{ hand: 'right', x: rightX, y: yAt(0), color: 'rgba(255, 148, 84, 0.98)' }]
+        type: 'line',
+        axis: 'x',
+        side,
+        x: side === 'left' ? leftX : rightX,
+        topY: startFraction * h,
+        bottomY: endFraction * h
       };
+    };
+    const targetOnLine = (guide, phase = 0, speedMultiplier = 1) => ({
+      hand: guide.side,
+      x: guide.x,
+      y: guide.topY + progressAt(phase, speedMultiplier) * (guide.bottomY - guide.topY),
+      color: guide.side === 'left' ? 'rgba(96, 160, 255, 0.98)' : 'rgba(255, 148, 84, 0.98)'
+    });
+
+    if (this.level === 0) {
+      const right = lineGuide('right');
+      return { guides: [right], movingTargets: [targetOnLine(right)] };
     }
 
     if (this.level === 1) {
-      return {
-        guides: [{ type: 'line', x: leftX, topY, bottomY }],
-        movingTargets: [{ hand: 'left', x: leftX, y: yAt(0), color: 'rgba(96, 160, 255, 0.98)' }]
-      };
+      const left = lineGuide('left');
+      return { guides: [left], movingTargets: [targetOnLine(left)] };
     }
 
     if (this.level === 2) {
-      const y = yAt(0);
-      return {
-        guides: [
-          { type: 'line', x: leftX, topY, bottomY },
-          { type: 'line', x: rightX, topY, bottomY }
-        ],
-        movingTargets: [
-          { hand: 'left', x: leftX, y, color: 'rgba(96, 160, 255, 0.98)' },
-          { hand: 'right', x: rightX, y, color: 'rgba(255, 148, 84, 0.98)' }
-        ]
-      };
+      const left = lineGuide('left');
+      const right = lineGuide('right');
+      return { guides: [left, right], movingTargets: [targetOnLine(left), targetOnLine(right)] };
     }
 
     if (this.level === 3) {
+      const left = lineGuide('left');
+      const right = lineGuide('right');
+      return { guides: [left, right], movingTargets: [targetOnLine(left), targetOnLine(right, 0.5)] };
+    }
+
+    if (this.level === 4) {
+      const left = lineGuide('left');
+      const right = lineGuide('right');
+      return { guides: [left, right], movingTargets: [targetOnLine(left, 0.5, 2), targetOnLine(right, 0, 1)] };
+    }
+
+    if (this.level === 6) {
+      // Both hands move in sync; one follows a vertical and the other a horizontal line.
+      const verticalHand = this.consistencySwapOrientation ? 'right' : 'left';
+      const handColor = { left: 'rgba(96, 160, 255, 0.98)', right: 'rgba(255, 148, 84, 0.98)' };
+      const horizontalHand = verticalHand === 'left' ? 'right' : 'left';
+      const lineY = h * this.consistencyHorizontalLineY;
+      const progress = progressAt(0);
+      const [hStart, hEnd] = this.getConsistencyLineEnds('horizontal', horizontalHand);
+      const hLeftX = hStart * w;
+      const hRightX = hEnd * w;
+      const verticalGuide = lineGuide(verticalHand);
       return {
         guides: [
-          { type: 'line', x: leftX, topY, bottomY },
-          { type: 'line', x: rightX, topY, bottomY }
+          verticalGuide,
+          {
+            type: 'hline',
+            axis: 'y',
+            side: horizontalHand,
+            y: lineY,
+            leftX: hLeftX,
+            rightX: hRightX
+          }
         ],
         movingTargets: [
-          { hand: 'left', x: leftX, y: yAt(0), color: 'rgba(96, 160, 255, 0.98)' },
-          { hand: 'right', x: rightX, y: yAt(0.5), color: 'rgba(255, 148, 84, 0.98)' }
+          { hand: verticalHand, x: verticalGuide.x, y: verticalGuide.topY + progress * (verticalGuide.bottomY - verticalGuide.topY), color: handColor[verticalHand] },
+          {
+            hand: horizontalHand,
+            x: hLeftX + progress * (hRightX - hLeftX),
+            y: lineY,
+            color: handColor[horizontalHand]
+          }
         ]
       };
     }
 
-    if (this.level === 4) {
-      return {
-        guides: [
-          { type: 'line', x: leftX, topY, bottomY },
-          { type: 'line', x: rightX, topY, bottomY }
-        ],
-        movingTargets: [
-          { hand: 'left', x: leftX, y: yAt(0.5, 2), color: 'rgba(96, 160, 255, 0.98)' },
-          { hand: 'right', x: rightX, y: yAt(0, 1), color: 'rgba(255, 148, 84, 0.98)' }
-        ]
-      };
+    if (this.level === 7) {
+      // Lying eight (lemniscate of Bernoulli with rounded lobes); the right hand mirrors the left one on the center axis.
+      const eightRx = w * 0.14;
+      const eightRy = eightRx * 0.5;
+      const eightDirection = this.consistencyReverseDirection ? -1 : 1;
+      const { x: offsetX, y: offsetY } = this.getConsistencyEightPoint(eightDirection * baseT * Math.PI * 2, eightRx);
+      const centerY = h * 0.53;
+      const handMode = this.consistencyHandMode;
+      const guides = [];
+      const movingTargets = [];
+      if (handMode !== 'right') {
+        guides.push({ type: 'eight', axis: 'x', side: 'left', centerX: leftX, centerY, radiusX: eightRx, radiusY: eightRy });
+        movingTargets.push({ hand: 'left', x: leftX + offsetX, y: centerY + offsetY, color: 'rgba(96, 160, 255, 0.98)' });
+      }
+      if (handMode !== 'left') {
+        guides.push({ type: 'eight', axis: 'x', side: 'right', centerX: rightX, centerY, radiusX: eightRx, radiusY: eightRy });
+        movingTargets.push({ hand: 'right', x: rightX - offsetX, y: centerY + offsetY, color: 'rgba(255, 148, 84, 0.98)' });
+      }
+      return { guides, movingTargets };
     }
 
     const ellipseRx = w * 0.11;
     const ellipseRy = h * 0.22;
-    const theta = baseT * Math.PI * 2 - Math.PI / 2;
-    const rightTheta = -theta - Math.PI;
+    const direction = this.consistencyReverseDirection ? -1 : 1;
+    const theta = direction * baseT * Math.PI * 2 - Math.PI / 2;
+    const rightTheta = -direction * baseT * Math.PI * 2 - Math.PI / 2;
     const leftCenter = { x: leftX, y: h * 0.53 };
     const rightCenter = { x: rightX, y: h * 0.53 };
     return {
       guides: [
-        { type: 'ellipse', centerX: leftCenter.x, centerY: leftCenter.y, radiusX: ellipseRx, radiusY: ellipseRy },
-        { type: 'ellipse', centerX: rightCenter.x, centerY: rightCenter.y, radiusX: ellipseRx, radiusY: ellipseRy }
+        { type: 'ellipse', axis: 'x', side: 'left', centerX: leftCenter.x, centerY: leftCenter.y, radiusX: ellipseRx, radiusY: ellipseRy },
+        { type: 'ellipse', axis: 'x', side: 'right', centerX: rightCenter.x, centerY: rightCenter.y, radiusX: ellipseRx, radiusY: ellipseRy }
       ],
       movingTargets: [
         {
@@ -10777,6 +11646,723 @@ export class LevelManager {
         }
       ]
     };
+  }
+
+  isChapter1TrailLevel() {
+    return this.chapter === 1 && this.level === 4;
+  }
+
+  setChapter1TrailSeconds(value) {
+    const next = Number(value);
+    if (Number.isFinite(next)) {
+      this.chapter1TrailSeconds = Math.min(10, Math.max(1, next));
+    }
+  }
+
+  setChapter1FocusPoint(value) {
+    const next = Number(value);
+    if (Number.isInteger(next)) {
+      this.chapter1FocusPoint = Math.min(5, Math.max(0, next));
+      this.chapter1FocusStateByHand = { left: null, right: null };
+      this.requestRender();
+    }
+  }
+
+  setChapter1FocusSound(value) {
+    this.chapter1FocusSound = ['none', 'bass', 'walking-bass', 'cymbal', 'clave'].includes(value) ? value : 'bass';
+    this.chapter1FocusStepByHand = { left: 0, right: 0 };
+    if (this.chapter1FocusSound === 'none') {
+      this.chapter1FocusStateByHand = { left: null, right: null };
+    }
+  }
+
+  // The focus point is a 1-based index into the visible orientation points; 0 means no focus point.
+  getChapter1FocusZone() {
+    const index = Math.min(this.chapter1FocusPoint, this.chapter1OrientationCount);
+    if (index <= 0 || !this.canvas.width || !this.canvas.height) {
+      return null;
+    }
+
+    const position = this.chapter1OrientationPositions[index - 1];
+    return {
+      index,
+      x: position.x * this.canvas.width,
+      y: position.y * this.canvas.height,
+      radius: Math.min(this.canvas.width, this.canvas.height) * 0.1
+    };
+  }
+
+  playChapter1FocusSound(gain, shape, hand) {
+    if (this.chapter1FocusSound === 'cymbal') {
+      this.playWalkingBassCymbal(gain, shape);
+    } else if (this.chapter1FocusSound === 'clave') {
+      // Only two pitches: high for fast strokes, low for slow ones.
+      this.playWalkingBassClave(gain, shape, { twoTone: true });
+    } else if (this.chapter1FocusSound === 'walking-bass') {
+      // Same pitch sequence as the Walking mode of the Walking Bass level, advanced on every hit of this hand.
+      const steps = this.walkingBassPitchSteps;
+      const step = this.chapter1FocusStepByHand[hand] % steps.length;
+      this.chapter1FocusStepByHand[hand] = (step + 1) % steps.length;
+      this.playWalkingBass(hand, gain, { plain: true, semitones: steps[step] });
+    } else if (this.chapter1FocusSound === 'bass') {
+      this.playWalkingBass(hand, gain, { plain: true });
+    }
+  }
+
+  setChapter1FocusAnticipation(enabled) {
+    this.chapter1FocusAnticipation = Boolean(enabled);
+  }
+
+  // Same stroke detection as Walking Bass: a sound is triggered where the hand turns from moving down to moving up,
+  // but only when that lowest point lies near the focus point.
+  updateChapter1Focus(nowMs) {
+    const zone = this.getChapter1FocusZone();
+    if (!zone || this.chapter1FocusSound === 'none') {
+      this.chapter1FocusStateByHand = { left: null, right: null };
+      return;
+    }
+
+    const height = Math.max(1, this.canvas.height);
+    const threshold = (this.walkingBassThresholdPercent / 100) * height;
+    const fullScaleSpeed = 2; // canvas heights per second that count as maximum velocity
+    ['left', 'right'].forEach((hand) => {
+      const tip = hand === 'left' ? this.leftTip : this.rightTip;
+      const inFrame = hand === 'left' ? this.leftTipInFrame : this.rightTipInFrame;
+      if (!tip || !inFrame) {
+        this.chapter1FocusStateByHand[hand] = null;
+        return;
+      }
+
+      const y = tip.y;
+      const state = this.chapter1FocusStateByHand[hand];
+      if (!state) {
+        this.chapter1FocusStateByHand[hand] = {
+          direction: null,
+          extremeX: tip.x,
+          extremeY: y,
+          extremeAt: nowMs,
+          strokeStartY: y,
+          strokeStartAt: nowMs,
+          lastY: y,
+          lastAt: nowMs,
+          vy: 0,
+          ay: 0,
+          peakVy: 0,
+          fired: false
+        };
+        return;
+      }
+
+      // Smoothed vertical speed (px/s, positive = down) and braking (px/s^2, positive = slowing down).
+      const dtSeconds = Math.max(1, nowMs - state.lastAt) / 1000;
+      const nextVy = state.vy * 0.5 + ((y - state.lastY) / dtSeconds) * 0.5;
+      state.ay = state.ay * 0.6 + ((state.vy - nextVy) / dtSeconds) * 0.4;
+      state.vy = nextVy;
+      state.lastY = y;
+      state.lastAt = nowMs;
+
+      const fireHit = (hitX, hitY, distance, seconds) => {
+        const velocity = Math.max(0, Math.min(1, distance / seconds / fullScaleSpeed));
+        const sensitivity = this.walkingBassVelocitySensitivity;
+        this.playChapter1FocusSound(
+          Math.max(0.05, (1 - sensitivity) + sensitivity * velocity),
+          (1 - sensitivity) * 0.5 + sensitivity * velocity,
+          hand
+        );
+        this.chapter1FocusPulses.push({ hand, x: hitX, y: hitY, startedAt: nowMs });
+        if (this.chapter1FocusPulses.length > 16) {
+          this.chapter1FocusPulses.shift();
+        }
+        this.requestRender();
+      };
+      const isNearZone = (hitX, hitY) => Math.hypot(hitX - zone.x, hitY - zone.y) <= zone.radius;
+
+      const turn = (nextDirection) => {
+        state.fired = false;
+        state.peakVy = 0;
+        state.direction = nextDirection;
+        state.strokeStartY = state.extremeY;
+        state.strokeStartAt = state.extremeAt;
+        state.extremeX = tip.x;
+        state.extremeY = y;
+        state.extremeAt = nowMs;
+      };
+
+      if (state.direction === null) {
+        if (y > state.extremeY + threshold) {
+          turn('down');
+        } else if (y < state.extremeY - threshold) {
+          turn('up');
+        }
+        return;
+      }
+
+      if (state.direction === 'down') {
+        state.peakVy = Math.max(state.peakVy, state.vy);
+        if (y > state.extremeY) {
+          state.extremeX = tip.x;
+          state.extremeY = y;
+          state.extremeAt = nowMs;
+        } else if (y < state.extremeY - threshold) {
+          if (!state.fired && isNearZone(state.extremeX, state.extremeY)) {
+            const distance = (state.extremeY - state.strokeStartY) / height;
+            const seconds = Math.max(0.05, (state.extremeAt - state.strokeStartAt) / 1000);
+            fireHit(state.extremeX, state.extremeY, distance, seconds);
+          }
+          turn('up');
+          return;
+        }
+
+        if (this.chapter1FocusAnticipation && !state.fired && state.ay > 0 && state.vy < state.peakVy * 0.6 && y - state.strokeStartY > threshold) {
+          // Only fast strokes get a lead time; slow movements stay below the minimum speed and are not anticipated.
+          const strength = Math.max(0, Math.min(1, (state.peakVy / height - 0.5) / (fullScaleSpeed - 0.5)));
+          const secondsToStop = Math.max(0, state.vy) / state.ay;
+          if (strength > 0 && secondsToStop * 1000 <= 120 * strength && isNearZone(tip.x, y)) {
+            const distance = (y - state.strokeStartY) / height;
+            const seconds = Math.max(0.05, (nowMs - state.strokeStartAt) / 1000);
+            fireHit(tip.x, y, distance, seconds);
+            state.fired = true;
+          }
+        }
+        return;
+      }
+
+      if (y < state.extremeY) {
+        state.extremeY = y;
+        state.extremeAt = nowMs;
+      } else if (y > state.extremeY + threshold) {
+        turn('down');
+      }
+    });
+  }
+
+  setChapter1OrientationCount(value) {
+    const next = Number(value);
+    if (Number.isInteger(next)) {
+      this.chapter1OrientationCount = Math.min(5, Math.max(0, next));
+      this.chapter1OrientationDrag = null;
+      this.requestRender();
+    }
+  }
+
+  setChapter1OrientationPositions(values) {
+    if (!Array.isArray(values)) {
+      return;
+    }
+    this.chapter1OrientationPositions = this.chapter1OrientationPositions.map((fallback, index) => {
+      const x = Number(values[index]?.x);
+      const y = Number(values[index]?.y);
+      return {
+        x: Number.isFinite(x) ? Math.min(1, Math.max(0, x)) : fallback.x,
+        y: Number.isFinite(y) ? Math.min(1, Math.max(0, y)) : fallback.y
+      };
+    });
+    this.requestRender();
+  }
+
+  getChapter1OrientationHitRadius() {
+    return Math.max(16, Math.min(this.canvas.width, this.canvas.height) * 0.035);
+  }
+
+  findChapter1OrientationPointAt(x, y) {
+    if (!this.isChapter1TrailLevel() || !this.canvas.width || !this.canvas.height) {
+      return -1;
+    }
+
+    let bestIndex = -1;
+    let bestDistance = this.getChapter1OrientationHitRadius();
+    for (let index = 0; index < this.chapter1OrientationCount; index += 1) {
+      const position = this.chapter1OrientationPositions[index];
+      const distance = Math.hypot(position.x * this.canvas.width - x, position.y * this.canvas.height - y);
+      if (distance <= bestDistance) {
+        bestDistance = distance;
+        bestIndex = index;
+      }
+    }
+    return bestIndex;
+  }
+
+  beginChapter1OrientationDrag(x, y) {
+    const index = this.findChapter1OrientationPointAt(x, y);
+    if (index < 0) {
+      return false;
+    }
+
+    const position = this.chapter1OrientationPositions[index];
+    this.chapter1OrientationDrag = {
+      index,
+      grabX: position.x * this.canvas.width - x,
+      grabY: position.y * this.canvas.height - y
+    };
+    this.requestRender();
+    return true;
+  }
+
+  updateChapter1OrientationDrag(x, y) {
+    const drag = this.chapter1OrientationDrag;
+    if (!drag || !this.canvas.width || !this.canvas.height) {
+      return false;
+    }
+
+    this.chapter1OrientationPositions[drag.index] = {
+      x: Math.min(1, Math.max(0, (x + drag.grabX) / this.canvas.width)),
+      y: Math.min(1, Math.max(0, (y + drag.grabY) / this.canvas.height))
+    };
+    this.requestRender();
+    return true;
+  }
+
+  endChapter1OrientationDrag() {
+    const drag = this.chapter1OrientationDrag;
+    this.chapter1OrientationDrag = null;
+    if (drag) {
+      this.requestRender();
+    }
+    return drag;
+  }
+
+  drawChapter1OrientationPoints() {
+    if (this.chapter1OrientationCount <= 0) {
+      return;
+    }
+
+    const radius = Math.max(12, Math.min(this.canvas.width, this.canvas.height) * 0.024);
+    this.ctx.save();
+    this.ctx.shadowBlur = 0;
+    const zone = this.getChapter1FocusZone();
+    if (zone) {
+      this.ctx.beginPath();
+      this.ctx.arc(zone.x, zone.y, zone.radius, 0, Math.PI * 2);
+      this.ctx.setLineDash([8, 8]);
+      this.ctx.lineWidth = 2;
+      this.ctx.strokeStyle = 'rgba(255, 221, 145, 0.55)';
+      this.ctx.stroke();
+      this.ctx.setLineDash([]);
+    }
+    const nowMs = performance.now();
+    const pulseMs = 600;
+    this.chapter1FocusPulses = this.chapter1FocusPulses.filter((pulse) => nowMs - pulse.startedAt < pulseMs);
+    this.chapter1FocusPulses.forEach((pulse) => {
+      const progress = (nowMs - pulse.startedAt) / pulseMs;
+      this.ctx.beginPath();
+      this.ctx.arc(pulse.x, pulse.y, radius * (1 + progress * 2.2), 0, Math.PI * 2);
+      this.ctx.lineWidth = 3;
+      this.ctx.strokeStyle = `rgba(${pulse.hand === 'left' ? '96, 160, 255' : '255, 148, 84'}, ${(0.9 * (1 - progress)).toFixed(3)})`;
+      this.ctx.stroke();
+    });
+    this.ctx.textAlign = 'center';
+    this.ctx.textBaseline = 'middle';
+    this.ctx.font = `700 ${Math.round(radius * 1.05)}px sans-serif`;
+    for (let index = 0; index < this.chapter1OrientationCount; index += 1) {
+      const position = this.chapter1OrientationPositions[index];
+      const x = position.x * this.canvas.width;
+      const y = position.y * this.canvas.height;
+      const isActive = this.chapter1OrientationDrag?.index === index;
+      this.ctx.beginPath();
+      this.ctx.arc(x, y, isActive ? radius * 1.25 : radius, 0, Math.PI * 2);
+      this.ctx.fillStyle = isActive ? 'rgba(255, 221, 145, 0.55)' : 'rgba(255, 221, 145, 0.3)';
+      this.ctx.fill();
+      this.ctx.lineWidth = 2;
+      this.ctx.strokeStyle = 'rgba(255, 221, 145, 0.95)';
+      this.ctx.stroke();
+      this.ctx.fillStyle = 'rgba(255, 250, 235, 0.98)';
+      this.ctx.fillText(String(index + 1), x, y + radius * 0.05);
+    }
+    this.ctx.restore();
+  }
+
+  setChapter1TrailSpeedWidth(percent) {
+    const next = Number(percent);
+    if (Number.isFinite(next)) {
+      this.chapter1TrailSpeedWidth = Math.min(100, Math.max(0, next));
+      this.requestRender();
+    }
+  }
+
+  setChapter1TrailSmoothing(enabled) {
+    this.chapter1TrailSmoothing = Boolean(enabled);
+    this.requestRender();
+  }
+
+  clearChapter1Trail() {
+    this.chapter1TrailByHand = { left: [], right: [] };
+  }
+
+  // Stores the raw tip positions; smoothing is applied only when drawing, so the tracked tip itself stays untouched.
+  recordChapter1Trail(nowMs = performance.now()) {
+    const lifetimeMs = this.chapter1TrailSeconds * 1000;
+    ['left', 'right'].forEach((hand) => {
+      const tip = hand === 'left' ? this.leftTip : this.rightTip;
+      const inFrame = hand === 'left' ? this.leftTipInFrame : this.rightTipInFrame;
+      const trail = this.chapter1TrailByHand[hand];
+      if (tip && inFrame) {
+        const previous = trail[trail.length - 1];
+        trail.push({ x: tip.x, y: tip.y, ts: nowMs, startsNewLine: !previous || previous.lost });
+      } else if (trail.length > 0) {
+        trail[trail.length - 1].lost = true;
+      }
+      while (trail.length > 0 && nowMs - trail[0].ts > lifetimeMs) {
+        trail.shift();
+      }
+    });
+  }
+
+  // Weighted moving average over neighbouring samples within one continuous line. The window is symmetric and
+  // shrinks at the ends, so the head of the trail stays on the tip and the line is not dragged behind the hand.
+  getSmoothedChapter1TrailPoints(trail, enabled = this.chapter1TrailSmoothing) {
+    if (!enabled || trail.length < 3) {
+      return trail;
+    }
+
+    const maxRadius = 4;
+    const segmentStart = [];
+    for (let index = 0; index < trail.length; index += 1) {
+      segmentStart[index] = trail[index].startsNewLine || index === 0 ? index : segmentStart[index - 1];
+    }
+    const segmentEnd = [];
+    for (let index = trail.length - 1; index >= 0; index -= 1) {
+      segmentEnd[index] = index === trail.length - 1 || trail[index + 1].startsNewLine ? index : segmentEnd[index + 1];
+    }
+
+    return trail.map((point, index) => {
+      const radius = Math.min(maxRadius, index - segmentStart[index], segmentEnd[index] - index);
+      if (radius <= 0) {
+        return point;
+      }
+      let sumX = 0;
+      let sumY = 0;
+      let sumWeight = 0;
+      for (let offset = -radius; offset <= radius; offset += 1) {
+        const weight = radius + 1 - Math.abs(offset);
+        sumX += trail[index + offset].x * weight;
+        sumY += trail[index + offset].y * weight;
+        sumWeight += weight;
+      }
+      return { ...point, x: sumX / sumWeight, y: sumY / sumWeight };
+    });
+  }
+
+  drawChapter1Trail(nowMs = performance.now()) {
+    const lifetimeMs = Math.max(1, this.chapter1TrailSeconds * 1000);
+    const colors = { left: '96, 160, 255', right: '255, 148, 84' };
+    this.ctx.save();
+    this.ctx.lineCap = 'round';
+    this.ctx.lineJoin = 'round';
+    this.ctx.shadowBlur = 0;
+    const baseWidth = Math.max(4, Math.min(this.canvas.width, this.canvas.height) * 0.008);
+    const effect = this.chapter1TrailSpeedWidth / 100;
+    // Reference speed (px/s) at which the stroke keeps its base width.
+    const referenceSpeed = this.canvas.width * 0.5;
+    const speedWindow = 4;
+    ['left', 'right'].forEach((hand) => {
+      const points = this.getSmoothedChapter1TrailPoints(this.chapter1TrailByHand[hand]);
+      for (let index = 1; index < points.length; index += 1) {
+        const point = points[index];
+        if (point.startsNewLine) {
+          continue;
+        }
+        let width = baseWidth;
+        if (effect > 0) {
+          // Speed over a short window of the same line keeps the width change smooth.
+          let from = index;
+          while (from > 0 && index - from < speedWindow && !points[from].startsNewLine) {
+            from -= 1;
+          }
+          const elapsedSeconds = (point.ts - points[from].ts) / 1000;
+          const speed = elapsedSeconds > 0
+            ? Math.hypot(point.x - points[from].x, point.y - points[from].y) / elapsedSeconds
+            : referenceSpeed;
+          const relative = Math.min(2, speed / referenceSpeed);
+          // 0 % keeps the base width; at 100 % slow movement shrinks to a quarter and fast movement becomes nine times as thick.
+          const factor = relative < 1
+            ? 1 - 0.75 * effect * (1 - relative)
+            : 1 + 8 * effect * (relative - 1);
+          width = baseWidth * factor;
+        }
+        this.ctx.lineWidth = width;
+        const alpha = Math.max(0, 1 - (nowMs - point.ts) / lifetimeMs);
+        if (alpha <= 0.01) {
+          continue;
+        }
+        this.ctx.strokeStyle = `rgba(${colors[hand]}, ${(alpha * 0.95).toFixed(3)})`;
+        this.ctx.beginPath();
+        this.ctx.moveTo(points[index - 1].x, points[index - 1].y);
+        this.ctx.lineTo(point.x, point.y);
+        this.ctx.stroke();
+      }
+    });
+    this.ctx.restore();
+  }
+
+  clearConsistencyTrail() {
+    this.consistencyTrailByHand = { left: [], right: [] };
+    this.consistencyTrailInsideByHand = { left: false, right: false };
+  }
+
+  // Records the tip position every frame while it is inside the dashed target circle.
+  updateConsistencyTrail(nowMs, scene, threshold) {
+    if (!this.consistencyTrailEnabled) {
+      this.clearConsistencyTrail();
+      return;
+    }
+
+    const lifetimeMs = this.consistencyTrailSeconds * 1000;
+    ['left', 'right'].forEach((hand) => {
+      const movingTarget = scene.movingTargets.find((target) => target.hand === hand);
+      const tip = hand === 'left' ? this.leftTip : this.rightTip;
+      const isInside = Boolean(movingTarget && tip && this.distance(tip, movingTarget) <= threshold);
+      const trail = this.consistencyTrailByHand[hand];
+      if (isInside) {
+        trail.push({ x: tip.x, y: tip.y, ts: nowMs, startsNewLine: !this.consistencyTrailInsideByHand[hand] });
+      }
+      this.consistencyTrailInsideByHand[hand] = isInside;
+      while (trail.length > 0 && nowMs - trail[0].ts > lifetimeMs) {
+        trail.shift();
+      }
+    });
+  }
+
+  drawConsistencyTrail(nowMs, scene) {
+    if (!this.consistencyTrailEnabled) {
+      return;
+    }
+
+    const lifetimeMs = Math.max(1, this.consistencyTrailSeconds * 1000);
+    this.ctx.save();
+    this.ctx.lineCap = 'round';
+    this.ctx.lineJoin = 'round';
+    this.ctx.lineWidth = Math.max(4, Math.min(this.canvas.width, this.canvas.height) * 0.008);
+    ['left', 'right'].forEach((hand) => {
+      const trail = this.getSmoothedChapter1TrailPoints(this.consistencyTrailByHand[hand], this.consistencyTrailSmoothing);
+      const color = scene.movingTargets.find((target) => target.hand === hand)?.color || 'rgba(255, 255, 255, 0.98)';
+      const rgb = color.match(/\d+(?:\.\d+)?/g)?.slice(0, 3).join(', ') || '255, 255, 255';
+      for (let index = 1; index < trail.length; index += 1) {
+        const point = trail[index];
+        if (point.startsNewLine) {
+          continue;
+        }
+        const previous = trail[index - 1];
+        const alpha = Math.max(0, 1 - (nowMs - point.ts) / lifetimeMs);
+        this.ctx.strokeStyle = `rgba(${rgb}, ${(alpha * 0.85).toFixed(3)})`;
+        this.ctx.beginPath();
+        this.ctx.moveTo(previous.x, previous.y);
+        this.ctx.lineTo(point.x, point.y);
+        this.ctx.stroke();
+      }
+    });
+    this.ctx.restore();
+  }
+
+  // Offset from the crossing point; width is 2 * halfWidth, each lobe is roughly as high as it is wide.
+  getConsistencyEightPoint(t, halfWidth) {
+    const denominator = 1 + Math.cos(t) ** 2;
+    return {
+      x: halfWidth * Math.sin(t) / denominator,
+      y: -Math.SQRT2 * halfWidth * Math.sin(t) * Math.cos(t) / denominator
+    };
+  }
+
+  isConsistencyLineDragLevel() {
+    return this.chapter === 2
+      && this.consistencyActive
+      && [0, 1, 2, 3, 4, 5, 6, 7].includes(this.level)
+      && this.isFigureCornerEditAllowed();
+  }
+
+  findConsistencyLineAt(x, y) {
+    if (!this.isConsistencyLineDragLevel()) {
+      return null;
+    }
+
+    const hitRadius = Math.max(14, Math.min(this.canvas.width, this.canvas.height) * 0.03);
+    let best = null;
+    this.getConsistencyScene().guides.forEach((guide) => {
+      let distance = Number.POSITIVE_INFINITY;
+      let hitLimit = hitRadius;
+      if (guide.type === 'line' && y >= guide.topY - hitRadius && y <= guide.bottomY + hitRadius) {
+        distance = Math.abs(x - guide.x);
+      } else if (guide.type === 'hline' && x >= guide.leftX - hitRadius && x <= guide.rightX + hitRadius) {
+        distance = Math.abs(y - guide.y);
+      } else if (guide.type === 'ellipse' || guide.type === 'eight') {
+        // Clicking anywhere inside the shape (or just next to its outline) grabs it.
+        const normalizedX = (x - guide.centerX) / (guide.radiusX + hitRadius);
+        const normalizedY = (y - guide.centerY) / (guide.radiusY + hitRadius);
+        const isInside = guide.type === 'eight'
+          ? Math.abs(normalizedX) <= 1 && Math.abs(normalizedY) <= 1
+          : normalizedX * normalizedX + normalizedY * normalizedY <= 1;
+        if (isInside) {
+          distance = Math.hypot(x - guide.centerX, y - guide.centerY);
+          hitLimit = Number.POSITIVE_INFINITY;
+        }
+      }
+      if (distance <= hitLimit && (!best || distance < best.distance)) {
+        best = { guide, distance };
+      }
+    });
+    return best ? best.guide : null;
+  }
+
+  areConsistencyLineEndHandlesVisible() {
+    return this.chapter === 2
+      && this.consistencyActive
+      && [0, 1, 2, 3, 4, 6].includes(this.level)
+      && this.isFigureCornerEditAllowed();
+  }
+
+  // Handles sit on both ends of each straight guide; they only slide along the line.
+  getConsistencyLineEndHandles() {
+    if (!this.areConsistencyLineEndHandlesVisible()) {
+      return [];
+    }
+    const handles = [];
+    this.getConsistencyScene().guides.forEach((guide) => {
+      if (guide.type === 'line') {
+        handles.push({ orientation: 'vertical', side: guide.side, end: 0, x: guide.x, y: guide.topY });
+        handles.push({ orientation: 'vertical', side: guide.side, end: 1, x: guide.x, y: guide.bottomY });
+      } else if (guide.type === 'hline') {
+        handles.push({ orientation: 'horizontal', side: guide.side, end: 0, x: guide.leftX, y: guide.y });
+        handles.push({ orientation: 'horizontal', side: guide.side, end: 1, x: guide.rightX, y: guide.y });
+      }
+    });
+    return handles;
+  }
+
+  findConsistencyLineEndHandleAt(x, y) {
+    const hitRadius = Math.max(16, Math.min(this.canvas.width, this.canvas.height) * 0.035);
+    let best = null;
+    this.getConsistencyLineEndHandles().forEach((handle) => {
+      const distance = Math.hypot(x - handle.x, y - handle.y);
+      if (distance <= hitRadius && (!best || distance < best.distance)) {
+        best = { handle, distance };
+      }
+    });
+    return best ? best.handle : null;
+  }
+
+  drawConsistencyLineEndHandles() {
+    const handles = this.getConsistencyLineEndHandles();
+    if (handles.length === 0) {
+      return;
+    }
+    const radius = Math.max(7, Math.min(this.canvas.width, this.canvas.height) * 0.016);
+    this.ctx.save();
+    handles.forEach((handle) => {
+      const isActive = this.consistencyLineDrag?.kind === 'end'
+        && this.consistencyLineDrag.orientation === handle.orientation
+        && this.consistencyLineDrag.side === handle.side
+        && this.consistencyLineDrag.end === handle.end;
+      this.ctx.beginPath();
+      this.ctx.arc(handle.x, handle.y, isActive ? radius * 1.25 : radius, 0, Math.PI * 2);
+      this.ctx.fillStyle = 'rgba(255, 206, 112, 1)';
+      this.ctx.fill();
+      this.ctx.lineWidth = 2;
+      this.ctx.strokeStyle = '#ffffff';
+      this.ctx.stroke();
+    });
+    this.ctx.restore();
+  }
+
+  getConsistencyLineCursorAt(x, y) {
+    const handle = this.findConsistencyLineEndHandleAt(x, y);
+    if (handle) {
+      return handle.orientation === 'vertical' ? 'ns-resize' : 'ew-resize';
+    }
+    const guide = this.findConsistencyLineAt(x, y);
+    if (!guide) {
+      return '';
+    }
+    return guide.axis === 'x' ? 'ew-resize' : 'ns-resize';
+  }
+
+  beginConsistencyLineDrag(x, y) {
+    const handle = this.findConsistencyLineEndHandleAt(x, y);
+    if (handle) {
+      this.consistencyLineDrag = {
+        kind: 'end',
+        orientation: handle.orientation,
+        side: handle.side,
+        end: handle.end,
+        axis: handle.orientation === 'vertical' ? 'y' : 'x',
+        grab: handle.orientation === 'vertical' ? handle.y - y : handle.x - x
+      };
+      return true;
+    }
+
+    const guide = this.findConsistencyLineAt(x, y);
+    if (!guide) {
+      return false;
+    }
+
+    this.consistencyLineDrag = {
+      axis: guide.axis,
+      side: guide.side,
+      grab: guide.axis === 'x' ? (guide.x ?? guide.centerX) - x : guide.y - y
+    };
+    return true;
+  }
+
+  // Vertical lines move horizontally and horizontal lines vertically; a line never crosses the center axis.
+  // The shared distance to the center axis keeps both-handed levels mirrored.
+  updateConsistencyLineDrag(x, y) {
+    const drag = this.consistencyLineDrag;
+    if (!drag || !this.canvas.width || !this.canvas.height) {
+      return false;
+    }
+
+    if (drag.kind === 'end') {
+      const isVertical = drag.orientation === 'vertical';
+      const fraction = isVertical
+        ? (y + drag.grab) / this.canvas.height
+        : (x + drag.grab) / this.canvas.width;
+      const [start, end] = this.getConsistencyLineEnds(drag.orientation, drag.side);
+      const minGap = isVertical ? 0.1 : 0.05;
+      // Horizontal lines must stay on their own canvas half.
+      let lowerBound = 0.02;
+      let upperBound = 0.98;
+      if (!isVertical) {
+        if (drag.side === 'left') {
+          upperBound = 0.48;
+        } else {
+          lowerBound = 0.52;
+        }
+      }
+      const next = [start, end];
+      if (drag.end === 0) {
+        next[0] = Math.min(end - minGap, Math.max(lowerBound, fraction));
+      } else {
+        next[1] = Math.max(start + minGap, Math.min(upperBound, fraction));
+      }
+      this.consistencyLineEnds[drag.orientation][drag.side] = next;
+      if (this.isConsistencyLineEndsCoupled(drag.orientation)) {
+        this.consistencyLineEnds[drag.orientation].left = [...next];
+        this.consistencyLineEnds[drag.orientation].right = [...next];
+      }
+      this.requestRender();
+      return true;
+    }
+
+    if (drag.axis === 'x') {
+      const centerX = this.canvas.width / 2;
+      const lineX = x + drag.grab;
+      const distance = drag.side === 'left' ? centerX - lineX : lineX - centerX;
+      const { min, max } = this.getConsistencyLineDistanceRange();
+      this.consistencyLineDistance = Math.min(max, Math.max(min, this.sanitizeConsistencyLineDistance(distance / this.canvas.width)));
+    } else {
+      this.consistencyHorizontalLineY = this.sanitizeConsistencyHorizontalLineY((y + drag.grab) / this.canvas.height);
+    }
+    this.requestRender();
+    return true;
+  }
+
+  endConsistencyLineDrag() {
+    const drag = this.consistencyLineDrag;
+    if (!drag) {
+      return null;
+    }
+
+    this.consistencyLineDrag = null;
+    this.persistConsistencySettings();
+    return drag;
   }
 
   calculateConsistencyScore(scene, threshold) {
@@ -10798,6 +12384,23 @@ export class LevelManager {
 
   resetConsistencyTaskStrictnessHistory() {
     this.consistencyTaskStrictnessHistory = [];
+    this.consistencyTaskScoreSum = 0;
+    this.consistencyTaskScoreDuration = 0;
+    this.consistencyTaskLastSample = null;
+    this.consistencyTaskScoringEnabled = false;
+  }
+
+  setConsistencyTaskScoringEnabled(enabled) {
+    this.consistencyTaskScoringEnabled = Boolean(enabled);
+    this.consistencyTaskLastSample = null;
+  }
+
+  getConsistencyTaskScorePercent() {
+    if (!(this.consistencyTaskScoreDuration > 0)) {
+      return Math.round(Math.max(0, Math.min(1, this.consistencyAccuracy || 0)) * 100);
+    }
+    const avg = this.consistencyTaskScoreSum / this.consistencyTaskScoreDuration;
+    return Math.round(Math.max(0, Math.min(1, avg)) * 100);
   }
 
   getAverageConsistencyTaskStrictnessPercent() {
@@ -10826,46 +12429,37 @@ export class LevelManager {
     const score = this.calculateConsistencyScore(scene, threshold);
     this.consistencyScoreHistory.push({ ts: nowMs, score });
 
+    if (this.consistencyTaskScoringEnabled) {
+      const last = this.consistencyTaskLastSample;
+      if (last) {
+        const dt = Math.max(0, nowMs - last.ts);
+        this.consistencyTaskScoreSum += score * dt;
+        this.consistencyTaskScoreDuration += dt;
+      }
+      this.consistencyTaskLastSample = { ts: nowMs, score };
+    }
+
+    // Keep one sample at/before the cutoff so the window start is covered.
     const cutoff = nowMs - 3000;
-    while (this.consistencyScoreHistory.length > 0 && this.consistencyScoreHistory[0].ts < cutoff) {
-      this.consistencyScoreHistory.shift();
+    const history = this.consistencyScoreHistory;
+    while (history.length > 1 && history[1].ts <= cutoff) {
+      history.shift();
     }
 
-    if (this.consistencyScoreHistory.length === 0) {
-      this.consistencyAccuracy = 0;
-      return;
-    }
-
-    if (this.consistencyScoreHistory.length === 1) {
-      this.consistencyAccuracy = Math.max(0, Math.min(1, this.consistencyScoreHistory[0].score));
-      return;
-    }
-
+    // Each sample's score applies to the interval ending at that sample,
+    // so a fresh sample moves the 3s average immediately.
     let weightedSum = 0;
     let totalDuration = 0;
-
-    for (let i = 0; i < this.consistencyScoreHistory.length - 1; i += 1) {
-      const current = this.consistencyScoreHistory[i];
-      const next = this.consistencyScoreHistory[i + 1];
-      const segmentStart = Math.max(current.ts, cutoff);
-      const segmentEnd = Math.min(next.ts, nowMs);
-      const dt = Math.max(0, segmentEnd - segmentStart);
-      if (dt <= 0) {
-        continue;
+    for (let i = 1; i < history.length; i += 1) {
+      const segmentStart = Math.max(history[i - 1].ts, cutoff);
+      const dt = history[i].ts - segmentStart;
+      if (dt > 0) {
+        weightedSum += history[i].score * dt;
+        totalDuration += dt;
       }
-
-      // Piecewise-constant integration: score stays valid until next sample.
-      weightedSum += current.score * dt;
-      totalDuration += dt;
     }
 
-    if (totalDuration <= 0) {
-      const lastScore = this.consistencyScoreHistory[this.consistencyScoreHistory.length - 1].score;
-      this.consistencyAccuracy = Math.max(0, Math.min(1, lastScore));
-      return;
-    }
-
-    const avg = weightedSum / totalDuration;
+    const avg = totalDuration > 0 ? weightedSum / totalDuration : score;
     this.consistencyAccuracy = Math.max(0, Math.min(1, avg));
   }
 
@@ -10884,7 +12478,7 @@ export class LevelManager {
     const scene = this.getConsistencyScene();
     const threshold = this.getConsistencyThreshold();
     const pointRadius = this.getConsistencyPointRadius(threshold);
-    const bpm = Math.max(30, this.consistencyTempoBpm);
+    const bpm = Math.max(10, this.consistencyTempoBpm);
     const growDurationMs = (60 / bpm) * 1000 / 5;
     const easeOutCubic = (value) => 1 - Math.pow(1 - value, 3);
 
@@ -10907,12 +12501,31 @@ export class LevelManager {
       if (guide.type === 'line') {
         this.ctx.moveTo(guide.x, guide.topY);
         this.ctx.lineTo(guide.x, guide.bottomY);
+      } else if (guide.type === 'hline') {
+        this.ctx.moveTo(guide.leftX, guide.y);
+        this.ctx.lineTo(guide.rightX, guide.y);
+      } else if (guide.type === 'eight') {
+        const steps = 120;
+        for (let step = 0; step <= steps; step += 1) {
+          const point = this.getConsistencyEightPoint((step / steps) * Math.PI * 2, guide.radiusX);
+          if (step === 0) {
+            this.ctx.moveTo(guide.centerX + point.x, guide.centerY + point.y);
+          } else {
+            this.ctx.lineTo(guide.centerX + point.x, guide.centerY + point.y);
+          }
+        }
+        this.ctx.closePath();
       } else {
         this.ctx.ellipse(guide.centerX, guide.centerY, guide.radiusX, guide.radiusY, 0, 0, Math.PI * 2);
       }
       this.ctx.stroke();
     });
     this.ctx.restore();
+
+    this.drawConsistencyLineEndHandles();
+
+    this.updateConsistencyTrail(nowMs, scene, threshold);
+    this.drawConsistencyTrail(nowMs, scene);
 
     scene.movingTargets.forEach((movingTarget) => {
       const handState = this.consistencyTouchStateByHand[movingTarget.hand] || {
@@ -10985,7 +12598,7 @@ export class LevelManager {
       this.ctx.fill();
       this.ctx.restore();
 
-      if (isActiveTouch) {
+      if (isActiveTouch && !this.consistencyPanelSuppressed) {
         this.ctx.save();
         this.ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
         this.ctx.font = '700 16px Arial';
@@ -11033,6 +12646,11 @@ export class LevelManager {
         this.rightTip = tip;
         this.rightTipInFrame = inFrame;
       }
+    }
+
+    if (this.isChapter1TrailLevel()) {
+      this.recordChapter1Trail();
+      this.updateChapter1Focus(performance.now());
     }
 
     const freeMovementActive = this.chapter === 1 && Number.isInteger(this.level) && this.level === 2;
@@ -11175,6 +12793,10 @@ export class LevelManager {
 
     if (!this.active || this.completed || this.targets.length === 0) return;
 
+    if (this.chapter === 1 && this.level === 1) {
+      this.releasePointTouchBlocks();
+    }
+
     // update scales for interactivity
     const targetScales = new Array(this.grid.length).fill(1.0);
     if (this.leftTip) {
@@ -11195,8 +12817,10 @@ export class LevelManager {
       const leftCurrentTarget = this.getCurrentTargetForHand('left');
       const rightCurrentTarget = this.getCurrentTargetForHand('right');
 
-      const leftTouched = leftCurrentTarget && this.leftTip && this.getCircleIndex(this.leftTip) === leftCurrentTarget.index;
-      const rightTouched = rightCurrentTarget && this.rightTip && this.getCircleIndex(this.rightTip) === rightCurrentTarget.index;
+      const leftTouched = leftCurrentTarget && this.leftTip && this.getCircleIndex(this.leftTip) === leftCurrentTarget.index
+        && !this.isPointTouchBlocked('left', leftCurrentTarget.index);
+      const rightTouched = rightCurrentTarget && this.rightTip && this.getCircleIndex(this.rightTip) === rightCurrentTarget.index
+        && !this.isPointTouchBlocked('right', rightCurrentTarget.index);
 
       if (leftTouched) {
         const leftTargetIndex = leftCurrentTarget ? (leftCurrentTarget.index ?? leftCurrentTarget.leftIndex ?? leftCurrentTarget.rightIndex ?? null) : null;
@@ -11210,6 +12834,7 @@ export class LevelManager {
           this.chapter1TouchActiveByHand.left = true;
         }
         this.pointExerciseCurrentIndex = leftCurrentTarget.index;
+        this.pointExerciseRequireLeave.left = leftCurrentTarget.index;
         this.advanceTargetForHand('left');
       }
       if (rightTouched) {
@@ -11224,6 +12849,7 @@ export class LevelManager {
           this.chapter1TouchActiveByHand.right = true;
         }
         this.pointExerciseCurrentIndex = rightCurrentTarget.index;
+        this.pointExerciseRequireLeave.right = rightCurrentTarget.index;
         this.advanceTargetForHand('right');
       }
 
@@ -11358,15 +12984,20 @@ export class LevelManager {
         }
 
         if (target.hand === 'left' && this.leftTip) {
-          return this.getCircleIndex(this.leftTip) === target.index;
+          return this.getCircleIndex(this.leftTip) === target.index && !this.isPointTouchBlocked('left', target.index);
         }
         if (target.hand === 'right' && this.rightTip) {
-          return this.getCircleIndex(this.rightTip) === target.index;
+          return this.getCircleIndex(this.rightTip) === target.index && !this.isPointTouchBlocked('right', target.index);
         }
         return false;
       });
 
       if (stepComplete) {
+        stepTargets.forEach((target) => {
+          if (target && ['left', 'right'].includes(target.hand)) {
+            this.pointExerciseRequireLeave[target.hand] = target.index;
+          }
+        });
         stepTargets.forEach((target) => {
           if (!target || !target.hand || !['left', 'right'].includes(target.hand)) {
             return;

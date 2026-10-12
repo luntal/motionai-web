@@ -4,16 +4,18 @@
       "0": {
         "figureVariant": "hard",
         "figureSide": "both",
-        "figureScale": 0.2,
+        "figureScale": 0.31,
         "figureStrokeWidth": 0.25,
-        "figureHorizontalOffset": 0.18,
+        "figureHorizontalOffset": 0.21,
         "figureYPosition": 0.68,
         "figureTempoBpm": 30,
         "figureHardLinearity": 100,
         "figureSoftTransitionPercent": 0,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
+        "motionTrailVisible": true,
+        "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
         "motionDistanceScoreWeights": {
           "path": 84,
@@ -23,6 +25,16 @@
         "dynamicFigureCornerHeights": [
           -25,
           -25
+        ],
+        "dynamicFigureCornerOffsets": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          }
         ]
       },
       "1": {
@@ -37,9 +49,28 @@
         "figureSoftTransitionPercent": 7,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": false,
+        "motionDistanceVisible": false,
+        "motionTrailVisible": true,
+        "motionTrailSmoothing": true,
+        "motionDistanceStrictness": 78,
+        "motionDistanceScoreWeights": {
+          "path": 45,
+          "timing": 30,
+          "direction": 25
+        },
         "dynamicFigureCornerHeights": [
           -17.857142857142858,
           -17.857142857142858
+        ],
+        "dynamicFigureCornerOffsets": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          }
         ]
       },
       "2": {
@@ -47,14 +78,16 @@
         "figureSide": "right",
         "figureScale": 0.44,
         "figureStrokeWidth": 0.08,
-        "figureHorizontalOffset": 0.42,
-        "figureYPosition": 0.75,
+        "figureHorizontalOffset": 0.16,
+        "figureYPosition": 0.73,
         "figureTempoBpm": 30,
         "figureHardLinearity": 19,
         "figureSoftTransitionPercent": 39,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
+        "motionTrailVisible": true,
+        "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
         "motionDistanceScoreWeights": {
           "path": 82,
@@ -62,8 +95,18 @@
           "direction": 8
         },
         "dynamicFigureCornerHeights": [
-          -17.857142857142858,
-          -17.857142857142858
+          0,
+          0
+        ],
+        "dynamicFigureCornerOffsets": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          }
         ]
       },
       "3": {
@@ -73,12 +116,14 @@
         "figureStrokeWidth": 0.08,
         "figureHorizontalOffset": 0.42,
         "figureYPosition": 0.75,
-        "figureTempoBpm": 30,
+        "figureTempoBpm": 16,
         "figureHardLinearity": 19,
         "figureSoftTransitionPercent": 39,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
+        "motionTrailVisible": true,
+        "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
         "motionDistanceScoreWeights": {
           "path": 82,
@@ -88,6 +133,16 @@
         "dynamicFigureCornerHeights": [
           -17.857142857142858,
           -17.857142857142858
+        ],
+        "dynamicFigureCornerOffsets": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          }
         ]
       },
       "4": {
@@ -102,7 +157,9 @@
         "figureSoftTransitionPercent": 0,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
+        "motionTrailVisible": true,
+        "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
         "motionDistanceScoreWeights": {
           "path": 83,
@@ -112,6 +169,16 @@
         "dynamicFigureCornerHeights": [
           -25,
           -25
+        ],
+        "dynamicFigureCornerOffsets": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          }
         ]
       },
       "5": {
@@ -126,7 +193,9 @@
         "figureSoftTransitionPercent": 0,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
+        "motionTrailVisible": true,
+        "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
         "motionDistanceScoreWeights": {
           "path": 82,
@@ -136,6 +205,16 @@
         "dynamicFigureCornerHeights": [
           -25,
           -25
+        ],
+        "dynamicFigureCornerOffsets": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          }
         ]
       },
       "6": {
@@ -150,7 +229,9 @@
         "figureSoftTransitionPercent": 0,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
+        "motionTrailVisible": true,
+        "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
         "motionDistanceScoreWeights": {
           "path": 83,
@@ -160,6 +241,16 @@
         "dynamicFigureCornerHeights": [
           -25,
           -25
+        ],
+        "dynamicFigureCornerOffsets": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          }
         ]
       },
       "7": {
@@ -174,7 +265,9 @@
         "figureSoftTransitionPercent": 0,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
+        "motionTrailVisible": true,
+        "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
         "motionDistanceScoreWeights": {
           "path": 82,
@@ -184,6 +277,16 @@
         "dynamicFigureCornerHeights": [
           -25,
           -25
+        ],
+        "dynamicFigureCornerOffsets": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          }
         ]
       }
     },
@@ -200,7 +303,9 @@
         "figureSoftTransitionPercent": 0,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
+        "motionTrailVisible": true,
+        "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
         "motionDistanceScoreWeights": {
           "path": 45,
@@ -212,6 +317,24 @@
           -25,
           1.7,
           -25
+        ],
+        "dynamicFigureCornerOffsets": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          }
         ]
       },
       "1": {
@@ -226,7 +349,9 @@
         "figureSoftTransitionPercent": 0,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
+        "motionTrailVisible": true,
+        "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
         "motionDistanceScoreWeights": {
           "path": 45,
@@ -238,6 +363,24 @@
           -25,
           1.7,
           -25
+        ],
+        "dynamicFigureCornerOffsets": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          }
         ]
       },
       "2": {
@@ -252,7 +395,9 @@
         "figureSoftTransitionPercent": 0,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
+        "motionTrailVisible": true,
+        "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
         "motionDistanceScoreWeights": {
           "path": 45,
@@ -264,6 +409,24 @@
           -25,
           1.7,
           -25
+        ],
+        "dynamicFigureCornerOffsets": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          }
         ]
       },
       "3": {
@@ -278,7 +441,9 @@
         "figureSoftTransitionPercent": 0,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
+        "motionTrailVisible": true,
+        "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
         "motionDistanceScoreWeights": {
           "path": 45,
@@ -290,6 +455,24 @@
           -25,
           1.7,
           -25
+        ],
+        "dynamicFigureCornerOffsets": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          }
         ]
       },
       "4": {
@@ -304,7 +487,9 @@
         "figureSoftTransitionPercent": 0,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
+        "motionTrailVisible": true,
+        "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
         "motionDistanceScoreWeights": {
           "path": 45,
@@ -316,6 +501,24 @@
           -11,
           1.7,
           -25
+        ],
+        "dynamicFigureCornerOffsets": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          }
         ]
       },
       "5": {
@@ -330,7 +533,9 @@
         "figureSoftTransitionPercent": 0,
         "figureDynamicsVisible": true,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
+        "motionTrailVisible": true,
+        "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
         "motionDistanceScoreWeights": {
           "path": 45,
@@ -342,6 +547,24 @@
           -25,
           1.5,
           -25
+        ],
+        "dynamicFigureCornerOffsets": [
+          {
+            "x": -0.2466475095785517,
+            "y": 3.552713678800501e-15
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          }
         ]
       },
       "6": {
@@ -356,7 +579,9 @@
         "figureSoftTransitionPercent": 40,
         "figureDynamicsVisible": true,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
+        "motionTrailVisible": true,
+        "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
         "motionDistanceScoreWeights": {
           "path": 85,
@@ -368,6 +593,24 @@
           4.8,
           8.4,
           -0.5
+        ],
+        "dynamicFigureCornerOffsets": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          }
         ]
       },
       "7": {
@@ -382,7 +625,9 @@
         "figureSoftTransitionPercent": 40,
         "figureDynamicsVisible": true,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
+        "motionTrailVisible": true,
+        "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
         "motionDistanceScoreWeights": {
           "path": 85,
@@ -394,6 +639,24 @@
           4.8,
           8.4,
           -0.5
+        ],
+        "dynamicFigureCornerOffsets": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          }
         ]
       }
     },
@@ -410,7 +673,9 @@
         "figureSoftTransitionPercent": 7,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
+        "motionTrailVisible": true,
+        "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
         "motionDistanceScoreWeights": {
           "path": 84,
@@ -424,6 +689,32 @@
           -7.9,
           -3.2,
           -17.857142857142858
+        ],
+        "dynamicFigureCornerOffsets": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          }
         ]
       },
       "1": {
@@ -438,7 +729,9 @@
         "figureSoftTransitionPercent": 7,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
+        "motionTrailVisible": true,
+        "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
         "motionDistanceScoreWeights": {
           "path": 84,
@@ -452,6 +745,32 @@
           -7.9,
           -3.2,
           -17.857142857142858
+        ],
+        "dynamicFigureCornerOffsets": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          }
         ]
       },
       "2": {
@@ -466,7 +785,9 @@
         "figureSoftTransitionPercent": 7,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
+        "motionTrailVisible": true,
+        "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
         "motionDistanceScoreWeights": {
           "path": 84,
@@ -480,6 +801,32 @@
           -7.9,
           -3.2,
           -17.857142857142858
+        ],
+        "dynamicFigureCornerOffsets": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          }
         ]
       },
       "3": {
@@ -494,7 +841,9 @@
         "figureSoftTransitionPercent": 7,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
+        "motionTrailVisible": true,
+        "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
         "motionDistanceScoreWeights": {
           "path": 84,
@@ -508,6 +857,32 @@
           -7.9,
           -3.2,
           -17.857142857142858
+        ],
+        "dynamicFigureCornerOffsets": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          }
         ]
       },
       "4": {
@@ -522,7 +897,9 @@
         "figureSoftTransitionPercent": 7,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
+        "motionTrailVisible": true,
+        "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
         "motionDistanceScoreWeights": {
           "path": 84,
@@ -536,6 +913,32 @@
           -7.9,
           -3.2,
           -17.857142857142858
+        ],
+        "dynamicFigureCornerOffsets": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          }
         ]
       },
       "5": {
@@ -550,7 +953,9 @@
         "figureSoftTransitionPercent": 7,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
+        "motionTrailVisible": true,
+        "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
         "motionDistanceScoreWeights": {
           "path": 84,
@@ -564,6 +969,32 @@
           6.1,
           10.6,
           -11.8
+        ],
+        "dynamicFigureCornerOffsets": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          }
         ]
       },
       "6": {
@@ -578,7 +1009,9 @@
         "figureSoftTransitionPercent": 41,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
+        "motionTrailVisible": true,
+        "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
         "motionDistanceScoreWeights": {
           "path": 86,
@@ -592,6 +1025,32 @@
           -3.6,
           -3.571428571428573,
           -3.571428571428573
+        ],
+        "dynamicFigureCornerOffsets": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          }
         ]
       },
       "7": {
@@ -606,7 +1065,9 @@
         "figureSoftTransitionPercent": 21,
         "figureDynamicsVisible": true,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
+        "motionTrailVisible": true,
+        "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
         "motionDistanceScoreWeights": {
           "path": 45,
@@ -620,6 +1081,32 @@
           -6.8,
           -3.571428571428573,
           -3.571428571428573
+        ],
+        "dynamicFigureCornerOffsets": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          }
         ]
       }
     },
@@ -636,8 +1123,15 @@
         "figureSoftTransitionPercent": 7,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
+        "motionTrailVisible": true,
+        "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
+        "motionDistanceScoreWeights": {
+          "path": 45,
+          "timing": 30,
+          "direction": 25
+        },
         "dynamicFigureCornerHeights": [
           -7.2,
           -12.1,
@@ -647,6 +1141,40 @@
           -3.5,
           4.5,
           -17.857142857142858
+        ],
+        "dynamicFigureCornerOffsets": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          }
         ]
       },
       "1": {
@@ -661,8 +1189,15 @@
         "figureSoftTransitionPercent": 7,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": false,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
+        "motionTrailVisible": true,
+        "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
+        "motionDistanceScoreWeights": {
+          "path": 45,
+          "timing": 30,
+          "direction": 25
+        },
         "dynamicFigureCornerHeights": [
           -17.857142857142858,
           -17.857142857142858,
@@ -672,6 +1207,40 @@
           -17.857142857142858,
           -17.857142857142858,
           -17.857142857142858
+        ],
+        "dynamicFigureCornerOffsets": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          }
         ]
       },
       "2": {
@@ -681,13 +1250,20 @@
         "figureStrokeWidth": 0.15,
         "figureHorizontalOffset": 0.4,
         "figureYPosition": 0.82,
-        "figureTempoBpm": 56,
-        "figureHardLinearity": 29,
+        "figureTempoBpm": 17,
+        "figureHardLinearity": 90,
         "figureSoftTransitionPercent": 14,
         "figureDynamicsVisible": false,
         "figureCountTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
+        "motionTrailVisible": true,
+        "motionTrailSmoothing": true,
         "motionDistanceStrictness": 78,
+        "motionDistanceScoreWeights": {
+          "path": 45,
+          "timing": 30,
+          "direction": 25
+        },
         "dynamicFigureCornerHeights": [
           -4.8,
           -10.714285714285715,
@@ -697,24 +1273,451 @@
           -10.9,
           -7.1,
           -10.714285714285715
+        ],
+        "dynamicFigureCornerOffsets": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          }
+        ]
+      },
+      "3": {
+        "figureVariant": "hard",
+        "figureSide": "both",
+        "figureScale": 0.35,
+        "figureStrokeWidth": 0.13,
+        "figureHorizontalOffset": 0.27,
+        "figureYPosition": 0.72,
+        "figureTempoBpm": 69,
+        "figureHardLinearity": 88,
+        "figureSoftTransitionPercent": 29,
+        "figureDynamicsVisible": false,
+        "figureCountTimesVisible": true,
+        "motionDistanceVisible": false,
+        "motionTrailVisible": true,
+        "motionTrailSmoothing": true,
+        "motionDistanceStrictness": 78,
+        "motionDistanceScoreWeights": {
+          "path": 45,
+          "timing": 30,
+          "direction": 25
+        },
+        "dynamicFigureCornerHeights": [
+          -3.571428571428573,
+          -3.571428571428573,
+          -3.571428571428573,
+          -3.571428571428573,
+          -3.571428571428573,
+          -3.571428571428573,
+          -3.571428571428573,
+          -3.571428571428573
+        ],
+        "dynamicFigureCornerOffsets": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0.13293650793650524,
+            "y": -6.256235827664401
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0.11309523809523103,
+            "y": -2.130668934240365
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0.2413548752834426,
+            "y": -7.271654147770221
+          }
+        ]
+      },
+      "4": {
+        "figureVariant": "hard",
+        "figureSide": "both",
+        "figureScale": 0.66,
+        "figureStrokeWidth": 0.19,
+        "figureHorizontalOffset": 0.29,
+        "figureYPosition": 0.81,
+        "figureTempoBpm": 21,
+        "figureHardLinearity": 100,
+        "figureSoftTransitionPercent": 29,
+        "figureDynamicsVisible": false,
+        "figureCountTimesVisible": true,
+        "motionDistanceVisible": false,
+        "motionTrailVisible": true,
+        "motionTrailSmoothing": true,
+        "motionDistanceStrictness": 78,
+        "motionDistanceScoreWeights": {
+          "path": 87,
+          "timing": 10,
+          "direction": 3
+        },
+        "dynamicFigureCornerHeights": [
+          3.5714285714285694,
+          3.5714285714285694,
+          3.5714285714285694,
+          3.5714285714285694,
+          3.5714285714285694,
+          3.5714285714285694,
+          3.5714285714285694,
+          3.5714285714285694
+        ],
+        "dynamicFigureCornerOffsets": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 2.7643999518999554,
+            "y": 0.407046657046656
+          },
+          {
+            "x": -1.9382816257816264,
+            "y": -0.03938191438191352
+          },
+          {
+            "x": -2.601010101010104,
+            "y": -0.02961159211159181
+          },
+          {
+            "x": 2.871873496873498,
+            "y": -0.02029220779220786
+          },
+          {
+            "x": 3.414201539201538,
+            "y": 0.29791967291967403
+          },
+          {
+            "x": 1.2034030784030827,
+            "y": 0.0706469456469474
+          },
+          {
+            "x": 0,
+            "y": 0
+          }
+        ]
+      },
+      "5": {
+        "figureVariant": "hard",
+        "figureSide": "right",
+        "figureScale": 0.66,
+        "figureStrokeWidth": 0.19,
+        "figureHorizontalOffset": 0.29,
+        "figureYPosition": 0.81,
+        "figureTempoBpm": 21,
+        "figureHardLinearity": 100,
+        "figureSoftTransitionPercent": 29,
+        "figureDynamicsVisible": false,
+        "figureCountTimesVisible": true,
+        "motionDistanceVisible": false,
+        "motionTrailVisible": true,
+        "motionTrailSmoothing": true,
+        "motionDistanceStrictness": 78,
+        "motionDistanceScoreWeights": {
+          "path": 87,
+          "timing": 10,
+          "direction": 3
+        },
+        "dynamicFigureCornerHeights": [
+          3.5714285714285694,
+          3.5714285714285694,
+          3.5714285714285694,
+          3.5714285714285694,
+          3.5714285714285694,
+          3.5714285714285694,
+          3.5714285714285694,
+          3.5714285714285694
+        ],
+        "dynamicFigureCornerOffsets": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 2.7643999518999554,
+            "y": 0.407046657046656
+          },
+          {
+            "x": -1.9382816257816264,
+            "y": -0.03938191438191352
+          },
+          {
+            "x": -2.601010101010104,
+            "y": -0.02961159211159181
+          },
+          {
+            "x": 2.871873496873498,
+            "y": -0.02029220779220786
+          },
+          {
+            "x": 3.414201539201538,
+            "y": 0.29791967291967403
+          },
+          {
+            "x": 1.2034030784030827,
+            "y": 0.0706469456469474
+          },
+          {
+            "x": 0,
+            "y": 0
+          }
+        ]
+      },
+      "6": {
+        "figureVariant": "hard",
+        "figureSide": "left",
+        "figureScale": 0.66,
+        "figureStrokeWidth": 0.19,
+        "figureHorizontalOffset": 0.29,
+        "figureYPosition": 0.81,
+        "figureTempoBpm": 21,
+        "figureHardLinearity": 100,
+        "figureSoftTransitionPercent": 29,
+        "figureDynamicsVisible": false,
+        "figureCountTimesVisible": true,
+        "motionDistanceVisible": false,
+        "motionTrailVisible": true,
+        "motionTrailSmoothing": true,
+        "motionDistanceStrictness": 78,
+        "motionDistanceScoreWeights": {
+          "path": 87,
+          "timing": 10,
+          "direction": 3
+        },
+        "dynamicFigureCornerHeights": [
+          3.5714285714285694,
+          3.5714285714285694,
+          3.5714285714285694,
+          3.5714285714285694,
+          3.5714285714285694,
+          3.5714285714285694,
+          3.5714285714285694,
+          3.5714285714285694
+        ],
+        "dynamicFigureCornerOffsets": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 2.7643999518999554,
+            "y": 0.407046657046656
+          },
+          {
+            "x": -1.9382816257816264,
+            "y": -0.03938191438191352
+          },
+          {
+            "x": -2.601010101010104,
+            "y": -0.02961159211159181
+          },
+          {
+            "x": 2.871873496873498,
+            "y": -0.02029220779220786
+          },
+          {
+            "x": 3.414201539201538,
+            "y": 0.29791967291967403
+          },
+          {
+            "x": 1.2034030784030827,
+            "y": 0.0706469456469474
+          },
+          {
+            "x": 0,
+            "y": 0
+          }
+        ]
+      },
+      "7": {
+        "figureVariant": "hard",
+        "figureSide": "both",
+        "figureScale": 0.4,
+        "figureStrokeWidth": 0.08,
+        "figureHorizontalOffset": 0.31,
+        "figureYPosition": 0.8,
+        "figureTempoBpm": 21,
+        "figureHardLinearity": 100,
+        "figureSoftTransitionPercent": 29,
+        "figureDynamicsVisible": false,
+        "figureCountTimesVisible": true,
+        "motionDistanceVisible": false,
+        "motionTrailVisible": true,
+        "motionTrailSmoothing": true,
+        "motionDistanceStrictness": 78,
+        "motionDistanceScoreWeights": {
+          "path": 87,
+          "timing": 10,
+          "direction": 3
+        },
+        "dynamicFigureCornerHeights": [
+          3.5714285714285694,
+          3.5714285714285694,
+          3.5714285714285694,
+          3.5714285714285694,
+          3.5714285714285694,
+          3.5714285714285694,
+          3.5714285714285694,
+          3.5714285714285694
+        ],
+        "dynamicFigureCornerOffsets": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 2.7643999518999554,
+            "y": 0.407046657046656
+          },
+          {
+            "x": -1.9382816257816264,
+            "y": -0.03938191438191352
+          },
+          {
+            "x": -2.601010101010104,
+            "y": -0.02961159211159181
+          },
+          {
+            "x": 2.871873496873498,
+            "y": -0.02029220779220786
+          },
+          {
+            "x": 3.414201539201538,
+            "y": 0.29791967291967403
+          },
+          {
+            "x": 1.2034030784030827,
+            "y": 0.0706469456469474
+          },
+          {
+            "x": 0,
+            "y": 0
+          }
         ]
       }
     }
   },
   "motionai.square-exercise-panel-settings": {
-    "shape": "3",
-    "handMode": "both",
-    "syncMode": "synchronous",
-    "squarePalindromMode": true,
+    "shape": "1",
+    "handMode": "right",
+    "syncMode": "asynchronous",
+    "squarePalindromMode": false,
     "resolution": 1,
-    "gridResolution": 12,
-    "centerDistance": 0.3,
+    "gridResolution": 22,
+    "centerDistance": 0.25,
     "alternatingScale": "chromatic",
     "alternatingStartNote": 36,
     "alternatingVolume": 0,
     "activeTouchFadeEnabled": true,
     "alternatingFrequencyModulation": false,
-    "alternatingAxisSwap": false
+    "alternatingAxisSwap": false,
+    "walkingBassThreshold": 3,
+    "walkingBassSensitivity": 0.7,
+    "walkingBassMode": "single",
+    "walkingBassSoundLeft": "bass",
+    "walkingBassSoundRight": "bass",
+    "claveToneMode": "continuous",
+    "bubbleSoundSquare": false,
+    "bubbleSoundPoints": false,
+    "fieldMode": "guitar",
+    "ensembleProgression": 0,
+    "ensemblePositions": [
+      {
+        "x": 0.125,
+        "y": 0.78
+      },
+      {
+        "x": 0.3125,
+        "y": 0.35
+      },
+      {
+        "x": 0.6875,
+        "y": 0.35
+      },
+      {
+        "x": 0.875,
+        "y": 0.78
+      }
+    ],
+    "guitarFieldMotion": "fix",
+    "guitarFieldX": 0.25,
+    "guitarFieldY": 0.25,
+    "walkingBassMetronome": false,
+    "walkingBassAnticipation": false,
+    "walkingBassMetronomeBpm": 60,
+    "trailSeconds": 4,
+    "trailSmoothing": true,
+    "trailSpeedWidth": 100,
+    "orientationCount": 3,
+    "orientationPositions": [
+      {
+        "x": 0.5,
+        "y": 0.25
+      },
+      {
+        "x": 0.4992931547619047,
+        "y": 0.6730930335097002
+      },
+      {
+        "x": 0.6214006696428572,
+        "y": 0.4944775132275132
+      },
+      {
+        "x": 0.4,
+        "y": 0.75
+      },
+      {
+        "x": 0.6,
+        "y": 0.75
+      }
+    ],
+    "trailFocusPoint": 2,
+    "trailFocusSound": "walking-bass",
+    "trailFocusAnticipation": true
   },
   "motionai.dynamic-figure-selected-presets": {
     "0": 0,
@@ -1344,7 +2347,9 @@
     "figureSoftTransitionPercent": 7,
     "figureDynamicsVisible": false,
     "figureCountTimesVisible": true,
-    "motionDistanceVisible": true,
+    "motionDistanceVisible": false,
+    "motionTrailVisible": true,
+    "motionTrailSmoothing": true,
     "motionDistanceStrictness": 78,
     "motionDistanceScoreWeights": {
       "path": 45,
@@ -30845,6 +31850,8 @@
     "figureDynamicsVisible": false,
     "figureCountTimesVisible": true,
     "motionDistanceVisible": true,
+    "motionTrailVisible": false,
+    "motionTrailSmoothing": true,
     "motionDistanceStrictness": 51,
     "motionDistanceScoreWeights": {
       "path": 85,
@@ -30961,7 +31968,7 @@
     "resolutionPreset": "high",
     "hoverHelpEnabled": false,
     "playbackMode": "one",
-    "calibrationSetIndex": 9,
+    "calibrationSetIndex": null,
     "calibrationStrictness": 60,
     "stabilizationEnabled": false,
     "landmarkDrawingVisible": false,
@@ -30972,49 +31979,86 @@
     "videoSofteningBlurPx": 18,
     "videoSofteningBrightness": 0.25,
     "poseWarningLandmarksVisible": true,
-    "createdAt": "2026-09-28T09:52:12.036Z"
+    "videoCenterOffsetPercent": 0,
+    "createdAt": "2026-10-12T15:19:00.956Z"
   },
   "motionai.hand-independence-panel-settings": {
     "variant": "soft",
     "reverse": true,
-    "strokeWidth": 0.22,
-    "scale": 0.62,
+    "strokeWidth": 0.06,
+    "scale": 0.42,
     "figureSoftTransitionPercent": 41,
     "sharedX": 0.26,
     "dynamicsVisible": false,
     "sharedTempoBpm": 32,
-    "sharedY": 0.71,
-    "corner0": 0.2,
+    "sharedY": 0.79,
+    "corner0": 0,
     "length": 24.8,
     "rotation": -90,
-    "figureLevel": 0,
-    "tempoRatio": "1:1",
+    "figureLevel": 1,
+    "tempoRatio": "0.25:1",
     "figureHardLinearity": 57,
     "countTimesVisible": true,
-    "corner2": 8.2,
-    "corner1": 6.9,
+    "corner2": 0.7,
+    "corner1": 0.7,
     "corner4": 11.3,
     "corner5": -1,
     "corner3": -11.3,
     "countVisible": true,
     "shape": "line",
     "width": 16.8,
-    "motionDistanceVisible": true,
+    "motionDistanceVisible": false,
     "height": 17.8,
     "motionDistanceStrictness": 100,
-    "figureVariation": 2,
+    "figureVariation": 1,
     "cornerHeights": [
       0,
-      0.1,
-      -0.1,
-      0,
-      0,
-      0.1,
+      0.7,
+      0.7,
+      -11.3,
+      11.3,
+      -1,
       0,
       0
     ],
     "corner6": 0,
-    "corner7": 0
+    "corner7": 0,
+    "cornerOffsets": [
+      {
+        "x": 0,
+        "y": 0
+      },
+      {
+        "x": 0.33446712018140534,
+        "y": 4.866071428571431
+      },
+      {
+        "x": 0.1325113378684799,
+        "y": 7.514172335600908
+      },
+      {
+        "x": -0.32714474678760475,
+        "y": 9.826861300075585
+      },
+      {
+        "x": 0,
+        "y": 0
+      },
+      {
+        "x": 0,
+        "y": 0
+      },
+      {
+        "x": 0,
+        "y": 0
+      },
+      {
+        "x": 0,
+        "y": 0
+      }
+    ],
+    "motionTrailVisible": true,
+    "motionTrailSmoothing": true
   },
   "motionai.calibration-pose-sets": [],
   "motionai.figure-selected-presets": {
@@ -31108,7 +32152,136 @@
         "gridResolution": 22,
         "centerDistance": 0.3
       },
-      "selectedPresetSlot": 8
+      "selectedPresetSlot": 1
+    },
+    "4": {
+      "1": {
+        "slot": 1,
+        "trailSeconds": 3,
+        "trailSmoothing": true,
+        "trailSpeedWidth": 0,
+        "orientationCount": 0,
+        "trailFocusPoint": 0,
+        "trailFocusSound": "bass",
+        "orientationPositions": [
+          {
+            "x": 0.5,
+            "y": 0.25
+          },
+          {
+            "x": 0.3,
+            "y": 0.5
+          },
+          {
+            "x": 0.7,
+            "y": 0.5
+          },
+          {
+            "x": 0.4,
+            "y": 0.75
+          },
+          {
+            "x": 0.6,
+            "y": 0.75
+          }
+        ]
+      },
+      "2": {
+        "slot": 2,
+        "trailSeconds": 5,
+        "trailSmoothing": true,
+        "trailSpeedWidth": 50,
+        "orientationCount": 0,
+        "trailFocusPoint": 0,
+        "trailFocusSound": "bass",
+        "orientationPositions": [
+          {
+            "x": 0.5,
+            "y": 0.25
+          },
+          {
+            "x": 0.3,
+            "y": 0.5
+          },
+          {
+            "x": 0.7,
+            "y": 0.5
+          },
+          {
+            "x": 0.4,
+            "y": 0.75
+          },
+          {
+            "x": 0.6,
+            "y": 0.75
+          }
+        ]
+      },
+      "3": {
+        "slot": 3,
+        "trailSeconds": 8,
+        "trailSmoothing": true,
+        "trailSpeedWidth": 100,
+        "orientationCount": 3,
+        "trailFocusPoint": 2,
+        "trailFocusSound": "walking-bass",
+        "trailFocusAnticipation": true,
+        "orientationPositions": [
+          {
+            "x": 0.5,
+            "y": 0.25
+          },
+          {
+            "x": 0.5054315476190476,
+            "y": 0.6723434744268078
+          },
+          {
+            "x": 0.6214006696428572,
+            "y": 0.4944775132275132
+          },
+          {
+            "x": 0.4,
+            "y": 0.75
+          },
+          {
+            "x": 0.6,
+            "y": 0.75
+          }
+        ]
+      },
+      "4": {
+        "slot": 4,
+        "trailSeconds": 2,
+        "trailSmoothing": true,
+        "trailSpeedWidth": 0,
+        "orientationCount": 4,
+        "trailFocusPoint": 2,
+        "trailFocusSound": "clave",
+        "trailFocusAnticipation": true,
+        "orientationPositions": [
+          {
+            "x": 0.5,
+            "y": 0.25
+          },
+          {
+            "x": 0.5005611359126985,
+            "y": 0.6945216049382716
+          },
+          {
+            "x": 0.6683934771825397,
+            "y": 0.4880787037037037
+          },
+          {
+            "x": 0.3327039930555556,
+            "y": 0.4878472222222222
+          },
+          {
+            "x": 0.6,
+            "y": 0.75
+          }
+        ]
+      },
+      "selectedPresetSlot": 1
     }
   },
   "motionai.video-softening-enabled": true,
@@ -31116,34 +32289,208 @@
   "motionai.exam.tasks": [],
   "motionai.consistency-panel-settings": {
     "0": {
-      "tempoBpm": 30,
+      "tempoBpm": 10,
       "strictnessPercent": 70,
-      "motionBlendPercent": 0
+      "motionBlendPercent": 0,
+      "swapOrientation": false,
+      "reverseDirection": false,
+      "lineDistance": 0.12751116071428567,
+      "horizontalLineY": 0.53,
+      "lineEnds": {
+        "vertical": {
+          "left": null,
+          "right": [
+            0.36880511463844795,
+            0.86
+          ]
+        },
+        "horizontal": {
+          "left": null,
+          "right": null
+        }
+      },
+      "handMode": "both",
+      "trailEnabled": true,
+      "trailSmoothing": true,
+      "trailSeconds": 2
     },
     "1": {
-      "tempoBpm": 30,
+      "tempoBpm": 10,
       "strictnessPercent": 70,
-      "motionBlendPercent": 0
+      "motionBlendPercent": 0,
+      "swapOrientation": false,
+      "reverseDirection": false,
+      "lineDistance": 0.11066778273809526,
+      "horizontalLineY": 0.53,
+      "lineEnds": {
+        "vertical": {
+          "left": [
+            0.4099647266313932,
+            0.86
+          ],
+          "right": null
+        },
+        "horizontal": {
+          "left": null,
+          "right": null
+        }
+      },
+      "handMode": "both",
+      "trailEnabled": true,
+      "trailSmoothing": true,
+      "trailSeconds": 2
     },
     "2": {
-      "tempoBpm": 100,
-      "strictnessPercent": 100,
-      "motionBlendPercent": 0
+      "tempoBpm": 25,
+      "strictnessPercent": 110,
+      "motionBlendPercent": 0,
+      "swapOrientation": false,
+      "reverseDirection": false,
+      "lineDistance": 0.1337952628968254,
+      "horizontalLineY": 0.53,
+      "lineEnds": {
+        "vertical": {
+          "left": [
+            0.30217151675485004,
+            0.86
+          ],
+          "right": [
+            0.30217151675485004,
+            0.86
+          ]
+        },
+        "horizontal": {
+          "left": null,
+          "right": null
+        }
+      },
+      "handMode": "both",
+      "trailEnabled": true,
+      "trailSmoothing": true,
+      "trailSeconds": 2
     },
     "3": {
-      "tempoBpm": 100,
-      "strictnessPercent": 100,
-      "motionBlendPercent": 0
+      "tempoBpm": 10,
+      "strictnessPercent": 70,
+      "motionBlendPercent": 0,
+      "swapOrientation": false,
+      "reverseDirection": false,
+      "lineDistance": 0.1445374503968254,
+      "horizontalLineY": 0.53,
+      "lineEnds": {
+        "vertical": {
+          "left": [
+            0.3028880070546737,
+            0.8503273809523809
+          ],
+          "right": [
+            0.3028880070546737,
+            0.8503273809523809
+          ]
+        },
+        "horizontal": {
+          "left": null,
+          "right": null
+        }
+      },
+      "handMode": "both",
+      "trailEnabled": true,
+      "trailSmoothing": true,
+      "trailSeconds": 2
     },
     "4": {
-      "tempoBpm": 100,
+      "tempoBpm": 10,
       "strictnessPercent": 100,
-      "motionBlendPercent": 0
+      "motionBlendPercent": 0,
+      "swapOrientation": false,
+      "reverseDirection": false,
+      "lineDistance": 0.12003038194444456,
+      "horizontalLineY": 0.53,
+      "lineEnds": {
+        "vertical": {
+          "left": [
+            0.34489638447971777,
+            0.86
+          ],
+          "right": [
+            0.34402006172839505,
+            0.86
+          ]
+        },
+        "horizontal": {
+          "left": null,
+          "right": null
+        }
+      },
+      "handMode": "both",
+      "trailEnabled": true,
+      "trailSmoothing": true,
+      "trailSeconds": 2
     },
     "5": {
-      "tempoBpm": 100,
+      "tempoBpm": 10,
       "strictnessPercent": 100,
-      "motionBlendPercent": 0
+      "motionBlendPercent": 0,
+      "swapOrientation": false,
+      "reverseDirection": false,
+      "lineDistance": 0.1766338045634921,
+      "horizontalLineY": 0.53,
+      "handMode": "both",
+      "trailEnabled": true,
+      "trailSmoothing": true,
+      "trailSeconds": 2
+    },
+    "6": {
+      "tempoBpm": 10,
+      "strictnessPercent": 100,
+      "motionBlendPercent": 0,
+      "swapOrientation": false,
+      "reverseDirection": false,
+      "lineDistance": 0.11118861607142856,
+      "horizontalLineY": 0.803693783068783,
+      "lineEnds": {
+        "vertical": {
+          "left": [
+            0.3082671957671958,
+            0.7989880952380953
+          ],
+          "right": null
+        },
+        "horizontal": {
+          "left": null,
+          "right": [
+            0.5643750000000001,
+            0.7701295882936507
+          ]
+        }
+      },
+      "handMode": "both",
+      "trailEnabled": true,
+      "trailSmoothing": true,
+      "trailSeconds": 2
+    },
+    "7": {
+      "tempoBpm": 10,
+      "strictnessPercent": 70,
+      "motionBlendPercent": 0,
+      "swapOrientation": false,
+      "reverseDirection": false,
+      "lineDistance": 0.16,
+      "horizontalLineY": 0.53,
+      "lineEnds": {
+        "vertical": {
+          "left": null,
+          "right": null
+        },
+        "horizontal": {
+          "left": null,
+          "right": null
+        }
+      },
+      "handMode": "right",
+      "trailEnabled": true,
+      "trailSmoothing": true,
+      "trailSeconds": 2
     }
   },
   "motionai.exercise-field-panel-settings": {
@@ -31189,50 +32536,379 @@
   "motionai.consistency-presets": {
     "0": {
       "0": {
-        "tempoBpm": 30,
+        "tempoBpm": 10,
         "strictnessPercent": 70,
-        "motionBlendPercent": 0
+        "motionBlendPercent": 0,
+        "swapOrientation": false,
+        "reverseDirection": false,
+        "lineDistance": 0.12751116071428567,
+        "horizontalLineY": 0.53,
+        "handMode": "both",
+        "trailEnabled": true,
+        "trailSmoothing": true,
+        "trailSeconds": 2
       },
       "1": {
-        "tempoBpm": 60,
-        "strictnessPercent": 90,
-        "motionBlendPercent": 25
+        "tempoBpm": 25,
+        "strictnessPercent": 100,
+        "motionBlendPercent": 0,
+        "swapOrientation": false,
+        "reverseDirection": false,
+        "lineDistance": 0.12751116071428567,
+        "horizontalLineY": 0.53,
+        "handMode": "both",
+        "trailEnabled": true,
+        "trailSmoothing": true,
+        "trailSeconds": 2
       },
       "2": {
-        "tempoBpm": 85,
-        "strictnessPercent": 105,
-        "motionBlendPercent": 40
+        "tempoBpm": 25,
+        "strictnessPercent": 100,
+        "motionBlendPercent": 100,
+        "swapOrientation": false,
+        "reverseDirection": false,
+        "lineDistance": 0.12751116071428567,
+        "horizontalLineY": 0.53,
+        "handMode": "both",
+        "trailEnabled": true,
+        "trailSmoothing": true,
+        "trailSeconds": 2
       },
       "selectedSlot": 0
     },
     "1": {
       "0": {
-        "tempoBpm": 30,
+        "tempoBpm": 10,
         "strictnessPercent": 70,
-        "motionBlendPercent": 0
+        "motionBlendPercent": 0,
+        "swapOrientation": false,
+        "reverseDirection": false,
+        "lineDistance": 0.13780071924603177,
+        "horizontalLineY": 0.53,
+        "handMode": "both",
+        "trailEnabled": true,
+        "trailSmoothing": true,
+        "trailSeconds": 2
       },
       "1": {
-        "tempoBpm": 60,
-        "strictnessPercent": 95,
-        "motionBlendPercent": 25
+        "tempoBpm": 25,
+        "strictnessPercent": 105,
+        "motionBlendPercent": 20,
+        "swapOrientation": false,
+        "reverseDirection": false,
+        "lineDistance": 0.13780071924603177,
+        "horizontalLineY": 0.53,
+        "handMode": "both",
+        "trailEnabled": true,
+        "trailSmoothing": true,
+        "trailSeconds": 2
       },
       "2": {
-        "tempoBpm": 100,
-        "strictnessPercent": 115,
-        "motionBlendPercent": 50
+        "tempoBpm": 35,
+        "strictnessPercent": 140,
+        "motionBlendPercent": 100,
+        "swapOrientation": false,
+        "reverseDirection": false,
+        "lineDistance": 0.13780071924603177,
+        "horizontalLineY": 0.53,
+        "handMode": "both",
+        "trailEnabled": true,
+        "trailSmoothing": true,
+        "trailSeconds": 2
       },
       "selectedSlot": 0
     },
     "2": {
+      "0": {
+        "tempoBpm": 10,
+        "strictnessPercent": 70,
+        "motionBlendPercent": 0,
+        "swapOrientation": false,
+        "reverseDirection": false,
+        "lineDistance": 0.1337952628968254,
+        "horizontalLineY": 0.53,
+        "handMode": "both",
+        "trailEnabled": true,
+        "trailSmoothing": true,
+        "trailSeconds": 2
+      },
+      "1": {
+        "tempoBpm": 25,
+        "strictnessPercent": 110,
+        "motionBlendPercent": 0,
+        "swapOrientation": false,
+        "reverseDirection": false,
+        "lineDistance": 0.1337952628968254,
+        "horizontalLineY": 0.53,
+        "lineEnds": {
+          "vertical": {
+            "left": [
+              0.30217151675485004,
+              0.86
+            ],
+            "right": [
+              0.30217151675485004,
+              0.86
+            ]
+          },
+          "horizontal": {
+            "left": null,
+            "right": null
+          }
+        },
+        "handMode": "both",
+        "trailEnabled": true,
+        "trailSmoothing": true,
+        "trailSeconds": 2
+      },
       "selectedSlot": 0
     },
     "3": {
+      "0": {
+        "tempoBpm": 10,
+        "strictnessPercent": 70,
+        "motionBlendPercent": 0,
+        "swapOrientation": false,
+        "reverseDirection": false,
+        "lineDistance": 0.1445374503968254,
+        "horizontalLineY": 0.53,
+        "lineEnds": {
+          "vertical": {
+            "left": [
+              0.3028880070546737,
+              0.8503273809523809
+            ],
+            "right": [
+              0.3028880070546737,
+              0.8503273809523809
+            ]
+          },
+          "horizontal": {
+            "left": null,
+            "right": null
+          }
+        },
+        "handMode": "both",
+        "trailEnabled": true,
+        "trailSmoothing": true,
+        "trailSeconds": 2
+      },
+      "1": {
+        "tempoBpm": 25,
+        "strictnessPercent": 105,
+        "motionBlendPercent": 0,
+        "swapOrientation": false,
+        "reverseDirection": false,
+        "lineDistance": 0.1366133432539683,
+        "horizontalLineY": 0.53,
+        "lineEnds": {
+          "vertical": {
+            "left": [
+              0.2924823633156966,
+              0.86
+            ],
+            "right": [
+              0.2924823633156966,
+              0.86
+            ]
+          },
+          "horizontal": {
+            "left": null,
+            "right": null
+          }
+        },
+        "handMode": "both",
+        "trailEnabled": true,
+        "trailSmoothing": true,
+        "trailSeconds": 2
+      },
       "selectedSlot": 0
     },
     "4": {
+      "0": {
+        "tempoBpm": 10,
+        "strictnessPercent": 100,
+        "motionBlendPercent": 0,
+        "swapOrientation": false,
+        "reverseDirection": false,
+        "lineDistance": 0.16179315476190484,
+        "horizontalLineY": 0.53,
+        "handMode": "both",
+        "trailEnabled": true,
+        "trailSmoothing": true,
+        "trailSeconds": 2
+      },
       "selectedSlot": 0
     },
     "5": {
+      "0": {
+        "tempoBpm": 10,
+        "strictnessPercent": 100,
+        "motionBlendPercent": 0,
+        "swapOrientation": false,
+        "reverseDirection": false,
+        "lineDistance": 0.1766338045634921,
+        "horizontalLineY": 0.53,
+        "handMode": "both",
+        "trailEnabled": true,
+        "trailSmoothing": true,
+        "trailSeconds": 2
+      },
+      "1": {
+        "tempoBpm": 10,
+        "strictnessPercent": 100,
+        "motionBlendPercent": 0,
+        "swapOrientation": false,
+        "reverseDirection": true,
+        "lineDistance": 0.1766338045634921,
+        "horizontalLineY": 0.53,
+        "handMode": "both",
+        "trailEnabled": true,
+        "trailSmoothing": true,
+        "trailSeconds": 2
+      },
+      "selectedSlot": 0
+    },
+    "6": {
+      "0": {
+        "tempoBpm": 10,
+        "strictnessPercent": 100,
+        "motionBlendPercent": 0,
+        "swapOrientation": false,
+        "reverseDirection": false,
+        "lineDistance": 0.11118861607142856,
+        "horizontalLineY": 0.803693783068783,
+        "lineEnds": {
+          "vertical": {
+            "left": [
+              0.3082671957671958,
+              0.7989880952380953
+            ],
+            "right": null
+          },
+          "horizontal": {
+            "left": null,
+            "right": [
+              0.5643750000000001,
+              0.7701295882936507
+            ]
+          }
+        },
+        "handMode": "both",
+        "trailEnabled": true,
+        "trailSmoothing": true,
+        "trailSeconds": 2
+      },
+      "1": {
+        "tempoBpm": 10,
+        "strictnessPercent": 100,
+        "motionBlendPercent": 0,
+        "swapOrientation": false,
+        "reverseDirection": false,
+        "lineDistance": 0.10237785218253967,
+        "horizontalLineY": 0.42666005291005293,
+        "lineEnds": {
+          "vertical": {
+            "left": [
+              0.4359016754850088,
+              0.8245833333333334
+            ],
+            "right": null
+          },
+          "horizontal": {
+            "left": null,
+            "right": [
+              0.5643750000000001,
+              0.7634083581349207
+            ]
+          }
+        },
+        "handMode": "both",
+        "trailEnabled": true,
+        "trailSmoothing": true,
+        "trailSeconds": 2
+      },
+      "2": {
+        "tempoBpm": 20,
+        "strictnessPercent": 125,
+        "motionBlendPercent": 0,
+        "swapOrientation": true,
+        "reverseDirection": false,
+        "lineDistance": 0.10237785218253967,
+        "horizontalLineY": 0.8456856261022927,
+        "lineEnds": {
+          "vertical": {
+            "left": [
+              0.29946538800705463,
+              0.8467008377425044
+            ],
+            "right": null
+          },
+          "horizontal": {
+            "left": null,
+            "right": null
+          }
+        },
+        "handMode": "both",
+        "trailEnabled": true,
+        "trailSmoothing": true,
+        "trailSeconds": 2
+      },
+      "selectedSlot": 0
+    },
+    "7": {
+      "0": {
+        "tempoBpm": 10,
+        "strictnessPercent": 70,
+        "motionBlendPercent": 0,
+        "swapOrientation": false,
+        "reverseDirection": false,
+        "lineDistance": 0.16,
+        "horizontalLineY": 0.53,
+        "handMode": "right",
+        "trailEnabled": true,
+        "trailSmoothing": true,
+        "trailSeconds": 2
+      },
+      "1": {
+        "tempoBpm": 10,
+        "strictnessPercent": 70,
+        "motionBlendPercent": 0,
+        "swapOrientation": false,
+        "reverseDirection": false,
+        "lineDistance": 0.16,
+        "horizontalLineY": 0.53,
+        "handMode": "left",
+        "trailEnabled": true,
+        "trailSmoothing": true,
+        "trailSeconds": 2
+      },
+      "2": {
+        "tempoBpm": 10,
+        "strictnessPercent": 70,
+        "motionBlendPercent": 0,
+        "swapOrientation": false,
+        "reverseDirection": false,
+        "lineDistance": 0.1772848462301587,
+        "horizontalLineY": 0.53,
+        "handMode": "both",
+        "trailEnabled": true,
+        "trailSmoothing": true,
+        "trailSeconds": 2
+      },
+      "3": {
+        "tempoBpm": 30,
+        "strictnessPercent": 70,
+        "motionBlendPercent": 0,
+        "swapOrientation": false,
+        "reverseDirection": false,
+        "lineDistance": 0.173508804563492,
+        "horizontalLineY": 0.53,
+        "handMode": "both",
+        "trailEnabled": true,
+        "trailSmoothing": true,
+        "trailSeconds": 2
+      },
       "selectedSlot": 0
     }
   },
@@ -31242,244 +32918,52 @@
       "1": {
         "sequence": [
           {
-            "row": 15,
-            "col": 7,
-            "hand": "right"
-          },
-          {
-            "row": 15,
-            "col": 22,
-            "hand": "left"
-          },
-          {
-            "row": 15,
-            "col": 8,
-            "hand": "right"
-          },
-          {
-            "row": 15,
-            "col": 21,
-            "hand": "left"
-          },
-          {
-            "row": 15,
-            "col": 9,
-            "hand": "right"
-          },
-          {
-            "row": 15,
-            "col": 20,
-            "hand": "left"
-          },
-          {
-            "row": 15,
-            "col": 10,
-            "hand": "right"
-          },
-          {
-            "row": 15,
-            "col": 19,
-            "hand": "left"
-          },
-          {
-            "row": 15,
-            "col": 11,
-            "hand": "right"
-          },
-          {
-            "row": 15,
-            "col": 18,
-            "hand": "left"
-          },
-          {
-            "row": 15,
-            "col": 12,
-            "hand": "right"
-          },
-          {
-            "row": 15,
-            "col": 17,
-            "hand": "left"
-          },
-          {
-            "row": 14,
-            "col": 12,
-            "hand": "right"
-          },
-          {
-            "row": 14,
-            "col": 17,
-            "hand": "left"
-          },
-          {
-            "row": 14,
-            "col": 11,
-            "hand": "right"
-          },
-          {
-            "row": 14,
-            "col": 18,
-            "hand": "left"
-          },
-          {
-            "row": 14,
-            "col": 10,
-            "hand": "right"
-          },
-          {
-            "row": 14,
-            "col": 19,
-            "hand": "left"
-          },
-          {
-            "row": 14,
-            "col": 9,
-            "hand": "right"
-          },
-          {
-            "row": 14,
-            "col": 20,
-            "hand": "left"
-          },
-          {
-            "row": 14,
-            "col": 8,
-            "hand": "right"
-          },
-          {
-            "row": 14,
-            "col": 21,
-            "hand": "left"
-          },
-          {
-            "row": 14,
-            "col": 7,
-            "hand": "right"
-          },
-          {
-            "row": 14,
-            "col": 22,
-            "hand": "left"
-          },
-          {
-            "row": 13,
-            "col": 7,
-            "hand": "right"
-          },
-          {
-            "row": 13,
-            "col": 22,
-            "hand": "left"
-          },
-          {
-            "row": 13,
-            "col": 8,
-            "hand": "right"
-          },
-          {
-            "row": 13,
-            "col": 21,
-            "hand": "left"
-          },
-          {
-            "row": 13,
-            "col": 9,
-            "hand": "right"
-          },
-          {
-            "row": 13,
-            "col": 20,
-            "hand": "left"
-          },
-          {
-            "row": 13,
-            "col": 10,
-            "hand": "right"
-          },
-          {
-            "row": 13,
-            "col": 19,
-            "hand": "left"
-          },
-          {
-            "row": 13,
-            "col": 11,
-            "hand": "right"
-          },
-          {
-            "row": 13,
-            "col": 18,
-            "hand": "left"
-          },
-          {
-            "row": 13,
-            "col": 12,
-            "hand": "right"
-          },
-          {
-            "row": 13,
-            "col": 17,
-            "hand": "left"
-          },
-          {
-            "row": 12,
-            "col": 12,
-            "hand": "right"
-          },
-          {
-            "row": 12,
-            "col": 17,
-            "hand": "left"
-          },
-          {
-            "row": 11,
-            "col": 12,
-            "hand": "right"
-          },
-          {
-            "row": 11,
-            "col": 17,
-            "hand": "left"
-          },
-          {
-            "row": 10,
-            "col": 12,
-            "hand": "right"
-          },
-          {
-            "row": 10,
-            "col": 17,
-            "hand": "left"
-          },
-          {
-            "row": 9,
-            "col": 12,
-            "hand": "right"
-          },
-          {
-            "row": 9,
-            "col": 17,
-            "hand": "left"
-          },
-          {
-            "row": 8,
-            "col": 12,
-            "hand": "right"
-          },
-          {
-            "row": 8,
-            "col": 17,
-            "hand": "left"
-          },
-          {
             "row": 7,
             "col": 12,
-            "hand": "right"
+            "hand": "right",
+            "pairId": "pmv5cvm01208mw"
           },
           {
             "row": 7,
             "col": 17,
-            "hand": "left"
+            "hand": "left",
+            "pairId": "pmv5cvm01208mw"
+          },
+          {
+            "row": 16,
+            "col": 12,
+            "hand": "right",
+            "pairId": "pmv5cvo8bo5cff"
+          },
+          {
+            "row": 16,
+            "col": 17,
+            "hand": "left",
+            "pairId": "pmv5cvo8bo5cff"
+          },
+          {
+            "row": 16,
+            "col": 8,
+            "hand": "right",
+            "pairId": "pmv5cvp326iewc"
+          },
+          {
+            "row": 16,
+            "col": 21,
+            "hand": "left",
+            "pairId": "pmv5cvp326iewc"
+          },
+          {
+            "row": 7,
+            "col": 8,
+            "hand": "right",
+            "pairId": "pmv5cvs2nv8x49"
+          },
+          {
+            "row": 7,
+            "col": 21,
+            "hand": "left",
+            "pairId": "pmv5cvs2nv8x49"
           }
         ],
         "gridResolution": 22,
@@ -31493,163 +32977,51 @@
         "sequence": [
           {
             "row": 6,
-            "col": 11,
-            "hand": "right"
+            "col": 17,
+            "hand": "left",
+            "pairId": "pmv5cw7f3v100l"
           },
           {
             "row": 6,
-            "col": 18,
-            "hand": "left"
+            "col": 12,
+            "hand": "right",
+            "pairId": "pmv5cw7f3v100l"
           },
           {
-            "row": 7,
-            "col": 11,
-            "hand": "right"
+            "row": 14,
+            "col": 17,
+            "hand": "left",
+            "pairId": "pmv5cw8wd3fgyh"
           },
           {
-            "row": 7,
-            "col": 18,
-            "hand": "left"
-          },
-          {
-            "row": 8,
-            "col": 11,
-            "hand": "right"
-          },
-          {
-            "row": 8,
-            "col": 18,
-            "hand": "left"
-          },
-          {
-            "row": 9,
-            "col": 11,
-            "hand": "right"
-          },
-          {
-            "row": 9,
-            "col": 18,
-            "hand": "left"
-          },
-          {
-            "row": 10,
-            "col": 11,
-            "hand": "right"
-          },
-          {
-            "row": 10,
-            "col": 18,
-            "hand": "left"
-          },
-          {
-            "row": 11,
-            "col": 11,
-            "hand": "right"
-          },
-          {
-            "row": 11,
-            "col": 18,
-            "hand": "left"
-          },
-          {
-            "row": 12,
-            "col": 11,
-            "hand": "right"
-          },
-          {
-            "row": 12,
-            "col": 18,
-            "hand": "left"
-          },
-          {
-            "row": 12,
-            "col": 10,
-            "hand": "right"
-          },
-          {
-            "row": 12,
-            "col": 19,
-            "hand": "left"
-          },
-          {
-            "row": 12,
-            "col": 9,
-            "hand": "right"
-          },
-          {
-            "row": 12,
-            "col": 20,
-            "hand": "left"
-          },
-          {
-            "row": 12,
-            "col": 8,
-            "hand": "right"
-          },
-          {
-            "row": 12,
-            "col": 21,
-            "hand": "left"
-          },
-          {
-            "row": 11,
-            "col": 8,
-            "hand": "right"
-          },
-          {
-            "row": 11,
-            "col": 21,
-            "hand": "left"
-          },
-          {
-            "row": 10,
-            "col": 8,
-            "hand": "right"
-          },
-          {
-            "row": 10,
-            "col": 21,
-            "hand": "left"
-          },
-          {
-            "row": 9,
-            "col": 8,
-            "hand": "right"
-          },
-          {
-            "row": 9,
-            "col": 21,
-            "hand": "left"
-          },
-          {
-            "row": 8,
-            "col": 8,
-            "hand": "right"
-          },
-          {
-            "row": 8,
-            "col": 21,
-            "hand": "left"
-          },
-          {
-            "row": 7,
-            "col": 8,
-            "hand": "right"
+            "row": 14,
+            "col": 12,
+            "hand": "right",
+            "pairId": "pmv5cw8wd3fgyh"
           },
           {
             "row": 7,
             "col": 21,
-            "hand": "left"
+            "hand": "left",
+            "pairId": "pmv5cw9nhaz02t"
           },
           {
-            "row": 6,
+            "row": 7,
             "col": 8,
-            "hand": "right"
+            "hand": "right",
+            "pairId": "pmv5cw9nhaz02t"
           },
           {
-            "row": 6,
-            "col": 21,
-            "hand": "left"
+            "row": 14,
+            "col": 17,
+            "hand": "left",
+            "pairId": "pmv5cwabr6qak7"
+          },
+          {
+            "row": 14,
+            "col": 12,
+            "hand": "right",
+            "pairId": "pmv5cwabr6qak7"
           }
         ],
         "gridResolution": 22,
@@ -31664,70 +33036,70 @@
           {
             "row": 3,
             "col": 5,
-            "hand": "right"
+            "hand": "right",
+            "pairId": "pmv5czvgb7g3b1"
           },
           {
             "row": 3,
             "col": 10,
-            "hand": "left"
+            "hand": "left",
+            "pairId": "pmv5czvgb7g3b1"
           },
           {
-            "row": 4,
+            "row": 9,
             "col": 5,
-            "hand": "right"
+            "hand": "right",
+            "pairId": "pmv5czw5a7nbb2"
           },
           {
-            "row": 4,
+            "row": 9,
             "col": 10,
-            "hand": "left"
-          },
-          {
-            "row": 5,
-            "col": 5,
-            "hand": "right"
-          },
-          {
-            "row": 5,
-            "col": 10,
-            "hand": "left"
-          },
-          {
-            "row": 6,
-            "col": 5,
-            "hand": "right"
-          },
-          {
-            "row": 6,
-            "col": 10,
-            "hand": "left"
+            "hand": "left",
+            "pairId": "pmv5czw5a7nbb2"
           },
           {
             "row": 7,
-            "col": 5,
-            "hand": "right"
+            "col": 3,
+            "hand": "right",
+            "pairId": "pmv5czx7av8gvp"
           },
           {
             "row": 7,
-            "col": 10,
-            "hand": "left"
+            "col": 12,
+            "hand": "left",
+            "pairId": "pmv5czx7av8gvp"
           },
           {
-            "row": 8,
-            "col": 5,
-            "hand": "right"
+            "row": 5,
+            "col": 6,
+            "hand": "right",
+            "pairId": "pmv5czyg6fzy9n"
           },
           {
-            "row": 8,
-            "col": 10,
-            "hand": "left"
+            "row": 5,
+            "col": 9,
+            "hand": "left",
+            "pairId": "pmv5czyg6fzy9n"
+          },
+          {
+            "row": 3,
+            "col": 3,
+            "hand": "right",
+            "pairId": "pmv5czyyqbjniu"
+          },
+          {
+            "row": 3,
+            "col": 12,
+            "hand": "left",
+            "pairId": "pmv5czyyqbjniu"
           }
         ],
         "gridResolution": 12,
         "resolution": 1,
-        "hand": "left",
+        "hand": "auto",
         "sequentialMode": "independent",
         "symmetryMode": true,
-        "palindromMode": true
+        "palindromMode": false
       },
       "4": {
         "sequence": [
@@ -32564,33 +33936,280 @@
   "motionai.hand-independence-presets": {
     "0": {
       "0": {
+        "figureLevel": 0,
+        "figureVariation": 1,
         "variant": "soft",
         "reverse": true,
-        "strokeWidth": 0.22,
-        "scale": 0.62,
-        "figureSoftTransitionPercent": 41,
-        "sharedX": 0.26,
         "dynamicsVisible": false,
-        "sharedTempoBpm": 32,
-        "sharedY": 0.71,
-        "corner0": 0.2,
-        "length": 24.8,
-        "rotation": -90,
-        "figureLevel": 0,
-        "tempoRatio": "1:1",
-        "figureHardLinearity": 57,
         "countTimesVisible": true,
-        "corner2": 8.2,
-        "corner1": 6.9,
-        "corner4": 11.3,
-        "corner5": -1,
-        "corner3": -11.3,
-        "countVisible": true,
+        "motionDistanceVisible": false,
+        "motionTrailVisible": true,
+        "motionTrailSmoothing": true,
+        "motionDistanceStrictness": 100,
+        "tempoRatio": "1:1",
         "shape": "line",
+        "scale": 0.34,
+        "strokeWidth": 0.22,
+        "sharedX": 0.26,
+        "sharedY": 0.71,
+        "sharedTempoBpm": 14,
+        "figureHardLinearity": 57,
+        "figureSoftTransitionPercent": 41,
+        "length": 24.8,
         "width": 16.8,
-        "motionDistanceVisible": true,
         "height": 17.8,
-        "motionDistanceStrictness": 100
+        "rotation": -90,
+        "cornerHeights": [
+          0.2,
+          6.9,
+          8.2,
+          -11.3,
+          11.3,
+          -1,
+          0,
+          0
+        ],
+        "cornerOffsets": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": -0.08432539682539436,
+            "y": -5.280987394957982
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          }
+        ]
+      },
+      "1": {
+        "figureLevel": 0,
+        "figureVariation": 1,
+        "variant": "soft",
+        "reverse": false,
+        "dynamicsVisible": false,
+        "countTimesVisible": true,
+        "motionDistanceVisible": false,
+        "motionTrailVisible": true,
+        "motionTrailSmoothing": true,
+        "motionDistanceStrictness": 100,
+        "tempoRatio": "1:1",
+        "shape": "line",
+        "scale": 0.34,
+        "strokeWidth": 0.22,
+        "sharedX": 0.26,
+        "sharedY": 0.71,
+        "sharedTempoBpm": 14,
+        "figureHardLinearity": 57,
+        "figureSoftTransitionPercent": 41,
+        "length": 24.8,
+        "width": 16.8,
+        "height": 17.8,
+        "rotation": -90,
+        "cornerHeights": [
+          0.2,
+          6.9,
+          8.2,
+          -11.3,
+          11.3,
+          -1,
+          0,
+          0
+        ],
+        "cornerOffsets": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": -0.08432539682539436,
+            "y": -5.280987394957982
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          }
+        ]
+      },
+      "2": {
+        "figureLevel": 0,
+        "figureVariation": 1,
+        "variant": "hard",
+        "reverse": false,
+        "dynamicsVisible": false,
+        "countTimesVisible": true,
+        "motionDistanceVisible": false,
+        "motionTrailVisible": true,
+        "motionTrailSmoothing": true,
+        "motionDistanceStrictness": 100,
+        "tempoRatio": "0.5:1",
+        "shape": "line",
+        "scale": 0.34,
+        "strokeWidth": 0.22,
+        "sharedX": 0.13,
+        "sharedY": 0.71,
+        "sharedTempoBpm": 14,
+        "figureHardLinearity": 100,
+        "figureSoftTransitionPercent": 41,
+        "length": 19.4,
+        "width": 16.8,
+        "height": 17.8,
+        "rotation": -180,
+        "cornerHeights": [
+          0.2,
+          6.9,
+          8.2,
+          -11.3,
+          11.3,
+          -1,
+          0,
+          0
+        ],
+        "cornerOffsets": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": -0.08432539682539436,
+            "y": -5.280987394957982
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          }
+        ]
+      },
+      "3": {
+        "figureLevel": 0,
+        "figureVariation": 1,
+        "variant": "hard",
+        "reverse": false,
+        "dynamicsVisible": false,
+        "countTimesVisible": true,
+        "motionDistanceVisible": false,
+        "motionTrailVisible": true,
+        "motionTrailSmoothing": true,
+        "motionDistanceStrictness": 100,
+        "tempoRatio": "0.5:1",
+        "shape": "line",
+        "scale": 0.34,
+        "strokeWidth": 0.22,
+        "sharedX": 0.13,
+        "sharedY": 0.71,
+        "sharedTempoBpm": 14,
+        "figureHardLinearity": 100,
+        "figureSoftTransitionPercent": 41,
+        "length": 19.4,
+        "width": 16.8,
+        "height": 17.8,
+        "rotation": -180,
+        "cornerHeights": [
+          0.2,
+          6.9,
+          8.2,
+          -11.3,
+          11.3,
+          -1,
+          0,
+          0
+        ],
+        "cornerOffsets": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": -11.251167133520074,
+            "y": -5.168650793650791
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          }
+        ]
       },
       "variant": "hard",
       "reverse": true,
@@ -32623,9 +34242,11 @@
         "reverse": true,
         "dynamicsVisible": false,
         "countTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
+        "motionTrailVisible": true,
+        "motionTrailSmoothing": true,
         "motionDistanceStrictness": 100,
-        "tempoRatio": "1:1",
+        "tempoRatio": "0.25:1",
         "shape": "line",
         "scale": 0.42,
         "strokeWidth": 0.06,
@@ -32647,27 +34268,63 @@
           -1,
           0,
           0
+        ],
+        "cornerOffsets": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0.33446712018140534,
+            "y": 4.866071428571431
+          },
+          {
+            "x": 0.1325113378684799,
+            "y": 7.514172335600908
+          },
+          {
+            "x": -0.32714474678760475,
+            "y": 9.826861300075585
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          }
         ]
       },
       "1": {
         "figureLevel": 1,
         "figureVariation": 1,
-        "variant": "soft",
+        "variant": "hard",
         "reverse": true,
         "dynamicsVisible": false,
         "countTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
+        "motionTrailVisible": true,
+        "motionTrailSmoothing": true,
         "motionDistanceStrictness": 100,
-        "tempoRatio": "1:1",
+        "tempoRatio": "0.5:1",
         "shape": "line",
         "scale": 0.28,
         "strokeWidth": 0.06,
         "sharedX": 0.26,
         "sharedY": 0.79,
         "sharedTempoBpm": 32,
-        "figureHardLinearity": 57,
+        "figureHardLinearity": 87,
         "figureSoftTransitionPercent": 41,
-        "length": 24.8,
+        "length": 34,
         "width": 16.8,
         "height": 17.8,
         "rotation": -90,
@@ -32680,39 +34337,178 @@
           -1,
           0,
           0
+        ],
+        "cornerOffsets": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0.6168509070294794,
+            "y": -0.567247732426309
+          },
+          {
+            "x": 0,
+            "y": -5.127551020408166
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          }
         ]
       },
       "2": {
         "figureLevel": 1,
         "figureVariation": 1,
-        "variant": "soft",
-        "reverse": true,
+        "variant": "hard",
+        "reverse": false,
         "dynamicsVisible": false,
         "countTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
+        "motionTrailVisible": true,
+        "motionTrailSmoothing": true,
         "motionDistanceStrictness": 100,
-        "tempoRatio": "1:1",
+        "tempoRatio": "0.5:1",
         "shape": "line",
-        "scale": 0.42,
+        "scale": 0.28,
         "strokeWidth": 0.06,
         "sharedX": 0.26,
         "sharedY": 0.79,
         "sharedTempoBpm": 32,
-        "figureHardLinearity": 57,
+        "figureHardLinearity": 87,
         "figureSoftTransitionPercent": 41,
-        "length": 24.8,
+        "length": 34,
         "width": 16.8,
         "height": 17.8,
         "rotation": -90,
         "cornerHeights": [
           5.7,
-          0,
-          5.3,
-          0,
+          0.1,
+          14.3,
+          -4.9,
           11.3,
           -1,
           0,
           0
+        ],
+        "cornerOffsets": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0.6168509070294794,
+            "y": -0.567247732426309
+          },
+          {
+            "x": 0,
+            "y": -5.127551020408166
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          }
+        ]
+      },
+      "3": {
+        "figureLevel": 1,
+        "figureVariation": 1,
+        "variant": "hard",
+        "reverse": false,
+        "dynamicsVisible": false,
+        "countTimesVisible": true,
+        "motionDistanceVisible": false,
+        "motionTrailVisible": true,
+        "motionTrailSmoothing": true,
+        "motionDistanceStrictness": 100,
+        "tempoRatio": "0.5:1",
+        "shape": "square",
+        "scale": 0.28,
+        "strokeWidth": 0.06,
+        "sharedX": 0.26,
+        "sharedY": 0.79,
+        "sharedTempoBpm": 32,
+        "figureHardLinearity": 93,
+        "figureSoftTransitionPercent": 41,
+        "length": 34,
+        "width": 18.9,
+        "height": 18.2,
+        "rotation": -141,
+        "cornerHeights": [
+          5.7,
+          0.1,
+          14.3,
+          -4.9,
+          11.3,
+          -1,
+          0,
+          0
+        ],
+        "cornerOffsets": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0.6168509070294794,
+            "y": -0.567247732426309
+          },
+          {
+            "x": 0,
+            "y": -5.127551020408166
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          }
         ]
       },
       "selectedSlot": 0
@@ -32758,21 +34554,23 @@
         "reverse": true,
         "dynamicsVisible": false,
         "countTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
+        "motionTrailVisible": true,
+        "motionTrailSmoothing": true,
         "motionDistanceStrictness": 100,
-        "tempoRatio": "1:1",
+        "tempoRatio": "0.5:1",
         "shape": "line",
         "scale": 0.38,
         "strokeWidth": 0.16,
-        "sharedX": 0.26,
+        "sharedX": 0.16,
         "sharedY": 0.75,
         "sharedTempoBpm": 32,
-        "figureHardLinearity": 57,
+        "figureHardLinearity": 92,
         "figureSoftTransitionPercent": 41,
-        "length": 42.5,
+        "length": 20.2,
         "width": 16.8,
         "height": 17.8,
-        "rotation": -90,
+        "rotation": 180,
         "cornerHeights": [
           5.7,
           6.9,
@@ -32782,6 +34580,40 @@
           -0.4,
           0,
           0
+        ],
+        "cornerOffsets": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": -0.7688492063492065,
+            "y": -1.7763568394002505e-15
+          },
+          {
+            "x": 1.7496867167919827,
+            "y": -0.18796992481203212
+          },
+          {
+            "x": 1.4332706766917278,
+            "y": 0
+          },
+          {
+            "x": 0.3798558897243134,
+            "y": -1.7763568394002505e-15
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          }
         ]
       },
       "2": {
@@ -32791,7 +34623,9 @@
         "reverse": true,
         "dynamicsVisible": false,
         "countTimesVisible": true,
-        "motionDistanceVisible": true,
+        "motionDistanceVisible": false,
+        "motionTrailVisible": true,
+        "motionTrailSmoothing": true,
         "motionDistanceStrictness": 100,
         "tempoRatio": "1:1",
         "shape": "line",
@@ -32800,9 +34634,9 @@
         "sharedX": 0.26,
         "sharedY": 0.71,
         "sharedTempoBpm": 32,
-        "figureHardLinearity": 63,
+        "figureHardLinearity": 85,
         "figureSoftTransitionPercent": 41,
-        "length": 42.5,
+        "length": 26.3,
         "width": 16.8,
         "height": 17.8,
         "rotation": -90,
@@ -32815,6 +34649,40 @@
           -0.4,
           0,
           0
+        ],
+        "cornerOffsets": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 0,
+            "y": 0
+          }
         ]
       },
       "3": {
@@ -34104,121 +35972,484 @@
   },
   "motionai.square-exercise-panel-settings-points": {
     "pointEditMode": false,
-    "pointSelectedSlot": 4,
+    "pointSelectedSlot": 1,
     "pointSelectedHand": "auto",
-    "pointSequenceMode": "simultaneous",
+    "pointSequenceMode": "independent",
     "pointSymmetryMode": true,
     "pointPalindromMode": true,
     "pointSequence": [
       {
-        "row": 3,
-        "col": 6,
-        "hand": "right"
-      },
-      {
-        "row": 3,
-        "col": 9,
-        "hand": "left"
-      },
-      {
-        "row": 4,
-        "col": 6,
-        "hand": "right"
-      },
-      {
-        "row": 4,
-        "col": 9,
-        "hand": "left"
-      },
-      {
-        "row": 5,
-        "col": 6,
-        "hand": "right"
-      },
-      {
-        "row": 5,
-        "col": 9,
-        "hand": "left"
-      },
-      {
-        "row": 6,
-        "col": 6,
-        "hand": "right"
-      },
-      {
-        "row": 6,
-        "col": 9,
-        "hand": "left"
+        "row": 7,
+        "col": 12,
+        "hand": "right",
+        "pairId": "pmv5cvm01208mw"
       },
       {
         "row": 7,
-        "col": 6,
-        "hand": "right"
+        "col": 17,
+        "hand": "left",
+        "pairId": "pmv5cvm01208mw"
+      },
+      {
+        "row": 16,
+        "col": 12,
+        "hand": "right",
+        "pairId": "pmv5cvo8bo5cff"
+      },
+      {
+        "row": 16,
+        "col": 17,
+        "hand": "left",
+        "pairId": "pmv5cvo8bo5cff"
+      },
+      {
+        "row": 16,
+        "col": 8,
+        "hand": "right",
+        "pairId": "pmv5cvp326iewc"
+      },
+      {
+        "row": 16,
+        "col": 21,
+        "hand": "left",
+        "pairId": "pmv5cvp326iewc"
       },
       {
         "row": 7,
-        "col": 9,
-        "hand": "left"
+        "col": 8,
+        "hand": "right",
+        "pairId": "pmv5cvs2nv8x49"
       },
       {
         "row": 7,
-        "col": 5,
-        "hand": "right"
+        "col": 21,
+        "hand": "left",
+        "pairId": "pmv5cvs2nv8x49"
+      }
+    ]
+  },
+  "motionai.exam.results.level.1": [
+    {
+      "id": 1791811511347,
+      "timestamp": "2026-10-12T13:25:11.347Z",
+      "totalScore": 83,
+      "tasks": [
+        {
+          "id": 1,
+          "chapterId": 2,
+          "levelIndex": 0,
+          "presetIndex": 0,
+          "score": 83,
+          "timestamp": "2026-10-12T13:25:11.346Z"
+        }
+      ]
+    },
+    {
+      "id": 1791810674416,
+      "timestamp": "2026-10-12T13:11:14.416Z",
+      "totalScore": 89,
+      "tasks": [
+        {
+          "id": 1,
+          "chapterId": 2,
+          "levelIndex": 0,
+          "presetIndex": 0,
+          "score": 89,
+          "timestamp": "2026-10-12T13:11:14.416Z"
+        }
+      ]
+    },
+    {
+      "id": 1791810522581,
+      "timestamp": "2026-10-12T13:08:42.581Z",
+      "totalScore": 99,
+      "tasks": [
+        {
+          "id": 1,
+          "chapterId": 2,
+          "levelIndex": 0,
+          "presetIndex": 0,
+          "score": 99,
+          "timestamp": "2026-10-12T13:08:42.581Z"
+        }
+      ]
+    },
+    {
+      "id": 1791810324358,
+      "timestamp": "2026-10-12T13:05:24.358Z",
+      "totalScore": 72,
+      "tasks": [
+        {
+          "id": 1,
+          "chapterId": 2,
+          "levelIndex": 0,
+          "presetIndex": 0,
+          "score": 72,
+          "timestamp": "2026-10-12T13:05:24.358Z"
+        }
+      ]
+    },
+    {
+      "id": 1791810119101,
+      "timestamp": "2026-10-12T13:01:59.101Z",
+      "totalScore": 95,
+      "tasks": [
+        {
+          "id": 1,
+          "chapterId": 2,
+          "levelIndex": 0,
+          "presetIndex": 0,
+          "score": 95,
+          "timestamp": "2026-10-12T13:01:59.101Z"
+        }
+      ]
+    },
+    {
+      "id": 1791810084646,
+      "timestamp": "2026-10-12T13:01:24.646Z",
+      "totalScore": 100,
+      "tasks": [
+        {
+          "id": 1,
+          "chapterId": 2,
+          "levelIndex": 0,
+          "presetIndex": 0,
+          "score": 100,
+          "timestamp": "2026-10-12T13:01:24.646Z"
+        }
+      ]
+    },
+    {
+      "id": 1791807759544,
+      "timestamp": "2026-10-12T12:22:39.544Z",
+      "totalScore": 71,
+      "tasks": [
+        {
+          "id": 1,
+          "chapterId": 2,
+          "levelIndex": 0,
+          "presetIndex": 0,
+          "score": 71,
+          "timestamp": "2026-10-12T12:22:39.544Z"
+        }
+      ]
+    },
+    {
+      "id": 1791807720415,
+      "timestamp": "2026-10-12T12:22:00.415Z",
+      "totalScore": 97,
+      "tasks": [
+        {
+          "id": 1,
+          "chapterId": 2,
+          "levelIndex": 0,
+          "presetIndex": 0,
+          "score": 97,
+          "timestamp": "2026-10-12T12:22:00.415Z"
+        }
+      ]
+    },
+    {
+      "id": 1791807689501,
+      "timestamp": "2026-10-12T12:21:29.501Z",
+      "totalScore": 98,
+      "tasks": [
+        {
+          "id": 1,
+          "chapterId": 2,
+          "levelIndex": 0,
+          "presetIndex": 0,
+          "score": 98,
+          "timestamp": "2026-10-12T12:21:29.501Z"
+        }
+      ]
+    },
+    {
+      "id": 1791806594692,
+      "timestamp": "2026-10-12T12:03:14.692Z",
+      "totalScore": 100,
+      "tasks": [
+        {
+          "id": 1,
+          "chapterId": 2,
+          "levelIndex": 0,
+          "presetIndex": 0,
+          "score": 100,
+          "timestamp": "2026-10-12T12:03:14.692Z"
+        }
+      ]
+    },
+    {
+      "id": 1790753416005,
+      "timestamp": "2026-09-30T07:30:16.005Z",
+      "totalScore": 86.30354304235237,
+      "tasks": [
+        {
+          "id": 1790753332924,
+          "chapterId": 3,
+          "levelIndex": 0,
+          "presetIndex": 0,
+          "score": 86.30354304235237,
+          "timestamp": "2026-09-30T07:30:16.005Z"
+        }
+      ]
+    }
+  ],
+  "motionai.exam.results.level.0": [
+    {
+      "id": 1791798317257,
+      "timestamp": "2026-10-12T09:45:17.257Z",
+      "totalScore": 0,
+      "tasks": [
+        {
+          "id": 1,
+          "chapterId": 1,
+          "levelIndex": 0,
+          "presetIndex": 0,
+          "score": 0,
+          "timestamp": "2026-10-12T09:42:56.997Z"
+        },
+        {
+          "id": 1790589036737,
+          "chapterId": 2,
+          "levelIndex": 0,
+          "presetIndex": 0,
+          "score": 0,
+          "timestamp": "2026-10-12T09:43:20.369Z"
+        },
+        {
+          "id": 1790589050297,
+          "chapterId": 3,
+          "levelIndex": 0,
+          "presetIndex": 0,
+          "score": 0,
+          "timestamp": "2026-10-12T09:43:43.737Z"
+        },
+        {
+          "id": 1790589055131,
+          "chapterId": 3,
+          "levelIndex": 0,
+          "presetIndex": 1,
+          "score": 0,
+          "timestamp": "2026-10-12T09:44:07.100Z"
+        },
+        {
+          "id": 1790589043474,
+          "chapterId": 2,
+          "levelIndex": 2,
+          "presetIndex": 0,
+          "score": 0,
+          "timestamp": "2026-10-12T09:44:30.491Z"
+        },
+        {
+          "id": 1790589059305,
+          "chapterId": 4,
+          "levelIndex": 1,
+          "presetIndex": 0,
+          "score": 0,
+          "timestamp": "2026-10-12T09:44:53.861Z"
+        },
+        {
+          "id": 1790589074464,
+          "chapterId": 4,
+          "levelIndex": 1,
+          "presetIndex": 1,
+          "score": 0,
+          "timestamp": "2026-10-12T09:45:17.257Z"
+        }
+      ]
+    }
+  ],
+  "motionai.exam.results.level.2": [
+    {
+      "id": 1791811677190,
+      "timestamp": "2026-10-12T13:27:57.190Z",
+      "totalScore": 70.32673932900137,
+      "tasks": [
+        {
+          "id": 1,
+          "chapterId": 3,
+          "levelIndex": 0,
+          "presetIndex": 0,
+          "score": 70.32673932900137,
+          "timestamp": "2026-10-12T13:27:57.190Z"
+        }
+      ]
+    },
+    {
+      "id": 1791811627945,
+      "timestamp": "2026-10-12T13:27:07.945Z",
+      "totalScore": 95.14467167910517,
+      "tasks": [
+        {
+          "id": 1,
+          "chapterId": 3,
+          "levelIndex": 0,
+          "presetIndex": 0,
+          "score": 95.14467167910517,
+          "timestamp": "2026-10-12T13:27:07.945Z"
+        }
+      ]
+    },
+    {
+      "id": 1791811554428,
+      "timestamp": "2026-10-12T13:25:54.428Z",
+      "totalScore": 95.12647922720512,
+      "tasks": [
+        {
+          "id": 1,
+          "chapterId": 3,
+          "levelIndex": 0,
+          "presetIndex": 0,
+          "score": 95.12647922720512,
+          "timestamp": "2026-10-12T13:25:54.428Z"
+        }
+      ]
+    }
+  ],
+  "motionai.exam.tasks.level.2": [
+    {
+      "id": 1,
+      "chapterId": 2,
+      "levelIndex": 0,
+      "presetIndex": 0
+    }
+  ],
+  "motionai.dynamic-figure-corner-offsets": {
+    "0": [
+      {
+        "x": 0,
+        "y": 0
       },
       {
-        "row": 7,
-        "col": 10,
-        "hand": "left"
+        "x": 0,
+        "y": 0
       },
       {
-        "row": 7,
-        "col": 4,
-        "hand": "right"
+        "x": 0,
+        "y": 0
       },
       {
-        "row": 7,
-        "col": 11,
-        "hand": "left"
+        "x": 0,
+        "y": 0
       },
       {
-        "row": 6,
-        "col": 4,
-        "hand": "right"
+        "x": 0,
+        "y": 0
       },
       {
-        "row": 6,
-        "col": 11,
-        "hand": "left"
+        "x": 0,
+        "y": 0
       },
       {
-        "row": 5,
-        "col": 4,
-        "hand": "right"
+        "x": 0,
+        "y": 0
       },
       {
-        "row": 5,
-        "col": 11,
-        "hand": "left"
+        "x": 0,
+        "y": 0
+      }
+    ],
+    "1": [
+      {
+        "x": 0,
+        "y": 0
       },
       {
-        "row": 4,
-        "col": 4,
-        "hand": "right"
+        "x": 0,
+        "y": 0
       },
       {
-        "row": 4,
-        "col": 11,
-        "hand": "left"
+        "x": 0,
+        "y": 0
       },
       {
-        "row": 3,
-        "col": 4,
-        "hand": "right"
+        "x": 0,
+        "y": 0
       },
       {
-        "row": 3,
-        "col": 11,
-        "hand": "left"
+        "x": 0,
+        "y": 0
+      },
+      {
+        "x": 0,
+        "y": 0
+      },
+      {
+        "x": 0,
+        "y": 0
+      },
+      {
+        "x": 0,
+        "y": 0
+      }
+    ],
+    "2": [
+      {
+        "x": 0,
+        "y": 0
+      },
+      {
+        "x": 0,
+        "y": 0
+      },
+      {
+        "x": 0,
+        "y": 0
+      },
+      {
+        "x": 0,
+        "y": 0
+      },
+      {
+        "x": 0,
+        "y": 0
+      },
+      {
+        "x": 0,
+        "y": 0
+      },
+      {
+        "x": 0,
+        "y": 0
+      },
+      {
+        "x": 0,
+        "y": 0
+      }
+    ],
+    "3": [
+      {
+        "x": 0,
+        "y": 0
+      },
+      {
+        "x": 0,
+        "y": 0
+      },
+      {
+        "x": -0.06432411674347094,
+        "y": 0.2041730670762938
+      },
+      {
+        "x": 0,
+        "y": 0
+      },
+      {
+        "x": 0,
+        "y": 0
+      },
+      {
+        "x": 0,
+        "y": 0
+      },
+      {
+        "x": 0,
+        "y": 0
+      },
+      {
+        "x": 0,
+        "y": 0
       }
     ]
   }
