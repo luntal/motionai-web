@@ -81,6 +81,8 @@ export function getMotionAiActiveUserId() {
   try {
     const value = localStorage.getItem(MOTIONAI_ACTIVE_USER_STORAGE_KEY);
     cachedActiveUserId = normalizeMotionAiUserId(value, 'default');
+    // The stored id only carries a user switch over the reload it triggers; any later reload starts as default.
+    localStorage.removeItem(MOTIONAI_ACTIVE_USER_STORAGE_KEY);
   } catch (error) {
     cachedActiveUserId = 'default';
   }

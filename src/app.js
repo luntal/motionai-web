@@ -6818,7 +6818,13 @@ function createHandIndependencePanel() {
     if (typeof safeNext.reverse === 'boolean') managerRef?.setHandIndependenceReverse(safeNext.reverse);
     if (typeof safeNext.dynamicsVisible === 'boolean') managerRef?.setHandIndependenceDynamicsVisible(safeNext.dynamicsVisible);
     if (typeof safeNext.countTimesVisible === 'boolean') managerRef?.setHandIndependenceCountTimesVisible(safeNext.countTimesVisible);
-    if (typeof safeNext.motionDistanceVisible === 'boolean') managerRef?.setMotionDistanceVisible(safeNext.motionDistanceVisible);
+    // A level or preset always defines the chart state; one saved without the flag shows no chart instead of inheriting the previous one.
+    if (typeof safeNext.motionDistanceVisible !== 'boolean' && Number.isInteger(Number(safeNext.figureLevel))) {
+      settings.motionDistanceVisible = false;
+    }
+    settings.motionDistanceVisible = settings.motionDistanceVisible === true;
+    motionDistanceInput.checked = settings.motionDistanceVisible;
+    managerRef?.setMotionDistanceVisible(settings.motionDistanceVisible);
     if (typeof safeNext.motionTrailVisible === 'boolean') {
       motionTrailInput.checked = safeNext.motionTrailVisible;
       managerRef?.setMotionTrailVisible(safeNext.motionTrailVisible);
