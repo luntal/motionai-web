@@ -36,3 +36,7 @@ Durch visuelles Feedback und Analysefunktionen wird das eigenständige Üben eff
 Anleitung folgt – aktuell befindet sich das Projekt in Entwicklung.
 
 ---
+
+## Backend-Anbindung
+
+Ohne Anmeldung läuft die App als lokaler Gast (nur `localStorage`, kein Sync); über „Anmelden“ (`/api/auth/*`) wird auf das Konto gewechselt. Eingeloggt werden Einstellungen (max. 1 MiB, entprellt) per `PUT /api/settings` gespeichert, Prüfungsergebnisse per `POST /api/exams` (`exam_type` = `exam-level-<n>`). `localStorage` dient nur noch als Cache pro Konto und wird beim Abmelden gelöscht. Admin-Konten arbeiten im lokalen DozentIn-Profil. Code: `src/api.js`, `src/authUi.js`.

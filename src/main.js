@@ -1,4 +1,6 @@
 import { initApp } from './app.js';
+import { flushSettings } from './api.js';
+import { startAuthenticatedSession } from './authUi.js';
 import {
   fetchMotionAiDefaultsSnapshot,
   getMotionAiActiveUserId,
@@ -177,6 +179,7 @@ if (typeof window !== 'undefined') {
       const snapshot = await fetchMotionAiDefaultsSnapshot();
       const success = window.loadDefaultSettings(snapshot);
       if (success) {
+        await flushSettings().catch(() => false);
         window.location.reload();
       }
       return success;
@@ -188,4 +191,21 @@ if (typeof window !== 'undefined') {
   };
 }
 
-initApp();
+function showStartupError(message) {
+  const box = document.createElement('div');
+  box.style.cssText = 'position:fixed;inset:0;z-index:10000;display:flex;flex-direction:column;gap:12px;align-items:center;justify-content:center;background:#0a0e14;color:#fff;font:14px system-ui,sans-serif';
+  const text = document.createElement('div');
+  text.textContent = message;
+  const retry = document.createElement('button');
+  retry.textContent = 'Erneut versuchen';
+  retry.addEventListener('click', () => window.location.reload());
+  box.append(text, retry);
+  document.body.appendChild(box);
+}
+
+startAuthenticatedSession()
+  .then(() => initApp())
+  .catch((error) => {
+    console.error('MotionAI startup failed:', error);
+    showStartupError('Die Daten konnten nicht vom Server geladen werden. Bitte Verbindung prüfen.');
+  });

@@ -28,6 +28,7 @@ import {
   onCanvasResize
 } from './tracking.js';
 import { LevelManager } from './levels.js';
+import { EXAM_SYNC, getAuthenticatedUser, onExamSyncChange, syncExamResults } from './api.js';
 import {
   DEFAULT_MOTIONAI_STORAGE,
   MOTIONAI_ACTIVE_USER_STORAGE_KEY,
@@ -8600,7 +8601,10 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
     historySelect.innerHTML = '<option value="">Leistung auswählen</option>' + results.map((entry) => {
       const date = new Date(entry.timestamp || Date.now());
       const namePart = activeExamLevel === FINAL_EXAM_LEVEL && entry.name ? ` · ${escapeHtml(entry.name)}` : '';
-      return `<option value="${entry.id}">${date.toLocaleString()}${namePart} · ${entry.totalScore}%</option>`;
+      const syncMark = entry.syncStatus === EXAM_SYNC.SYNCED || !entry.syncStatus
+        ? ''
+        : entry.syncStatus === EXAM_SYNC.SYNCING ? ' · ⏳ wird gespeichert' : ' · ⚠ nicht gespeichert';
+      return `<option value="${entry.id}">${date.toLocaleString()}${namePart} · ${entry.totalScore}%${syncMark}</option>`;
     }).join('');
   };
 
@@ -8692,6 +8696,8 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
       timestamp: new Date().toISOString(),
       totalScore,
       tasks: examState.taskResults,
+      examLevel: activeExamLevel,
+      ...(getAuthenticatedUser() ? { syncStatus: EXAM_SYNC.PENDING } : {}),
       ...(activeExamLevel === FINAL_EXAM_LEVEL && examCandidateName ? { name: examCandidateName } : {})
     };
     const existingResults = loadExamResults(activeExamLevel);
@@ -8699,6 +8705,7 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
     saveExamResults(nextResults, activeExamLevel);
     renderHistory();
     showResultDialog(resultEntry);
+    syncExamResults(activeExamLevel).catch((error) => console.error('Exam sync failed:', error));
     stopExam();
   };
 
@@ -9084,6 +9091,15 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
   renderTasks();
   renderHistory();
 
+  onExamSyncChange((levelIndex) => {
+    if (levelIndex !== activeExamLevel) {
+      return;
+    }
+    const selectedValue = historySelect.value;
+    renderHistory();
+    historySelect.value = selectedValue;
+  });
+
   return {
     panel,
     setVisible: (visible) => applyPanelVisibilityState(panel, visible),
@@ -9112,254 +9128,11 @@ function createExamPanel({ stageFrame, figurePanel, dynamicFigurePanel, handInde
   };
 }
 
-function createUserStorageSelector(defaultsSnapshot = DEFAULT_MOTIONAI_STORAGE) {
-  const container = document.createElement('div');
-  container.style.position = 'fixed';
-  container.style.top = '12px';
-  container.style.left = '50%';
-  container.style.transform = 'translateX(-50%)';
-  container.style.zIndex = '9999';
-  container.style.fontSize = '13px';
-  container.style.fontFamily = 'system-ui, sans-serif';
-  container.style.color = '#fff';
-
-  const toggleButton = document.createElement('button');
-  toggleButton.type = 'button';
-  toggleButton.style.display = 'flex';
-  toggleButton.style.alignItems = 'center';
-  toggleButton.style.gap = '8px';
-  toggleButton.style.padding = '8px 14px';
-  toggleButton.style.borderRadius = '999px';
-  toggleButton.style.background = 'rgba(20, 26, 35, 0.88)';
-  toggleButton.style.border = '1px solid rgba(255,255,255,0.18)';
-  toggleButton.style.boxShadow = '0 8px 30px rgba(0, 0, 0, 0.2)';
-  toggleButton.style.color = '#fff';
-  toggleButton.style.cursor = 'pointer';
-
-  const panel = document.createElement('div');
-  panel.style.position = 'absolute';
-  panel.style.top = 'calc(100% + 8px)';
-  panel.style.left = '50%';
-  panel.style.transform = 'translateX(-50%)';
-  panel.style.minWidth = '220px';
-  panel.style.padding = '10px';
-  panel.style.borderRadius = '14px';
-  panel.style.background = 'rgba(20, 26, 35, 0.94)';
-  panel.style.border = '1px solid rgba(255,255,255,0.18)';
-  panel.style.boxShadow = '0 8px 30px rgba(0, 0, 0, 0.25)';
-  panel.style.display = 'none';
-  panel.style.flexDirection = 'column';
-  panel.style.gap = '6px';
-
-  const userList = document.createElement('div');
-  userList.style.display = 'flex';
-  userList.style.flexDirection = 'column';
-  userList.style.gap = '4px';
-  userList.style.maxHeight = '220px';
-  userList.style.overflowY = 'auto';
-
-  const createUserButton = document.createElement('button');
-  createUserButton.type = 'button';
-  createUserButton.textContent = '+ Neuer Nutzer';
-  createUserButton.style.marginTop = '4px';
-  createUserButton.style.padding = '6px 10px';
-  createUserButton.style.borderRadius = '8px';
-  createUserButton.style.border = '1px solid rgba(255,255,255,0.25)';
-  createUserButton.style.background = 'rgba(255,255,255,0.08)';
-  createUserButton.style.color = '#fff';
-  createUserButton.style.cursor = 'pointer';
-
-  const logoutButton = document.createElement('button');
-  logoutButton.type = 'button';
-  logoutButton.textContent = 'Abmelden';
-  logoutButton.style.padding = '6px 10px';
-  logoutButton.style.borderRadius = '8px';
-  logoutButton.style.border = '1px solid rgba(255,255,255,0.25)';
-  logoutButton.style.background = 'rgba(255,255,255,0.08)';
-  logoutButton.style.color = '#fff';
-  logoutButton.style.cursor = 'pointer';
-  logoutButton.style.display = 'none';
-
-  function updateToggleLabel() {
-    const activeUserId = getMotionAiActiveUserId();
-    if (activeUserId === 'default') {
-      toggleButton.textContent = '👤 Anmelden';
-      return;
-    }
-    const registry = getMotionAiUserRegistry();
-    const activeEntry = registry.find((entry) => entry.id === activeUserId);
-    toggleButton.textContent = `👤 ${activeEntry ? activeEntry.label : activeUserId}`;
-  }
-
-  function updateLogoutButtonVisibility() {
-    logoutButton.style.display = getMotionAiActiveUserId() === 'default' ? 'none' : 'block';
-  }
-
-  function renderUserList() {
-    userList.innerHTML = '';
-    const activeUserId = getMotionAiActiveUserId();
-
-    getMotionAiUserRegistry()
-      .filter((entry) => entry.id !== 'default')
-      .sort((a, b) => {
-        if (a.id === MOTIONAI_DOZENT_USER_ID) {
-          return -1;
-        }
-        if (b.id === MOTIONAI_DOZENT_USER_ID) {
-          return 1;
-        }
-        return 0;
-      })
-      .forEach((entry) => {
-        const optionWrap = document.createElement('div');
-        optionWrap.style.display = 'flex';
-        optionWrap.style.alignItems = 'center';
-        optionWrap.style.justifyContent = 'space-between';
-        optionWrap.style.gap = '6px';
-        optionWrap.style.padding = '4px 6px';
-        optionWrap.style.borderRadius = '8px';
-
-        const label = document.createElement('label');
-        label.style.display = 'flex';
-        label.style.alignItems = 'center';
-        label.style.gap = '6px';
-        label.style.cursor = 'pointer';
-        label.style.flex = '1';
-
-        const input = document.createElement('input');
-        input.type = 'radio';
-        input.name = 'motionai-user-selector';
-        input.value = entry.id;
-        input.checked = entry.id === activeUserId;
-
-        const text = document.createElement('span');
-        text.textContent = entry.label;
-
-        input.addEventListener('change', async () => {
-          if (!input.checked) {
-            return;
-          }
-
-          if (entry.id === MOTIONAI_DOZENT_USER_ID) {
-            const granted = await requestFinalExamPassword();
-            if (!granted) {
-              input.checked = false;
-              return;
-            }
-          }
-
-          setMotionAiActiveUserId(entry.id);
-          window.location.reload();
-        });
-
-        const isPermanentUser = entry.id === MOTIONAI_DOZENT_USER_ID;
-
-        const deleteButton = document.createElement('button');
-        deleteButton.type = 'button';
-        deleteButton.textContent = 'Löschen';
-        deleteButton.style.padding = '4px 8px';
-        deleteButton.style.borderRadius = '6px';
-        deleteButton.style.border = '1px solid rgba(255,255,255,0.25)';
-        deleteButton.style.background = 'rgba(255,255,255,0.08)';
-        deleteButton.style.color = '#fff';
-        deleteButton.style.cursor = 'pointer';
-        deleteButton.disabled = isPermanentUser;
-        deleteButton.style.display = isPermanentUser ? 'none' : 'inline-block';
-        deleteButton.title = isPermanentUser ? 'Der DozentIn-Account bleibt permanent.' : 'Nutzer löschen';
-        if (!isPermanentUser) {
-          deleteButton.addEventListener('click', async () => {
-            const granted = await requestFinalExamPassword();
-            if (!granted) {
-              return;
-            }
-
-            const confirmed = window.confirm(`Möchtest du den Nutzer "${entry.label}" wirklich löschen?`);
-            if (!confirmed) {
-              return;
-            }
-
-            const deleted = deleteMotionAiUser(entry.id);
-            if (!deleted) {
-              window.alert('Der Nutzer konnte nicht gelöscht werden.');
-              return;
-            }
-
-            setMotionAiActiveUserId('default');
-            window.location.reload();
-          });
-        }
-
-        label.appendChild(input);
-        label.appendChild(text);
-        optionWrap.appendChild(label);
-        optionWrap.appendChild(deleteButton);
-        userList.appendChild(optionWrap);
-      });
-
-    updateLogoutButtonVisibility();
-  }
-
-  createUserButton.addEventListener('click', () => {
-    const label = window.prompt('Name für den neuen Nutzer:');
-    if (label === null) {
-      return;
-    }
-
-    const trimmedLabel = label.trim();
-    if (!trimmedLabel) {
-      window.alert('Bitte gib einen Namen ein.');
-      return;
-    }
-
-    const created = createMotionAiUser(trimmedLabel, defaultsSnapshot);
-    if (!created) {
-      window.alert('Der Nutzer konnte nicht erstellt werden.');
-      return;
-    }
-
-    setMotionAiActiveUserId(created.id);
-    window.location.reload();
-  });
-
-  logoutButton.addEventListener('click', () => {
-    setMotionAiActiveUserId('default');
-    window.location.reload();
-  });
-
-  toggleButton.addEventListener('click', () => {
-    const isOpen = panel.style.display !== 'none';
-    if (isOpen) {
-      panel.style.display = 'none';
-      return;
-    }
-    renderUserList();
-    panel.style.display = 'flex';
-  });
-
-  document.addEventListener('click', (event) => {
-    if (!container.contains(event.target)) {
-      panel.style.display = 'none';
-    }
-  });
-
-  panel.appendChild(userList);
-  panel.appendChild(createUserButton);
-  panel.appendChild(logoutButton);
-  container.appendChild(toggleButton);
-  container.appendChild(panel);
-  document.body.appendChild(container);
-
-  updateToggleLabel();
-
-  return { container, toggleButton, panel };
-}
-
 export async function initApp() {
   const defaultsSnapshot = await fetchMotionAiDefaultsSnapshot('default');
   const dozentDefaultsSnapshot = await fetchMotionAiDefaultsSnapshot(MOTIONAI_DOZENT_USER_ID);
   ensureMotionAiDefaultUserStorage(defaultsSnapshot);
   ensureMotionAiDozentUser(dozentDefaultsSnapshot);
-  createUserStorageSelector(defaultsSnapshot);
 
   const activeDefaultsUserId = getMotionAiActiveUserId();
   const activeDefaultsSnapshot = activeDefaultsUserId === MOTIONAI_DOZENT_USER_ID ? dozentDefaultsSnapshot : defaultsSnapshot;

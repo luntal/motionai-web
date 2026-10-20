@@ -90,6 +90,33 @@ export function getMotionAiActiveUserId() {
   return cachedActiveUserId;
 }
 
+// Used by the login flow: binds this page load to the authenticated account before the app starts.
+export function initMotionAiActiveUser(userId) {
+  cachedActiveUserId = normalizeMotionAiUserId(userId, 'default');
+  return cachedActiveUserId;
+}
+
+let bucketChangeListener = null;
+let bucketWritesBlocked = false;
+
+// After logout this page instance must not persist anything for the previous account anymore.
+export function blockMotionAiBucketWrites() {
+  bucketWritesBlocked = true;
+}
+
+// Called after every successful write of a user bucket (used to sync settings to the backend).
+export function setMotionAiBucketChangeListener(listener) {
+  bucketChangeListener = typeof listener === 'function' ? listener : null;
+}
+
+export function removeMotionAiUserStorageBucket(userId = getMotionAiActiveUserId()) {
+  try {
+    localStorage.removeItem(getMotionAiUserStorageBucketKey(userId));
+  } catch (error) {
+    // Ignore storage failures.
+  }
+}
+
 export function setMotionAiActiveUserId(userId = 'default') {
   try {
     // Intentionally do not update cachedActiveUserId: this page instance must
@@ -122,12 +149,22 @@ export function getMotionAiUserStorageBucket(userId = getMotionAiActiveUserId())
 
 export function setMotionAiUserStorageBucket(userId = getMotionAiActiveUserId(), bucket = {}) {
   const nextBucket = bucket && typeof bucket === 'object' ? bucket : {};
+  if (bucketWritesBlocked) {
+    return nextBucket;
+  }
   try {
     localStorage.setItem(getMotionAiUserStorageBucketKey(userId), JSON.stringify(nextBucket));
-    return nextBucket;
   } catch (error) {
     return nextBucket;
   }
+  if (bucketChangeListener) {
+    try {
+      bucketChangeListener(normalizeMotionAiUserId(userId, 'default'));
+    } catch (error) {
+      console.error('Bucket change listener failed:', error);
+    }
+  }
+  return nextBucket;
 }
 
 export function normalizeMotionAiBucketSnapshot(snapshot = {}) {
